@@ -27,7 +27,7 @@ export function readSelectEvents(
 
   const moved = pointer.over && (!previous.over || previous.x !== pointer.x || previous.y !== pointer.y);
   if ((moved || pointer.pressed) && hit !== null && hit !== 'arrowLeft' && hit !== 'arrowRight') {
-    events.push({ type: 'point', target: hit });
+    events.push({ type: 'point', target: hit, pressed: pointer.pressed });
   }
 
   if (input.wasPressed('confirm')) events.push({ type: 'confirm' });

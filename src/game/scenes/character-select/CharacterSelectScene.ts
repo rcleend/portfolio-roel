@@ -13,6 +13,7 @@ import { Tooltip } from '../../ui/Tooltip';
 import { windowThemes } from '../../ui/theme';
 import type { GameScene, GameStep } from '../params';
 import { drawArrows } from './arrows';
+import { drawBackdrop } from './backdrop';
 import { type CardSwitch, CardView, type CharacterPose } from './card/CardView';
 import { cardFlashAlpha, LEAVE_AT, nameOffset, stampJolt, stampOpening, switchOffsets } from './choreography';
 import { DetailsPanel } from './DetailsPanel';
@@ -30,7 +31,6 @@ import {
 } from './selectMachine';
 import { placeTooltip } from './tooltipPlacement';
 
-const BACKGROUND = { stops: ['#110e36', '#07061a'], bands: 5, dither: 'bayer2' } as const;
 const SCREEN: Rect = { x: 0, y: 0, w: 320, h: 240 };
 const TOOLTIP_WIDTH = 140;
 /** The pointer's own height, so a tooltip placed above it never hides the arrow tip. */
@@ -112,18 +112,20 @@ export class CharacterSelectScene implements GameScene {
 
   render(gfx: Gfx): void {
     const { text } = this.#services;
-    gfx.fillRect(0, 0, gfx.width, gfx.height, BACKGROUND);
+    drawBackdrop(gfx);
 
     const chosenFor = this.#chosenAt === null ? null : this.#time - this.#chosenAt;
-    const reducedMotion = this.#services.settings.reducedMotion;
+    // Reduced motion keeps the beat (pose, stamp) but drops the big bright flash and the jolt.
+    const calm = chosenFor === null || this.#services.settings.reducedMotion;
+    const flash = calm ? 0 : cardFlashAlpha(chosenFor);
     this.#card.render(gfx, {
       characterId: this.#character.id,
       time: this.#time,
       pose: this.#pose(chosenFor),
       switching: this.#switching(),
-      flash: chosenFor === null ? 0 : cardFlashAlpha(chosenFor),
-      frameLook: chosenFor !== null && cardFlashAlpha(chosenFor) >= 1 ? 'flash' : 'rest',
-      jolt: chosenFor === null || reducedMotion ? 0 : stampJolt(chosenFor),
+      flash,
+      frameLook: flash >= 1 ? 'flash' : 'rest',
+      jolt: calm ? 0 : stampJolt(chosenFor),
     });
     if (chosenFor === null) this.#renderArrows(gfx);
 
@@ -225,7 +227,7 @@ export class CharacterSelectScene implements GameScene {
     const slot = focusedSkillSlot(this.#state.focus);
     const { focusSource, phase } = this.#state;
     const visible =
-      slot !== null && phase === 'browsing' && (focusSource === 'nav' || this.#hover === this.#state.focus);
+      slot !== null && phase === 'browsing' && (focusSource !== 'hover' || this.#hover === this.#state.focus);
     if (visible) {
       const skillId = this.#character.skills[slot];
       this.#tooltip.show(skills[skillId].tooltip);
@@ -237,7 +239,7 @@ export class CharacterSelectScene implements GameScene {
   #renderTooltip(gfx: Gfx): void {
     const slot = focusedSkillSlot(this.#state.focus);
     if (!this.#tooltip.visible || slot === null) return;
-    const followPointer = this.#state.focusSource === 'pointer' && this.#pointer.over;
+    const followPointer = this.#state.focusSource !== 'nav' && this.#pointer.over;
     const anchor: Rect = followPointer
       ? { x: this.#pointer.x - 6, y: this.#pointer.y, w: 1, h: POINTER_BOX }
       : SKILL_ROWS[slot];

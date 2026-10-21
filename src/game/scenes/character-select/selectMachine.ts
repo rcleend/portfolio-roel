@@ -14,10 +14,12 @@ export type FocusTarget = 'card' | 'skill1' | 'skill2' | 'select';
 export const FOCUS_ORDER: readonly FocusTarget[] = ['card', 'skill1', 'skill2', 'select'];
 
 /**
- * How focus arrived. Pointer focus follows the hover, so its tooltip closes
- * when the pointer leaves; keyboard and pad focus is sticky.
+ * How focus arrived. Hover focus follows the pointer, so its tooltip closes
+ * when the pointer leaves; keyboard, pad and tap focus is sticky — a tap on a
+ * touch screen ends with the finger lifting off, which must not close the
+ * tooltip it just opened.
  */
-export type FocusSource = 'nav' | 'pointer';
+export type FocusSource = 'nav' | 'hover' | 'tap';
 
 export type SelectPhase = 'browsing' | 'chosen' | 'leaving';
 
@@ -35,8 +37,8 @@ export type SelectEvent =
   | { readonly type: 'switch'; readonly delta: -1 | 1 }
   /** Up/down: move focus through {@link FOCUS_ORDER} (wraps). */
   | { readonly type: 'move'; readonly delta: -1 | 1 }
-  /** The pointer moved onto a focusable element. */
-  | { readonly type: 'point'; readonly target: FocusTarget }
+  /** The pointer moved onto (or pressed) a focusable element. */
+  | { readonly type: 'point'; readonly target: FocusTarget; readonly pressed: boolean }
   /** Confirm from keyboard or pad: commits from any focus, as arcade selects do. */
   | { readonly type: 'confirm' }
   /** The SELECT button was clicked. */
@@ -78,10 +80,11 @@ export function reduceSelect(state: SelectState, event: SelectEvent): SelectResu
       };
     }
     case 'point': {
-      // Hovering what already has focus hands it to the pointer silently, so the tooltip now follows the hover.
-      if (event.target === state.focus) return { state: { ...state, focusSource: 'pointer' }, effects: [] };
+      const focusSource: FocusSource = event.pressed ? 'tap' : 'hover';
+      // Pointing at what already has focus only changes how it is held, so it makes no sound.
+      if (event.target === state.focus) return { state: { ...state, focusSource }, effects: [] };
       return {
-        state: { ...state, focus: event.target, focusSource: 'pointer' },
+        state: { ...state, focus: event.target, focusSource },
         effects: [{ type: 'focused', target: event.target }],
       };
     }

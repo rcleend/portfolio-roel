@@ -43,13 +43,13 @@ export const DETAILS = { x: 170, w: 140 } as const;
 
 export const NAME_Y = 22;
 export const CLASS_Y = 40;
-export const BIO_Y = 56;
-export const ATTACK_Y = 116;
+export const BIO_Y = 55;
+export const ATTACK_Y = 120;
 
 /** A skill row: the bevelled icon slot plus the name beside it. */
 export const SKILL_SLOT_SIZE = 24;
 export const SKILL_ROWS: readonly [Rect, Rect] = [
-  { x: DETAILS.x, y: 132, w: DETAILS.w, h: SKILL_SLOT_SIZE },
+  { x: DETAILS.x, y: 134, w: DETAILS.w, h: SKILL_SLOT_SIZE },
   { x: DETAILS.x, y: 160, w: DETAILS.w, h: SKILL_SLOT_SIZE },
 ];
 

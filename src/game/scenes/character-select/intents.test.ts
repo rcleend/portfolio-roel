@@ -58,11 +58,19 @@ describe('readSelectEvents', () => {
   it('focuses what the pointer moves onto', () => {
     const skill = centre(SKILL_ROWS[1]);
     expect(readSelectEvents(input([], { ...skill, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'skill2' },
+      { type: 'point', target: 'skill2', pressed: false },
     ]);
     const button = centre(SELECT_BUTTON);
     expect(readSelectEvents(input([], { ...button, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'select' },
+      { type: 'point', target: 'select', pressed: false },
+    ]);
+  });
+
+  it('marks a press on a focusable element as a tap', () => {
+    const skill = { ...centre(SKILL_ROWS[0]), over: true };
+    const previous = { ...IDLE_POINTER, ...skill };
+    expect(readSelectEvents(input([], { ...skill, down: true, pressed: true }), previous, hitTest)).toEqual([
+      { type: 'point', target: 'skill1', pressed: true },
     ]);
   });
 

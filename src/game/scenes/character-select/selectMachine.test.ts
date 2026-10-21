@@ -60,21 +60,26 @@ describe('moving focus', () => {
   });
 
   it('marks keyboard focus as sticky and announces the move', () => {
-    const result = reduceSelect({ ...start(), focusSource: 'pointer' }, { type: 'move', delta: 1 });
+    const result = reduceSelect({ ...start(), focusSource: 'hover' }, { type: 'move', delta: 1 });
     expect(result.state.focusSource).toBe('nav');
     expect(result.effects).toEqual([{ type: 'focused', target: 'skill1' }]);
   });
 
   it('lets the pointer take focus by hovering', () => {
-    const result = reduceSelect(start(), { type: 'point', target: 'skill2' });
-    expect(result.state).toMatchObject({ focus: 'skill2', focusSource: 'pointer' });
+    const result = reduceSelect(start(), { type: 'point', target: 'skill2', pressed: false });
+    expect(result.state).toMatchObject({ focus: 'skill2', focusSource: 'hover' });
     expect(result.effects).toEqual([{ type: 'focused', target: 'skill2' }]);
   });
 
-  it('hands existing focus to the pointer silently', () => {
+  it('pins focus when an element is tapped, so lifting the finger keeps the tooltip open', () => {
+    const result = reduceSelect(start(), { type: 'point', target: 'skill1', pressed: true });
+    expect(result.state).toMatchObject({ focus: 'skill1', focusSource: 'tap' });
+  });
+
+  it('changes how existing focus is held without announcing a move', () => {
     const onSkill = { ...start(), focus: 'skill1' as const };
-    const result = reduceSelect(onSkill, { type: 'point', target: 'skill1' });
-    expect(result.state.focusSource).toBe('pointer');
+    const result = reduceSelect(onSkill, { type: 'point', target: 'skill1', pressed: false });
+    expect(result.state.focusSource).toBe('hover');
     expect(result.effects).toEqual([]);
   });
 });
