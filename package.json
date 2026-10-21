@@ -17,7 +17,9 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "shot": "tsx scripts/shot.ts"
+    "shot": "tsx scripts/shot.ts",
+    "sync:room": "node scripts/sync-room-assets.mjs",
+    "shot:room": "node scripts/room-shots.mjs"
   },
   "dependencies": {
     "@fontsource/silkscreen": "^5.3.0",

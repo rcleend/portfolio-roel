@@ -1,4 +1,7 @@
-import type { Education, Profile, Publication } from './types';
+import type { Education, Profile, ProfileLink, Publication } from './types';
+
+/** Primary contact channel, reused wherever the game invites the visitor to get in touch. */
+export const emailLink: ProfileLink = { kind: 'email', label: 'rcleende@gmail.com', href: 'mailto:rcleende@gmail.com' };
 
 export const profile: Profile = {
   name: 'Roel Leenders',
@@ -10,7 +13,7 @@ export const profile: Profile = {
     'working closely with founders on product vision and strategy. Researched human–agent collaboration for my master, ' +
     'focusing on voice agents.',
   links: [
-    { kind: 'email', label: 'rcleende@gmail.com', href: 'mailto:rcleende@gmail.com' },
+    emailLink,
     {
       kind: 'linkedin',
       label: 'linkedin.com/in/roel-leendersit',

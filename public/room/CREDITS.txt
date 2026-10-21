@@ -1,0 +1,150 @@
+ATTIC ROOM — REVISION 5 — SOURCE ATTRIBUTION
+
+IMPORTED / RECOVERED DEVICE MESHES
+
+Sony PlayStation 2 — Dolgov (https://sketchfab.com/Dolgov12)
+https://sketchfab.com/3d-models/sony-playstation-2-b53f858aa1584229a7f906239fc158a2
+License: CC BY 4.0. Supplied sony_playstation_2.glb.
+Original console, closed disc tray, two wired controllers, memory card and
+SSX 3 case retained. Fitted to real console width; case repositioned on floor;
+matte plastic shading, base/high geometry and texture detail for the web.
+SSX 3 cover art remains copyrighted by its original rightsholders.
+
+Retro Tech: 90s CRT Monitor & Keyboard — R3indeer.
+https://sketchfab.com/3d-models/retro-tech-90s-crt-monitor-keyboard-89ed1af6f8854cf8ab7771c49b034745
+User stated ownership and requested recovery. Geometry, UVs, custom normals,
+and 2K material maps recovered from the live viewer. Mouse cable removed
+and rerouted for this room. No original modifier/authoring history recovered.
+No additional public license claim is made for this asset.
+
+Sony CFD-V31L New — blaice.
+https://sketchfab.com/3d-models/sony-cfd-v31l-new-e9450c5d37174ad785409666a590325b
+Recovered from the requested viewer at the user's request. Original UVs,
+custom normals and 12 decoded 4K texture channels preserved in Blender.
+Rescaled and positioned for the room; radio web base reduced to 30% geometry,
+512 px textures; high uses original mesh and up to 2K textures.
+A public redistribution license was not established. The recovered files do
+not acquire a CC0 license by being included in this scene.
+
+CRT television — user supplied crt_tv.glb.
+Timothy Ahene (https://sketchfab.com/timothyahene)
+https://sketchfab.com/3d-models/crt-tv-9ba4baa106e64319a0b540cf0af5aa9e
+Embedded license: SKETCHFAB Standard (https://sketchfab.com/licenses)
+Retains original shell, controls
+and rear connectors. Screen uses separately replaceable original scene art
+and new 0–1 UV coordinates. Base geometry reduced conservatively.
+
+Fender_stratocaster — Reinhold.Kemper.
+https://sketchfab.com/3d-models/fender-stratocaster-0d6b44ad2fd245608fc59de58b50181e
+Recovered at the user's request. Meshes, original stand, UVs, custom normals
+and PBR maps retained. Fitted to the room; dense metal hardware simplified
+non-destructively and lighting baked to a dedicated 2K atlas for web.
+Revision 5: assembly enlarged 12%; red body replaced by Olympic White lacquer.
+No public reuse license was displayed on the inspected model page.
+
+REPLACEMENT FURNITURE AND WINDOW REFERENCE
+Author/license/source metadata below are embedded in the supplied GLB files.
+All six are CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+Office desk metallic - 4MB — Mehdi Shahsavan (https://sketchfab.com/ahmagh2e)
+https://sketchfab.com/3d-models/office-desk-metallic-4mb-267d9821aa9a455ebb26676cb357afbb
+Supplied as office_desk_metallic_-_4mb.glb.
+
+Chair Low Poly — Pholo (https://sketchfab.com/Pholothe1)
+https://sketchfab.com/3d-models/chair-low-poly-3775963c1d6d4ba1b37956a4fb423add
+Supplied as chair_low_poly.glb.
+
+Desk lamp — KaramellGlass (https://sketchfab.com/KaramellGlass)
+https://sketchfab.com/3d-models/desk-lamp-7377ec591df04445a1aae370017aaa13
+Supplied as desk_lamp.glb.
+
+Lava Lamp — Nicholas Vella (https://sketchfab.com/Nicholas.vella)
+https://sketchfab.com/3d-models/lava-lamp-d0150c0e166b4be1a90acd17c7a0bba6
+Supplied as lava_lamp.glb.
+
+Old Simple Drawer — Blender3D (https://sketchfab.com/Blender3D)
+https://sketchfab.com/3d-models/old-simple-drawer-a63d5b273ed74801830522f4b4c9fb81
+Supplied as old_simple_drawer.glb.
+
+Windows | Free Download — JonParrish (https://sketchfab.com/JonParrish)
+https://sketchfab.com/3d-models/windows-free-download-f7a3ef7a26274631bf695746335da602
+Supplied as windows__free_download.glb.
+
+Furniture modifications: rescaled and grounded; chair fabric slightly
+desaturated; desk bulb and lava materials adapted to the room lighting;
+tiny spring/wax geometry simplified non-destructively; lighting baked for web.
+The window model is visual design inspiration for new trim and blind geometry;
+its opaque pane textures are not used. The existing opening and wood sill
+are preserved.
+
+Tv Cabinet — GrillPork (https://sketchfab.com/GrillPork)
+https://sketchfab.com/3d-models/tv-cabinet-265d79d5216a49708256ec35965e7d7a
+License: CC BY 4.0. Supplied tv_cabinet.glb. Original mesh fitted, bevelled,
+painted with the previous cabinet's worn white enamel and baked for the web.
+The same paint is applied to the blue parts of the supplied desk.
+
+Pillow — Stefan E (https://sketchfab.com/stefevr)
+https://sketchfab.com/3d-models/pillow-287c3f62c2b04a3585e2efe26678b8a6
+License: CC BY 4.0. Supplied pillow.glb. Fitted and grounded next to the rug;
+original folded silhouette with warm woven cotton material.
+
+Lava modifications in revision 5: original seven wax meshes retained,
+changed to orange, animated with a looping 48-second transform/scale action.
+Existing glass/metal shell retained; warm orange practical light.
+
+Brand names and marks remain with their respective owners.
+
+SCANNED MATERIALS
+
+Dimitrios Savva / Poly Haven, Wood Floor Worn, CC0 1.0.
+https://polyhaven.com/a/wood_floor_worn
+https://api.polyhaven.com/files/wood_floor_worn
+
+Poly Haven, Wood Cabinet Worn Long, CC0 1.0.
+https://polyhaven.com/a/wood_cabinet_worn_long
+https://api.polyhaven.com/files/wood_cabinet_worn_long
+License: https://polyhaven.com/license
+2K diffuse, OpenGL normal and roughness maps packed into Blender.
+
+ORIGINAL SCENE WORK
+
+Room shell, slope, redesigned window/blinds, rug,
+PC tower, cables, new PS2 game-case bodies, trash and small clutter
+are scene-built geometry. Earlier Kenney furniture kit meshes were used
+during prototyping and replaced; its CC0 notice is retained for history.
+https://kenney.nl/assets/furniture-kit
+
+Original placeholder graphics include notebooks, soda, the TV game screen,
+and fictional period-style posters. Main poster artwork and the night-tree
+plate are AI-generated. The night-tree view is a texture plate, not a full
+navigable tree mesh.
+
+REQUESTED GAME-COVER ARTWORK — NOT CC0
+
+battlefront-2 — PlayStation 2
+https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-21240.jpg
+Copyright: original game publishers/artists.
+
+kingdom-hearts — PlayStation 2
+https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-20370.jpg
+Copyright: original game publishers/artists.
+
+lego-star-wars — PlayStation 2
+https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-21083.jpg
+Copyright: original game publishers/artists.
+
+Included as user-requested physical game-case decoration. Copyright remains
+with the respective owners.
+
+VISUAL REFERENCE — NOT REDISTRIBUTED
+
+Sean Hadeler, "90's Teen Boy's Bedroom"
+https://www.artstation.com/artwork/mQE49
+Reference screenshots supplied by the user. No original room geometry,
+texture or reference poster image was extracted or included.
+
+VIEWER
+
+Three.js 0.186.1, MIT: vendor/THREE-LICENSE.txt.
+Meshopt decoder license notices retained in vendor files.
+Build-time tools: glTF Transform, meshoptimizer, sharp, glTF Validator, esbuild.

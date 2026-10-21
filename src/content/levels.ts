@@ -1,4 +1,4 @@
-import { profile } from './profile';
+import { emailLink } from './profile';
 import type { LevelId, LevelInfo, LevelTeaser } from './types';
 
 /** Playable missions, in chronological (and level-select) order. */
@@ -34,7 +34,7 @@ export const nextLevelTeaser: LevelTeaser = {
   mission: 'MISSION 3',
   title: 'YOUR TEAM?',
   body: 'The next level is still being designed. Looking for a team that raises the ceiling for craft.',
-  cta: profile.links[0]!,
+  cta: emailLink,
 };
 
 export function getLevel(id: LevelId): LevelInfo {
