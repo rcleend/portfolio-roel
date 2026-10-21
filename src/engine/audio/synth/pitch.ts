@@ -25,6 +25,21 @@ export function note(name: string): MidiNote {
   return midi;
 }
 
+const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+
+/** The name of a MIDI note, spelled with sharps or flats (to suit the key it is used in). */
+export function noteName(midi: MidiNote, spelling: 'sharp' | 'flat' = 'sharp'): string {
+  const whole = Math.round(midi);
+  const names = spelling === 'sharp' ? SHARP_NAMES : FLAT_NAMES;
+  return `${names[((whole % 12) + 12) % 12]}${Math.floor(whole / 12) - 1}`;
+}
+
+/** `name` moved by `semitones`, e.g. `transpose('A2', 12)` is `A3`. */
+export function transpose(name: string, semitones: number, spelling: 'sharp' | 'flat' = 'sharp'): string {
+  return noteName(note(name) + semitones, spelling);
+}
+
 /** Equal temperament, A4 = 440 Hz. Fractional notes (for slides and detune) are allowed. */
 export function midiToHz(midi: MidiNote): number {
   return 440 * 2 ** ((midi - 69) / 12);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centsToRatio, midiToHz, note, parseNote } from './pitch';
+import { centsToRatio, midiToHz, note, noteName, parseNote, transpose } from './pitch';
 
 describe('pitch', () => {
   it('parses scientific pitch notation', () => {
@@ -15,6 +15,16 @@ describe('pitch', () => {
   it('rejects anything that is not a note', () => {
     for (const bad of ['', 'H4', 'c4', 'C', 'C##4', 'C44', 'k', '.']) expect(parseNote(bad)).toBeNull();
     expect(() => note('X9')).toThrow(/"X9"/);
+  });
+
+  it('names notes and transposes them in either spelling', () => {
+    expect(noteName(60)).toBe('C4');
+    expect(noteName(61)).toBe('C#4');
+    expect(noteName(61, 'flat')).toBe('Db4');
+    expect(noteName(0)).toBe('C-1');
+    expect(transpose('A2', 12)).toBe('A3');
+    expect(transpose('F2', 3, 'flat')).toBe('Ab2');
+    for (let midi = 0; midi < 128; midi++) expect(parseNote(noteName(midi, 'flat'))).toBe(midi);
   });
 
   it('converts to frequency in equal temperament', () => {
