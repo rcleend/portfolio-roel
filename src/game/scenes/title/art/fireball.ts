@@ -6,12 +6,12 @@ import type { Gfx } from '@/engine/gfx/Gfx';
  * the reference. Fractions are of the current radius, outermost first.
  */
 const RINGS: readonly (readonly [fraction: number, color: string])[] = [
-  [1, '#c8280a'],
-  [0.96, '#ff6c14'],
-  [0.91, '#ffae24'],
-  [0.85, '#ffe36a'],
-  [0.77, '#fff8d8'],
-  [0.66, '#ffffff'],
+  [1, '#d0300c'],
+  [0.97, '#ff7a16'],
+  [0.94, '#ffbc2c'],
+  [0.91, '#ffea78'],
+  [0.87, '#fffbe0'],
+  [0.82, '#ffffff'],
 ];
 
 export function drawFireball(gfx: Gfx, cx: number, cy: number, radius: number): void {
