@@ -17,7 +17,7 @@ const DURATION = 8;
 const ORBIT_SECONDS = 1.6;
 const ORBIT = { x: 22, y: 6, lift: 22 } as const;
 const FIRE_EVERY = 0.55;
-const RANGE = 180;
+const RANGE = 280;
 
 /** AGENT SUMMON: an AI drone orbits the player for eight seconds, firing at the nearest customer on screen. */
 export const agentSummon: Skill = {
