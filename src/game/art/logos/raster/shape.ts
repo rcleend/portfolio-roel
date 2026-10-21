@@ -106,6 +106,17 @@ export function scale(shape: Shape, sx: number, sy: number, origin: Vertex = [0,
   return (x, y) => shape(ox + (x - ox) / sx, oy + (y - oy) / sy);
 }
 
+/** Rotates by `angle` radians (clockwise on screen, where y points down) about `origin`. */
+export function rotate(shape: Shape, angle: number, origin: Vertex): Shape {
+  const [ox, oy] = origin;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return (x, y) => {
+    const [dx, dy] = [x - ox, y - oy];
+    return shape(ox + dx * cos + dy * sin, oy - dx * sin + dy * cos);
+  };
+}
+
 /**
  * Italicises: points above `baseline` lean right by `slant` pixels per pixel
  * of height, so the baseline itself stays put.

@@ -7,6 +7,7 @@ import {
   intersect,
   polygon,
   rect,
+  rotate,
   roundedRect,
   scale,
   shear,
@@ -73,6 +74,12 @@ describe('combinators', () => {
     expect(translate(a, 10, 0)(11, 1)).toBe(true);
     expect(scale(a, 2, 1)(7, 1)).toBe(true);
     expect(scale(a, 2, 1, [4, 0])(-3, 1)).toBe(true);
+  });
+
+  it('rotates clockwise about an origin', () => {
+    const bar = rotate(rect(0, -1, 10, 1), Math.PI / 2, [0, 0]);
+    expect(bar(0, 5)).toBe(true);
+    expect(bar(5, 0)).toBe(false);
   });
 
   it('leans shapes right above the baseline and keeps the baseline in place', () => {

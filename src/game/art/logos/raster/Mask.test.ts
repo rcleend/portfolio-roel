@@ -35,6 +35,13 @@ describe('Mask', () => {
     expect(dot.outline().toRows()).toEqual(['###', '#.#', '###']);
   });
 
+  it('measures how deep each pixel lies inside the shape, capped', () => {
+    const block = Mask.fromRows(['#####', '#####', '#####', '#####', '#####']);
+    expect(Array.from(block.depths(9).slice(10, 15))).toEqual([1, 2, 3, 2, 1]);
+    expect(Array.from(block.depths(2).slice(10, 15))).toEqual([1, 2, 2, 2, 1]);
+    expect(Mask.fromRows(['#.']).depths(3)[1]).toBe(0);
+  });
+
   it('finds bounds and crops to them', () => {
     const mask = Mask.fromRows(['....', '..#.', '.##.', '....']);
     const box = mask.bounds();

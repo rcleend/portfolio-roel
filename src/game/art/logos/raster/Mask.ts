@@ -95,6 +95,25 @@ export class Mask {
     return this.dilate().subtract(this);
   }
 
+  /**
+   * For every set pixel, how many pixels it lies inside the shape (1 on the
+   * edge, 2 one step further in, …, capped at `limit`); 0 outside. The
+   * gradient of this field gives each pixel a surface direction, which is
+   * enough to light a flat splash so it reads as embossed metal.
+   */
+  depths(limit: number): Uint8Array {
+    const depths = new Uint8Array(this.width * this.height);
+    let ring: Mask = this;
+    for (let depth = 1; depth <= limit; depth++) {
+      const inner = depth === limit ? new Mask(this.width, this.height) : ring.#eroded();
+      for (let i = 0; i < depths.length; i++) {
+        if (ring.#bits[i] && !inner.#bits[i]) depths[i] = depth;
+      }
+      ring = inner;
+    }
+    return depths;
+  }
+
   /** Smallest box containing every set pixel, or `null` for an empty mask. */
   bounds(): PixelBox | null {
     let [minX, minY, maxX, maxY] = [this.width, this.height, -1, -1];
@@ -126,6 +145,26 @@ export class Mask {
     return Array.from({ length: this.height }, (_, y) =>
       Array.from({ length: this.width }, (_, x) => (this.has(x, y) ? '#' : '.')).join(''),
     );
+  }
+
+  /** Set pixels whose eight neighbours are all set. */
+  #eroded(): Mask {
+    const out = new Mask(this.width, this.height);
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (this.has(x, y) && !this.#nearGap(x, y)) out.#bits[y * this.width + x] = 1;
+      }
+    }
+    return out;
+  }
+
+  #nearGap(x: number, y: number): boolean {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!this.has(x + dx, y + dy)) return true;
+      }
+    }
+    return false;
   }
 
   #nearInk(x: number, y: number): boolean {
