@@ -26,7 +26,7 @@ export const PRIMARY_ATTACKS: Readonly<Record<CharacterId, PrimaryAttack>> = {
     fire: (x, y, facing, count) => new PaintSplat(x, y, facing, PAINTS[count % PAINTS.length] ?? PAINTS[0]),
   },
   strategy: {
-    cooldown: 0.26,
+    cooldown: 0.22,
     sfx: 'attack-note',
     fire: (x, y, facing) => new StickyNote(x, y, facing),
   },

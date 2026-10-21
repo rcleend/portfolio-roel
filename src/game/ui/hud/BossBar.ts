@@ -22,6 +22,9 @@ export function drawBossBar(gfx: Gfx, text: TextStyles, state: BossBarState): vo
   const rise = segment(state.age, 0, 0.35, easeOutBack);
   const y = Math.round(BOTTOM + 24 - rise * 24) - HEIGHT;
   const x = Math.round((gfx.width - WIDTH) / 2);
+  // A dark strip behind the bar, like the control hints, keeps it legible over the busy street.
+  gfx.fillRect(0, y - 14, gfx.width, gfx.height - y + 14, '#0b0a1f');
+  gfx.fillRect(0, y - 15, gfx.width, 1, '#5a1c24');
   gfx.text(state.label, gfx.width / 2, y - 11, { ...text.hud, fill: '#ffb0a0' }, { align: 'center' });
   gfx.fillRect(x - 2, y - 2, WIDTH + 4, HEIGHT + 4, '#0b0a1f');
   gfx.fillRect(x - 1, y - 1, WIDTH + 2, HEIGHT + 2, '#8a90a8');

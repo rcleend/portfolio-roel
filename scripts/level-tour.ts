@@ -30,7 +30,14 @@ interface Capture {
   readonly capture: string;
 }
 
-type TourStep = Hold | Capture;
+/** Save `count` frames, `every` frames apart, as one labelled contact sheet `<moment>-<name>.png`. */
+interface Sheet {
+  readonly sheet: string;
+  readonly every: number;
+  readonly count: number;
+}
+
+type TourStep = Hold | Capture | Sheet;
 
 interface Moment {
   readonly name: string;
@@ -41,8 +48,29 @@ interface Moment {
 const wait = (frames: number): Hold => ({ hold: [], frames });
 const hold = (frames: number, ...actions: Action[]): Hold => ({ hold: actions, frames });
 const capture = (name: string): Capture => ({ capture: name });
+const sheet = (name: string, every: number, count: number): Sheet => ({ sheet: name, every, count });
 
 const MOMENTS: readonly Moment[] = [
+  {
+    name: 'run-luna',
+    params: { levelId: 'luna', characterId: 'hackerman', autopilot: true },
+    steps: [sheet('film', 90, 40)],
+  },
+  {
+    name: 'run-scripe',
+    params: { levelId: 'scripe', characterId: 'artsy', autopilot: true },
+    steps: [sheet('film', 90, 40)],
+  },
+  {
+    name: 'finale-luna',
+    params: { levelId: 'luna', characterId: 'strategy', startAt: 'arena', skipIntro: true, autopilot: true },
+    steps: [sheet('film', 45, 30)],
+  },
+  {
+    name: 'finale-scripe',
+    params: { levelId: 'scripe', characterId: 'hackerman', startAt: 'arena', skipIntro: true, autopilot: true },
+    steps: [sheet('film', 60, 30)],
+  },
   {
     name: 'intro',
     params: { levelId: 'luna', characterId: 'hackerman' },
@@ -210,6 +238,35 @@ async function capturePng(page: Page, scale: number): Promise<Buffer> {
   return Buffer.from(dataUrl.split(',')[1] ?? '', 'base64');
 }
 
+/** Steps through `count` frames `every` frames apart and lays them out 5 wide at native size, labelled with seconds. */
+async function captureSheet(page: Page, step: Sheet): Promise<Buffer> {
+  const dataUrl = await page.evaluate(({ every, count }) => {
+    const arcade = window.__arcade;
+    if (!arcade) throw new Error('window.__arcade is not available');
+    const source = arcade.game.canvas;
+    const columns = 5;
+    const label = 12;
+    const sheet = document.createElement('canvas');
+    sheet.width = columns * (source.width + 2);
+    sheet.height = Math.ceil(count / columns) * (source.height + label + 2);
+    const ctx = sheet.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+    ctx.fillStyle = '#16141f';
+    ctx.fillRect(0, 0, sheet.width, sheet.height);
+    for (let i = 0; i < count; i++) {
+      if (i > 0) arcade.step(every);
+      const x = (i % columns) * (source.width + 2);
+      const y = Math.floor(i / columns) * (source.height + label + 2);
+      ctx.drawImage(source, x, y + label);
+      ctx.fillStyle = '#e8e4ff';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`${((i * every) / 60).toFixed(1)}s`, x + 2, y + 10);
+    }
+    return sheet.toDataURL('image/png');
+  }, step);
+  return Buffer.from(dataUrl.split(',')[1] ?? '', 'base64');
+}
+
 async function play(page: Page, base: string, moment: Moment, outDir: string, scale: number): Promise<string[]> {
   const query = new URLSearchParams({
     debug: '',
@@ -226,6 +283,12 @@ async function play(page: Page, base: string, moment: Moment, outDir: string, sc
     if ('capture' in step) {
       const file = resolve(outDir, `${moment.name}-${step.capture}.png`);
       await writeFile(file, await capturePng(page, scale));
+      saved.push(file);
+      continue;
+    }
+    if ('sheet' in step) {
+      const file = resolve(outDir, `${moment.name}-${step.sheet}.png`);
+      await writeFile(file, await captureSheet(page, step));
       saved.push(file);
       continue;
     }

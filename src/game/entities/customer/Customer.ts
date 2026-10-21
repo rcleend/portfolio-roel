@@ -50,7 +50,7 @@ const GRAVITY = 1400;
 const MAX_FALL = 440;
 const HURT_SECONDS = 0.22;
 const KNOCKBACK = 70;
-const FLASH_SECONDS = 0.1;
+const FLASH_SECONDS = 4 / 60;
 /** Seconds of happy cheering before a won-over customer strolls off. */
 const CELEBRATE_SECONDS = 0.8;
 const STROLL_SPEED = 46;

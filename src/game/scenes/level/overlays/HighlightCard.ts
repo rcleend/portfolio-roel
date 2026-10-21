@@ -67,6 +67,18 @@ export class HighlightCard {
     return this.#closingAt !== null && this.#age - this.#closingAt >= CLOSE_SECONDS;
   }
 
+  /** Seconds since the card opened. */
+  get age(): number {
+    return this.#age;
+  }
+
+  /** Same as a button press: finishes the typing, or closes the card once it has been read. */
+  dismiss(): void {
+    if (this.#closingAt !== null || this.#age < INPUT_GRACE) return;
+    if (this.#description.done) this.#closingAt = this.#age;
+    else this.#description.skip();
+  }
+
   update(input: InputSnapshot<Action>, dt: number): void {
     this.#age += dt;
     if (this.#age >= OPEN_SECONDS) {
@@ -74,9 +86,7 @@ export class HighlightCard {
       this.#description.update();
       this.#description.update();
     }
-    if (this.#closingAt !== null || this.#age < INPUT_GRACE || !input.anyPressed) return;
-    if (this.#description.done) this.#closingAt = this.#age;
-    else this.#description.skip();
+    if (input.anyPressed) this.dismiss();
   }
 
   render(gfx: Gfx): void {

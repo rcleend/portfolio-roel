@@ -74,10 +74,9 @@ export function validateLayout(
       }
     }
   }
-  if (
-    !(layout.start.col < layout.arenaCol && layout.arenaCol < layout.boss.col && layout.boss.col <= layout.goal.col)
-  ) {
-    issues.push('expected start < arena < escalated customer <= goal, from left to right');
+  const inArena = (col: number): boolean => col > layout.arenaCol;
+  if (!(layout.start.col < layout.arenaCol && inArena(layout.boss.col) && inArena(layout.goal.col))) {
+    issues.push('expected the start before the arena, and the escalated customer and the goal inside it');
   }
   const checkpointsInOrder = layout.checkpoints.every(
     (cell, i, all) =>

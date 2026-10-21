@@ -18,8 +18,10 @@ const STANDING_TIME = 1 / 6 + 1e-6;
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
 export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, look: CustomerLook): void {
   const { animation, time } = pose(customer, kit.time);
-  const windingUp = customer.mood.kind === 'chargeWindup' && blink(kit.time, 3 / 60, 3 / 60);
-  const flash = customer.isFlashing(kit.time) ? '#ffffff' : windingUp ? '#ff3a3a' : undefined;
+  // Hits flicker white on alternate frames and a charge is telegraphed in red, both brief enough to keep the sprite readable.
+  const hitFlash = customer.isFlashing(kit.time) && blink(kit.time, 1 / 60, 1 / 60);
+  const windingUp = customer.mood.kind === 'chargeWindup' && blink(kit.time, 2 / 60, 6 / 60);
+  const flash = hitFlash ? '#ffffff' : windingUp ? '#ff5a3a' : undefined;
   drawSpriteScaled(
     gfx,
     kit.sprites.unhappyCustomer,

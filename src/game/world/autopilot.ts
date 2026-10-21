@@ -13,8 +13,9 @@ const PIT_LOOKAHEAD = 14;
  * low complaints. It plays like a decent
  * first-timer, so its completion time approximates a casual run.
  *
- * Lives next to the world (not in a test file) so both unit tests and
- * scripts can use it; the game itself never does.
+ * Used by unit tests and by the level's development-only `autopilot`
+ * option (an attract-mode demo for screenshots and end-to-end tests); never
+ * during normal play.
  */
 export class Autopilot {
   #jumpFrames = 0;

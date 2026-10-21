@@ -59,7 +59,8 @@ export class Finale {
   render(gfx: Gfx, styles: LevelTextStyles, time: number): void {
     if (this.#celebratedAt === null) return;
     const lines = this.#kind === 'acquired' ? ['ACQUIRED!'] : ['PRODUCT-MARKET', 'FIT!'];
-    drawSlamBanner(gfx, lines, styles.banner, time - this.#celebratedAt, this.#kind === 'acquired' ? 74 : 62);
+    // Berlin's banner sits under the flag it celebrates.
+    drawSlamBanner(gfx, lines, styles.banner, time - this.#celebratedAt, this.#kind === 'acquired' ? 74 : 98);
   }
 
   #celebrate(time: number): void {

@@ -16,6 +16,7 @@ import { drawBossBar } from '../../ui/hud/BossBar';
 import { drawHud, type HudState } from '../../ui/hud/Hud';
 import { keyCapFor } from '../../ui/hud/keyLabels';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
+import { Autopilot } from '../../world/autopilot';
 import type { WorldEvent } from '../../world/events';
 import { World } from '../../world/World';
 import type { GameScene, GameStep, LevelParams } from '../params';
@@ -50,6 +51,8 @@ const DOWN_HOLD = 0.35;
 /** "CUSTOMER RETAINED!" holds this long before the walk to the goal. */
 const RETAINED_SECONDS = 1.9;
 const BUBBLE_TEXT_WIDTH = 76;
+/** How long the autopilot "reads" a highlight card before dismissing it. */
+const AUTOPILOT_READING = 1.5;
 /** Intro and hints are skipped by pretending the scene has been running this long. */
 const SKIPPED_INTRO = 30;
 
@@ -66,7 +69,8 @@ export class LevelScene implements GameScene<LevelParams> {
   #level: LevelInfo | null = null;
   #art: LevelArt | null = null;
   #world: World | null = null;
-  #dev: LevelDevOptions = { hitboxes: false, startAt: null, skipIntro: false };
+  #dev: LevelDevOptions = { hitboxes: false, startAt: null, skipIntro: false, autopilot: false };
+  #autopilot: Autopilot | null = null;
   #phase: Phase = { kind: 'play' };
   #time = 0;
   #device: 'keyboard' | 'gamepad' = 'keyboard';
@@ -107,6 +111,7 @@ export class LevelScene implements GameScene<LevelParams> {
     });
     if (this.#dev.startAt !== null) world.skipTo(this.#dev.startAt);
     if (this.#dev.skipIntro) this.#time = SKIPPED_INTRO;
+    if (this.#dev.autopilot) this.#autopilot = new Autopilot();
     this.#world = world;
     services.audio.playMusic(stage.theme.music);
   }
@@ -130,11 +135,12 @@ export class LevelScene implements GameScene<LevelParams> {
           this.#pause();
           return;
         }
-        world.step(intentFromInput(input), dt);
+        world.step(this.#autopilot?.intent(world) ?? intentFromInput(input), dt);
         this.#handle(world.drainEvents());
         break;
       case 'card':
         phase.card.update(input, dt);
+        if (this.#autopilot && phase.card.age > AUTOPILOT_READING) phase.card.dismiss();
         if (phase.card.closed) this.#phase = { kind: 'play' };
         break;
       case 'paused': {

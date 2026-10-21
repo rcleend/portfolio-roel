@@ -4,7 +4,7 @@ import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { easeOutCubic } from '@/engine/motion/easing';
 import { segment } from '@/engine/motion/progress';
 
-const POLE_HEIGHT = 120;
+const POLE_HEIGHT = 144;
 const CLOTH = { w: 100, h: 18 } as const;
 const RAISE_SECONDS = 1.4;
 

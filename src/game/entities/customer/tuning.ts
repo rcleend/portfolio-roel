@@ -49,7 +49,7 @@ export const REGULAR_CUSTOMER: CustomerTuning = {
 export const ESCALATED_CUSTOMER: CustomerTuning = {
   scale: 2,
   hitbox: { w: 26, h: 56 },
-  frustration: 48,
+  frustration: 40,
   walkSpeed: 34,
   sightRange: 400,
   keepDistance: 96,
