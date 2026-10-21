@@ -210,6 +210,7 @@ game/
   ui/                  pixel UI widgets: Window, Tooltip, Button, TypewriterText, Hud
   entities/            player, unhappy customer, projectiles, pickups, platforms, hazards
   skills/              one module per SkillId implementing the shared Skill behaviour contract
+  world/               level runtime: tile grid, AABB collision, layout DSL + validation, camera, World, autopilot
   levels/art/          LevelArt loader: validates each layers.json, preloads its PNGs, exposes parallax layers, Tileset and PropSheets
   levels/<levelId>/    level map, theme, generated parallax art + layers.json (tools/art/README.md)
   art/                 pixel-art sheets (characters, enemy, icons), procedural art (logos, crater)
@@ -233,6 +234,14 @@ Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and r
 Stubs draw a yellow `STUB · NAME` banner (`scenes/StubBanner.ts`); delete it once every stub is replaced.
 
 UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, { title })` with `windowContent(rect)` for the inner area; `Tooltip` (pops in over four frames with a 1 px overshoot); `Button` (pointer and focus, activates on release); `Paragraph` (wrapped once, can render the first N characters); `TypewriterText`; `handCursorSheet`. Shared UI colours live in `game/palette.ts`.
+
+### Levels
+
+A stage is a `StageDefinition` (`world/stage.ts`): a layout written in the text DSL of `world/map/layout.ts` (one character per 16 px tile, sections laid side by side; legend in `LEGEND`) plus a theme that dresses generic markers in the level's props (a moving platform is a cable car in `levels/luna/theme.ts`, a U-Bahn in `levels/scripe/theme.ts`).
+`scenes/level/stages.test.ts` validates every stage against the player's jump (reachability, one "?" block per career highlight, markers on the ground).
+`World` (`world/World.ts`) owns the simulation and reports `WorldEvent`s; `LevelScene` owns flow (intro, highlight cards, pause, respawn, finale), sound, HUD and overlays.
+Skills implement `Skill` (`skills/Skill.ts`): `cast(world)` returns an `ActiveSkill` that is stepped until `done` and declares its rule changes as `modifiers`; cooldowns live in `SkillSlot`.
+Level params also accept development switches (`scenes/level/devOptions.ts`): `debug: "hitboxes"`, `startAt` (checkpoint index or `"arena"`), `skipIntro`, and `autopilot` (an attract-mode demo used by `scripts/level-tour.ts` and `e2e/level.spec.ts`).
 
 ### Session
 
