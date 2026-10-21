@@ -1,28 +1,65 @@
-import { fade } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { steps } from '@/engine/motion/easing';
-import { segment } from '@/engine/motion/progress';
+import type { TextStyle } from '@/engine/gfx/TextStyle';
+import { condensedType, rclMonogram, reoLeoWordmark } from '../../art/logos';
+import type { Mask } from '../../art/logos/raster/Mask';
+import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import type { GameScene, GameStep } from '../params';
-import { drawStubBanner } from '../StubBanner';
-
-const AUTO_ADVANCE_SECONDS = 2;
+import {
+  BLACKOUT_SECONDS,
+  BOOT_TIMES,
+  backgroundColor,
+  charsTypedBetween,
+  logoPose,
+  markColor,
+  skippableFrom,
+  TYPED_LINES,
+  typedCounts,
+} from './bootTimeline';
+import { drawResampled } from './resample';
 
 /**
- * STUB — replaced by the boot/title crew with the full "REO·LEO" Neo Geo
- * boot (docs/ART-DIRECTION.md › Boot). Keeps the flow navigable meanwhile.
+ * Vertical layout of the lockup, modelled on the MVS screen: logo, two typed
+ * lines, publisher mark — the whole block sitting a touch below centre.
+ */
+const LAYOUT = {
+  centerX: 160,
+  logoCenterY: 81,
+  firstLineY: 121,
+  lineHeight: 15,
+  markY: 171,
+} as const;
+
+/** Unflipped identity pose, for drawing a mask at rest through the same resampler. */
+const AT_REST = { scaleX: 1, scaleY: 1, mirrored: false } as const;
+
+/**
+ * "REO·LEO" — a frame-by-frame homage to the Neo Geo MVS boot
+ * (docs/ART-DIRECTION.md › Boot). The choreography lives in `bootTimeline`;
+ * this scene only plays it, ticks the typewriter, handles skipping and hands
+ * over to the title through a short black screen.
  */
 export class BootScene implements GameScene {
   readonly #services: GameServices;
+  readonly #wordmark: Mask;
+  readonly #monogram: Mask;
+  readonly #typeStyle: TextStyle;
+  readonly #skippableFrom: number;
   #time = 0;
-  #leaving = false;
+  /** When the screen goes black; a skip pulls it forward. */
+  #exitAt: number = BOOT_TIMES.end;
+  #left = false;
 
   constructor(services: GameServices) {
     this.#services = services;
+    this.#wordmark = reoLeoWordmark();
+    this.#monogram = rclMonogram();
+    this.#typeStyle = { font: condensedType(), fill: palette.white };
+    this.#skippableFrom = skippableFrom(services.session.state.bootSeen);
   }
 
   enter(): void {
-    this.#services.audio.playSfx('power-on');
+    this.#services.audio.playMusic('boot', { loop: false });
   }
 
   exit(): void {
@@ -30,23 +67,46 @@ export class BootScene implements GameScene {
   }
 
   update(step: GameStep): void {
+    const previous = this.#time;
     this.#time += step.dt;
-    if (this.#leaving) return;
-    if (this.#time >= AUTO_ADVANCE_SECONDS || step.input.anyPressed) {
-      this.#leaving = true;
-      this.#services.director.goTo('title', undefined, fade({ duration: 0.5 }));
+    if (this.#time < this.#exitAt) {
+      for (const char of charsTypedBetween(previous, this.#time)) {
+        if (char !== ' ') this.#services.audio.playSfx('typewriter');
+      }
+      if (step.input.anyPressed && this.#time >= this.#skippableFrom) this.#exitAt = this.#time;
+      return;
+    }
+    if (!this.#left && this.#time >= this.#exitAt + BLACKOUT_SECONDS) {
+      this.#left = true;
+      this.#services.director.goTo('title');
     }
   }
 
   render(gfx: Gfx): void {
-    const { text } = this.#services;
-    // White to black in flat steps, the way the real boot screen fades.
-    const fadeOut = segment(this.#time, 0.3, 1.2, steps(6));
-    const grey = Math.round(255 * (1 - fadeOut));
-    gfx.clear(`rgb(${grey}, ${grey}, ${grey})`);
-    const logo = { font: text.prompt.font, fill: fadeOut < 0.5 ? '#000000' : '#ffffff' };
-    gfx.text('REO·LEO', gfx.width / 2, 100, logo, { align: 'center' });
-    gfx.text('A LEENDERS PRODUCTION', gfx.width / 2, 124, { ...text.label, fill: '#1f6fff' }, { align: 'center' });
-    drawStubBanner(gfx, this.#services, 'BOOT');
+    const time = this.#time;
+    if (time >= this.#exitAt) {
+      gfx.clear(palette.black);
+      return;
+    }
+    gfx.clear(backgroundColor(time));
+    const pose = logoPose(time);
+    drawResampled(gfx, this.#wordmark, LAYOUT.centerX, LAYOUT.logoCenterY, pose, pose.color);
+    this.#renderTypedLines(gfx, time);
+    const mark = markColor(time);
+    if (mark) {
+      const centerY = LAYOUT.markY + this.#monogram.height / 2;
+      drawResampled(gfx, this.#monogram, LAYOUT.centerX, centerY, AT_REST, mark);
+    }
+  }
+
+  /** Each line is placed by its full width, so typing fills in from the left without the line shifting. */
+  #renderTypedLines(gfx: Gfx, time: number): void {
+    const counts = typedCounts(time);
+    TYPED_LINES.forEach((line, index) => {
+      const shown = counts[index] ?? 0;
+      if (shown === 0) return;
+      const left = LAYOUT.centerX - Math.floor(gfx.measureText(line, this.#typeStyle).width / 2);
+      gfx.text(line.slice(0, shown), left, LAYOUT.firstLineY + index * LAYOUT.lineHeight, this.#typeStyle);
+    });
   }
 }

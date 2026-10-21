@@ -21,8 +21,8 @@ test('walks boot → title → character select → mission select without error
   await page.waitForFunction(() => window.__arcadeReady === true);
   expect(await scene(page)).toBe('boot');
 
-  // Boot auto-advances; fade out + in completes well within 3 s of simulated time.
-  await page.evaluate(() => window.__arcade?.step(180));
+  // A first visit plays the whole boot (6.4 s) before a short black cut to the title.
+  await page.evaluate(() => window.__arcade?.step(400));
   expect(await scene(page)).toBe('title');
 
   await page.evaluate(() => window.__arcade?.press('confirm', 2));
