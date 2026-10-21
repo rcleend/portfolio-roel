@@ -1,0 +1,268 @@
+/*
+ * The pad is drawn on the game's pixel grid: every art pixel is --px CSS
+ * pixels, so the controls stay as crisp as the picture on the TV.
+ */
+.touchpad {
+  --px: 4px;
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: opacity 240ms steps(3, end);
+}
+
+.touchpad[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 240ms steps(3, end),
+    visibility 0s 240ms;
+}
+
+.touchpad__cluster {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touchpad__cluster--buttons {
+  --cap: calc(15 * var(--px));
+  --gap: 10px;
+  --row: calc(16 * var(--px) + 18px);
+  --stagger: calc(7 * var(--px));
+  width: calc(2 * var(--cap) + var(--gap) + var(--stagger));
+  height: calc(2 * var(--row));
+}
+
+.touchpad__cluster--start {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px 10px 0;
+}
+
+.touchpad svg {
+  display: block;
+  overflow: visible;
+}
+
+/* ── Layout: portrait band along the bottom ── */
+
+/* A banded dark plate under the controls, so they read as a controller rather than stickers on the room. */
+.touchpad--bottom::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(250px + var(--safe-bottom));
+  background: linear-gradient(
+    to bottom,
+    transparent 0 8%,
+    rgb(7 8 12 / 0.35) 8% 20%,
+    rgb(7 8 12 / 0.6) 20% 34%,
+    rgb(7 8 12 / 0.78) 34%
+  );
+}
+
+.touchpad--bottom .touchpad__cluster--dpad {
+  left: calc(18px + var(--safe-left));
+  bottom: calc(46px + var(--safe-bottom));
+}
+
+.touchpad--bottom .touchpad__cluster--buttons {
+  right: calc(14px + var(--safe-right));
+  bottom: calc(30px + var(--safe-bottom));
+}
+
+.touchpad--bottom .touchpad__cluster--start {
+  left: 50%;
+  bottom: calc(14px + var(--safe-bottom));
+  transform: translateX(-50%);
+}
+
+/* ── Layout: landscape, the clusters flank the TV ── */
+
+.touchpad--sides .touchpad__cluster--dpad {
+  left: calc(22px + var(--safe-left));
+  bottom: 44px;
+}
+
+.touchpad--sides .touchpad__cluster--buttons {
+  right: calc(16px + var(--safe-right));
+  bottom: 22px;
+}
+
+.touchpad--sides .touchpad__cluster--start {
+  left: calc(22px + var(--safe-left) + 7 * var(--px) - 10px);
+  bottom: calc(44px + 29 * var(--px) + 14px);
+}
+
+/* ── D-pad ── */
+
+.touchpad__dpad {
+  width: calc(29 * var(--px));
+  height: calc(29 * var(--px));
+}
+
+.pad-shadow {
+  fill: rgb(0 0 0 / 0.45);
+}
+
+.pad-outline {
+  fill: #07060f;
+}
+
+.dpad-body {
+  fill: #2c2945;
+}
+
+.dpad-arm--held {
+  fill: #1a1830;
+}
+
+.dpad-highlight {
+  fill: #4f4a78;
+}
+
+.dpad-shade {
+  fill: #17152a;
+}
+
+.dpad-dimple {
+  fill: #221f38;
+}
+
+.dpad-arrow {
+  fill: #8f86c9;
+}
+
+.dpad-arrow--held {
+  fill: #ffc83d;
+}
+
+/* ── Face buttons: a staggered 2 × 2, top row shifted right like a Neo Geo arc ── */
+
+.pad-button {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.pad-button--skill1 {
+  left: var(--stagger);
+  top: 0;
+}
+
+.pad-button--skill2 {
+  left: calc(var(--stagger) + var(--cap) + var(--gap));
+  top: 0;
+}
+
+.pad-button--jump {
+  left: 0;
+  top: var(--row);
+}
+
+.pad-button--attack {
+  left: calc(var(--cap) + var(--gap));
+  top: var(--row);
+}
+
+.pad-button__cap {
+  width: calc(15 * var(--px));
+  height: calc(16 * var(--px));
+}
+
+.tone--red {
+  --face: #e2352d;
+  --face-held: #a3201a;
+  --shade: #9c1d17;
+  --light: #ff8a6e;
+}
+
+.tone--yellow {
+  --face: #ffc83d;
+  --face-held: #c48a12;
+  --shade: #c47f0e;
+  --light: #fff1a8;
+}
+
+.tone--green {
+  --face: #3ddc84;
+  --face-held: #1f8f50;
+  --shade: #1f9353;
+  --light: #b6ffd2;
+}
+
+.tone--blue {
+  --face: #1f6fff;
+  --face-held: #1442a8;
+  --shade: #1340a6;
+  --light: #8fc0ff;
+}
+
+.cap-face {
+  fill: var(--face);
+}
+
+.cap-face--held {
+  fill: var(--face-held);
+}
+
+.cap-shade {
+  fill: var(--shade);
+}
+
+.cap-highlight {
+  fill: var(--light);
+}
+
+.cap-glint {
+  fill: #fff;
+}
+
+/* ── START ── */
+
+.pad-start {
+  width: calc(17 * var(--px));
+  height: calc(8 * var(--px));
+}
+
+.start-body {
+  fill: #2c2945;
+}
+
+.pad-start[data-held="true"] .start-body {
+  fill: #1a1830;
+}
+
+.start-highlight {
+  fill: #4f4a78;
+}
+
+.pad-label {
+  font:
+    400 8px / 1 Silkscreen,
+    ui-monospace,
+    monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #b9b0e8;
+  text-shadow: 1px 1px 0 #07060f;
+  -webkit-font-smoothing: none;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .touchpad,
+  .touchpad[data-visible="false"] {
+    transition: none;
+  }
+}

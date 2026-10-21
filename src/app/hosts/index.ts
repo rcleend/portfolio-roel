@@ -1,18 +1,13 @@
 import type { ComponentType } from 'react';
 import { FlatHost } from './FlatHost';
+import { RoomHost } from './RoomHost';
 import type { HostKind, HostProps } from './types';
 
 export { chooseHost, detectWebGL } from './chooseHost';
-export type { HostKind, HostProps } from './types';
+export type { HostEvents, HostKind, HostProps, HostView } from './types';
 
-/**
- * Host components by kind.
- *
- * SEAM(room): the 3D room host is not built yet, so `room` renders the flat
- * TV. The room crew replaces `FlatHost` below with `RoomHost` — the only line
- * that has to change to switch the default experience to the attic room.
- */
+/** Host components by kind. `RoomHost` lazy-loads three.js and falls back to `FlatHost` on its own. */
 export const hosts: Readonly<Record<HostKind, ComponentType<HostProps>>> = {
   flat: FlatHost,
-  room: FlatHost,
+  room: RoomHost,
 };

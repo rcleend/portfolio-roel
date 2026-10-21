@@ -131,8 +131,97 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #1d3a26;
+}
+
+.tv__led--on {
   background: #4dff7a;
   box-shadow: 0 0 8px #4dff7a;
+}
+
+/*
+ * Power-on: the tube covers the canvas in black until powered, then a white
+ * dot stretches into a line, snaps open vertically with a slight overshoot,
+ * blooms and fades into the picture (~600 ms after a short LED lead).
+ */
+.tv__tube {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+}
+
+.tv__tube--powering {
+  animation: tv-tube-clear 760ms steps(1, end) forwards;
+}
+
+.tv__raster {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, #fff 0%, #f2f0ff 55%, #c9c4f0 100%);
+  box-shadow: 0 0 24px 6px rgb(220 215 255 / 0.7);
+  transform: scale(0, 0);
+  opacity: 0;
+}
+
+.tv__tube--powering .tv__raster {
+  animation: tv-raster-on 620ms 140ms both;
+}
+
+@keyframes tv-raster-on {
+  0% {
+    transform: scale(0.01, 0.004);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  28% {
+    transform: scale(1, 0.006);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  52% {
+    transform: scale(1, 1.04);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  60% {
+    transform: scale(1, 1);
+    opacity: 1;
+    animation-timing-function: steps(5, end);
+  }
+  100% {
+    transform: scale(1, 1);
+    opacity: 0;
+  }
+}
+
+/* The black backdrop disappears with the raster's last step so the first game frame is on a live tube. */
+@keyframes tv-tube-clear {
+  0% {
+    background: #000;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Reduced motion: a 160 ms fade from black instead of the raster sequence. */
+@media (prefers-reduced-motion: reduce) {
+  .tv__tube--powering {
+    animation: tv-tube-fade 160ms linear forwards;
+  }
+
+  .tv__tube--powering .tv__raster {
+    animation: none;
+  }
+}
+
+@keyframes tv-tube-fade {
+  to {
+    opacity: 0;
+  }
 }
 
 .flat-host__hint {
@@ -153,6 +242,13 @@
 
   .tv__model,
   .tv__knobs {
+    display: none;
+  }
+}
+
+/* Touch screens get the on-screen pad instead of keyboard instructions. */
+@media (pointer: coarse) {
+  .flat-host__hint {
     display: none;
   }
 }

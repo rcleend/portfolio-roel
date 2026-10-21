@@ -1,19 +1,5 @@
-import { expect, type Page, test } from '@playwright/test';
-import type {} from '../src/app/harness/harness';
-
-/** Collects console errors and uncaught exceptions so any of them fails the test. */
-function trackErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text());
-  });
-  return errors;
-}
-
-async function scene(page: Page): Promise<string | null> {
-  return page.evaluate(() => window.__arcade?.state().scene ?? null);
-}
+import { expect, test } from '@playwright/test';
+import { scene, trackErrors } from './helpers';
 
 test('walks boot → title → character select → mission select without errors', async ({ page }) => {
   const errors = trackErrors(page);
