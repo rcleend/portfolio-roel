@@ -41,6 +41,27 @@ test('walks boot → title → character select → mission select without error
   expect(errors).toEqual([]);
 });
 
+test('lets a returning visitor skip the boot after a second, but not a first-time visitor', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/?host=flat&seed=1&frames=70');
+  await page.waitForFunction(() => window.__arcadeReady === true);
+  await page.evaluate(() => {
+    window.__arcade?.press('confirm', 2);
+    window.__arcade?.step(20);
+  });
+  expect(await scene(page)).toBe('boot');
+
+  await page.evaluate(() => localStorage.setItem('reo-leo:session', JSON.stringify({ version: 1, bootSeen: true })));
+  await page.reload();
+  await page.waitForFunction(() => window.__arcadeReady === true);
+  await page.evaluate(() => {
+    window.__arcade?.press('confirm', 2);
+    window.__arcade?.step(20);
+  });
+  expect(await scene(page)).toBe('title');
+  expect(errors).toEqual([]);
+});
+
 test('keeps the résumé in the DOM and reachable from the skip link', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/?host=flat');
