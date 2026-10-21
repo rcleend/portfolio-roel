@@ -1,35 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getExperience, getLevel, type LevelId } from '@/content';
-import { Rng } from '@/engine/math/Rng';
 import { IDLE_INTENT, type PlayerIntent } from '../entities/player/Player';
 import { STAGES } from '../scenes/level/stages';
 import type { WorldEvent } from './events';
 import { TILE } from './grid';
-import { World } from './World';
+import { createTestWorld } from './testing';
+import type { World } from './World';
 
 const DT = 1 / 60;
-const PROPS = {
-  cableCar: { width: 96, height: 48 },
-  rateLimitGate: { width: 24, height: 48 },
-  uBahn: { width: 160, height: 58 },
-  baustelle: { width: 48, height: 32 },
-  scopeCreep: { width: 32, height: 32 },
-};
-
-function createWorld(levelId: LevelId = 'luna', characterId: 'hackerman' | 'artsy' | 'strategy' = 'hackerman'): World {
-  const level = getLevel(levelId);
-  return new World({
-    stage: STAGES[levelId],
-    props: PROPS,
-    characterId,
-    highlightIds: getExperience(level.experienceId).highlights.map((highlight) => highlight.id),
-    complaints: level.complaints,
-    layoutBubble: (text) => ({ lines: [text], width: text.length * 4, height: 9, lineHeight: 10 }),
-    rng: new Rng(3),
-    reducedMotion: false,
-    screen: { width: 320, height: 240 },
-  });
-}
+const createWorld = createTestWorld;
 
 function run(world: World, seconds: number, intent: PlayerIntent | ((t: number) => PlayerIntent) = IDLE_INTENT) {
   const events: WorldEvent[] = [];

@@ -1,19 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { getExperience, getLevel, type LevelId } from '@/content';
-import { Rng } from '@/engine/math/Rng';
+import type { LevelId } from '@/content';
 import { STAGES } from '../scenes/level/stages';
 import { Autopilot } from './autopilot';
 import type { WorldEvent } from './events';
-import { World } from './World';
+import { createTestWorld } from './testing';
+import type { World } from './World';
 
 const DT = 1 / 60;
-const PROPS = {
-  cableCar: { width: 96, height: 48 },
-  rateLimitGate: { width: 24, height: 48 },
-  uBahn: { width: 160, height: 58 },
-  baustelle: { width: 48, height: 32 },
-  scopeCreep: { width: 32, height: 32 },
-};
 
 interface Run {
   readonly seconds: number;
@@ -23,18 +16,7 @@ interface Run {
 
 /** Plays a level with the autopilot until the escalated customer is retained (or two minutes pass). */
 function playthrough(levelId: LevelId, characterId: 'hackerman' | 'artsy' | 'strategy'): Run {
-  const level = getLevel(levelId);
-  const world = new World({
-    stage: STAGES[levelId],
-    props: PROPS,
-    characterId,
-    highlightIds: getExperience(level.experienceId).highlights.map((highlight) => highlight.id),
-    complaints: level.complaints,
-    layoutBubble: (text) => ({ lines: [text.slice(0, 14), text.slice(14)], width: 70, height: 19, lineHeight: 10 }),
-    rng: new Rng(11),
-    reducedMotion: false,
-    screen: { width: 320, height: 240 },
-  });
+  const world = createTestWorld(levelId, characterId, 11);
   const pilot = new Autopilot();
   const events: WorldEvent[] = [];
   for (let frame = 0; frame < 120 * 60; frame++) {

@@ -4,17 +4,15 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawParallax } from '@/engine/gfx/Parallax';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { layoutText } from '@/engine/gfx/TextStyle';
-import { approach } from '@/engine/math/scalar';
 import { fxSprites } from '../../art/fx';
 import type { BubbleText } from '../../entities/complaints/SpeechBubble';
-import { IDLE_INTENT, MAX_HEARTS } from '../../entities/player/Player';
+import { IDLE_INTENT } from '../../entities/player/Player';
 import type { RenderKit } from '../../entities/RenderKit';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
 import { drawBossBar } from '../../ui/hud/BossBar';
-import { drawHud, type HudState } from '../../ui/hud/Hud';
-import { keyCapFor } from '../../ui/hud/keyLabels';
+import { drawHud } from '../../ui/hud/Hud';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { Autopilot } from '../../world/autopilot';
 import type { WorldEvent } from '../../world/events';
@@ -22,6 +20,7 @@ import { World } from '../../world/World';
 import type { GameScene, GameStep, LevelParams } from '../params';
 import { type LevelDevOptions, readDevOptions } from './devOptions';
 import { Finale } from './finale';
+import { HudTracker } from './HudTracker';
 import { intentFromInput, walkTowards } from './intent';
 import { drawEscalationBanner, drawSlamBanner } from './overlays/banners';
 import { drawControlHints } from './overlays/controlHints';
@@ -76,13 +75,7 @@ export class LevelScene implements GameScene<LevelParams> {
   #time = 0;
   #device: 'keyboard' | 'gamepad' = 'keyboard';
   #arenaAt: number | null = null;
-  #bossBarAt: number | null = null;
-  #bossTrail = 1;
-  #hurtAt = Number.NEGATIVE_INFINITY;
-  #scoredAt = Number.NEGATIVE_INFINITY;
-  #lastHearts = MAX_HEARTS;
-  #slotReadyAt: [number, number] = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
-  #slotWasReady: [boolean, boolean] = [true, true];
+  readonly #hud = new HudTracker();
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -168,7 +161,7 @@ export class LevelScene implements GameScene<LevelParams> {
         world.drainEvents();
         break;
     }
-    this.#trackHud(world, dt);
+    this.#hud.update(world, this.#time, dt);
   }
 
   render(gfx: Gfx): void {
@@ -192,8 +185,10 @@ export class LevelScene implements GameScene<LevelParams> {
     const flash = world.flashColor;
     if (flash) gfx.fillRect(0, 0, gfx.width, gfx.height, flash);
 
-    drawHud(gfx, kit, this.#hudState(world));
-    this.#renderBossBar(gfx, world);
+    drawHud(gfx, kit, this.#hud.hud(world, this.#time, this.#device));
+    const bossBar = this.#hud.bossBar(world, this.#time);
+    const celebrating = this.#phase.kind === 'finale' || this.#phase.kind === 'leaving';
+    if (bossBar && !celebrating) drawBossBar(gfx, this.#services.text, bossBar);
     this.#renderOverlays(gfx, world, level);
   }
 
@@ -210,7 +205,7 @@ export class LevelScene implements GameScene<LevelParams> {
           this.#openCard(event.highlightId);
           break;
         case 'customerWon':
-          this.#scoredAt = this.#time;
+          this.#hud.scored(this.#time);
           break;
         case 'playerDown':
           this.#phase = { kind: 'down', since: this.#time, heal: event.reason === 'hearts' };
@@ -220,7 +215,7 @@ export class LevelScene implements GameScene<LevelParams> {
           audio.playMusic('boss');
           break;
         case 'bossLanded':
-          this.#bossBarAt = this.#time;
+          this.#hud.bossArrived(this.#time);
           break;
         case 'bossRetained':
           this.#phase = { kind: 'retained', since: this.#time };
@@ -306,53 +301,6 @@ export class LevelScene implements GameScene<LevelParams> {
   }
 
   // ── HUD and overlays ─────────────────────────────────────────────────────
-
-  #trackHud(world: World, dt: number): void {
-    if (world.player.hearts < this.#lastHearts) this.#hurtAt = this.#time;
-    this.#lastHearts = world.player.hearts;
-    world.slots.forEach((slot, index) => {
-      if (slot.ready && !this.#slotWasReady[index]) this.#slotReadyAt[index] = this.#time;
-      this.#slotWasReady[index] = slot.ready;
-    });
-    const boss = world.boss;
-    if (boss) {
-      const fraction = boss.frustration / boss.tuning.frustration;
-      // The white trail lingers, then drains towards the real value, so every hit visibly bites.
-      this.#bossTrail = approach(this.#bossTrail, fraction, dt * 0.5);
-    }
-  }
-
-  #hudState(world: World): HudState {
-    const params = this.#params;
-    return {
-      characterId: params?.characterId ?? world.player.characterId,
-      hearts: world.player.hearts,
-      maxHearts: MAX_HEARTS,
-      slots: world.slots.map((slot, index) => ({
-        skillId: slot.skill.id,
-        charge: slot.charge,
-        remaining: slot.remaining,
-        readyFor: this.#time - (this.#slotReadyAt[index] ?? Number.NEGATIVE_INFINITY),
-        key: keyCapFor(index === 0 ? 'skill1' : 'skill2', this.#device),
-      })),
-      score: world.score,
-      highlights: { collected: world.highlights.length, total: world.blocks.length },
-      time: this.#time,
-      hurtFor: this.#time - this.#hurtAt,
-      scoredFor: this.#time - this.#scoredAt,
-    };
-  }
-
-  #renderBossBar(gfx: Gfx, world: World): void {
-    const boss = world.boss;
-    if (!boss || this.#bossBarAt === null || this.#phase.kind === 'finale' || this.#phase.kind === 'leaving') return;
-    drawBossBar(gfx, this.#services.text, {
-      label: `UNHAPPY CUSTOMER - ${world.stage.theme.bossPlan}`,
-      fraction: boss.frustration / boss.tuning.frustration,
-      trail: this.#bossTrail,
-      age: this.#time - this.#bossBarAt,
-    });
-  }
 
   #renderOverlays(gfx: Gfx, world: World, level: LevelInfo): void {
     const { text } = this.#services;
