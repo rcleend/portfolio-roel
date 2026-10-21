@@ -96,16 +96,19 @@ export class BriefingPanel {
     }
   }
 
-  /** Advances one step; returns true when the visitor asks to get in touch. */
-  update(step: GameStep, inputEnabled: boolean): boolean {
+  /**
+   * Advances one step; returns true when the visitor asks to get in touch.
+   * `keyboard` gates confirm-key activation of the CONTACT button (pointer clicks always work).
+   */
+  update(step: GameStep, input: { readonly enabled: boolean; readonly keyboard: boolean }): boolean {
     this.#time += step.dt;
     this.#briefing?.update();
     const slot = this.#slot;
     if (slot?.kind === 'mission') this.#updateComplaint(slot);
     else this.#complaint.hide();
     this.#complaint.update();
-    if (slot?.kind !== 'teaser' || !inputEnabled) return false;
-    return this.#contact.update(step.input, true, step.dt);
+    if (slot?.kind !== 'teaser' || !input.enabled) return false;
+    return this.#contact.update(step.input, input.keyboard, step.dt);
   }
 
   /** Finishes the type-out at once, e.g. when the player is already deploying. */

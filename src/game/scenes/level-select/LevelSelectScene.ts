@@ -46,6 +46,11 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
   #deployingAt: number | null = null;
   #leaving = false;
   #press: PointerPress | null = null;
+  /**
+   * Buttons activate on release. While a confirm press that started before
+   * this screen is still held, its release must not fire the CONTACT button.
+   */
+  #confirmLatched = true;
   #lastPointer: { x: number; y: number } | null = null;
 
   constructor(services: GameServices) {
@@ -74,7 +79,9 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
   update(step: GameStep): void {
     this.#time += step.dt;
     const inputEnabled = !this.#leaving && this.#deployingAt === null;
-    if (this.#panel?.update(step, inputEnabled)) this.#contact();
+    const keyboard = !this.#confirmLatched;
+    if (!step.input.isDown('confirm')) this.#confirmLatched = false;
+    if (this.#panel?.update(step, { enabled: inputEnabled, keyboard })) this.#contact();
     if (this.#deployingAt !== null && this.#time - this.#deployingAt >= DEPLOY_DELAY && !this.#leaving) {
       this.#launch();
     }
