@@ -20,6 +20,7 @@ import type { RenderKit } from '../entities/RenderKit';
 import type { Shot } from '../entities/shots/Shot';
 import type { Barrier } from '../entities/stage/Barrier';
 import type { Checkpoint } from '../entities/stage/Checkpoint';
+import { GoalFlag } from '../entities/stage/GoalFlag';
 import type { HighlightBlock } from '../entities/stage/HighlightBlock';
 import type { MovingPlatform } from '../entities/stage/MovingPlatform';
 import type { RateLimitGate } from '../entities/stage/RateLimitGate';
@@ -59,6 +60,10 @@ const FALL_LIMIT = GROUND_Y + 64;
 const ACTIVE_MARGIN = 96;
 const STOMP_TOLERANCE = 6;
 const BUBBLE_SPEED = { regular: 52, escalated: 66 } as const;
+/** Roughly how far a knockback carries the player, px. */
+const PUSHBACK_REACH = 40;
+/** The escalated customer never lands closer than this to the player. */
+const BOSS_LANDING_CLEARANCE = 96;
 /** Seconds between entering the arena and the escalated customer dropping in. */
 const BOSS_DROP_DELAY = 1.1;
 
@@ -71,6 +76,8 @@ const BOSS_DROP_DELAY = 1.1;
 export class World implements SkillWorld {
   readonly stage: StageDefinition;
   readonly grid: TileGrid;
+  /** The escalated customer is too big for girders: it walks (and lands) on the ground only. */
+  readonly #groundOnly: TileGrid;
   readonly camera: CameraFollow;
   readonly player: Player;
   readonly slots: readonly [SkillSlot, SkillSlot];
@@ -80,6 +87,8 @@ export class World implements SkillWorld {
   readonly slowZones: readonly SlowZone[];
   readonly barriers: readonly Barrier[];
   readonly checkpoints: readonly Checkpoint[];
+  /** Berlin's PRODUCT-MARKET FIT flagpole; `null` where the finale needs no prop. */
+  readonly goalFlag: GoalFlag | null;
   readonly rng: Rng;
   readonly #options: WorldOptions;
   readonly #effects = new EffectsLayer();
@@ -109,6 +118,7 @@ export class World implements SkillWorld {
     this.stage = options.stage;
     this.rng = options.rng;
     this.grid = buildGrid(options.stage.layout);
+    this.#groundOnly = buildGrid(options.stage.layout, { platforms: false });
     const entities = populateStage(options.stage, options.props, options.highlightIds);
     this.blocks = entities.blocks;
     this.movers = entities.movers;
@@ -117,6 +127,10 @@ export class World implements SkillWorld {
     this.barriers = entities.barriers;
     this.checkpoints = entities.checkpoints;
     this.#customers = entities.customers;
+    this.goalFlag =
+      options.stage.theme.finale === 'product-market-fit'
+        ? new GoalFlag(this.goalX + TILE, GROUND_Y, 'PRODUCT-MARKET FIT')
+        : null;
 
     const { start } = options.stage.layout;
     this.#respawnX = start.col * TILE + TILE / 2;
@@ -298,6 +312,7 @@ export class World implements SkillWorld {
     for (const gate of this.gates) if (gateProp) gate.render(gfx, gateProp, kit.time);
     for (const checkpoint of this.checkpoints) checkpoint.render(gfx, kit.time);
     for (const block of this.blocks) block.render(gfx, kit.art.tileset, kit.time);
+    this.goalFlag?.render(gfx, kit.text.label, kit.time);
 
     const caster = this.caster;
     for (const skill of this.#skills) skill.render(gfx, kit, caster, 'behind');
@@ -369,14 +384,17 @@ export class World implements SkillWorld {
       collision,
       speedScale: this.#modifiers.customerSpeed,
       calm: this.#modifiers.customersCalm || this.#down,
+      view,
       rng: this.rng,
       shout: (customer, index) => this.#shout(customer, index),
       landed: () => this.#bossLanded(),
     };
+    const bossContext: CustomerContext = { ...context, collision: { ...collision, grid: this.#groundOnly } };
     for (const customer of this.#customers) {
       // Off-screen customers wait; nobody should shout from beyond the edge of the screen.
       const near = customer.centerX > view.x - ACTIVE_MARGIN && customer.centerX < view.x + view.w + ACTIVE_MARGIN;
-      if (near || customer === this.#boss) customer.update(dt, context);
+      if (customer === this.#boss) customer.update(dt, bossContext);
+      else if (near) customer.update(dt, context);
     }
     this.#customers = this.#customers.filter(
       (customer) =>
@@ -426,7 +444,8 @@ export class World implements SkillWorld {
     for (const customer of this.#customers) {
       if (!customer.active || !intersects(player.rect, customer.rect)) continue;
       const previousFeet = player.feet - player.body.vy / 60;
-      const stomp = player.body.vy > 0 && previousFeet <= customer.rect.y + STOMP_TOLERANCE && !customer.charging;
+      // Landing on a head always counts — even a charging escalated customer can be vaulted that way.
+      const stomp = player.body.vy > 0 && previousFeet <= customer.rect.y + STOMP_TOLERANCE;
       if (stomp) {
         player.bounce();
         this.#hitCustomer(customer, 1, player.facing);
@@ -485,10 +504,18 @@ export class World implements SkillWorld {
 
   #damagePlayer(fromX: number): void {
     if (this.#modifiers.playerShielded || this.#retained) return;
-    if (!this.player.hurt(fromX, this.#time)) return;
+    if (!this.player.hurt(fromX, this.#time, this.#safeToPush(fromX))) return;
     this.#sfx('hurt');
     this.shake(2, 0.2);
     if (this.player.hearts === 0) this.#playerDown('hearts');
+  }
+
+  /** A hit never shoves the player off a vehicle or into a pit: that would cost two hearts for one mistake. */
+  #safeToPush(fromX: number): boolean {
+    const { player, grid } = this;
+    if (player.standingOn) return false;
+    const landing = player.centerX + (player.centerX < fromX ? -1 : 1) * PUSHBACK_REACH;
+    return grid.kindAt(grid.colAt(landing), grid.rowAt(player.feet + 1)) !== 'empty';
   }
 
   #playerDown(reason: 'pit' | 'hearts'): void {
@@ -538,8 +565,11 @@ export class World implements SkillWorld {
   #maybeDropBoss(): void {
     if (this.#bossDropAt === null || this.#time < this.#bossDropAt) return;
     this.#bossDropAt = null;
-    const { boss } = this.stage.layout;
-    this.#boss = new Customer(ESCALATED_CUSTOMER, boss.col * TILE + TILE / 2, -40, { kind: 'entering' });
+    // Drop in at the marker, or mirrored across the arena if the player is standing there.
+    const marked = this.stage.layout.boss.col * TILE + TILE / 2;
+    const mirrored = 2 * this.arenaX + this.camera.width - marked;
+    const x = Math.abs(this.player.centerX - marked) < BOSS_LANDING_CLEARANCE ? mirrored : marked;
+    this.#boss = new Customer(ESCALATED_CUSTOMER, x, -40, { kind: 'entering' });
     this.#customers.push(this.#boss);
   }
 

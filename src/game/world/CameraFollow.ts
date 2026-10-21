@@ -67,7 +67,10 @@ export class CameraFollow {
     }
     const desired = this.#clamp(this.#desiredX(target));
     const blend = 1 - Math.exp(-CATCH_UP * dt);
-    this.#camera.x = this.#clamp(this.#camera.x + (desired - this.#camera.x) * blend);
+    const next = this.#camera.x + (desired - this.#camera.x) * blend;
+    // A freshly locked wall is eased into rather than snapped to; once inside, the camera stays inside.
+    const floor = this.#camera.x >= this.#minX ? this.#minX : 0;
+    this.#camera.x = clamp(next, floor, Math.max(floor, this.#levelWidth - this.#camera.width));
     this.#camera.update(dt);
   }
 

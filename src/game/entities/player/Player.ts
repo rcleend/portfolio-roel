@@ -144,12 +144,16 @@ export class Player {
     return { jumped, landed: contacts.grounded && !wasGrounded, ceilingCells: contacts.ceilingCells };
   }
 
-  /** Takes a hit from something at `fromX`. Returns false while invulnerable. */
-  hurt(fromX: number, time: number): boolean {
+  /**
+   * Takes a hit from something at `fromX`. Returns false while invulnerable.
+   * `pushback: false` keeps the knockback vertical — used where a shove
+   * would throw the player off a platform or into a pit.
+   */
+  hurt(fromX: number, time: number, pushback = true): boolean {
     if (this.isInvulnerable(time)) return false;
     this.hearts = Math.max(0, this.hearts - 1);
     const away = this.centerX < fromX ? -1 : 1;
-    this.body.vx = away * KNOCKBACK.x;
+    this.body.vx = pushback ? away * KNOCKBACK.x : 0;
     this.body.vy = KNOCKBACK.y;
     this.#carry = 0;
     this.#riding = null;

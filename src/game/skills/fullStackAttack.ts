@@ -23,7 +23,7 @@ const LAYERS = [
   { core: '#c4b8f5', rim: '#3d2f8f' },
   { core: '#ffd84a', rim: '#9e5a10' },
 ] as const;
-const LAYER_HEIGHT = 3;
+const LAYER_HEIGHT = 4;
 const LAYER_GAP = 1;
 const BEAM_HEIGHT = LAYERS.length * LAYER_HEIGHT + (LAYERS.length - 1) * LAYER_GAP;
 
@@ -79,12 +79,12 @@ class FullStackBeam implements ActiveSkill {
       if (fading && index !== 1 && blink(this.#age, 2 / 60, 2 / 60)) return;
       const y = area.y + index * (LAYER_HEIGHT + LAYER_GAP);
       gfx.fillRect(left, y, length, LAYER_HEIGHT, colors.rim);
-      gfx.fillRect(left, y + 1, length, 1, colors.core);
+      gfx.fillRect(left, y + 1, length, LAYER_HEIGHT - 2, colors.core);
       // Pulses racing along each layer read as data in flight.
       const travel = Math.floor(this.#age * 600 + index * 11) % 22;
       for (let offset = travel; offset < length; offset += 22) {
         const x = this.#facing > 0 ? left + offset : left + length - offset - 6;
-        gfx.fillRect(x, y + 1, 6, 1, '#ffffff');
+        gfx.fillRect(x, y + 1, 8, LAYER_HEIGHT - 2, '#ffffff');
       }
     });
     // Muzzle flare at the hand.

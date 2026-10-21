@@ -27,6 +27,8 @@ export interface CustomerContext {
   readonly speedScale: number;
   /** Calm customers do not shout. */
   readonly calm: boolean;
+  /** The camera view: customers only start a shout on screen, so no complaint flies in from nowhere. */
+  readonly view: Rect;
   readonly rng: Rng;
   /** Releases one complaint bubble; `index` numbers the bubbles of a volley. */
   shout(customer: Customer, index: number): void;
@@ -182,7 +184,7 @@ export class Customer {
         return;
       case 'patrol':
         if (sees) {
-          this.#nextShout = Math.max(this.#nextShout, time + ctx.rng.range(0.6, 1.2));
+          this.#nextShout = Math.max(this.#nextShout, time + ctx.rng.range(0.25, 0.6));
           this.#setMood({ kind: 'approach' }, time);
         }
         return;
@@ -195,7 +197,7 @@ export class Customer {
         const charge = this.tuning.charge;
         if (charge && time >= this.#nextCharge && distance > 56) {
           this.#setMood({ kind: 'chargeWindup', until: time + charge.windup }, time);
-        } else if (!ctx.calm && time >= this.#nextShout && sees) {
+        } else if (!ctx.calm && time >= this.#nextShout && sees && this.#onScreen(ctx.view)) {
           this.#setMood({ kind: 'windup', until: time + this.tuning.windup }, time);
         }
         return;
@@ -278,6 +280,10 @@ export class Customer {
     this.#nextCharge = ctx.time + ctx.rng.range(charge.every[0], charge.every[1]);
     this.#nextShout = Math.max(this.#nextShout, ctx.time + 0.8);
     this.#setMood({ kind: 'recover', until: ctx.time + this.tuning.recover }, ctx.time);
+  }
+
+  #onScreen(view: Rect): boolean {
+    return this.centerX > view.x + 8 && this.centerX < view.x + view.w - 8;
   }
 
   #groundAhead(collision: CollisionWorld, direction: number): boolean {

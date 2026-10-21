@@ -34,6 +34,7 @@ class Harness {
       collision: this.collision,
       speedScale: this.speedScale,
       calm: this.calm,
+      view: { x: 0, y: 0, w: 2000, h: 240 },
       rng: this.rng,
       shout: (_customer, index) => this.shouts.push(index),
       landed: () => this.landings++,
@@ -78,10 +79,11 @@ describe('Customer', () => {
 
   it('is won over when frustration reaches zero', () => {
     const customer = new Customer(REGULAR_CUSTOMER, 300, 200);
-    expect(customer.hit({ damage: 1, direction: 1 }, 0)).toBe('hurt');
-    expect(customer.hit({ damage: 1, direction: 1 }, 0.5)).toBe('hurt');
+    for (let hit = 1; hit < REGULAR_CUSTOMER.frustration; hit++) {
+      expect(customer.hit({ damage: 1, direction: 1 }, hit)).toBe('hurt');
+    }
     expect(customer.frustration).toBe(1);
-    expect(customer.hit({ damage: 1, direction: 1 }, 1)).toBe('won');
+    expect(customer.hit({ damage: 1, direction: 1 }, 9)).toBe('won');
     expect(customer.won).toBe(true);
     expect(customer.hit({ damage: 1, direction: 1 }, 1.5)).toBe('ignored');
   });

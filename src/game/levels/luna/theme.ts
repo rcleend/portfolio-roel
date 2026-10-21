@@ -18,6 +18,6 @@ export const lunaTheme: StageTheme = {
   pit: { label: 'SPAM', labelColor: '#9e3028' },
   finale: 'acquired',
   bossPlan: 'ENTERPRISE PLAN',
-  // The telephone pole is a full-height silhouette; one every third repetition keeps it a passing accent.
-  foreground: { every: 3, offset: 1 },
+  // The telephone pole is a full-height silhouette; one every other repetition keeps it a passing accent.
+  foreground: { every: 2, offset: 1 },
 };

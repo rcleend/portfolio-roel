@@ -103,7 +103,7 @@ describe('World', () => {
     const boss = world.boss;
     expect(boss?.escalated).toBe(true);
     if (!boss) return;
-    for (let i = 0; i < 40 && boss.active; i++) world.hit(boss, 1, 1);
+    for (let i = 0; i < 100 && boss.active; i++) world.hit(boss, 1, 1);
     expect(kinds(world.drainEvents())).toContain('bossRetained');
     expect(world.score).toBe(2_500);
   });

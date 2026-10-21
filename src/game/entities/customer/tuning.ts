@@ -34,7 +34,7 @@ export interface ChargeTuning {
 export const REGULAR_CUSTOMER: CustomerTuning = {
   scale: 1,
   hitbox: { w: 14, h: 28 },
-  frustration: 3,
+  frustration: 4,
   walkSpeed: 30,
   sightRange: 190,
   keepDistance: 76,
@@ -49,14 +49,14 @@ export const REGULAR_CUSTOMER: CustomerTuning = {
 export const ESCALATED_CUSTOMER: CustomerTuning = {
   scale: 2,
   hitbox: { w: 26, h: 56 },
-  frustration: 24,
+  frustration: 48,
   walkSpeed: 34,
   sightRange: 400,
   keepDistance: 96,
-  shoutEvery: [1.7, 2.5],
+  shoutEvery: [2.3, 3.3],
   windup: 0.5,
   recover: 0.6,
   volley: 2,
-  charge: { every: [5, 7], windup: 0.7, speed: 175, maxSeconds: 1.6 },
+  charge: { every: [6, 8], windup: 0.8, speed: 165, maxSeconds: 1.6 },
   mrr: MRR.escalated,
 };

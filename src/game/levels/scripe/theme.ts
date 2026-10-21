@@ -18,6 +18,6 @@ export const scripeTheme: StageTheme = {
   pit: { label: 'BAUSTELLE', labelColor: '#a8505a' },
   finale: 'product-market-fit',
   bossPlan: 'ENTERPRISE PLAN',
-  // Street lamps are tall; one every third repetition keeps them from walling off the play plane.
-  foreground: { every: 3, offset: 1 },
+  // Street lamps are tall; one every other repetition keeps them from walling off the play plane.
+  foreground: { every: 2, offset: 1 },
 };
