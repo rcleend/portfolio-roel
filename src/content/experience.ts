@@ -17,7 +17,7 @@ export const experience: readonly Experience[] = [
         description:
           'Took the lead in shaping and executing a stronger focus on teams. Trial-to-paid conversion rose from ' +
           '20% to ~35%, monthly churn nearly halved to 13% and customer lifetime value almost doubled within six months.',
-        metric: { label: 'trial-to-paid conversion', from: '20%', to: '35%' },
+        metric: { label: 'trial-to-paid conversion', from: '20%', to: '~35%' },
       },
       {
         id: 'scripe-onboarding',
@@ -35,7 +35,7 @@ export const experience: readonly Experience[] = [
       },
       {
         id: 'scripe-ios',
-        title: 'iOS APP',
+        title: 'NATIVE APP',
         description:
           'Shipped the iOS app end to end, including payments and OAuth. Its users retain 18% better at 90 days ' +
           'than web-only users.',

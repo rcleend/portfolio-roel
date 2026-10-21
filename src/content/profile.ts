@@ -10,8 +10,7 @@ export const profile: Profile = {
   summary:
     'Product engineer who takes ownership of features end to end, from user research and strategy to design and code. ' +
     'Eight years of experience building high-traffic, user-facing products — five of them at early-stage AI startups, ' +
-    'working closely with founders on product vision and strategy. Researched human–agent collaboration for my master, ' +
-    'focusing on voice agents.',
+    'working closely with founders on product vision and strategy. Researched human–agent collaboration for an MSc thesis, focusing on voice agents.',
   links: [
     emailLink,
     {

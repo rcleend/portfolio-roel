@@ -19,7 +19,7 @@ export const characters: readonly Character[] = [
     tag: 'ROEL',
     className: 'DESIGNER',
     bio:
-      'Sees the interface before it exists. Interaction Technology master by day, guitarist by night. ' +
+      'Sees the interface before it exists. Interaction Technology MSc by day, guitarist by night. ' +
       'Untangles messy flows until they feel obvious.',
     attack: 'Paint splats',
     skills: ['ux-elixir', 'power-chord'],
@@ -52,7 +52,7 @@ export const skills: Readonly<Record<SkillId, Skill>> = {
     name: 'AGENT SUMMON',
     tooltip:
       'Summons an AI sidekick that calls its own tools and hunts down nearby problems. ' +
-      'Its real-life twins keep users around up to 30% longer.',
+      'Its real-life twins lift user retention by up to 30%.',
     effect: 'An AI drone orbits you for 8 seconds, firing at the nearest unhappy customer.',
     cooldownSeconds: 12,
   },
