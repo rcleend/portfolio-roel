@@ -212,7 +212,7 @@ game/
   skills/              one module per SkillId implementing the shared Skill behaviour contract
   levels/art/          LevelArt loader: validates each layers.json, preloads its PNGs, exposes parallax layers, Tileset and PropSheets
   levels/<levelId>/    level map, theme, generated parallax art + layers.json (tools/art/README.md)
-  art/                 pixel-art sheets (characters, enemy, icons), procedural art (logos, crater)
+  art/                 pixel-art sheets (characters, enemy, icons), procedural logos (logos/); scene-only art lives in its scene folder
 ```
 
 `GameServices` (`director`, `audio`, `fonts`, `text`, `sprites`, `assets`, `levelArt`, `session`, `rng`, `settings.reducedMotion`) is created once in `createGame.ts` and passed to every scene's constructor; scenes never reach for globals.
