@@ -1,0 +1,16 @@
+/* The room fills the viewport; the canvas inside sizes itself to this box. */
+.room-host {
+  position: fixed;
+  inset: 0;
+  outline: none;
+  background: #07080c;
+}
+
+/* Keyboard focus: a thin pixel frame inside the viewport edge, never around the TV itself. */
+.room-host[data-focus-ring="true"]:focus::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 2px solid rgb(169 156 240 / 0.55);
+  pointer-events: none;
+}

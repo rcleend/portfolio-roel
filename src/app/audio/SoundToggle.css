@@ -1,0 +1,56 @@
+.sound-toggle {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: rgb(11 10 31 / 0.55);
+  /* A 2 px pixel frame drawn with hard box-shadows instead of a rounded border. */
+  box-shadow:
+    inset 0 0 0 2px #3d2f8f,
+    inset 2px 2px 0 2px rgb(255 255 255 / 0.06);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sound-toggle svg {
+  width: 30px;
+  height: 26px;
+  overflow: visible;
+}
+
+.sound-toggle__shadow {
+  fill: #0b0a1f;
+}
+
+.sound-toggle__speaker {
+  fill: #d9d0ff;
+}
+
+.sound-toggle__waves {
+  fill: #ffc83d;
+}
+
+.sound-toggle__cross {
+  fill: #e2352d;
+}
+
+.sound-toggle:hover {
+  background: rgb(35 30 92 / 0.8);
+}
+
+.sound-toggle:active svg {
+  transform: translateY(2px);
+}
+
+.sound-toggle:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px #ffc83d,
+    0 0 0 2px #0b0a1f;
+}
