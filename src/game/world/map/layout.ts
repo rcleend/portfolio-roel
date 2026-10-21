@@ -176,6 +176,12 @@ export function parseLayout(sections: readonly string[]): LevelLayout {
     }
   }
 
+  // Rows are scanned top to bottom, but every list is consumed left to right (highlight order, checkpoints).
+  const byColumn = (a: Cell, b: Cell): number => a.col - b.col || a.row - b.row;
+  const byStart = (a: Run, b: Run): number => a.from - b.from || a.row - b.row;
+  for (const list of Object.values(cells)) list.sort(byColumn);
+  for (const list of [platforms, slowZones, movers]) list.sort(byStart);
+
   const required = (key: 'P' | 'E' | 'G' | '>', what: string): Cell =>
     singles[key] ?? fail(0, LAYOUT_TOP_ROW, `missing ${what} ("${key}")`);
   return {

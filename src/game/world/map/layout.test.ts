@@ -69,3 +69,13 @@ describe('parseLayout', () => {
     expect(() => parseLayout([minimal])).not.toThrow();
   });
 });
+
+describe('parseLayout ordering', () => {
+  it('lists blocks left to right regardless of row', () => {
+    const layout = parseLayout([section({ 5: '......?...', 8: '..?.......', 11: 'P..c.>.E.G' })]);
+    expect(layout.blocks).toEqual([
+      { col: 2, row: 8 },
+      { col: 6, row: 5 },
+    ]);
+  });
+});
