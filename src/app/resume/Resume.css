@@ -1,6 +1,7 @@
 /*
  * Hidden like .sr-only — present for assistive tech and crawlers — until the
- * skip link targets it or focus moves inside, then shown as a readable panel.
+ * skip link targets it or focus moves inside, then shown as a typeset page:
+ * cream paper, ink type, and arcade accents only in the small print.
  */
 .resume:not(:target, :focus-within) {
   position: absolute;
@@ -15,62 +16,293 @@
 }
 
 .resume:is(:target, :focus-within) {
+  --ink: #1b1830;
+  --muted: #5d5874;
+  --rule: #d9d0bd;
+  --accent: #1f4fd6;
+  --paper: #f7f3e6;
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 40;
   overflow-y: auto;
-  padding: clamp(24px, 6vw, 72px);
-  background: #f7f3e6;
-  color: #1b1830;
+  background:
+    linear-gradient(to bottom, #14123a 0 6px, #3d2f8f 6px 8px, #ffc83d 8px 10px, transparent 10px), var(--paper);
+  color: var(--ink);
+  color-scheme: light;
   font:
-    16px / 1.6 system-ui,
-    sans-serif;
+    17px / 1.65 ui-serif,
+    "Iowan Old Style",
+    "Palatino Linotype",
+    Palatino,
+    Georgia,
+    serif;
+  -webkit-font-smoothing: antialiased;
+  outline: none;
 }
 
-.resume:is(:target, :focus-within) > * {
-  max-width: 68ch;
-  margin-inline: auto;
+.resume__page {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 72px) clamp(20px, 5vw, 40px) 64px;
+}
+
+/* Arcade accents: the pixel face, small, for labels only. */
+.resume__kicker,
+.resume__back,
+.resume__metric,
+.resume__cta {
+  font-family: Silkscreen, ui-monospace, monospace;
+  -webkit-font-smoothing: none;
+}
+
+.resume__nav {
+  margin-bottom: 40px;
+}
+
+.resume__back {
+  display: inline-block;
+  border: 0;
+  cursor: pointer;
+  padding: 6px 10px 5px;
+  font-size: 16px;
+  line-height: 1;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--paper);
+  background: var(--ink);
+  box-shadow: 3px 3px 0 #3d2f8f;
+}
+
+.resume__back:hover {
+  background: #2b2659;
+}
+
+.resume__kicker {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .resume h1 {
   margin: 0;
-  font-size: 2rem;
+  font:
+    700 clamp(2.4rem, 7vw, 3.4rem) / 1.05 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  letter-spacing: -0.02em;
 }
 
-.resume h2 {
-  margin-top: 2.5rem;
-  font-size: 1.25rem;
-  border-bottom: 2px solid #1b1830;
+.resume__headline {
+  margin: 10px 0 0;
+  font:
+    600 1.1rem / 1.4 system-ui,
+    sans-serif;
+  color: var(--muted);
 }
 
-.resume h3 {
-  margin-bottom: 0;
-  font-size: 1.05rem;
-}
-
-.resume__headline,
-.resume__meta,
-.resume__stack {
-  color: #5a5570;
-}
-
-.resume__meta {
-  margin-top: 0;
+.resume__summary {
+  margin: 20px 0 0;
+  font-size: 1.12rem;
 }
 
 .resume__links {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
+  gap: 8px 22px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  font:
+    500 0.95rem / 1.4 system-ui,
+    sans-serif;
+}
+
+.resume a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.resume a:focus-visible {
+  outline: 2px solid #ffc83d;
+  outline-offset: 2px;
+  background: #fff3c4;
+}
+
+.resume h2 {
+  margin: 56px 0 20px;
+  padding-bottom: 8px;
+  font:
+    700 0.8rem / 1 system-ui,
+    sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  /* A dotted pixel rule: 2 px squares every 4 px. */
+  background: linear-gradient(to right, var(--ink) 50%, transparent 50%) bottom / 4px 2px repeat-x;
+}
+
+.resume__job + .resume__job {
+  margin-top: 36px;
+}
+
+.resume h3 {
+  margin: 0;
+  font:
+    700 1.2rem / 1.35 system-ui,
+    sans-serif;
+}
+
+.resume__meta {
+  margin: 4px 0 0;
+  font:
+    0.92rem / 1.5 system-ui,
+    sans-serif;
+  color: var(--muted);
+}
+
+.resume__highlights {
+  margin: 14px 0 0;
+  padding-left: 1.1em;
+}
+
+.resume__highlights li {
+  margin-top: 8px;
+}
+
+.resume__highlights li::marker {
+  content: "▸ ";
+  color: #c87d0a;
+  font-size: 0.85em;
+}
+
+.resume__metric {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 6px 2px;
+  font-size: 8px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+  color: var(--ink);
+  background: #ffe9a8;
+  box-shadow: inset 0 0 0 1px #e0b545;
+}
+
+.resume__metric strong {
+  font-weight: 400;
+  color: #b43a10;
+}
+
+.resume__stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font:
+    600 0.72rem / 1 system-ui,
+    sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.resume__stack li {
+  padding: 4px 7px;
+  color: var(--paper);
+  background: #3d3a57;
+}
+
+.resume__plain {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.resume a {
-  color: #2346c8;
+.resume__plain li + li {
+  margin-top: 14px;
 }
 
-.resume__back {
+.resume__detail {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.resume__next {
+  margin-top: 56px;
+  padding: 24px 24px 26px;
+  color: #e9e4ff;
+  background: #14123a;
+  box-shadow:
+    inset 0 0 0 2px #3d2f8f,
+    6px 6px 0 #1b1830;
+}
+
+.resume__next .resume__kicker {
+  color: #ffc83d;
+}
+
+.resume__next h2 {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #fff;
+  background: none;
+}
+
+.resume__next p {
+  margin: 0;
+}
+
+.resume a.resume__cta {
   display: inline-block;
-  margin-bottom: 1.5rem;
+  margin-top: 18px;
+  padding: 8px 12px 7px;
+  font-size: 16px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--ink);
+  background: #ffc83d;
+  box-shadow: 3px 3px 0 #b43a10;
+}
+
+.resume__footer {
+  margin-top: 48px;
+  font:
+    0.85rem / 1.4 system-ui,
+    sans-serif;
+  color: var(--muted);
+}
+
+.resume__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media print {
+  .resume:not(:target, :focus-within),
+  .resume:is(:target, :focus-within) {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    background: #fff;
+  }
+
+  .resume__nav {
+    display: none;
+  }
 }
