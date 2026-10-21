@@ -292,7 +292,7 @@ pnpm shot --host room --out .shots/room.png --page                  # full page
 ```
 
 More options: `--params <json>`, `--scale <n>` (default 3), `--cols <n>` for sheets, `--seed <n>` (default 1), `--viewport WxH` for `--page`.
-The script reuses a dev server already serving the app on `:5173` (or `--url`), otherwise starts Vite on a free port, and fails on any page error.
+The script uses the dev server given by `--url`, otherwise starts Vite from the current checkout on a free port, and fails on any page error. Set `E2E_PORT` to give each checkout its own end-to-end server.
 
 ## Quality bar
 

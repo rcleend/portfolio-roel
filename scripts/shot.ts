@@ -8,8 +8,8 @@
  * Options: --scene <id> --params <json> --frames <n | a:b:step> --scale <n> --cols <n>
  *          --seed <n> --host <flat|room> --page --viewport <WxH> --out <path> --url <base>
  *
- * Reuses a dev server already serving this app on :5173 (or --url); otherwise
- * starts Vite on a free port for the duration of the run.
+ * Uses the dev server given by --url; otherwise starts Vite from this checkout
+ * on a free port for the duration of the run.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer as createNetServer } from 'node:net';
@@ -96,7 +96,7 @@ async function startServer(): Promise<{ base: string; server: ViteDevServer | nu
     if (!(await servesApp(values.url))) fail(`--url ${values.url} does not serve this app`);
     return { base: values.url.replace(/\/$/, ''), server: null };
   }
-  if (await servesApp('http://localhost:5173/')) return { base: 'http://localhost:5173', server: null };
+  // Never guess at a shared port: with several checkouts open, :5173 may be serving a different tree.
   const port = await freePort();
   const server = await createServer({
     configFile: resolve(import.meta.dirname, '../vite.config.ts'),

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4317;
+// Override per checkout (E2E_PORT) so parallel worktrees never test each other's server.
+const PORT = Number(process.env.E2E_PORT ?? 4317);
 
 export default defineConfig({
   testDir: './e2e',
@@ -16,7 +17,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });
