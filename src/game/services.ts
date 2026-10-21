@@ -5,6 +5,7 @@ import type { Sprites } from './art';
 import type { GameAudio } from './audio/ids';
 import type { GameFonts, TextStyles } from './fonts';
 import type { Action } from './input/bindings';
+import type { LevelArtLibrary } from './levels/art/LevelArt';
 import type { GameSceneMap } from './scenes/params';
 import type { SessionStore } from './session';
 
@@ -25,6 +26,8 @@ export interface GameServices {
   readonly text: TextStyles;
   readonly sprites: Sprites;
   readonly assets: AssetStore;
+  /** Parallax planes, tiles and props for every stage, preloaded at startup. */
+  readonly levelArt: LevelArtLibrary;
   readonly session: SessionStore;
   /** The game's root random stream; `fork()` it for an independent, reproducible sub-stream. */
   readonly rng: Rng;

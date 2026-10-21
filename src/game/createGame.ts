@@ -11,6 +11,7 @@ import { compileSprites } from './art';
 import type { GameAudio, MusicId, SfxId } from './audio/ids';
 import { loadFonts } from './fonts';
 import { type Action, bindings } from './input/bindings';
+import { loadLevelArt } from './levels/art/LevelArt';
 import { createSceneFactories } from './scenes';
 import type { GameSceneMap } from './scenes/params';
 import type { GameServices } from './services';
@@ -44,7 +45,7 @@ export interface CreatedGame {
  */
 export async function createGame(options: CreateGameOptions = {}): Promise<CreatedGame> {
   const assets = new AssetStore();
-  const { fonts, styles } = await loadFonts(assets);
+  const [{ fonts, styles }, levelArt] = await Promise.all([loadFonts(assets), loadLevelArt(assets)]);
 
   let services: GameServices | null = null;
   const director = new Director<GameSceneMap, Action>(
@@ -60,6 +61,7 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
     text: styles,
     sprites: compileSprites(),
     assets,
+    levelArt,
     session: new SessionStore(options.storage === undefined ? defaultStorage() : options.storage),
     rng: new Rng(options.seed ?? Date.now()),
     settings: { reducedMotion: options.reducedMotion ?? prefersReducedMotion() },

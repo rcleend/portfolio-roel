@@ -200,7 +200,7 @@ Track and effect ids are string unions in `game/audio/ids.ts` (with `MUSIC_IDS` 
 ```
 game/
   createGame.ts        composition: builds services, registers scenes, returns Game + GameSurface
-  services.ts          GameServices: director, audio, fonts, text, sprites, assets, session, rng, settings
+  services.ts          GameServices: director, audio, fonts, text, sprites, assets, levelArt, session, rng, settings
   palette.ts           shared UI colours
   session.ts           persisted progress (localStorage, versioned schema)
   input/bindings.ts    Action union + default bindings
@@ -210,11 +210,12 @@ game/
   ui/                  pixel UI widgets: Window, Tooltip, Button, TypewriterText, Hud
   entities/            player, unhappy customer, projectiles, pickups, platforms, hazards
   skills/              one module per SkillId implementing the shared Skill behaviour contract
-  levels/<levelId>/    level map, theme, generated parallax art + layers.json
+  levels/art/          LevelArt loader: validates each layers.json, preloads its PNGs, exposes parallax layers, Tileset and PropSheets
+  levels/<levelId>/    level map, theme, generated parallax art + layers.json (tools/art/README.md)
   art/                 pixel-art sheets (characters, enemy, icons), procedural art (logos, crater)
 ```
 
-`GameServices` (`director`, `audio`, `fonts`, `text`, `sprites`, `assets`, `session`, `rng`, `settings.reducedMotion`) is created once in `createGame.ts` and passed to every scene's constructor; scenes never reach for globals.
+`GameServices` (`director`, `audio`, `fonts`, `text`, `sprites`, `assets`, `levelArt`, `session`, `rng`, `settings.reducedMotion`) is created once in `createGame.ts` and passed to every scene's constructor; scenes never reach for globals.
 `createGame(options)` resolves to `{ game, surface, services }`, stopped and without a scene: the app picks the first scene and starts the loop.
 
 Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and replaces its stub in place, keeping the class name and the `constructor(services: GameServices)` signature, so the registry never changes.
