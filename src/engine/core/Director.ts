@@ -2,17 +2,16 @@ import type { Gfx } from '../gfx/Gfx';
 import type { GameRoot, Scene, Step } from './Scene';
 import { cut, type Transition, type TransitionPhase } from './transitions';
 
-/** Scene id → params type, e.g. `{ title: void; level: { levelId: LevelId } }`. */
-export type SceneMap = Record<string, unknown>;
+/** Scene id → params type, e.g. `{ title: void; level: { levelId: LevelId } }`. Interfaces are accepted too. */
+export type SceneMap<M = object> = { readonly [K in keyof M]: unknown };
 
 export type SceneFactory<P, A extends string = string> = () => Scene<P, A>;
 
-export type SceneFactories<M extends SceneMap, A extends string = string> = {
+export type SceneFactories<M extends SceneMap<M>, A extends string = string> = {
   readonly [K in keyof M]: SceneFactory<M[K], A>;
 };
 
 /** Params may be omitted only for scenes whose params type is `void`. */
-// biome-ignore lint/suspicious/noConfusingVoidType: `void` is how a SceneMap marks a scene without params.
 export type GoToArgs<P> = [P] extends [void]
   ? [params?: undefined, transition?: Transition]
   : [params: P, transition?: Transition];
@@ -23,13 +22,13 @@ export interface TransitionState {
   readonly coverage: number;
 }
 
-interface Request<M extends SceneMap> {
+interface Request<M extends SceneMap<M>> {
   readonly id: keyof M & string;
   readonly params: unknown;
   readonly transition: Transition;
 }
 
-interface ActiveTransition<M extends SceneMap> {
+interface ActiveTransition<M extends SceneMap<M>> {
   readonly transition: Transition;
   readonly request: Request<M>;
   phase: TransitionPhase;
@@ -41,7 +40,7 @@ interface ActiveTransition<M extends SceneMap> {
  * optional overlay transition. While a transition runs, scenes keep animating
  * but receive idle input, so nothing can be triggered twice mid-switch.
  */
-export class Director<M extends SceneMap, A extends string = string> implements GameRoot<A> {
+export class Director<M extends SceneMap<M>, A extends string = string> implements GameRoot<A> {
   readonly #factories: SceneFactories<M, A>;
   #current: { readonly id: keyof M & string; readonly scene: Scene<unknown, A> } | null = null;
   #transition: ActiveTransition<M> | null = null;
@@ -149,7 +148,7 @@ export class Director<M extends SceneMap, A extends string = string> implements 
   }
 }
 
-function coverageOf(active: Pick<ActiveTransition<SceneMap>, 'phase' | 'elapsed' | 'transition'>): number {
+function coverageOf(active: Pick<ActiveTransition<object>, 'phase' | 'elapsed' | 'transition'>): number {
   const { phase, elapsed, transition } = active;
   if (phase === 'out') return transition.outFrames === 0 ? 1 : Math.min(1, elapsed / transition.outFrames);
   return transition.inFrames === 0 ? 0 : Math.max(0, 1 - elapsed / transition.inFrames);

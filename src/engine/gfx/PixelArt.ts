@@ -23,6 +23,22 @@ export interface PixelArtAnimation {
 
 export const TRANSPARENT_KEY = '.';
 
+/**
+ * Turns a template literal into frame rows, trimming indentation and blank
+ * lines. Lets art be written as readable blocks that formatters leave alone:
+ *
+ *     pixels(`
+ *       .kk.
+ *       kwwk
+ *     `)
+ */
+export function pixels(source: string): string[] {
+  return source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 export class PixelArtError extends Error {
   override readonly name = 'PixelArtError';
 }

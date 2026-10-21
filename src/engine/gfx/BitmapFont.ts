@@ -46,6 +46,11 @@ export interface TtfFontOptions {
   readonly letterSpacing?: number;
   /** Alpha (0–255) at or above which a pixel counts as ink. */
   readonly threshold?: number;
+  /**
+   * Hand-drawn glyphs (`#` ink, `.` empty) for characters the font lacks or
+   * draws poorly. Their last row sits on the baseline.
+   */
+  readonly glyphs?: Readonly<Record<string, readonly string[]>>;
 }
 
 export class BitmapFontError extends Error {
@@ -171,16 +176,13 @@ export class BitmapFont {
       return Math.round(ctx.measureText(SPACE).width);
     })();
     glyphs.set(SPACE, emptyGlyph(spaceAdvance + letterSpacing, cellHeight));
-    const fallback = glyphs.has('?') ? '?' : (raw.keys().next().value as string);
     // Ink for the baseline row sits just above the alphabetic baseline y.
-    return new BitmapFont(
-      options.name,
-      cellHeight,
-      baseline - top,
-      options.lineHeight ?? cellHeight + 2,
-      glyphs,
-      fallback,
-    );
+    const ascent = baseline - top;
+    for (const [char, rows] of Object.entries(options.glyphs ?? {})) {
+      glyphs.set(char, baselineGlyph(options.name, char, rows, ascent, cellHeight, letterSpacing));
+    }
+    const fallback = glyphs.has('?') ? '?' : (raw.keys().next().value as string);
+    return new BitmapFont(options.name, cellHeight, ascent, options.lineHeight ?? cellHeight + 2, glyphs, fallback);
   }
 
   has(char: string): boolean {
@@ -208,6 +210,29 @@ export class BitmapFont {
   }
 }
 
+/** A hand-drawn glyph whose last row sits on the baseline row of a TTF-derived cell. */
+function baselineGlyph(
+  fontName: string,
+  char: string,
+  rows: readonly string[],
+  ascent: number,
+  cellHeight: number,
+  letterSpacing: number,
+): Glyph {
+  const width = (rows[0] ?? '').length;
+  const firstRow = ascent - rows.length;
+  if (firstRow < 0)
+    throw new BitmapFontError(`Font "${fontName}": glyph "${char}" is taller than the ascent (${ascent})`);
+  const bits = new Uint8Array(width * cellHeight);
+  rows.forEach((row, y) => {
+    [...row].forEach((cell, x) => {
+      if (cell === '#') bits[(firstRow + y) * width + x] = 1;
+    });
+  });
+  // Advance mirrors the TTF glyphs: ink plus the font's own one-pixel side bearing.
+  return { width, bits, advance: width + 1 + letterSpacing, inkWidth: width };
+}
+
 function emptyGlyph(advance: number, cellHeight: number): Glyph {
   return {
     width: Math.max(advance, 1),
@@ -215,4 +240,37 @@ function emptyGlyph(advance: number, cellHeight: number): Glyph {
     advance,
     inkWidth: advance,
   };
+}
+
+/**
+ * Parses a human-readable glyph sheet: each glyph is a header line `= X`
+ * followed by its rows; blank lines separate glyphs. Template literals keep
+ * the shapes intact through code formatters.
+ *
+ *     = A
+ *     .#.
+ *     #.#
+ *     ###
+ */
+export function parseGlyphSheet(source: string): Record<string, string[]> {
+  const glyphs: Record<string, string[]> = {};
+  let current: string[] | null = null;
+  for (const rawLine of source.split('\n')) {
+    const line = rawLine.trim();
+    if (line.startsWith('= ')) {
+      const char = line.slice(2);
+      if ([...char].length !== 1)
+        throw new BitmapFontError(`Glyph sheet header "${line}" must name exactly one character`);
+      if (char in glyphs) throw new BitmapFontError(`Glyph sheet defines "${char}" twice`);
+      current = [];
+      glyphs[char] = current;
+    } else if (line === '') {
+      current = null;
+    } else if (current) {
+      current.push(line);
+    } else {
+      throw new BitmapFontError(`Glyph sheet row "${line}" appears before any "= X" header`);
+    }
+  }
+  return glyphs;
 }

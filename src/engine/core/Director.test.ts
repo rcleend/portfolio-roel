@@ -4,7 +4,6 @@ import { Director } from './Director';
 import { RecordingScene, stepWith } from './testing';
 import { cut, fade, flash, type Transition } from './transitions';
 
-// biome-ignore lint/suspicious/noConfusingVoidType: mirrors how real scene maps mark param-less scenes.
 type Map = { a: void; b: { n: number } };
 
 function setup() {
