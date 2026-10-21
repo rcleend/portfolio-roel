@@ -7,7 +7,6 @@ import { createTestWorld } from './testing';
 import type { World } from './World';
 
 const DT = 1 / 60;
-const createWorld = createTestWorld;
 
 function run(world: World, seconds: number, intent: PlayerIntent | ((t: number) => PlayerIntent) = IDLE_INTENT) {
   const events: WorldEvent[] = [];
@@ -22,7 +21,7 @@ const kinds = (events: readonly WorldEvent[]) => events.map((event) => event.kin
 
 describe('World', () => {
   it('starts the player on the ground at the start marker with full hearts', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     run(world, 0.2);
     expect(world.player.feet).toBe(200);
     expect(world.player.centerX).toBe(STAGES.luna.layout.start.col * TILE + TILE / 2);
@@ -30,7 +29,7 @@ describe('World', () => {
   });
 
   it('wins a customer over with primary attacks, scoring their MRR', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     const events = run(world, 4, { ...IDLE_INTENT, attackHeld: true });
     const won = events.filter((event) => event.kind === 'customerWon');
     expect(won.length).toBe(1);
@@ -41,7 +40,7 @@ describe('World', () => {
   });
 
   it('collects a highlight by head-butting its block', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     const block = STAGES.luna.layout.blocks[0];
     if (!block) throw new Error('no block');
     world.skipTo(0);
@@ -53,7 +52,7 @@ describe('World', () => {
   });
 
   it('casts skills, which then cool down', () => {
-    const world = createWorld('luna', 'artsy');
+    const world = createTestWorld('luna', 'artsy');
     let events = run(world, 0.1, { ...IDLE_INTENT, skill2Pressed: true });
     expect(events).toContainEqual({ kind: 'skillCast', skillId: 'power-chord' });
     events = run(world, 1, { ...IDLE_INTENT, skill2Pressed: true });
@@ -62,7 +61,7 @@ describe('World', () => {
   });
 
   it('takes a heart for falling into a pit and respawns at the last checkpoint', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     world.skipTo(0);
     const checkpointX = world.checkpoints[0]?.x ?? 0;
     const events = run(world, 6, { ...IDLE_INTENT, x: 1 });
@@ -74,7 +73,7 @@ describe('World', () => {
   });
 
   it('drops the escalated customer when the arena is entered and reports the retention', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     world.skipTo('arena');
     const events = run(world, 3, { ...IDLE_INTENT, x: 1 });
     expect(kinds(events)).toEqual(expect.arrayContaining(['arenaEntered', 'bossLanded']));
@@ -87,7 +86,7 @@ describe('World', () => {
   });
 
   it('never lets the camera leave the arena once inside', () => {
-    const world = createWorld();
+    const world = createTestWorld();
     world.skipTo('arena');
     run(world, 2, { ...IDLE_INTENT, x: 1 });
     run(world, 3, { ...IDLE_INTENT, x: -1 });
