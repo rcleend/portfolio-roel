@@ -35,13 +35,7 @@ export function drawEscalationBanner(
   }
   if (open < 1 || !blink(age, 10 / 60, 4 / 60)) return;
   gfx.text('ESCALATED!', gfx.width / 2, y, styles.bannerAlarm, { align: 'center' });
-  gfx.text(
-    `UNHAPPY CUSTOMER - ${plan}`,
-    gfx.width / 2,
-    y + 40,
-    { ...text.label, fill: '#ffb0a0' },
-    { align: 'center' },
-  );
+  gfx.text(`UNHAPPY CUSTOMER - ${plan}`, gfx.width / 2, y + 40, { ...text.hud, fill: '#ffd0b0' }, { align: 'center' });
 }
 
 /** A two-line announcer callout that slams in and holds, e.g. "CUSTOMER RETAINED!". */
