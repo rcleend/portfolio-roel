@@ -31,7 +31,6 @@ import {
 } from './selectMachine';
 import { placeTooltip } from './tooltipPlacement';
 
-const SCREEN: Rect = { x: 0, y: 0, w: 320, h: 240 };
 const TOOLTIP_WIDTH = 140;
 /** The pointer's own height, so a tooltip placed above it never hides the arrow tip. */
 const POINTER_BOX = 12;
@@ -148,7 +147,10 @@ export class CharacterSelectScene implements GameScene {
   }
 
   get #character(): Character {
-    return characters[this.#state.index] ?? (characters[0] as Character);
+    const character = characters[this.#state.index];
+    // The state machine wraps the index into the roster, so this only fires if the roster is empty.
+    if (!character) throw new Error(`No character at index ${this.#state.index}`);
+    return character;
   }
 
   #apply(effect: SelectEffect): void {
@@ -243,7 +245,7 @@ export class CharacterSelectScene implements GameScene {
     const anchor: Rect = followPointer
       ? { x: this.#pointer.x - 6, y: this.#pointer.y, w: 1, h: POINTER_BOX }
       : SKILL_ROWS[slot];
-    const position = placeTooltip(anchor, this.#tooltip.size, SCREEN);
+    const position = placeTooltip(anchor, this.#tooltip.size, { x: 0, y: 0, w: gfx.width, h: gfx.height });
     this.#tooltip.render(gfx, position.x, position.y);
   }
 }
