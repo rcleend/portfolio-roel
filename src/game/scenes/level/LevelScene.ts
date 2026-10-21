@@ -29,6 +29,7 @@ import { HighlightCard } from './overlays/HighlightCard';
 import { drawMissionIntro, missionYears } from './overlays/missionIntro';
 import { type PauseChoice, PauseMenu } from './overlays/PauseMenu';
 import { fadeScreen } from './overlays/screen';
+import { drawWorld } from './render/drawWorld';
 import { drawSparseForeground } from './render/foreground';
 import { drawHitboxes } from './render/hitboxes';
 import { drawPlayPlane } from './render/playPlane';
@@ -184,7 +185,7 @@ export class LevelScene implements GameScene<LevelParams> {
       drawPlayPlane(gfx, stage.layout, art.tileset, view.x);
       drawPitSigns(gfx, stage.layout, stage.theme.pit, this.#services.text.label, view.x);
       for (const mover of world.movers) drawRails(gfx, mover, stage.layout, stage.theme.mover);
-      world.render(gfx, kit);
+      drawWorld(gfx, world, kit);
       if (this.#dev.hitboxes) drawHitboxes(gfx, world);
     });
     drawSparseForeground(gfx, art.foreground, view.x, stage.theme.foreground, world.arenaX);

@@ -1,6 +1,7 @@
 import { ditherOn } from '@/engine/gfx/dither';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
+import type { RenderKit } from '../entities/RenderKit';
 import { circleBounds, circleIntersectsRect, rectCenter } from './geometry';
 import type { ActiveSkill, Skill, SkillCaster, SkillLayer, SkillModifiers, SkillTarget, SkillWorld } from './Skill';
 
@@ -40,7 +41,7 @@ class Shield implements ActiveSkill {
     world.popBubbles(circleBounds(x, y, RADIUS));
   }
 
-  render(gfx: Gfx, _kit: unknown, caster: SkillCaster, layer: SkillLayer): void {
+  render(gfx: Gfx, _kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void {
     if (layer !== 'front' || this.done) return;
     if (DURATION - this.#age < 0.8 && !blink(this.#age, 3 / 60, 3 / 60)) return;
     const { x, y } = center(caster);

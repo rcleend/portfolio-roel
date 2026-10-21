@@ -2,6 +2,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { easeOutBack } from '@/engine/motion/easing';
 import { segment } from '@/engine/motion/progress';
 import { Burst } from '../entities/effects/Burst';
+import type { RenderKit } from '../entities/RenderKit';
 import { rectCenter } from './geometry';
 import type { ActiveSkill, Skill, SkillCaster, SkillLayer, SkillModifiers, SkillWorld } from './Skill';
 
@@ -46,7 +47,7 @@ class Elixir implements ActiveSkill {
     }
   }
 
-  render(gfx: Gfx, _kit: unknown, caster: SkillCaster, layer: SkillLayer): void {
+  render(gfx: Gfx, _kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void {
     if (layer !== 'front' || this.#age > FLASK_SECONDS) return;
     // The potion pops up above the hero's head, tips, and is gone.
     const rise = segment(this.#age, 0, 0.25, easeOutBack);

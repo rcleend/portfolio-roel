@@ -1,6 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects } from '@/engine/math/Rect';
 import { Ring } from '../entities/effects/Ring';
+import type { RenderKit } from '../entities/RenderKit';
 import {
   type ActiveSkill,
   NO_MODIFIERS,
@@ -53,7 +54,7 @@ class Shockwave implements ActiveSkill {
     }
   }
 
-  render(gfx: Gfx, _kit: unknown, _caster: SkillCaster, layer: SkillLayer): void {
+  render(gfx: Gfx, _kit: RenderKit, _caster: SkillCaster, layer: SkillLayer): void {
     if (layer !== 'front' || this.done) return;
     // Two sound-wave fronts race outwards along the ground: zig-zag columns of light.
     const distance = this.#age * WAVE_SPEED;

@@ -1,22 +1,14 @@
-import { type CharacterId, getCharacter, skills as skillContent } from '@/content';
-import type { Gfx } from '@/engine/gfx/Gfx';
+import type { CharacterId } from '@/content';
 import { intersects, type Rect } from '@/engine/math/Rect';
 import type { Rng } from '@/engine/math/Rng';
-import type { SfxId } from '../audio/ids';
-import type { BubbleText } from '../entities/complaints/SpeechBubble';
-import { SpeechBubble } from '../entities/complaints/SpeechBubble';
+import type { BubbleText, SpeechBubble } from '../entities/complaints/SpeechBubble';
 import { Customer, type CustomerContext } from '../entities/customer/Customer';
-import { renderCustomer } from '../entities/customer/renderCustomer';
-import { ESCALATED_CUSTOMER } from '../entities/customer/tuning';
 import { BURSTS, Burst } from '../entities/effects/Burst';
 import type { Effect } from '../entities/effects/Effect';
-import { EffectsLayer } from '../entities/effects/Effect';
 import { FloatingText } from '../entities/effects/FloatingText';
 import { HeartPop } from '../entities/effects/HeartPop';
-import { PRIMARY_ATTACKS } from '../entities/player/attacks';
 import { NORMAL_SCALE } from '../entities/player/movement';
 import { Player, type PlayerIntent } from '../entities/player/Player';
-import type { RenderKit } from '../entities/RenderKit';
 import type { Shot } from '../entities/shots/Shot';
 import type { Barrier } from '../entities/stage/Barrier';
 import type { Checkpoint } from '../entities/stage/Checkpoint';
@@ -26,13 +18,16 @@ import type { MovingPlatform } from '../entities/stage/MovingPlatform';
 import type { RateLimitGate } from '../entities/stage/RateLimitGate';
 import type { SlowZone } from '../entities/stage/SlowZone';
 import type { LevelResult } from '../scenes/params';
-import { SKILLS } from '../skills';
 import type { ActiveSkill, SkillCaster, SkillTarget, SkillWorld } from '../skills/Skill';
-import { SkillSlot } from '../skills/SkillSlot';
+import type { SkillSlot } from '../skills/SkillSlot';
+import { Arena } from './Arena';
 import { CameraFollow, type CameraTarget } from './CameraFollow';
+import { Complaints } from './Complaints';
 import type { CollisionWorld } from './collision';
 import type { WorldEvent } from './events';
+import { Feedback } from './Feedback';
 import { TILE, type TileGrid } from './grid';
+import { Loadout } from './Loadout';
 import { buildGrid, GROUND_Y } from './map/buildGrid';
 import { type ActiveModifiers, combineModifiers, NEUTRAL_MODIFIERS } from './modifiers';
 import { populateStage, type StageProps } from './populate';
@@ -56,31 +51,30 @@ export interface WorldOptions {
 
 /** Feet below this line mean the player fell out of the world. */
 const FALL_LIMIT = GROUND_Y + 64;
-/** Customers this far outside the view are no longer simulated. */
+/** Customers this far outside the view wait instead of being simulated. */
 const ACTIVE_MARGIN = 96;
+/** Won-over customers are let go once they stroll this far off screen. */
+const DISMISS_MARGIN = 48;
 const STOMP_TOLERANCE = 6;
-const BUBBLE_SPEED = { regular: 52, escalated: 66 } as const;
 /** Roughly how far a knockback carries the player, px. */
 const PUSHBACK_REACH = 40;
-/** The escalated customer never lands closer than this to the player. */
-const BOSS_LANDING_CLEARANCE = 96;
-/** Seconds between entering the arena and the escalated customer dropping in. */
-const BOSS_DROP_DELAY = 1.1;
+/** Shots this far from the player are no longer worth simulating. */
+const SHOT_RANGE = 400;
 
 /**
  * The level runtime: owns every entity, steps them in a fixed order,
- * resolves who hits whom, and reports what happened as `WorldEvent`s. It
- * knows nothing about audio, overlays or scenes, and implements `SkillWorld`
- * so skills can act on it without seeing the rest.
+ * resolves who hits whom, and reports what happened through `Feedback`
+ * (events and effects). It knows nothing about audio, overlays or scenes,
+ * and implements `SkillWorld` so skills can act on it without seeing the rest.
  */
 export class World implements SkillWorld {
   readonly stage: StageDefinition;
   readonly grid: TileGrid;
-  /** The escalated customer is too big for girders: it walks (and lands) on the ground only. */
-  readonly #groundOnly: TileGrid;
   readonly camera: CameraFollow;
   readonly player: Player;
-  readonly slots: readonly [SkillSlot, SkillSlot];
+  readonly loadout: Loadout;
+  readonly arena: Arena;
+  readonly feedback = new Feedback();
   readonly blocks: readonly HighlightBlock[];
   readonly movers: readonly MovingPlatform[];
   readonly gates: readonly RateLimitGate[];
@@ -90,36 +84,30 @@ export class World implements SkillWorld {
   /** Berlin's PRODUCT-MARKET FIT flagpole; `null` where the finale needs no prop. */
   readonly goalFlag: GoalFlag | null;
   readonly rng: Rng;
-  readonly #options: WorldOptions;
-  readonly #effects = new EffectsLayer();
+  /** The escalated customer is too big for girders: it walks (and lands) on the ground only. */
+  readonly #groundOnly: TileGrid;
+  readonly #complaints: Complaints;
+  readonly #reducedMotion: boolean;
   #customers: Customer[];
-  #boss: Customer | null = null;
-  #bubbles: SpeechBubble[] = [];
   #shots: Shot[] = [];
   #skills: ActiveSkill[] = [];
   #modifiers: ActiveModifiers = NEUTRAL_MODIFIERS;
-  #events: WorldEvent[] = [];
   #time = 0;
-  #attackCooldown = 0;
-  #shotsFired = 0;
-  #complaint = 0;
   #score = 0;
   #customersWon = 0;
   #highlights: string[] = [];
   #respawnX: number;
-  #arenaEntered = false;
-  #bossDropAt: number | null = null;
   #retained = false;
   #down = false;
-  #flash: { readonly color: string; readonly until: number } | null = null;
 
   constructor(options: WorldOptions) {
-    this.#options = options;
-    this.stage = options.stage;
+    const { stage } = options;
+    this.stage = stage;
     this.rng = options.rng;
-    this.grid = buildGrid(options.stage.layout);
-    this.#groundOnly = buildGrid(options.stage.layout, { platforms: false });
-    const entities = populateStage(options.stage, options.props, options.highlightIds);
+    this.#reducedMotion = options.reducedMotion;
+    this.grid = buildGrid(stage.layout);
+    this.#groundOnly = buildGrid(stage.layout, { platforms: false });
+    const entities = populateStage(stage, options.props, options.highlightIds);
     this.blocks = entities.blocks;
     this.movers = entities.movers;
     this.gates = entities.gates;
@@ -127,19 +115,16 @@ export class World implements SkillWorld {
     this.barriers = entities.barriers;
     this.checkpoints = entities.checkpoints;
     this.#customers = entities.customers;
+    this.#complaints = new Complaints(options.complaints, options.layoutBubble, this.feedback, this.rng);
+    this.arena = new Arena(stage.layout.arenaCol, stage.layout.boss.col, options.screen.width);
     this.goalFlag =
-      options.stage.theme.finale === 'product-market-fit'
+      stage.theme.finale === 'product-market-fit'
         ? new GoalFlag(this.goalX + TILE, GROUND_Y, 'PRODUCT-MARKET FIT')
         : null;
 
-    const { start } = options.stage.layout;
-    this.#respawnX = start.col * TILE + TILE / 2;
+    this.#respawnX = stage.layout.start.col * TILE + TILE / 2;
     this.player = new Player(options.characterId, this.#respawnX, GROUND_Y);
-    const [first, second] = getCharacter(options.characterId).skills;
-    this.slots = [
-      new SkillSlot(SKILLS[first], skillContent[first].cooldownSeconds),
-      new SkillSlot(SKILLS[second], skillContent[second].cooldownSeconds),
-    ];
+    this.loadout = new Loadout(options.characterId);
     this.camera = new CameraFollow(options.screen.width, options.screen.height, this.grid.widthPx);
     this.camera.snapTo(this.#cameraTarget());
   }
@@ -172,13 +157,7 @@ export class World implements SkillWorld {
   }
 
   popBubbles(area: Rect): number {
-    let popped = 0;
-    for (const bubble of this.#bubbles) {
-      if (!bubble.alive || !intersects(bubble.rect, area)) continue;
-      this.#popBubble(bubble);
-      popped++;
-    }
-    return popped;
+    return this.#complaints.popWithin(area);
   }
 
   fire(shot: Shot): void {
@@ -186,15 +165,15 @@ export class World implements SkillWorld {
   }
 
   effect(effect: Effect): void {
-    this.#effects.add(effect);
+    this.feedback.effect(effect);
   }
 
   shake(intensity: number, seconds: number): void {
-    if (!this.#options.reducedMotion) this.camera.shake(intensity, seconds);
+    if (!this.#reducedMotion) this.camera.shake(intensity, seconds);
   }
 
   flash(color: string, seconds: number): void {
-    if (!this.#options.reducedMotion) this.#flash = { color, until: this.#time + seconds };
+    if (!this.#reducedMotion) this.feedback.flash(color, this.#time + seconds);
   }
 
   // ── State the scene reads ──────────────────────────────────────────────
@@ -204,11 +183,11 @@ export class World implements SkillWorld {
   }
 
   get boss(): Customer | null {
-    return this.#boss;
+    return this.arena.boss;
   }
 
   get bubbles(): readonly SpeechBubble[] {
-    return this.#bubbles;
+    return this.#complaints.bubbles;
   }
 
   get shots(): readonly Shot[] {
@@ -217,6 +196,10 @@ export class World implements SkillWorld {
 
   get activeSkills(): readonly ActiveSkill[] {
     return this.#skills;
+  }
+
+  get slots(): readonly [SkillSlot, SkillSlot] {
+    return this.loadout.slots;
   }
 
   get modifiers(): ActiveModifiers {
@@ -231,8 +214,13 @@ export class World implements SkillWorld {
     return this.#highlights;
   }
 
+  /** False between falling into a pit (or losing the last heart) and the respawn. */
+  get playerVisible(): boolean {
+    return !this.#down;
+  }
+
   get arenaX(): number {
-    return this.stage.layout.arenaCol * TILE;
+    return this.arena.x;
   }
 
   get goalX(): number {
@@ -241,14 +229,12 @@ export class World implements SkillWorld {
 
   /** The full-screen flash colour to draw this frame, if any. */
   get flashColor(): string | null {
-    return this.#flash && this.#time < this.#flash.until ? this.#flash.color : null;
+    return this.feedback.flashColor(this.#time);
   }
 
   /** Returns and clears the events of the steps since the last drain. */
   drainEvents(): WorldEvent[] {
-    const events = this.#events;
-    this.#events = [];
-    return events;
+    return this.feedback.drain();
   }
 
   result(): LevelResult {
@@ -270,7 +256,8 @@ export class World implements SkillWorld {
     const collision = this.#collision();
 
     if (!this.#down) this.#stepPlayer(intent, dt, collision);
-    this.#stepSkills(dt);
+    for (const skill of this.#skills) skill.update(this, dt);
+    this.#skills = this.#skills.filter((skill) => !skill.done);
     this.#stepCustomers(dt, collision);
     this.#stepShots(dt);
     this.#stepBubbles(dt);
@@ -278,7 +265,7 @@ export class World implements SkillWorld {
       this.#resolveContacts();
       this.#checkProgress();
     }
-    this.#effects.update(dt);
+    this.feedback.effects.update(dt);
     this.camera.update(this.#cameraTarget(), dt);
   }
 
@@ -287,7 +274,7 @@ export class World implements SkillWorld {
     this.#down = false;
     if (heal) this.player.heal();
     this.player.respawn(this.#respawnX, GROUND_Y, this.#time);
-    this.#bubbles = [];
+    this.#complaints.clear();
     this.camera.snapTo(this.#cameraTarget());
   }
 
@@ -302,81 +289,39 @@ export class World implements SkillWorld {
     this.camera.snapTo(this.#cameraTarget());
   }
 
-  render(gfx: Gfx, kit: RenderKit): void {
-    const { props } = kit.art;
-    const moverProp = props[this.stage.theme.mover.prop];
-    for (const mover of this.movers) if (moverProp) mover.render(gfx, moverProp);
-    const barrierProp = this.stage.theme.barrier ? props[this.stage.theme.barrier.prop] : undefined;
-    for (const barrier of this.barriers) if (barrierProp) barrier.render(gfx, barrierProp);
-    const gateProp = this.stage.theme.gate ? props[this.stage.theme.gate.prop] : undefined;
-    for (const gate of this.gates) if (gateProp) gate.render(gfx, gateProp, kit.time);
-    for (const checkpoint of this.checkpoints) checkpoint.render(gfx, kit.time);
-    for (const block of this.blocks) block.render(gfx, kit.art.tileset, kit.time);
-    this.goalFlag?.render(gfx, kit.text.label, kit.time);
-
-    const caster = this.caster;
-    for (const skill of this.#skills) skill.render(gfx, kit, caster, 'behind');
-    for (const customer of this.#customers) if (customer.won) renderCustomer(gfx, kit, customer, this.#modifiers);
-    for (const customer of this.#customers) if (!customer.won) renderCustomer(gfx, kit, customer, this.#modifiers);
-    if (!this.#down) this.player.render(gfx, kit);
-    for (const shot of this.#shots) shot.render(gfx, kit);
-    for (const bubble of this.#bubbles) bubble.render(gfx, kit);
-    for (const skill of this.#skills) skill.render(gfx, kit, caster, 'front');
-    this.#effects.render(gfx, kit);
-    const zoneProp = this.stage.theme.slowZone ? props[this.stage.theme.slowZone.prop] : undefined;
-    for (const zone of this.slowZones) if (zoneProp) zone.render(gfx, zoneProp, kit.time);
-  }
-
   // ── Steps ──────────────────────────────────────────────────────────────
 
   #stepPlayer(intent: PlayerIntent, dt: number, collision: CollisionWorld): void {
-    const { player } = this;
+    const { player, feedback } = this;
     const zone = this.slowZones.find((candidate) => candidate.contains(player.rect));
     const fallSpeed = player.body.vy;
     const step = player.update(intent, dt, collision, this.#time, zone?.scale ?? NORMAL_SCALE);
-    if (step.jumped) this.#sfx('jump');
+    if (step.jumped) feedback.sfx('jump');
     if (step.landed && fallSpeed > 200) {
-      this.#sfx('land');
-      this.effect(new Burst(player.centerX, player.feet, BURSTS.dust, this.rng));
+      feedback.sfx('land');
+      feedback.effect(new Burst(player.centerX, player.feet, BURSTS.dust, this.rng));
     }
-    for (const cell of step.ceilingCells) {
-      const block = this.blocks.find((candidate) => candidate.col === cell.col && candidate.row === cell.row);
-      if (block) this.#collect(block);
-    }
+    for (const cell of step.ceilingCells) this.#collectAt(cell.col, cell.row);
 
-    this.#attackCooldown = Math.max(0, this.#attackCooldown - dt);
-    const locked = player.isLocked(this.#time);
-    if (intent.attackHeld && this.#attackCooldown === 0 && !locked && !this.#retained) this.#attack();
-    this.slots.forEach((slot, index) => {
-      slot.update(dt);
-      const pressed = index === 0 ? intent.skill1Pressed : intent.skill2Pressed;
-      if (!pressed || locked || this.#retained) return;
-      const running = slot.tryCast(this);
-      if (!running) return;
+    const canAct = !player.isLocked(this.#time) && !this.#retained;
+    const hand = { ...player.hand, facing: player.facing };
+    const triggered = this.loadout.step(intent, dt, canAct, hand, this);
+    if (triggered.shot) {
+      this.#shots.push(triggered.shot);
+      player.strike('attack', this.#time, this.loadout.attack.cooldown);
+      feedback.sfx(this.loadout.attack.sfx);
+    }
+    for (const { slot, running } of triggered.casts) {
       this.#skills.push(running);
       player.strike('skill', this.#time, 0.4);
-      this.#sfx(slot.skill.sfx);
-      this.#events.push({ kind: 'skillCast', skillId: slot.skill.id });
-    });
-  }
-
-  #attack(): void {
-    const { player } = this;
-    const attack = PRIMARY_ATTACKS[player.characterId];
-    const hand = player.hand;
-    this.#shots.push(attack.fire(hand.x, hand.y, player.facing, this.#shotsFired++));
-    this.#attackCooldown = attack.cooldown;
-    player.strike('attack', this.#time, attack.cooldown);
-    this.#sfx(attack.sfx);
-  }
-
-  #stepSkills(dt: number): void {
-    for (const skill of this.#skills) skill.update(this, dt);
-    this.#skills = this.#skills.filter((skill) => !skill.done);
+      feedback.sfx(slot.skill.sfx);
+      feedback.emit({ kind: 'skillCast', skillId: slot.skill.id });
+    }
   }
 
   #stepCustomers(dt: number, collision: CollisionWorld): void {
-    this.#maybeDropBoss();
+    const boss = this.arena.dropBoss(this.#time, this.player.centerX);
+    if (boss) this.#customers.push(boss);
     const view = this.view;
     const context: CustomerContext = {
       time: this.#time,
@@ -386,20 +331,18 @@ export class World implements SkillWorld {
       calm: this.#modifiers.customersCalm || this.#down,
       view,
       rng: this.rng,
-      shout: (customer, index) => this.#shout(customer, index),
-      landed: () => this.#bossLanded(),
+      shout: (customer, index) => this.#complaints.shout(customer, index),
+      landed: (customer) => this.#bossLanded(customer),
     };
     const bossContext: CustomerContext = { ...context, collision: { ...collision, grid: this.#groundOnly } };
+    const near = (x: number, margin: number) => x > view.x - margin && x < view.x + view.w + margin;
     for (const customer of this.#customers) {
       // Off-screen customers wait; nobody should shout from beyond the edge of the screen.
-      const near = customer.centerX > view.x - ACTIVE_MARGIN && customer.centerX < view.x + view.w + ACTIVE_MARGIN;
-      if (customer === this.#boss) customer.update(dt, bossContext);
-      else if (near) customer.update(dt, context);
+      if (customer === this.arena.boss) customer.update(dt, bossContext);
+      else if (near(customer.centerX, ACTIVE_MARGIN)) customer.update(dt, context);
     }
     this.#customers = this.#customers.filter(
-      (customer) =>
-        customer.feet < FALL_LIMIT + 200 &&
-        !(customer.won && (customer.centerX < view.x - 48 || customer.centerX > view.x + view.w + 48)),
+      (customer) => customer.feet < FALL_LIMIT + 200 && !(customer.won && !near(customer.centerX, DISMISS_MARGIN)),
     );
   }
 
@@ -408,9 +351,7 @@ export class World implements SkillWorld {
     for (const shot of this.#shots) {
       shot.update(dt, { grid: this.grid, targets });
       if (shot.struckCell) {
-        const { col, row } = shot.struckCell;
-        const block = this.blocks.find((candidate) => candidate.col === col && candidate.row === row);
-        if (block) this.#collect(block);
+        this.#collectAt(shot.struckCell.col, shot.struckCell.row);
         this.#impact(shot);
         continue;
       }
@@ -420,23 +361,23 @@ export class World implements SkillWorld {
         this.#impact(shot);
         shot.strike();
       }
-      for (const bubble of this.#bubbles) {
-        if (!shot.alive || !bubble.alive || !intersects(shot.rect, bubble.rect)) continue;
-        this.#popBubble(bubble);
+      if (!shot.alive) continue;
+      const [bubble] = this.#complaints.touching(shot.rect);
+      if (bubble) {
+        this.#complaints.pop(bubble);
         shot.strike();
       }
     }
-    this.#shots = this.#shots.filter((shot) => shot.alive && Math.abs(shot.x - this.player.centerX) < 400);
+    this.#shots = this.#shots.filter((shot) => shot.alive && Math.abs(shot.x - this.player.centerX) < SHOT_RANGE);
   }
 
   #stepBubbles(dt: number): void {
-    for (const bubble of this.#bubbles) {
-      bubble.update(dt);
-      if (this.#down || !bubble.alive || !intersects(bubble.rect, this.player.rect)) continue;
-      this.#popBubble(bubble);
+    this.#complaints.update(dt);
+    if (this.#down) return;
+    for (const bubble of this.#complaints.touching(this.player.rect)) {
+      this.#complaints.pop(bubble);
       this.#damagePlayer(bubble.center.x);
     }
-    this.#bubbles = this.#bubbles.filter((bubble) => bubble.alive);
   }
 
   #resolveContacts(): void {
@@ -456,20 +397,18 @@ export class World implements SkillWorld {
   }
 
   #checkProgress(): void {
-    const { player } = this;
+    const { player, feedback } = this;
     this.checkpoints.forEach((checkpoint, index) => {
       if (!checkpoint.check(player.centerX, this.#time)) return;
       this.#respawnX = checkpoint.x;
-      this.#sfx('checkpoint');
-      this.#events.push({ kind: 'checkpoint', index });
-      this.effect(new FloatingText('CHECKPOINT!', checkpoint.x, GROUND_Y - 64, 'pop', { rise: 10, life: 1.4 }));
+      feedback.sfx('checkpoint');
+      feedback.emit({ kind: 'checkpoint', index });
+      feedback.effect(new FloatingText('CHECKPOINT!', checkpoint.x, GROUND_Y - 64, 'pop', { rise: 10, life: 1.4 }));
     });
-    if (!this.#arenaEntered && player.centerX > this.arenaX + 2 * TILE) {
-      this.#arenaEntered = true;
-      this.#respawnX = this.arenaX + 2 * TILE;
-      this.camera.lockLeft(this.arenaX);
-      this.#bossDropAt = this.#time + BOSS_DROP_DELAY;
-      this.#events.push({ kind: 'arenaEntered' });
+    if (this.arena.enter(player.centerX, this.#time)) {
+      this.#respawnX = this.arena.respawnX;
+      this.camera.lockLeft(this.arena.x);
+      feedback.emit({ kind: 'arenaEntered' });
     }
     if (player.feet > FALL_LIMIT) this.#playerDown('pit');
   }
@@ -477,35 +416,37 @@ export class World implements SkillWorld {
   // ── Interactions ───────────────────────────────────────────────────────
 
   #hitCustomer(customer: Customer, damage: number, direction: -1 | 1): void {
+    const { feedback } = this;
     const outcome = customer.hit({ damage, direction, decisive: this.#modifiers.decisiveHits }, this.#time);
     if (outcome === 'ignored') return;
     const top = customer.rect.y;
-    this.effect(new Burst(customer.centerX, top + customer.rect.h / 2, BURSTS.hitSpark, this.rng));
+    feedback.effect(new Burst(customer.centerX, top + customer.rect.h / 2, BURSTS.hitSpark, this.rng));
     if (outcome === 'hurt') {
-      this.#sfx('hit');
+      feedback.sfx('hit');
       return;
     }
     const mrr = customer.tuning.mrr;
     this.#score += mrr;
     this.#customersWon++;
-    this.#sfx('customer-happy');
-    this.effect(new HeartPop(customer.centerX, top));
-    this.effect(new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop'));
-    this.#events.push({ kind: 'customerWon', mrr, escalated: customer.escalated });
-    if (customer === this.#boss) this.#retain();
+    feedback.sfx('customer-happy');
+    feedback.effect(new HeartPop(customer.centerX, top));
+    feedback.effect(new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop'));
+    feedback.emit({ kind: 'customerWon', mrr, escalated: customer.escalated });
+    if (customer === this.arena.boss) this.#retain();
   }
 
+  /** The escalated customer is won over: everyone else calms down and the level is as good as cleared. */
   #retain(): void {
     this.#retained = true;
-    for (const bubble of this.#bubbles) this.#popBubble(bubble);
+    this.#complaints.popAll();
     for (const customer of this.#customers) if (customer.active) customer.hit({ damage: 99, direction: 1 }, this.#time);
-    this.#events.push({ kind: 'bossRetained' });
+    this.feedback.emit({ kind: 'bossRetained' });
   }
 
   #damagePlayer(fromX: number): void {
     if (this.#modifiers.playerShielded || this.#retained) return;
     if (!this.player.hurt(fromX, this.#time, this.#safeToPush(fromX))) return;
-    this.#sfx('hurt');
+    this.feedback.sfx('hurt');
     this.shake(2, 0.2);
     if (this.player.hearts === 0) this.#playerDown('hearts');
   }
@@ -523,77 +464,42 @@ export class World implements SkillWorld {
     this.#down = true;
     if (reason === 'pit') {
       this.player.hearts = Math.max(0, this.player.hearts - 1);
-      this.#sfx('hurt');
+      this.feedback.sfx('hurt');
     }
-    this.#events.push({ kind: 'playerDown', reason: this.player.hearts === 0 ? 'hearts' : reason });
+    this.feedback.emit({ kind: 'playerDown', reason: this.player.hearts === 0 ? 'hearts' : reason });
   }
 
-  #collect(block: HighlightBlock): void {
-    if (!block.collect(this.#time)) return;
+  #collectAt(col: number, row: number): void {
+    const block = this.blocks.find((candidate) => candidate.col === col && candidate.row === row);
+    if (!block?.collect(this.#time)) return;
     this.#highlights.push(block.highlightId);
     const { x, y, w } = block.rect;
-    this.effect(new Burst(x + w / 2, y, BURSTS.blockSparkle, this.rng));
-    this.#events.push({ kind: 'highlight', highlightId: block.highlightId });
-  }
-
-  #shout(customer: Customer, index: number): void {
-    const complaints = this.#options.complaints;
-    const text = complaints[this.#complaint++ % Math.max(1, complaints.length)] ?? '!';
-    const mouth = customer.mouth;
-    const scale = customer.tuning.scale;
-    // The escalated customer's volley alternates a low bubble (jump it) and a high one (walk under it).
-    const centerY = customer.escalated ? customer.feet - (index % 2 === 0 ? 16 : 66) : customer.feet - 19;
-    const fromX = mouth.x - customer.facing * index * 28 * scale;
-    const speed = customer.escalated ? BUBBLE_SPEED.escalated : BUBBLE_SPEED.regular;
-    this.#bubbles.push(new SpeechBubble(this.#options.layoutBubble(text), fromX, centerY, customer.facing, speed));
-    if (index === 0) this.#sfx('complaint');
-  }
-
-  #popBubble(bubble: SpeechBubble): void {
-    if (!bubble.alive) return;
-    bubble.pop();
-    const { x, y } = bubble.center;
-    this.effect(new Burst(x, y, BURSTS.bubblePop, this.rng));
-    this.effect(new FloatingText('POP!', x, y - 6, 'pop', { rise: 8, life: 0.5 }));
-    this.#sfx('hit');
+    this.feedback.effect(new Burst(x + w / 2, y, BURSTS.blockSparkle, this.rng));
+    this.feedback.emit({ kind: 'highlight', highlightId: block.highlightId });
   }
 
   #impact(shot: Shot): void {
-    this.effect(new Burst(shot.x, shot.y, shot.spec.impact === 'star' ? BURSTS.starImpact : BURSTS.hitSpark, this.rng));
+    const recipe = shot.spec.impact === 'star' ? BURSTS.starImpact : BURSTS.hitSpark;
+    this.feedback.effect(new Burst(shot.x, shot.y, recipe, this.rng));
   }
 
-  #maybeDropBoss(): void {
-    if (this.#bossDropAt === null || this.#time < this.#bossDropAt) return;
-    this.#bossDropAt = null;
-    // Drop in at the marker, or mirrored across the arena if the player is standing there.
-    const marked = this.stage.layout.boss.col * TILE + TILE / 2;
-    const mirrored = 2 * this.arenaX + this.camera.width - marked;
-    const x = Math.abs(this.player.centerX - marked) < BOSS_LANDING_CLEARANCE ? mirrored : marked;
-    this.#boss = new Customer(ESCALATED_CUSTOMER, x, -40, { kind: 'entering' });
-    this.#customers.push(this.#boss);
-  }
-
-  #bossLanded(): void {
+  #bossLanded(boss: Customer): void {
     this.shake(5, 0.45);
-    const boss = this.#boss;
-    if (boss) this.effect(new Burst(boss.centerX, boss.feet, BURSTS.bigDust, this.rng));
-    this.#sfx('explosion');
-    this.#events.push({ kind: 'bossLanded' });
+    this.feedback.effect(new Burst(boss.centerX, boss.feet, BURSTS.bigDust, this.rng));
+    this.feedback.sfx('explosion');
+    this.feedback.emit({ kind: 'bossLanded' });
   }
 
   #collision(): CollisionWorld {
     const walls: Rect[] = [];
     for (const gate of this.gates) if (gate.wall) walls.push(gate.wall);
-    if (this.#arenaEntered) walls.push({ x: this.arenaX - TILE, y: -240, w: TILE, h: 480 });
+    const arenaWall = this.arena.wall;
+    if (arenaWall) walls.push(arenaWall);
     return { grid: this.grid, surfaces: [...this.movers, ...this.barriers], walls };
   }
 
   #cameraTarget(): CameraTarget {
     const { player } = this;
     return { x: player.centerX, facing: player.facing, vx: player.body.vx };
-  }
-
-  #sfx(id: SfxId): void {
-    this.#events.push({ kind: 'sfx', id });
   }
 }

@@ -2,12 +2,14 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects, type Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
 import { BURSTS, Burst } from '../entities/effects/Burst';
+import type { RenderKit } from '../entities/RenderKit';
 import { rectCenter } from './geometry';
 import {
   type ActiveSkill,
   NO_MODIFIERS,
   type Skill,
   type SkillCaster,
+  type SkillLayer,
   type SkillTarget,
   type SkillWorld,
 } from './Skill';
@@ -66,7 +68,7 @@ class FullStackBeam implements ActiveSkill {
     world.popBubbles(area);
   }
 
-  render(gfx: Gfx, _kit: unknown, _caster: SkillCaster, layer: 'behind' | 'front'): void {
+  render(gfx: Gfx, _kit: RenderKit, _caster: SkillCaster, layer: SkillLayer): void {
     const area = this.#area;
     if (layer !== 'front' || !area || this.done) return;
     const grow = Math.min(1, this.#age / GROW_SECONDS);
