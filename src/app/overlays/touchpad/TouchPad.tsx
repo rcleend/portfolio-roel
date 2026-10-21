@@ -89,7 +89,7 @@ export function TouchPad<A extends string>({ actions, sink, visible, layout, onI
     const root = rootRef.current;
     if (!root) return [];
     const found: ControlKey[] = [];
-    for (const element of root.querySelectorAll<HTMLElement>('[data-control]')) {
+    for (const element of root.querySelectorAll<SVGSVGElement>('[data-control]')) {
       const rect = element.getBoundingClientRect();
       const control = element.dataset.control;
       if (control === 'dpad') {
