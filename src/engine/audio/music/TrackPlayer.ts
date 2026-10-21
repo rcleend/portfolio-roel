@@ -89,7 +89,10 @@ export class TrackPlayer {
     return end !== null && now >= end + this.#song.tail;
   }
 
+  /** Detaches the track's whole graph, including the echo's feedback loop, so it can be collected. */
   dispose(): void {
+    for (const strip of this.#channels.values()) strip.disconnect();
+    this.#echo?.disconnect();
     this.#output.disconnect();
   }
 

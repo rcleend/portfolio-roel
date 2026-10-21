@@ -62,7 +62,10 @@ test.describe('audio', () => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await openLab(page);
+    // Music requested before any gesture waits without creating an audio context.
+    await page.evaluate(() => window.__audioLab?.service.playMusic('title'));
     expect(await page.evaluate(() => window.__audioLab?.service.context === null)).toBe(true);
+    expect(await page.evaluate(() => window.__audioLab?.service.currentMusic)).toBe('title');
 
     // A real click is the user gesture browsers require before audio may start.
     await page.getByRole('button', { name: /^title/ }).click();
@@ -103,6 +106,17 @@ test.describe('audio', () => {
     await page.evaluate(() => window.__audioLab?.service.setPaused(false));
     await page.waitForFunction(() => window.__audioLab?.service.context?.state === 'running');
     await expect.poll(level, { timeout: 5_000 }).toBeGreaterThan(0.01);
+
+    // A hidden tab suspends audio; showing it again resumes.
+    const setHidden = (hidden: boolean): Promise<void> =>
+      page.evaluate((value) => {
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, hidden);
+    await setHidden(true);
+    await page.waitForFunction(() => window.__audioLab?.service.context?.state === 'suspended');
+    await setHidden(false);
+    await page.waitForFunction(() => window.__audioLab?.service.context?.state === 'running');
 
     await page.evaluate(() => window.__audioLab?.service.playMusic('boss'));
     expect(await page.evaluate(() => window.__audioLab?.service.currentMusic)).toBe('boss');

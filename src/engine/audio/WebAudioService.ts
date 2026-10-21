@@ -71,6 +71,7 @@ export class WebAudioService<MusicId extends string, SfxId extends string> imple
   #muted = false;
   #paused = false;
   #hidden = false;
+  #disposed = false;
 
   constructor(options: WebAudioServiceOptions<MusicId, SfxId>) {
     this.#music = options.music;
@@ -101,15 +102,22 @@ export class WebAudioService<MusicId extends string, SfxId extends string> imple
     return (this.#engine.deck.currentId as MusicId | null) ?? null;
   }
 
+  /**
+   * Call from a user gesture (click, key, touch). Resuming inside the gesture
+   * is what grants the page sound (Safari insists), so it happens even while
+   * paused; the pause is re-applied straight after. Outside a gesture the
+   * browser may keep the context suspended until the next call from one.
+   */
   async unlock(): Promise<void> {
+    if (this.#disposed) return;
     const engine = this.#engine ?? this.#start();
-    if (engine && this.#shouldRun() && engine.context.state !== 'running') {
-      // Some browsers reject resume() outside a gesture; the next unlock() from a real gesture will succeed.
-      await engine.context.resume().catch(() => undefined);
-    }
+    if (!engine) return;
+    if (engine.context.state !== 'running') await engine.context.resume().catch(() => undefined);
+    this.#syncContext();
   }
 
   playMusic(id: MusicId, options: MusicOptions = {}): void {
+    if (this.#disposed) return;
     const engine = this.#engine;
     if (!engine) {
       this.#pending = { id, options, requestedAt: this.#now() };
@@ -141,7 +149,10 @@ export class WebAudioService<MusicId extends string, SfxId extends string> imple
 
   /** Stops everything and releases the context. The service stays silent afterwards. */
   async dispose(): Promise<void> {
+    this.#disposed = true;
+    this.#pending = null;
     const engine = this.#engine;
+    this.#engine = null;
     if (!engine) return;
     clearInterval(engine.timer);
     this.#visibility?.removeEventListener('visibilitychange', this.#onVisibilityChange);
@@ -172,7 +183,6 @@ export class WebAudioService<MusicId extends string, SfxId extends string> imple
       const elapsed = (this.#now() - pending.requestedAt) / 1000;
       this.#startTrack(deck, context, pending.id, pending.options, elapsed);
     }
-    this.#syncContext();
     return engine;
   }
 
