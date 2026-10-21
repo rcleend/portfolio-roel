@@ -263,10 +263,16 @@ Rendering is on demand: 60 fps while the TV is focused and the game runs, otherw
 
 ## App (`src/app`)
 
-React 19 composition root. It creates the game once, chooses a host (`room` when WebGL is available, otherwise `flat`; overridable with `?host=`), and renders overlays: loading screen, sound toggle, view hint, touch pad, and the accessible résumé.
-Hosts receive only `{ surface: GameSurface }`; `app/hosts/index.ts` maps host kinds to components and is the single seam where the room crew swaps `FlatHost` for `RoomHost`.
-The flat host shows the canvas at the largest integer zoom inside a CSS television with scanlines and vignette, maps DOM pointer coordinates to native pixels, and enables keyboard input only while the screen has focus.
-The résumé (`app/resume/Resume.tsx`) is real HTML rendered from `src/content` and is always in the DOM; it is visually hidden until the "Skip to résumé" link (first in tab order, visible on focus) targets it.
+React 19 composition root. It starts `createGame` before the first render, chooses a host (`room` when WebGL is available, otherwise `flat`; overridable with `?host=`), and renders overlays: loading screen, sound toggle, view hint, touch pad, and the accessible résumé.
+
+Startup is a pure state machine (`app/startup/startup.ts`): `loading` (game assets, then the room's three.js chunk and models, one segmented bar) → `revealing` (the NOW LOADING screen steps out over the dark TV) → `powering` (the host lights the tube; `power-on` sfx) → `running` (only now `startGame` picks the first scene, so its first frame lands on a live tube). `#game[data-phase]` exposes the phase to tests.
+
+Hosts receive `HostProps` (`app/hosts/types.ts`): the `surface`, `powered` (light the tube once true), `insets` (CSS-pixel strips covered by overlays) and `events` (`onProgress`, `onReady(kind)`, `onPoweredOn`, `onViewChange`). `app/hosts/index.ts` maps host kinds to components.
+`RoomHost` lazy-loads `@/room`, creates exactly one room (StrictMode safe) and disposes it on unmount; it hands the room a `FocusGatedSurface`, so keyboard and gamepad reach the game only while the room wants it *and* the stage element has focus. Any failure (no WebGL, chunk or model download) falls back to `FlatHost` in place. In the room view, Enter or Space on the stage returns to the TV.
+The flat host shows the canvas at the largest integer zoom inside a CSS television with scanlines and vignette, runs a CSS power-on, maps DOM pointer coordinates to native pixels, and enables keyboard input only while the screen has focus.
+Overlays: the sound toggle persists `session.muted`; audio unlocks on the first gesture anywhere and is paused (`audio.setPaused`) while the camera is in the room view. The view hint teaches "look around" and "come back" and retires each line once done (`localStorage` `reo-leo:view-hints`). On coarse pointers a Neo Geo-style pad (D-pad, JUMP/ATTACK/SKILL 1/SKILL 2, START) presses the actions of the matching gamepad buttons through `game.input.virtual`, multi-touch, shown only in the TV view; its covered strips become the room's framing insets.
+`openLink` (passed to `createGame`) opens `mailto:` in place and `https:` in a `noopener` tab, and refuses anything else.
+The résumé (`app/resume/Resume.tsx`) is real HTML rendered from `src/content` and is always in the DOM; it is visually hidden until the "Skip to résumé" link (first in tab order, visible on focus) targets it. `index.html` carries meta/Open Graph tags, a JSON-LD `Person` and a `<noscript>` summary, kept in step with `src/content` by `app/indexHtml.test.ts`.
 
 ## Development harness
 
