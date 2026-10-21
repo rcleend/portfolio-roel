@@ -2,10 +2,10 @@ import { BitmapFont, type GlyphFontData, parseGlyphSheet } from '@/engine/gfx/Bi
 
 /**
  * Chunky 8 px HUD numerals with the euro sign the shared faces lack — the
- * score is MRR. Two-pixel strokes so a banded orange fill reads like the
- * Metal Slug timer digits.
+ * score is MRR — plus what highlight metrics need (%, →, ~). Two-pixel
+ * strokes so a banded orange fill reads like the Metal Slug timer digits.
  */
-const scoreFontData: GlyphFontData = {
+export const scoreFontData: GlyphFontData = {
   name: 'score',
   cellHeight: 8,
   ascent: 8,
@@ -162,6 +162,56 @@ const scoreFontData: GlyphFontData = {
 .###.
 ##.##
 .....
+
+= %
+##...
+##..#
+...##
+..##.
+.##..
+##...
+#..##
+...##
+
+= →
+.......
+....#..
+....##.
+#######
+#######
+....##.
+....#..
+.......
+
+= -
+.....
+.....
+.....
+#####
+#####
+.....
+.....
+.....
+
+= ~
+......
+......
+.##..#
+######
+#..##.
+......
+......
+......
+
+= .
+..
+..
+..
+..
+..
+..
+##
+##
 
 = ?
 .###.
