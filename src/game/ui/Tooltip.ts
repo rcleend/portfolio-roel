@@ -7,7 +7,7 @@ import { drawWindow } from './Window';
 
 /** Size of the window, as a fraction of its final size, on each frame of the pop-in. */
 const POP_IN = [0.35, 0.75, 1, 1] as const;
-const PADDING = WINDOW_BORDER + 2;
+const PADDING = WINDOW_BORDER + 3;
 
 export interface TooltipOptions {
   readonly maxWidth: number;

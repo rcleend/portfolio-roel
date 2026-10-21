@@ -2,7 +2,7 @@ import { type Character, characters, skills } from '@/content';
 import { iris } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { mod } from '@/engine/math/scalar';
-import { bob } from '@/engine/motion/oscillators';
+import { blink, bob } from '@/engine/motion/oscillators';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { Button } from '../../ui/Button';
@@ -24,6 +24,7 @@ export class CharacterSelectScene implements GameScene {
   #time = 0;
   #changedAt = 0;
   #bio: Paragraph | null = null;
+  readonly #stars: readonly { readonly x: number; readonly y: number }[];
   #leaving = false;
 
   constructor(services: GameServices) {
@@ -35,6 +36,8 @@ export class CharacterSelectScene implements GameScene {
       style: services.text.label,
       cursor: undefined,
     });
+    const rng = services.rng.fork();
+    this.#stars = Array.from({ length: 40 }, () => ({ x: rng.int(0, 115), y: rng.int(0, 110) }));
   }
 
   enter(): void {
@@ -75,13 +78,18 @@ export class CharacterSelectScene implements GameScene {
       bands: 6,
       dither: 'bayer4',
     });
-    gfx.circle(card.x + card.w / 2, card.y + 150, 22, '#4a3a9a');
+    for (const [i, star] of this.#stars.entries()) {
+      if (blink(this.#time + i * 0.37, 1.1, 0.25)) {
+        gfx.pixel(card.x + 6 + star.x, card.y + 6 + star.y, i % 5 === 0 ? palette.white : palette.lavender);
+      }
+    }
+    drawPedestal(gfx, card.x + card.w / 2, card.y + 132);
     gfx.sprite(
       sprites.characters[character.id],
       'idle',
       this.#time - this.#changedAt,
       card.x + card.w / 2,
-      card.y + 152,
+      card.y + 130,
     );
     const nudge = bob(this.#time, 2, 0.5);
     drawArrow(gfx, card.x - 6 - nudge, card.y + 92, -1);
@@ -120,6 +128,16 @@ export class CharacterSelectScene implements GameScene {
     this.#services.session.update((state) => ({ ...state, characterId: character.id }));
     this.#services.director.goTo('levelSelect', {}, iris());
   }
+}
+
+/** A flat elliptical pedestal, drawn row by row so its edge stays on whole pixels. */
+function drawPedestal(gfx: Gfx, cx: number, cy: number): void {
+  const rx = 26;
+  const ry = 7;
+  const span = (dy: number): number => Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry)));
+  for (let dy = 0; dy <= ry; dy++) gfx.fillRect(cx - span(dy), cy + dy + 3, span(dy) * 2, 1, '#2a2068');
+  for (let dy = -ry; dy <= ry; dy++)
+    gfx.fillRect(cx - span(dy), cy + dy, span(dy) * 2, 1, dy === -ry ? '#a99cf0' : '#5a4ab0');
 }
 
 /** A chunky outlined triangle pointing left (-1) or right (1), tip at (x, y). */

@@ -171,10 +171,8 @@ export class BitmapFont {
       }
       glyphs.set(char, { width, bits, advance: advance + letterSpacing, inkWidth: Math.max(inkWidth, 1) });
     }
-    const spaceAdvance = (() => {
-      ctx.font = font;
-      return Math.round(ctx.measureText(SPACE).width);
-    })();
+    ctx.font = font;
+    const spaceAdvance = Math.round(ctx.measureText(SPACE).width);
     glyphs.set(SPACE, emptyGlyph(spaceAdvance + letterSpacing, cellHeight));
     // Ink for the baseline row sits just above the alphabetic baseline y.
     const ascent = baseline - top;

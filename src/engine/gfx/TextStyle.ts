@@ -170,6 +170,8 @@ class StyledAtlas {
   }
 }
 
+/** Styles are few and static in practice; the cap only guards against colours animated through styles. */
+const ATLAS_CACHE_LIMIT = 128;
 const atlasCache = new Map<string, StyledAtlas>();
 const fontIds = new WeakMap<BitmapFont, number>();
 let nextFontId = 0;
@@ -184,6 +186,10 @@ function styledAtlasFor(style: TextStyle): StyledAtlas {
   let atlas = atlasCache.get(key);
   if (!atlas) {
     atlas = new StyledAtlas(style);
+    if (atlasCache.size >= ATLAS_CACHE_LIMIT) {
+      const oldest = atlasCache.keys().next().value;
+      if (oldest !== undefined) atlasCache.delete(oldest);
+    }
     atlasCache.set(key, atlas);
   }
   return atlas;

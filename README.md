@@ -1,0 +1,37 @@
+# Roel Leenders — arcade portfolio
+
+Roel's portfolio as a 16-bit, Neo Geo-style arcade game running on a CRT in a 3D attic room.
+Every screen renders at a native 320 × 240 and is presented by a host: the three.js room, or a flat CSS television when WebGL is unavailable.
+The same content is always available as a plain HTML résumé for screen readers, crawlers and visitors who would rather read.
+
+## Run it
+
+Requires Node 24 and pnpm 10.
+
+```sh
+pnpm install
+pnpm dev            # http://localhost:5173
+pnpm check          # type-check, lint (Biome), unit tests (Vitest) incl. the architecture boundary test
+pnpm e2e            # Playwright smoke tests (Chromium)
+pnpm build          # production bundle in dist/
+```
+
+## Screenshots
+
+`pnpm shot` drives the game through the development harness and writes PNGs to `.shots/`:
+
+```sh
+pnpm shot --scene title --frames 150                        # one frame, ×3 nearest-neighbour
+pnpm shot --scene boot --frames 0:480:30 --scale 1          # contact sheet, one cell every 30 frames
+pnpm shot --scene specimen --params '{"page":1}' --frames 30 # fonts, sprites and UI kit specimen
+pnpm shot --host flat --page                                 # full page, including the TV bezel
+```
+
+In development (or with `?debug` in production) the URL accepts `host`, `scene`, `params`, `seed` and `frames`, and `window.__arcade` lets you `goTo`, `step`, `press` and inspect `state()` from the console.
+
+## Where things live
+
+- `docs/ARCHITECTURE.md` — module layout, contracts and the development harness. Start here.
+- `docs/ART-DIRECTION.md` — the visual and motion spec.
+- `src/content` — the portfolio itself, as typed data.
+- `src/engine` — a small, generic 16-bit engine; `src/game` — the portfolio game; `src/app` — the React shell and hosts.

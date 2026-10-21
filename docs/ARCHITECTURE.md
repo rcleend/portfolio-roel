@@ -58,15 +58,17 @@ engine/
 ### Scene
 
 ```ts
-interface Scene<P = void> {
-  enter(params: P): void;   // become active
-  exit(): void;             // release resources
-  update(step: Step): void; // fixed 60 Hz
-  render(gfx: Gfx): void;   // draw current state; never mutates state
+interface Scene<P = void, A extends string = string> {   // engine/core/Scene.ts
+  enter(params: P): void;      // become active
+  exit(): void;                // release resources
+  update(step: Step<A>): void; // fixed 60 Hz
+  render(gfx: Gfx): void;      // draw current state; never mutates state
 }
-interface Step { readonly dt: number; readonly frame: number; readonly input: InputSnapshot<Action> }
+interface Step<A> { readonly dt: number; readonly frame: number; readonly input: InputSnapshot<A> }
+type GameScene<P = void> = Scene<P, Action>;              // game/scenes/params.ts, with GameStep = Step<Action>
 ```
 
+The director creates a fresh scene instance on every `goTo`, so scenes never reset themselves.
 Scenes own their elapsed time (`this.time += step.dt`). Choreography reads that time through `motion/progress` helpers, e.g. `segment(time, 1.2, 1.6, easeOutCubic)` returns 0 → 1 across that window.
 
 ### Director
@@ -78,7 +80,12 @@ type SceneParamsMap = { boot: void; title: void; characterSelect: void; levelSel
 director.goTo('level', { levelId: 'luna', characterId: 'artsy' }, transitions.iris());
 ```
 
-Transitions are render-time overlays (`cut`, `fade(color)`, `flash`, `iris`, `wipe`, `pixelDissolve`). Input is ignored while a transition runs.
+`goTo(id, params, transition?)`: params may be omitted only for `void` scenes (`goTo('title', undefined, fade())`); no transition means a cut.
+Transitions are render-time overlays built by factories in `engine/core/transitions.ts`: `cut()`, `fade({ color, duration, levels })`, `flash({ color, duration })`, `iris({ x, y, duration })`, `wipe({ direction, duration })`, `pixelDissolve({ block, seed, duration })`.
+The old scene is covered (`out`), swapped at full coverage, and the new one revealed (`in`); fades step through flat levels rather than gliding.
+Scenes keep animating during a transition but receive idle input, so nothing can be triggered mid-switch.
+A `goTo` issued from a scene's `update` applies right after that update returns; one issued during a transition is queued (latest wins).
+`director.current`, `director.transition` and `onSceneChange(listener)` expose state to hosts, audio and the harness.
 
 ### GameSurface (the host contract)
 
@@ -103,7 +110,9 @@ The room host maps a raycast hit on the TV screen mesh (UV 0–1) to native pixe
 
 ### Input
 
-`InputManager<A extends string>` turns bindings into one immutable `InputSnapshot<A>` per fixed step: `isDown(a)`, `wasPressed(a)`, `wasReleased(a)`, `anyPressed`, `pointer` (`x`, `y`, `over`, `down`, `pressed`, `released`) and `lastDevice`.
+`InputManager<A extends string>` turns bindings into one immutable `InputSnapshot<A>` per fixed step: `isDown(a)`, `wasPressed(a)`, `wasReleased(a)`, `anyPressed` (any action or a pointer press), `pointer` (`x`, `y`, `over`, `down`, `pressed`, `released`) and `lastDevice` (`keyboard`, `gamepad`, `pointer`, `touch`).
+Edges are never lost: a key tapped between two steps reports both `wasPressed` and `wasReleased` on the next step, and a second key bound to an already-held action does not press it again.
+Keyboard listens on `window` and is captured (and `preventDefault`ed) only while enabled and only for bound keys; the gamepad is polled with the standard mapping; `input.virtual.press(action)` / `release(action)` serve the touch pad and the harness.
 Bindings live in the game (`game/input/bindings.ts`):
 
 | Action  | Keyboard            | Gamepad (standard) |
@@ -119,6 +128,11 @@ Bindings live in the game (`game/input/bindings.ts`):
 
 Touch devices get an on-screen pad (React overlay) that presses the same actions through the virtual source.
 
+### Gfx
+
+`Gfx` wraps the native 2D context and rounds every coordinate to whole pixels: `clear(color)`, `pixel`, `fillRect(x, y, w, h, fill)` where `fill` is a colour or a banded gradient `{ stops, bands, direction?, dither?: 'bayer2' | 'bayer4' }`, `rect` (1 px outline inside the box), `line` (Bresenham), `circle(cx, cy, r, color, filled?)` (midpoint), `image(img, x, y, { source, flipX, alpha })`, `sprite(...)`, `text(...)`, `measureText(...)`, and the scoped helpers `withAlpha`, `withClip`, `withOffset`. The raw context is `gfx.ctx`, smoothing already off.
+Also in `engine/gfx`: `drawParallax(gfx, layers, cameraX, cameraY?, time?)` with per-layer `factor`, `y`, `factorY`, `repeatX` and `drift`; `Camera2D` (`follow` with dead zone, bounds clamp, `shake(intensity, seconds)`, whole-pixel `view`); `drawNineSlice` (tiles, never stretches); colour helpers (`mix`, `shade`, `bandColors`) and Bayer dithering.
+
 ### Pixel art
 
 Sprites are authored as data and compiled to canvas atlases at startup:
@@ -133,8 +147,11 @@ interface PixelArtSheet {
 interface PixelArtAnimation { readonly fps: number; readonly loop: boolean; readonly frames: readonly (readonly string[])[] }
 ```
 
-Each frame is `size.h` strings of exactly `size.w` characters. The compiler validates this and throws on mismatch.
-`SpriteSheet` supports `flipX`, alpha, and a solid "flash" tint for hit feedback.
+Each frame is `size.h` strings of exactly `size.w` characters. The compiler validates this and throws a `PixelArtError` naming the animation, frame, row and column.
+Write frames with the `pixels` template-literal helper (one row per line, indentation trimmed) so formatters leave the shapes alone.
+`SpriteSheet.compile(sheet, name)` builds one atlas; `gfx.sprite(sheet, animation, time, x, y, { flipX, alpha, flash })` draws the frame for `time` seconds with the origin at (x, y).
+All sheets face right; draw with `flipX` to face left. `sheet.duration(a)`, `frameIndex(a, t)` and `isFinished(a, t)` drive timing.
+The characters and the customer are assembled from one shared body rig (`game/art/characters/rig.ts`: shared legs and arms, per-character head, torso, palette and props), so a crew can redraw a piece without touching the rest.
 
 Shared sheets and their animation names are a contract between scenes:
 
@@ -144,16 +161,29 @@ Shared sheets and their animation names are a contract between scenes:
 | `game/art/enemies/unhappy-customer.ts`  | 32 × 40 | `walk`, `shout`, `hurt`, `stunned`, `happy`                     |
 | `game/art/icons/skills.ts`              | 16 × 16 | one sheet per `SkillId`, animation `idle`                       |
 
+Compiled sheets are available to scenes as `services.sprites.characters[id]`, `services.sprites.unhappyCustomer` and `services.sprites.skillIcons[skillId]`.
+
 ### Text
 
 `BitmapFont` builds a 1-bit glyph atlas, either from a pixel TTF rendered at its native size and alpha-thresholded, or from glyph data.
 `TextStyle` composes fill (solid or banded vertical gradient), 1px outline and drop shadow into a cached styled atlas, so arcade lettering like "INSERT COIN" stays crisp at native resolution.
 Fonts are self-hosted (`@fontsource/*`, OFL) and loaded before the first frame.
 
+| Font     | Source                                         | Use                                               |
+| -------- | ---------------------------------------------- | ------------------------------------------------- |
+| `small`  | hand-drawn glyph data (`game/art/fonts/small.ts`), 7 px caps, proportional | body copy; ~28 characters in ~125 px |
+| `label`  | Silkscreen Bold 8 px (`@fontsource/silkscreen`), 1 px tighter tracking | labels, HUD                     |
+| `arcade` | hand-drawn glyph data (`game/art/fonts/arcade.ts`), 11 px caps, 2 px strokes | display prompts (caps only) |
+
+Named styles (`services.text`): `body`, `label`, `prompt` (white → lavender, navy outline and shadow: the INSERT COIN look), `title` (orange bands, dark-red shadow), `hud` (outlined), `tooltip` (navy on cream).
+Draw with `gfx.text(text, x, y, style, { align, maxWidth })`, where (x, y) is the top-left of the first glyph cell and `align` anchors each line on `x`; it returns the laid-out block.
+Derive variants inline (`{ ...text.label, fill: palette.gold }`): styled atlases are cached by value.
+`gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing; `?scene=specimen` shows every font, style, sprite and widget.
+
 ### Audio
 
 ```ts
-interface AudioService {
+interface AudioService<MusicId, SfxId> {                     // engine/audio; the game uses GameAudio = AudioService<MusicId, SfxId>
   unlock(): Promise<void>;                                   // first user gesture
   playMusic(id: MusicId, options?: { loop?: boolean; fadeInMs?: number }): void;
   stopMusic(options?: { fadeOutMs?: number }): void;
@@ -163,14 +193,15 @@ interface AudioService {
 ```
 
 All sound is synthesised with WebAudio (square, pulse, triangle and noise voices driven by a small sequencer), so there are no audio files.
-Track and effect ids are string unions in `game/audio/ids.ts`.
+Track and effect ids are string unions in `game/audio/ids.ts` (with `MUSIC_IDS` / `SFX_IDS` arrays). Until the synthesiser lands, `NullAudio` stands in silently.
 
 ## Game (`src/game`)
 
 ```
 game/
   createGame.ts        composition: builds services, registers scenes, returns Game + GameSurface
-  services.ts          GameServices: director, audio, fonts, assets, session, rng
+  services.ts          GameServices: director, audio, fonts, text, sprites, assets, session, rng, settings
+  palette.ts           shared UI colours
   session.ts           persisted progress (localStorage, versioned schema)
   input/bindings.ts    Action union + default bindings
   audio/               ids, music (tracker data), sfx (synth recipes)
@@ -183,7 +214,24 @@ game/
   art/                 pixel-art sheets (characters, enemy, icons), procedural art (logos, crater)
 ```
 
-`GameServices` is created once in `createGame.ts` and injected into scene factories; scenes never reach for globals.
+`GameServices` (`director`, `audio`, `fonts`, `text`, `sprites`, `assets`, `session`, `rng`, `settings.reducedMotion`) is created once in `createGame.ts` and passed to every scene's constructor; scenes never reach for globals.
+`createGame(options)` resolves to `{ game, surface, services }`, stopped and without a scene: the app picks the first scene and starts the loop.
+
+Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and replaces its stub in place, keeping the class name and the `constructor(services: GameServices)` signature, so the registry never changes.
+
+| Scene id          | File                                               | Params                |
+| ----------------- | -------------------------------------------------- | --------------------- |
+| `boot`            | `scenes/boot/BootScene.ts`                         | none                  |
+| `title`           | `scenes/title/TitleScene.ts`                       | none                  |
+| `characterSelect` | `scenes/character-select/CharacterSelectScene.ts`  | none                  |
+| `levelSelect`     | `scenes/level-select/LevelSelectScene.ts`          | `{ focus?: LevelId }` |
+| `level`           | `scenes/level/LevelScene.ts`                       | `{ levelId, characterId }` |
+| `stageClear`      | `scenes/stage-clear/StageClearScene.ts`            | `{ levelId, characterId, result: LevelResult }` |
+| `specimen` (dev)  | `scenes/specimen/SpecimenScene.ts`                 | `{ page?: 0–3 }`      |
+
+Stubs draw a yellow `STUB · NAME` banner (`scenes/StubBanner.ts`); delete it once every stub is replaced.
+
+UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, { title })` with `windowContent(rect)` for the inner area; `Tooltip` (pops in over four frames with a 1 px overshoot); `Button` (pointer and focus, activates on release); `Paragraph` (wrapped once, can render the first N characters); `TypewriterText`; `handCursorSheet`. Shared UI colours live in `game/palette.ts`.
 
 ### Session
 
@@ -199,6 +247,8 @@ interface SessionState {
 }
 ```
 
+`SessionStore` (`services.session`) loads on start, `update(state => next)` persists immediately, unknown ids and wrong types are dropped, and storage failures degrade to an in-memory session.
+
 ## Room (`src/room`)
 
 A vanilla three.js stage that loads the attic room exported from Blender (`public/room/`), shows a `GameSurface` on the TV through a CRT `ShaderMaterial`, and owns the camera rig:
@@ -213,7 +263,9 @@ Rendering is on demand: 60 fps while the TV is focused and the game runs, otherw
 ## App (`src/app`)
 
 React 19 composition root. It creates the game once, chooses a host (`room` when WebGL is available, otherwise `flat`; overridable with `?host=`), and renders overlays: loading screen, sound toggle, view hint, touch pad, and the accessible résumé.
-The résumé is real HTML rendered from `src/content` and is always in the DOM.
+Hosts receive only `{ surface: GameSurface }`; `app/hosts/index.ts` maps host kinds to components and is the single seam where the room crew swaps `FlatHost` for `RoomHost`.
+The flat host shows the canvas at the largest integer zoom inside a CSS television with scanlines and vignette, maps DOM pointer coordinates to native pixels, and enables keyboard input only while the screen has focus.
+The résumé (`app/resume/Resume.tsx`) is real HTML rendered from `src/content` and is always in the DOM; it is visually hidden until the "Skip to résumé" link (first in tab order, visible on focus) targets it.
 
 ## Development harness
 
@@ -227,7 +279,8 @@ URL parameters (honoured in development, or in production with `?debug`):
 | `seed`    | seeds the game RNG                                            |
 | `frames`  | step this many frames synchronously, then pause (screenshots) |
 
-`window.__arcade` exposes `{ game, goTo, step, pause, resume, press, state }` and `window.__arcadeReady` turns true when the requested frame is on screen.
+`window.__arcade` exposes `{ game, goTo(scene, params?, transitionName?), step(frames), pause, resume, press(action, frames), state() }` and `window.__arcadeReady` turns true when the requested frame is on screen.
+`press` holds the action for `frames` steps, releases it and steps once more; `state()` returns `{ scene, transition, frame, paused, session }`.
 
 `pnpm shot` captures screenshots through Playwright:
 
@@ -236,6 +289,9 @@ pnpm shot --scene title --frames 150 --out .shots/title.png        # native canv
 pnpm shot --scene boot --frames 0:480:30 --out .shots/boot.png      # contact sheet every 30 frames
 pnpm shot --host room --out .shots/room.png --page                  # full page
 ```
+
+More options: `--params <json>`, `--scale <n>` (default 3), `--cols <n>` for sheets, `--seed <n>` (default 1), `--viewport WxH` for `--page`.
+The script reuses a dev server already serving the app on `:5173` (or `--url`), otherwise starts Vite on a free port, and fails on any page error.
 
 ## Quality bar
 

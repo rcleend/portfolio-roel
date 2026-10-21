@@ -67,6 +67,7 @@ export class LevelScene implements GameScene<LevelParams> {
     }
 
     if (this.#leaving) return;
+    // Z and Space both jump and confirm; only a confirm-only key (Enter, Start) finishes the stub level.
     if (input.wasPressed('confirm') && !input.wasPressed('jump')) this.#finish(params);
     else if (input.wasPressed('back')) {
       this.#leaving = true;

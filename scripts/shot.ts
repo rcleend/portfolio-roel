@@ -108,7 +108,8 @@ async function startServer(): Promise<{ base: string; server: ViteDevServer | nu
 }
 
 function gameUrl(base: string, frames: number | null): string {
-  const query = new URLSearchParams({ host: values.host ?? 'flat', seed: values.seed ?? '1' });
+  // `debug` enables the harness in production builds too, so --url can point at `pnpm preview`.
+  const query = new URLSearchParams({ debug: '', host: values.host ?? 'flat', seed: values.seed ?? '1' });
   if (values.scene) query.set('scene', values.scene);
   if (values.params) query.set('params', values.params);
   if (frames !== null) query.set('frames', String(frames));
