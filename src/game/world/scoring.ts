@@ -19,11 +19,3 @@ export function formatEuros(amount: number): string {
 export function formatMrrGain(amount: number): string {
   return `+${formatEuros(amount)}`;
 }
-
-/** Zero-padded arcade score, e.g. 7 digits: "0002698". Clamps to the largest value that fits. */
-export function formatScore(amount: number, digits = 7): string {
-  const max = 10 ** digits - 1;
-  return Math.min(max, Math.max(0, Math.floor(amount)))
-    .toString()
-    .padStart(digits, '0');
-}

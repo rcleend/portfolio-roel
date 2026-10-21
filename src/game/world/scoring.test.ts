@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEuros, formatMrrGain, formatScore, MRR } from './scoring';
+import { formatEuros, formatMrrGain, MRR } from './scoring';
 
 describe('scoring', () => {
   it('formats euros with thousands separators', () => {
@@ -11,10 +11,9 @@ describe('scoring', () => {
     expect(formatEuros(99.9)).toBe('€99');
   });
 
-  it('formats MRR gains and padded scores', () => {
+  it('formats MRR gains', () => {
     expect(formatMrrGain(MRR.customer)).toBe('+€99');
-    expect(formatScore(2_698)).toBe('0002698');
-    expect(formatScore(123_456_789, 7)).toBe('9999999');
+    expect(formatMrrGain(MRR.escalated)).toBe('+€2,500');
   });
 
   it('values the escalated customer far above a regular one', () => {

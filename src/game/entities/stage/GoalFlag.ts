@@ -30,11 +30,6 @@ export class GoalFlag {
     this.#raisedAt ??= time;
   }
 
-  /** True once the banner has reached the top. */
-  isUp(time: number): boolean {
-    return this.#raisedAt !== null && time - this.#raisedAt >= RAISE_SECONDS;
-  }
-
   render(gfx: Gfx, style: TextStyle, time: number): void {
     const top = this.groundY - POLE_HEIGHT;
     gfx.fillRect(this.x - 5, this.groundY - 4, 11, 4, '#1c1420');

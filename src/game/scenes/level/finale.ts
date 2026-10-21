@@ -33,7 +33,7 @@ export class Finale {
   }
 
   /** Seconds since the player reached the goal, or null before that. */
-  sinceArrival(time: number): number | null {
+  #sinceArrival(time: number): number | null {
     return this.#arrivedAt === null ? null : time - this.#arrivedAt;
   }
 
@@ -50,7 +50,7 @@ export class Finale {
 
   /** Advances the moment; returns true once it is time to leave the level. */
   update(time: number): boolean {
-    const since = this.sinceArrival(time);
+    const since = this.#sinceArrival(time);
     if (since === null) return false;
     if (this.#celebratedAt === null && since >= FINALE.flagSeconds) this.#celebrate(time);
     return since >= FINALE.hold + (this.#kind === 'product-market-fit' ? FINALE.flagSeconds : 0);
