@@ -3,7 +3,6 @@ import { fade } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { condensedType, LOCKUP_INK, type TitleLogoLine, titleLogo } from '../../art/logos';
-import { SLANT } from '../../art/logos/product-engineer/lettering';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import type { GameScene, GameStep } from '../params';
@@ -166,7 +165,7 @@ export class TitleScene implements GameScene {
     const bottomX = LAYOUT.bottomLine.x - travel;
     drawLine(gfx, top, topX, LAYOUT.topLine.y);
     // The name rides on the top word, the trademark on the bottom one.
-    const nameRight = topX + top.width + top.height * SLANT - LAYOUT.nameInset;
+    const nameRight = topX + top.capWidth - LAYOUT.nameInset;
     const nameTop = LAYOUT.topLine.y - this.#styles.name.font.cellHeight - LAYOUT.nameGap;
     gfx.text(this.#name, nameRight, nameTop, this.#styles.name, { align: 'right' });
     drawLine(gfx, bottom, bottomX, LAYOUT.bottomLine.y);

@@ -1,9 +1,9 @@
-import { parseHex, type Rgba } from '@/engine/gfx/color';
+import { parseHex } from '@/engine/gfx/color';
 import { Rng } from '@/engine/math/Rng';
-import { clamp } from '@/engine/math/scalar';
 import { Bitmap } from '../../../art/logos/raster/Bitmap';
 import { Mask } from '../../../art/logos/raster/Mask';
 import { hash2, valueNoise } from '../../../art/logos/raster/noise';
+import { rampAt } from '../../../art/logos/raster/ramp';
 import { circle, displace, polygon, type Shape, union, type Vertex } from '../../../art/logos/raster/shape';
 
 /**
@@ -56,7 +56,7 @@ function splashLayout(): { spikes: Spike[]; droplets: Vertex[] } {
   return { spikes, droplets };
 }
 
-const LAYOUT = splashLayout();
+const SPLASH = splashLayout();
 
 /** A tapered splash from `inner` to `outer` along `angle`, `width` wide at its root. */
 function spike(angle: number, inner: number, outer: number, width: number): Shape {
@@ -78,11 +78,11 @@ export function crownMask(frame: number): Mask {
   const { x: cx, y: cy } = CRATER_CENTER;
   const wobble = (frame / CRATER_FRAMES) * Math.PI * 2;
   const shapes: Shape[] = [circle(cx, cy, CROWN_RADIUS)];
-  for (const s of LAYOUT.spikes) {
+  for (const s of SPLASH.spikes) {
     const length = s.length + Math.sin(wobble + s.phase) * 1.5;
     shapes.push(spike(s.angle, CROWN_RADIUS - 4, CROWN_RADIUS + length, s.width));
   }
-  for (const [dx, dy] of LAYOUT.droplets) shapes.push(circle(cx + dx, cy + dy, 3));
+  for (const [dx, dy] of SPLASH.droplets) shapes.push(circle(cx + dx, cy + dy, 3));
   shapes.push(spike(STREAK_ANGLE, CROWN_RADIUS - 6, 120, 6.5), spike(STREAK_ANGLE + Math.PI, CROWN_RADIUS - 6, 112, 6));
   shapes.push(
     spike(STREAK_ANGLE + 0.12, CROWN_RADIUS, 80, 3),
@@ -129,7 +129,7 @@ function paintMetal(bitmap: Bitmap, crown: Mask): void {
     // The lip around the core falls into shadow, which sinks the core below the crown.
     const lip = Math.hypot(x + 0.5 - CRATER_CENTER.x, y + 0.5 - CRATER_CENTER.y) < CORE_RADIUS + 4 ? -1.3 : 0;
     const grain = (hash2(x, y, SEED) - 0.5) * 1.1;
-    return pick(METAL, 1.6 + facing * 2.6 + ridge + lip + grain);
+    return rampAt(METAL, 1.6 + facing * 2.6 + ridge + lip + grain);
   });
 }
 
@@ -141,10 +141,6 @@ function paintCore(bitmap: Bitmap, core: Mask, frame: number): void {
     const fromEdge = CORE_RADIUS - Math.hypot(x + 0.5 - CRATER_CENTER.x, y + 0.5 - CRATER_CENTER.y);
     if (fromEdge < 2) return SCORCH;
     const glow = Math.hypot(x + 0.5 - hot.x, y + 0.5 - hot.y) / (CORE_RADIUS * pulse);
-    return pick(MOLTEN, glow * (MOLTEN.length - 0.5) + (hash2(x, y, SEED + 1) - 0.5) * 0.8);
+    return rampAt(MOLTEN, glow * (MOLTEN.length - 0.5) + (hash2(x, y, SEED + 1) - 0.5) * 0.8);
   });
-}
-
-function pick(ramp: readonly Rgba[], index: number): Rgba {
-  return ramp[clamp(Math.round(index), 0, ramp.length - 1)] as Rgba;
 }

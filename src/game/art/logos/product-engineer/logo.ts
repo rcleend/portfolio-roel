@@ -1,5 +1,5 @@
 import { Bitmap } from '../raster/Bitmap';
-import { type Lettering, setLettering } from './lettering';
+import { type Lettering, SLANT, setLettering } from './lettering';
 import { paintLettering } from './paint';
 
 /** Cap heights of the two lines: the longer bottom word is set a little smaller, as SLUG is to METAL. */
@@ -17,6 +17,8 @@ export interface LogoLine {
   readonly height: number;
   /** Upright width of the set word, from `origin` to the last letter's right edge. */
   readonly width: number;
+  /** Width along the cap line, where the slant has carried the letters furthest right. */
+  readonly capWidth: number;
 }
 
 export interface TitleLogo {
@@ -44,13 +46,15 @@ function paintLine(word: string, index: 0 | 1): LogoLine {
   const seed = SEEDS[index];
   const lettering: Lettering = setLettering(word, { height: LINE_HEIGHTS[index], seed });
   const last = lettering.letters[lettering.letters.length - 1];
+  const width = last ? last.x + last.w - lettering.origin.x : 0;
   return {
     word,
     image: paintLettering(lettering, seed),
     shine: paintShine(lettering),
     origin: lettering.origin,
     height: lettering.height,
-    width: last ? last.x + last.w - lettering.origin.x : 0,
+    width,
+    capWidth: Math.round(width + lettering.height * SLANT),
   };
 }
 

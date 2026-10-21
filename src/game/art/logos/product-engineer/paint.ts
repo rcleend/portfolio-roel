@@ -1,9 +1,9 @@
 import { parseHex } from '@/engine/gfx/color';
 import { Rng } from '@/engine/math/Rng';
-import { clamp } from '@/engine/math/scalar';
 import { Bitmap } from '../raster/Bitmap';
 import type { Mask } from '../raster/Mask';
 import { hash2, valueNoise } from '../raster/noise';
+import { rampAt } from '../raster/ramp';
 import { EXTRUSION_DEPTH, type Lettering, SLANT } from './lettering';
 
 /**
@@ -20,7 +20,7 @@ const CRACK_LIGHT = parseHex('#ffe48c');
 const EXTRUSION = ['#8a2408', '#6c1a06', '#561404', '#460f04', '#3a0c03', '#300a03'].map(parseHex);
 const OUTLINE = parseHex('#1c0703');
 
-/** Roughly one crack per letter, some letters two, a few none. */
+/** Cracks per letter on average; the seeded draw gives some letters three and some none. */
 const CRACKS_PER_LETTER = 1.8;
 
 export function paintLettering(lettering: Lettering, seed: number): Bitmap {
@@ -31,9 +31,9 @@ export function paintLettering(lettering: Lettering, seed: number): Bitmap {
   bitmap.fill(silhouette.outline(), OUTLINE);
   // Deepest layer first, so pixels nearer the face win.
   for (let depth = layers.length - 1; depth >= 0; depth--) {
-    bitmap.fill(layers[depth] as Mask, EXTRUSION[depth] ?? OUTLINE);
+    bitmap.fill(layers[depth] as Mask, rampAt(EXTRUSION, depth));
   }
-  bitmap.fill(face, (x, y) => FACE[faceShade(face, lettering, x, y, seed)] ?? null);
+  bitmap.fill(face, (x, y) => rampAt(FACE, faceShade(face, lettering, x, y, seed)));
   bitmap.fill(face, (x, y) => (isTopEdge(face, x, y) ? HIGHLIGHT : null));
   carveCracks(bitmap, lettering, seed);
   return bitmap;
@@ -52,7 +52,7 @@ function extrusionLayers(face: Mask): Mask[] {
 }
 
 /**
- * Index into the face ramp. The ramp runs top to bottom of the line; fine
+ * Fractional index into the face ramp. The ramp runs top to bottom of the line; fine
  * noise frays the band edges into grain, stretched diagonal noise lays rust
  * streaks across it, and edges are lit from the top left.
  */
@@ -71,7 +71,7 @@ function faceShade(face: Mask, lettering: Lettering, x: number, y: number, seed:
   if (!face.has(x - 1, y)) shade -= 2;
   if (!face.has(x + 1, y)) shade += 1;
   if (!face.has(x, y + 1)) shade += 2;
-  return clamp(Math.round(shade), 0, FACE.length - 1);
+  return shade;
 }
 
 function isTopEdge(face: Mask, x: number, y: number): boolean {
