@@ -1,5 +1,4 @@
 import { AssetStore } from '@/engine/assets/AssetStore';
-import { NullAudio } from '@/engine/audio/NullAudio';
 import { Director } from '@/engine/core/Director';
 import { Game } from '@/engine/core/Game';
 import type { GameSurface } from '@/engine/core/GameSurface';
@@ -8,7 +7,8 @@ import { GamepadSource } from '@/engine/input/GamepadSource';
 import { InputManager } from '@/engine/input/InputManager';
 import { Rng } from '@/engine/math/Rng';
 import { compileSprites } from './art';
-import type { GameAudio, MusicId, SfxId } from './audio/ids';
+import { createGameAudio } from './audio/createGameAudio';
+import type { GameAudio } from './audio/ids';
 import { loadFonts } from './fonts';
 import { type Action, bindings } from './input/bindings';
 import { loadLevelArt } from './levels/art/LevelArt';
@@ -26,7 +26,10 @@ export interface CreateGameOptions {
   readonly seed?: number;
   /** Where progress persists. Defaults to `localStorage`; `null` keeps it in memory. */
   readonly storage?: SessionStorage | null;
-  /** Defaults to silent audio until the synthesiser exists. */
+  /**
+   * Defaults to the WebAudio synthesiser (silent where WebAudio is missing),
+   * starting muted or not as the session last left it.
+   */
   readonly audio?: GameAudio;
   readonly reducedMotion?: boolean;
   /** Opens a real-world link chosen in-game; defaults to navigating the current tab (mailto-friendly). */
@@ -49,6 +52,9 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
   const assets = new AssetStore();
   const [{ fonts, styles }, levelArt] = await Promise.all([loadFonts(assets), loadLevelArt(assets)]);
 
+  const session = new SessionStore(options.storage === undefined ? defaultStorage() : options.storage);
+  const audio = options.audio ?? defaultAudio(session);
+
   let services: GameServices | null = null;
   const director = new Director<GameSceneMap, Action>(
     createSceneFactories(() => {
@@ -58,13 +64,13 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
   );
   services = {
     director,
-    audio: options.audio ?? new NullAudio<MusicId, SfxId>(),
+    audio,
     fonts,
     text: styles,
     sprites: compileSprites(),
     assets,
     levelArt,
-    session: new SessionStore(options.storage === undefined ? defaultStorage() : options.storage),
+    session,
     rng: new Rng(options.seed ?? Date.now()),
     settings: { reducedMotion: options.reducedMotion ?? prefersReducedMotion() },
     openLink: options.openLink ?? defaultOpenLink,
@@ -74,6 +80,12 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
   const input = new InputManager<Action>(bindings, { gamepad: new GamepadSource() });
   const game = new Game<Action>({ canvas, input, root: director });
   return { game, surface: game, services };
+}
+
+function defaultAudio(session: SessionStore): GameAudio {
+  const audio = createGameAudio();
+  audio.muted = session.state.muted;
+  return audio;
 }
 
 function defaultOpenLink(href: string): void {

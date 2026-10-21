@@ -184,16 +184,31 @@ Derive variants inline (`{ ...text.label, fill: palette.gold }`): styled atlases
 
 ```ts
 interface AudioService<MusicId, SfxId> {                     // engine/audio; the game uses GameAudio = AudioService<MusicId, SfxId>
-  unlock(): Promise<void>;                                   // first user gesture
-  playMusic(id: MusicId, options?: { loop?: boolean; fadeInMs?: number }): void;
+  unlock(): Promise<void>;                                   // call from a user gesture; creates and resumes the context
+  playMusic(id: MusicId, options?: { loop?: boolean; fadeInMs?: number }): void; // same id again is a no-op
   stopMusic(options?: { fadeOutMs?: number }): void;
   playSfx(id: SfxId, options?: { pan?: number; detune?: number }): void;
-  muted: boolean;
+  setPaused(paused: boolean): void;                          // freeze/thaw everything in place (camera leaves the TV)
+  muted: boolean;                                            // the app persists it in the session
 }
 ```
 
-All sound is synthesised with WebAudio (square, pulse, triangle and noise voices driven by a small sequencer), so there are no audio files.
-Track and effect ids are string unions in `game/audio/ids.ts` (with `MUSIC_IDS` / `SFX_IDS` arrays). Until the synthesiser lands, `NullAudio` stands in silently.
+All sound is synthesised with WebAudio, so there are no audio files. `WebAudioService` (the default where WebAudio exists; `NullAudio` otherwise, and in tests) creates its context on the first `unlock()`, so nothing touches audio before a gesture. Music requested earlier starts on unlock (a one-shot such as the boot jingle joins at the position it would have reached); effects requested while locked, paused or hidden are dropped. The context runs only while unlocked, not paused and the page is visible.
+
+```
+engine/audio/
+  synth/       Patch (pulse with duty, triangle, saw, sine, white/metallic noise, 2-operator FM), ADSR, vibrato,
+               sweeps, legato slides, arpeggios and chords; playVoice() builds one note's nodes on the audio clock
+  sequencer/   tracker songs: lanes of text compiled to tick events (song.ts), swing timing, SongCursor (loop-aware windows)
+  music/       TrackPlayer (one playing song + channel strips + echo) and MusicDeck (crossfades)
+  sfx/         SfxRecipe (voices placed in time), SfxLimiter (cooldown, per-effect and global polyphony caps)
+  mix/         Mixer: music and sfx buses → master → compressor → soft clipper → mute; tempo-synced echo; meter
+  offline.ts   renders a song or effect through the same chain on an OfflineAudioContext
+```
+
+Songs are written in TypeScript as lanes, one per channel (`sequencer/lane.ts` documents the syntax): bars separated by `|`, each bar's tokens sharing it evenly (4 tokens are quarters, 16 are sixteenths, 12 triplet eighths); `C4`, `F#3`, `Bb5` notes, `.` hold, `-` release, `~E4` legato slide, `C4[47]` hex intervals (an arpeggio, or a chord on `play: 'chord'` channels), `:0`–`:9` velocity, and lowercase kit pieces on drum channels. Patterns combine lanes; `sequence: ['intro', 'A', 'A+5']` arranges and transposes them; `loopFrom` sets the loop point. Notes are scheduled with a 200 ms lookahead on the audio clock, so timer jitter never moves a note.
+
+The game's audio lives in `game/audio/`: `ids.ts` (`MUSIC_IDS` / `SFX_IDS`), `instruments/` (the shared band of patches and the drum kit), `music/` (one song per `MusicId`), `sfx/` (one recipe per `SfxId`) and `createGameAudio()`. `audio-lab.html` (development only) plays every track and effect and measures offline renders; `e2e/audio.spec.ts` asserts no NaNs, peaks below -1 dBFS, track loudness within 3 dB of the mean, short fully-decayed effects, and live unlock, mute, pause and hidden-tab behaviour; `scripts/audio-report.ts` prints the level table.
 
 ## Game (`src/game`)
 

@@ -27,6 +27,8 @@ pnpm shot --scene specimen --params '{"page":1}' --frames 30 # fonts, sprites an
 pnpm shot --host flat --page                                 # full page, including the TV bezel
 ```
 
+The audio lab, `/audio-lab.html` on the dev server, plays every track and effect and measures offline renders; `pnpm exec tsx scripts/audio-report.ts` prints the same level table in the terminal.
+
 In development (or with `?debug` in production) the URL accepts `host`, `scene`, `params`, `seed` and `frames`, and `window.__arcade` lets you `goTo`, `step`, `press` and inspect `state()` from the console.
 
 ## Where things live

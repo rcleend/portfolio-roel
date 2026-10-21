@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Audio lab</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; background: #0c0a14; color: #d8d4ec; font: 13px/1.45 ui-monospace, monospace; }
+      main { max-width: 1040px; margin: 0 auto; padding: 20px; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #ffd166; }
+      h2 { font-size: 13px; margin: 22px 0 8px; color: #9aa5ff; text-transform: uppercase; letter-spacing: 0.08em; }
+      p { margin: 0 0 10px; color: #8d88a8; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; }
+      button { font: inherit; background: #1d1933; color: inherit; border: 1px solid #3a3360; padding: 6px 10px; cursor: pointer; }
+      button:hover { border-color: #9aa5ff; }
+      button[aria-pressed='true'] { background: #3a2f6b; border-color: #ffd166; color: #ffd166; }
+      button small { display: block; color: #8d88a8; font-size: 11px; }
+      canvas { display: block; width: 100%; height: 120px; background: #06050c; border: 1px solid #2a2445; image-rendering: pixelated; }
+      #status { color: #ffd166; }
+      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid #221d3a; }
+      th:first-child, td:first-child { text-align: left; }
+      td.bad { color: #ff6b6b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Audio lab</h1>
+      <p>Every track and effect, synthesised live. Click anything to start audio. <span id="status"></span></p>
+      <div class="row" id="transport"></div>
+      <canvas id="scope" width="1000" height="120"></canvas>
+      <h2>Music</h2>
+      <div class="row" id="music"></div>
+      <h2>Effects</h2>
+      <div class="row" id="sfx"></div>
+      <h2>Offline checks</h2>
+      <p>Renders every track and effect through the real master bus and measures it (dBFS).</p>
+      <div class="row"><button type="button" id="measure">Render &amp; measure all</button></div>
+      <table id="report"></table>
+    </main>
+    <script type="module" src="/src/game/audio/lab/main.ts"></script>
+  </body>
+</html>
