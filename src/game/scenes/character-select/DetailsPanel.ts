@@ -10,6 +10,11 @@ import { drawWindow } from '../../ui/Window';
 import { classThemes } from './classThemes';
 import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, SKILL_ROWS, SKILL_SLOT_SIZE } from './layout';
 
+/** The heading's outline reaches one pixel left of its pen position. */
+const NAME_MASK_BLEED = 1;
+/** Cap height plus outline and drop shadow. */
+const NAME_HEIGHT = 18;
+
 export interface DetailsRenderOptions {
   readonly character: Character;
   readonly time: number;
@@ -42,11 +47,15 @@ export class DetailsPanel {
     const text = this.#text;
     const x = DETAILS.x;
 
-    const name = gfx.text(character.name, x + options.nameOffset, NAME_Y, text.prompt);
-    gfx.text(character.tag, x + options.nameOffset + name.width + 6, NAME_Y, {
-      ...text.prompt,
-      fill: ['#cfe6ff', palette.sky, palette.royal],
-      bands: 3,
+    // The heading settles in from the switch direction behind a mask at the column edge,
+    // so it never slides across the hand cursor parked beside it.
+    gfx.withClip(x - NAME_MASK_BLEED, NAME_Y - 2, gfx.width - x + NAME_MASK_BLEED, NAME_HEIGHT, () => {
+      const name = gfx.text(character.name, x + options.nameOffset, NAME_Y, text.prompt);
+      gfx.text(character.tag, x + options.nameOffset + name.width + 6, NAME_Y, {
+        ...text.prompt,
+        fill: ['#cfe6ff', palette.sky, palette.royal],
+        bands: 3,
+      });
     });
 
     const accent = classThemes[character.id].accent;
