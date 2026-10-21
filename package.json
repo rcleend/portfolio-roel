@@ -1,0 +1,24 @@
+{
+  "name": "portfolio-roel-room-scaffold",
+  "private": true,
+  "type": "module",
+  "description": "TEMPORARY scaffold for developing src/room; replaced by the foundation scaffold at merge.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sync:room": "node scripts/sync-room-assets.mjs",
+    "shot:room": "node scripts/room-shots.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "playwright": "^1.64.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
