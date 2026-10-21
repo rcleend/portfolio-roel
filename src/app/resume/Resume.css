@@ -1,0 +1,76 @@
+/*
+ * Hidden like .sr-only — present for assistive tech and crawlers — until the
+ * skip link targets it or focus moves inside, then shown as a readable panel.
+ */
+.resume:not(:target, :focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.resume:is(:target, :focus-within) {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  padding: clamp(24px, 6vw, 72px);
+  background: #f7f3e6;
+  color: #1b1830;
+  font:
+    16px / 1.6 system-ui,
+    sans-serif;
+}
+
+.resume:is(:target, :focus-within) > * {
+  max-width: 68ch;
+  margin-inline: auto;
+}
+
+.resume h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.resume h2 {
+  margin-top: 2.5rem;
+  font-size: 1.25rem;
+  border-bottom: 2px solid #1b1830;
+}
+
+.resume h3 {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+}
+
+.resume__headline,
+.resume__meta,
+.resume__stack {
+  color: #5a5570;
+}
+
+.resume__meta {
+  margin-top: 0;
+}
+
+.resume__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.resume a {
+  color: #2346c8;
+}
+
+.resume__back {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+}
