@@ -1,0 +1,141 @@
+{
+  "levelId": "luna",
+  "layers": [
+    {
+      "id": "sky",
+      "factor": 0,
+      "y": 0,
+      "repeatX": false,
+      "opaque": true,
+      "sources": [
+        {
+          "file": "luna-sky.png",
+          "crop": [85, 0, 1451, 1024]
+        }
+      ],
+      "steps": {
+        "width": 320,
+        "height": 240,
+        "colors": 28,
+        "dither": "bayer4",
+        "dither_strength": 10
+      }
+    },
+    {
+      "id": "far",
+      "factor": 0.045,
+      "y": 8,
+      "repeatX": false,
+      "sources": [
+        {
+          "file": "luna-far.png",
+          "crop": [0, 440, 1536, 1024]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "width": 480,
+        "saturation": 0.75,
+        "tint": "#b8a4d0",
+        "tint_amount": 0.18,
+        "colors": 24
+      }
+    },
+    {
+      "id": "mid",
+      "factor": 0.25,
+      "bottom": 204,
+      "repeatX": true,
+      "sources": [
+        {
+          "file": "luna-mid2.png",
+          "crop": [0, 500, 1536, 1024]
+        },
+        {
+          "file": "luna-mid2-ext.png",
+          "crop": [0, 500, 1536, 1024]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 5,
+        "saturation": 0.8,
+        "brightness": 0.88,
+        "tile_width": 520,
+        "tile_mode": "cut",
+        "colors": 32,
+        "tint": "#8a6aa0",
+        "tint_amount": 0.1,
+        "tile_width_max": 640,
+        "sharpen": 1.6,
+        "tile_on_edges": true,
+        "drop_fragments": 12
+      }
+    },
+    {
+      "id": "near",
+      "factor": 0.5,
+      "bottom": 201,
+      "repeatX": true,
+      "sources": [
+        {
+          "file": "luna-near2.png",
+          "crop": [0, 580, 1536, 996]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 5,
+        "arrange_width": 512,
+        "colors": 24,
+        "brightness": 0.95,
+        "sharpen": 1.5
+      }
+    },
+    {
+      "id": "fg",
+      "factor": 1.2,
+      "bottom": 244,
+      "repeatX": true,
+      "foreground": true,
+      "sources": [
+        {
+          "file": "luna-fg.png"
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 4.3,
+        "arrange_width": 720,
+        "colors": 10,
+        "arrange_order": [0, 2],
+        "brightness": 0.6,
+        "saturation": 0.7
+      }
+    }
+  ],
+  "props": {
+    "cableCar": {
+      "file": "cable-car.png",
+      "frames": 1,
+      "sources": [
+        {
+          "file": "prop-cablecar.png"
+        }
+      ],
+      "steps": {
+        "trim": true,
+        "width": 96,
+        "pad": [96, 48],
+        "colors": 20,
+        "outline": true,
+        "sharpen": 1.4
+      }
+    },
+    "rateLimitGate": {
+      "file": "rate-limit-gate.png",
+      "frames": 2,
+      "drawn": "rate_limit_gate"
+    }
+  }
+}

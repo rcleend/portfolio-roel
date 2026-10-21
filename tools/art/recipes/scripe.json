@@ -1,0 +1,148 @@
+{
+  "levelId": "scripe",
+  "layers": [
+    {
+      "id": "sky",
+      "factor": 0,
+      "y": 0,
+      "repeatX": false,
+      "opaque": true,
+      "sources": [
+        {
+          "file": "scripe-sky.png",
+          "crop": [85, 0, 1451, 1024]
+        }
+      ],
+      "steps": {
+        "width": 320,
+        "height": 240,
+        "colors": 48,
+        "dither": "bayer4",
+        "dither_strength": 10
+      }
+    },
+    {
+      "id": "far",
+      "factor": 0.045,
+      "y": 0,
+      "repeatX": false,
+      "sources": [
+        {
+          "file": "scripe-far.png",
+          "crop": [0, 158, 1536, 830]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "width": 480,
+        "saturation": 0.8,
+        "brightness": 0.9,
+        "tint": "#3a2a6a",
+        "tint_amount": 0.15,
+        "colors": 24,
+        "sharpen": 1.4
+      }
+    },
+    {
+      "id": "mid",
+      "factor": 0.25,
+      "bottom": 204,
+      "repeatX": true,
+      "sources": [
+        {
+          "file": "scripe-mid2.png",
+          "crop": [0, 430, 1536, 1024]
+        },
+        {
+          "file": "scripe-mid2-ext.png",
+          "crop": [0, 430, 1536, 1024]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 5.5,
+        "saturation": 1.0,
+        "brightness": 0.8,
+        "tile_width": 480,
+        "tile_mode": "cut",
+        "colors": 32,
+        "tint": "#24143f",
+        "tint_amount": 0.25,
+        "tile_width_max": 600,
+        "contrast": 1.2,
+        "sharpen": 2.0,
+        "tile_on_edges": true,
+        "drop_fragments": 80
+      }
+    },
+    {
+      "id": "near",
+      "factor": 0.5,
+      "bottom": 201,
+      "repeatX": true,
+      "sources": [
+        {
+          "file": "scripe-near2.png",
+          "crop": [0, 500, 1536, 984]
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 5,
+        "arrange_width": 560,
+        "colors": 28,
+        "tint": "#2a1850",
+        "tint_amount": 0.1,
+        "sharpen": 1.5
+      }
+    },
+    {
+      "id": "fg",
+      "factor": 1.2,
+      "bottom": 244,
+      "repeatX": true,
+      "foreground": true,
+      "sources": [
+        {
+          "file": "scripe-fg.png"
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "factor": 5,
+        "arrange_width": 720,
+        "colors": 12,
+        "brightness": 0.8,
+        "arrange_order": [0, 2, 3]
+      }
+    }
+  ],
+  "props": {
+    "uBahn": {
+      "file": "u-bahn.png",
+      "frames": 1,
+      "sources": [
+        {
+          "file": "prop-ubahn2.png"
+        }
+      ],
+      "steps": {
+        "key": "magenta",
+        "trim": true,
+        "width": 160,
+        "pad": [160, 58],
+        "colors": 20
+      }
+    },
+    "baustelle": {
+      "file": "baustelle.png",
+      "frames": 1,
+      "drawn": "baustelle"
+    },
+    "scopeCreep": {
+      "file": "scope-creep.png",
+      "frames": 2,
+      "drawn": "scope_creep"
+    }
+  }
+}
