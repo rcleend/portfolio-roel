@@ -52,7 +52,7 @@ const DOWN_HOLD = 0.35;
 const RETAINED_SECONDS = 1.9;
 const BUBBLE_TEXT_WIDTH = 76;
 /** How long the autopilot "reads" a highlight card before dismissing it. */
-const AUTOPILOT_READING = 1.5;
+const AUTOPILOT_READING = 3;
 /** Intro and hints are skipped by pretending the scene has been running this long. */
 const SKIPPED_INTRO = 30;
 
@@ -357,7 +357,9 @@ export class LevelScene implements GameScene<LevelParams> {
     const { text } = this.#services;
     const experience = getExperience(level.experienceId);
     drawMissionIntro(gfx, this.#levelText, text, level, missionYears(experience.start, experience.end), this.#time);
-    drawControlHints(gfx, text, this.#device, this.#time);
+    // Hints would only add noise under a dimmed card or menu.
+    const modal = this.#phase.kind === 'card' || this.#phase.kind === 'paused';
+    if (!modal) drawControlHints(gfx, text, this.#device, this.#time);
     if (this.#arenaAt !== null) {
       drawEscalationBanner(gfx, this.#levelText, text, world.stage.theme.bossPlan, this.#time - this.#arenaAt);
     }

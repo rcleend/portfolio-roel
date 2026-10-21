@@ -23,9 +23,9 @@ const OPTIONS: readonly { readonly choice: PauseChoice; readonly label: string }
   { choice: 'missionSelect', label: 'MISSION SELECT' },
 ];
 
-const FRAME = { x: 20, y: 36, w: 280, h: 178 } as const;
-const BUTTON = { x: 34, y: 92, w: 104, h: 22, gap: 8 } as const;
-const COLUMN = { x: 152, w: 134 } as const;
+const FRAME = { x: 16, y: 22, w: 288, h: 200 } as const;
+const BUTTON = { x: 30, y: 84, w: 108, h: 22, gap: 8 } as const;
+const COLUMN = { x: 152, w: 140 } as const;
 
 export interface PauseMenuKit {
   readonly text: TextStyles;
@@ -58,7 +58,7 @@ export class PauseMenu {
         new Button({
           label: option.label,
           bounds: { x: BUTTON.x, y: BUTTON.y + index * (BUTTON.h + BUTTON.gap), w: BUTTON.w, h: BUTTON.h },
-          theme: index === 0 ? windowThemes.indigo : windowThemes.steel,
+          theme: windowThemes.steel,
           style: kit.text.label,
           cursor: kit.cursor,
         }),
@@ -85,13 +85,14 @@ export class PauseMenu {
     const { text, levelText } = this.#kit;
     dimScreen(gfx, 0.625);
     drawWindow(gfx, FRAME, windowThemes.indigo);
-    gfx.text('PAUSED', gfx.width / 2, FRAME.y + 12, levelText.bannerCool, { align: 'center' });
+    gfx.text('PAUSED', gfx.width / 2, FRAME.y + 10, levelText.bannerCool, { align: 'center' });
     for (const button of this.#buttons) button.render(gfx);
     this.#renderMoves(gfx);
+    const resume = this.#kit.device === 'gamepad' ? 'START: RESUME' : 'ESC: RESUME';
     gfx.text(
-      'ESC / START: RESUME',
+      resume,
       BUTTON.x + BUTTON.w / 2,
-      FRAME.y + FRAME.h - 16,
+      FRAME.y + FRAME.h - 18,
       { ...text.hud, fill: palette.steel },
       {
         align: 'center',
@@ -103,27 +104,24 @@ export class PauseMenu {
   #renderMoves(gfx: Gfx): void {
     const { text, sprites, device } = this.#kit;
     const character = getCharacter(this.#characterId);
-    let y = FRAME.y + 46;
-    gfx.text('ATTACK', COLUMN.x, y, { ...text.label, fill: palette.lavender });
-    drawKeyCap(gfx, COLUMN.x + COLUMN.w - 11, y - 2, keyCapFor('attack', device), text.label);
-    y += 12;
-    gfx.text(character.attack, COLUMN.x, y, { ...text.body, fill: palette.white });
-    y += 16;
+    const rules = { ...text.body, fill: palette.lilac };
+    let y = FRAME.y + 42;
+    const keyWidth = drawKeyCap(gfx, COLUMN.x, y, keyCapFor('attack', device), text.label);
+    gfx.text(character.attack.toUpperCase(), COLUMN.x + keyWidth + 4, y + 2, text.label);
+    y += 17;
     character.skills.forEach((skillId, index) => {
       const skill = skills[skillId];
       drawWindow(gfx, { x: COLUMN.x, y, w: 22, h: 22 }, windowThemes.steel);
       gfx.sprite(sprites.skillIcons[skillId], 'idle', 0, COLUMN.x + 3, y + 3);
       gfx.text(skill.name, COLUMN.x + 26, y + 1, text.label);
-      drawKeyCap(gfx, COLUMN.x + 26, y + 11, keyCapFor(index === 0 ? 'skill1' : 'skill2', device), text.label);
-      gfx.text(`${skill.cooldownSeconds}s`, COLUMN.x + 40, y + 13, { ...text.hud, fill: palette.steel });
-      const block = gfx.text(
-        skill.effect,
-        COLUMN.x,
-        y + 25,
-        { ...text.body, fill: palette.lilac },
-        { maxWidth: COLUMN.w },
-      );
-      y += 25 + block.height + 7;
+      const key = keyCapFor(index === 0 ? 'skill1' : 'skill2', device);
+      const capWidth = drawKeyCap(gfx, COLUMN.x + 26, y + 11, key, text.label);
+      gfx.text(`${skill.cooldownSeconds}s cooldown`, COLUMN.x + 30 + capWidth, y + 12, {
+        ...rules,
+        fill: palette.steel,
+      });
+      const block = gfx.text(skill.effect, COLUMN.x, y + 26, rules, { maxWidth: COLUMN.w });
+      y += 26 + block.height + 8;
     });
   }
 }

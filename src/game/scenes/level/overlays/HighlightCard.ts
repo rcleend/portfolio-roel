@@ -53,7 +53,7 @@ export class HighlightCard {
     this.#content = content;
     this.#kit = kit;
     let typed = 0;
-    this.#description = new TypewriterText(content.highlight.description, kit.text.body, {
+    this.#description = new TypewriterText(content.highlight.description, kit.levelText.cardBody, {
       maxWidth: TEXT_WIDTH,
       align: 'center',
       framesPerChar: 1,

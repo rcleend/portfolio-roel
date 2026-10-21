@@ -2,6 +2,7 @@ import type { TextStyle } from '@/engine/gfx/TextStyle';
 import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
 import { bannerFont } from './bannerFont';
+import { cardFont } from './cardFont';
 import { metricFont } from './metricFont';
 import { scoreFont } from './scoreFont';
 
@@ -21,6 +22,8 @@ export interface LevelTextStyles {
   readonly bannerAlarm: TextStyle;
   /** Complaint lines inside a speech bubble. */
   readonly bubble: TextStyle;
+  /** Highlight descriptions on the achievement card. */
+  readonly cardBody: TextStyle;
   /** "POP!", "CHECKPOINT!" and other small world pops. */
   readonly pop: TextStyle;
   /** Small HUD labels in cream, e.g. the character name. */
@@ -72,7 +75,8 @@ export function createLevelTextStyles(text: TextStyles): LevelTextStyles {
       outline: SHADOW_INK,
       shadow: { color: '#3a0808', x: 2, y: 2 },
     },
-    bubble: { font: text.body.font, fill: '#3a0a18' },
+    bubble: { font: cardFont, fill: '#3a0a18' },
+    cardBody: { ...text.body, font: cardFont },
     pop: { ...text.hud, fill: palette.white },
     hudLabel: { ...text.hud, fill: palette.cream },
   };
