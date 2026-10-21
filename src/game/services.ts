@@ -32,4 +32,9 @@ export interface GameServices {
   /** The game's root random stream; `fork()` it for an independent, reproducible sub-stream. */
   readonly rng: Rng;
   readonly settings: GameSettings;
+  /**
+   * Leaves the game for a real-world link (e.g. the contact call to action).
+   * Supplied by the app so the game never touches `window` directly.
+   */
+  readonly openLink: (href: string) => void;
 }

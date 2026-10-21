@@ -29,6 +29,8 @@ export interface CreateGameOptions {
   /** Defaults to silent audio until the synthesiser exists. */
   readonly audio?: GameAudio;
   readonly reducedMotion?: boolean;
+  /** Opens a real-world link chosen in-game; defaults to navigating the current tab (mailto-friendly). */
+  readonly openLink?: (href: string) => void;
 }
 
 export interface CreatedGame {
@@ -65,12 +67,17 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
     session: new SessionStore(options.storage === undefined ? defaultStorage() : options.storage),
     rng: new Rng(options.seed ?? Date.now()),
     settings: { reducedMotion: options.reducedMotion ?? prefersReducedMotion() },
+    openLink: options.openLink ?? defaultOpenLink,
   };
 
   const canvas = createCanvas(SCREEN_WIDTH, SCREEN_HEIGHT);
   const input = new InputManager<Action>(bindings, { gamepad: new GamepadSource() });
   const game = new Game<Action>({ canvas, input, root: director });
   return { game, surface: game, services };
+}
+
+function defaultOpenLink(href: string): void {
+  window.location.assign(href);
 }
 
 function defaultStorage(): SessionStorage | null {

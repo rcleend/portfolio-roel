@@ -9,6 +9,11 @@ export interface AudioService<MusicId extends string = string, SfxId extends str
   playMusic(id: MusicId, options?: MusicOptions): void;
   stopMusic(options?: { readonly fadeOutMs?: number }): void;
   playSfx(id: SfxId, options?: SfxOptions): void;
+  /**
+   * Freezes or thaws everything that is playing, keeping positions. Hosts call
+   * this when the game is set aside (e.g. the camera leaves the TV).
+   */
+  setPaused(paused: boolean): void;
   muted: boolean;
 }
 
