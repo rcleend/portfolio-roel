@@ -2,7 +2,7 @@ import { pixels } from '@/engine/gfx/PixelArt';
 import { withRows } from '../compose';
 import { buildCharacterSheet } from './rig';
 
-/** STRATEGY — slate blazer over a white shirt and red tie, glasses, and a clipboard full of sticky notes. */
+/** STRATEGY — slate blazer over a white shirt and red tie, browline glasses, and a clipboard full of sticky notes. */
 const head = pixels(`
   ....oooooo....
   ..oohhhhhhoo..
@@ -10,9 +10,9 @@ const head = pixels(`
   ohhhhhhhhHhhho
   ohhhhsssssssho
   ohhhssssssssso
-  ohhSsgggsgggso
-  ohhSsgesgsegso
-  ohhSsgggsgggso
+  ohhSsfffffffso
+  ohhSsLLesLLeso
+  ohhSsLLLsLLLso
   .ohSssssssmsso
   .ooSSssssssso.
   ...oSSsssssoo.
@@ -27,7 +27,8 @@ export const strategySheet = buildCharacterSheet({
     h: '#4a3222',
     H: '#6e4a32',
     e: '#10121c',
-    g: '#7a82a3',
+    f: '#1b1e2b',
+    L: '#dfe8ff',
     c: '#4b5d96',
     C: '#334170',
     l: '#7d8fc8',
@@ -46,10 +47,10 @@ export const strategySheet = buildCharacterSheet({
   },
   heads: {
     normal: head,
-    blink: withRows(head, { 7: 'ohhSsgssgsssgo' }),
+    blink: withRows(head, { 7: 'ohhSsLLLsLLLso', 8: 'ohhSsSSSsSSSso' }),
     focus: withRows(head, { 9: '.ohSssssssmmso' }),
     happy: withRows(head, { 9: '.ohSssmssssmso', 10: '.ooSSssmmmmso.' }),
-    hurt: withRows(head, { 7: 'ohhSsgSsgsSsgo', 9: '.ohSsssssMMsso', 10: '.ooSSsssMMsso.' }),
+    hurt: withRows(head, { 7: 'ohhSsLeLsLeLso', 8: 'ohhSsSSSsSSSso', 9: '.ohSsssssMMsso', 10: '.ooSSsssMMsso.' }),
   },
   torso: pixels(`
     .oooooooo.
