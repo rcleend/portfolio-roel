@@ -32,7 +32,11 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, loo
     customer.tuning.scale,
     { flipX: customer.facing < 0, flash },
   );
-  if (customer.won || customer.escalated) return;
+  if (customer.won) return;
+  if (customer.escalated) {
+    drawSteam(gfx, customer, kit.time);
+    return;
+  }
   const calm = look.customersCalm;
   drawFrustration(gfx, customer, calm);
   if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - bob(kit.time, 1, 0.5));
@@ -94,4 +98,17 @@ function drawCalmHeart(gfx: Gfx, x: number, y: number): void {
     gfx.fillRect(left + dx, top + dy, w, 1, '#ff4fa3');
   }
   gfx.pixel(left + 1, top + 1, '#ffd0ef');
+}
+
+/** Steam puffing from both sides of the escalated customer's head: more frustration than one sprite can hold. */
+function drawSteam(gfx: Gfx, customer: Customer, time: number): void {
+  const top = customer.feet - customer.rect.h - 4;
+  for (let puff = 0; puff < 4; puff++) {
+    const phase = (time * 1.4 + puff / 4) % 1;
+    if (phase > 0.8 && blink(time, 2 / 60, 2 / 60)) continue;
+    const side = puff % 2 === 0 ? -1 : 1;
+    const x = customer.centerX + side * (10 + phase * 8);
+    const y = top - phase * 16;
+    gfx.circle(x, y, 1 + Math.round(phase * 2), phase < 0.5 ? '#ffffff' : '#d6d0dc');
+  }
 }
