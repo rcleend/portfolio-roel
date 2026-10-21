@@ -6,7 +6,7 @@ import { scoreFont } from './scoreFont';
 
 describe('level fonts', () => {
   it('has a banner glyph for every character the announcer says', () => {
-    for (const char of 'MISSION 12 START! CUSTOMER RETAINED! ACQUIRED! PRODUCT-MARKET FIT ESCALATION! PAUSED TRY AGAIN') {
+    for (const char of 'MISSION 12 START! CUSTOMER RETAINED! ACQUIRED! PRODUCT-MARKET FIT ESCALATED! PAUSED TRY AGAIN') {
       expect(bannerFont.has(char), char).toBe(true);
     }
     expect(bannerFont.cellHeight).toBe(22);

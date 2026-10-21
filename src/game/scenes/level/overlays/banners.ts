@@ -8,7 +8,7 @@ import type { LevelTextStyles } from '../../../ui/hud/styles';
 
 /**
  * The escalated customer's entrance: red alarm bars sweep in from both
- * sides with "ESCALATION!" and the plan underneath, blinking like an arcade
+ * sides with "ESCALATED!" and the plan underneath, blinking like an arcade
  * WARNING.
  */
 export function drawEscalationBanner(
@@ -34,7 +34,7 @@ export function drawEscalationBanner(
     for (let x = left - 8 + crawl * side; x < left + barWidth; x += 8) gfx.fillRect(x, top + 1, 4, 4, '#ffd84a');
   }
   if (open < 1 || !blink(age, 10 / 60, 4 / 60)) return;
-  gfx.text('ESCALATION!', gfx.width / 2, y, styles.bannerAlarm, { align: 'center' });
+  gfx.text('ESCALATED!', gfx.width / 2, y, styles.bannerAlarm, { align: 'center' });
   gfx.text(
     `UNHAPPY CUSTOMER - ${plan}`,
     gfx.width / 2,

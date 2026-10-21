@@ -18,7 +18,7 @@ export interface LevelTextStyles {
   readonly banner: TextStyle;
   /** Announcer banners in the prompt's white-to-lavender: "START!". */
   readonly bannerCool: TextStyle;
-  /** Announcer banners in alarm red: "ESCALATION!". */
+  /** Announcer banners in alarm red: "ESCALATED!". */
   readonly bannerAlarm: TextStyle;
   /** Complaint lines inside a speech bubble. */
   readonly bubble: TextStyle;
