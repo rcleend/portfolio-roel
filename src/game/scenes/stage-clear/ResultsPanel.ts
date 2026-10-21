@@ -31,6 +31,7 @@ const ROW_HEIGHT = 26;
 export class ResultsPanel {
   readonly #services: GameServices;
   readonly #styles: { readonly label: TextStyle; readonly value: TextStyle; readonly unit: TextStyle };
+  readonly #record: { readonly lit: TextStyle; readonly dim: TextStyle };
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -40,6 +41,7 @@ export class ResultsPanel {
       value: { ...text.prompt, fill: ['#ffffff', '#fff3a0', '#ffc83d'], bands: 3 },
       unit: { ...text.label, fill: palette.gold },
     };
+    this.#record = { lit: { ...text.hud, fill: palette.gold }, dim: { ...text.hud, fill: palette.red } };
   }
 
   render(gfx: Gfx, frame: Rect, time: number, timeline: StageClearTimeline, data: ResultsData): void {
@@ -77,15 +79,15 @@ export class ResultsPanel {
       gfx.fillRect(left, y - 3, inner.w - 4, 1, palette.violet);
       gfx.text('BEST', left, y + 1, this.#styles.label);
       gfx.text(formatMrr(data.best), right, y + 1, this.#styles.unit, { align: 'right' });
-      if (data.newRecord && blink(time - timeline.record, frames(20), frames(10))) {
-        gfx.text('NEW RECORD!', inner.x + inner.w / 2, y + 14, this.#recordStyle(), { align: 'center' });
+      if (data.newRecord) {
+        // Flickers between two colours rather than blinking off, so the record never disappears from the tally.
+        const lit = blink(time - timeline.record, frames(8), frames(8));
+        gfx.text('NEW RECORD!', inner.x + inner.w / 2, y + 14, lit ? this.#record.lit : this.#record.dim, {
+          align: 'center',
+        });
       }
     }
     this.#renderVictory(gfx, inner, time, data.characterId);
-  }
-
-  #recordStyle(): TextStyle {
-    return { ...this.#services.text.hud, fill: palette.red, outline: palette.white };
   }
 
   /** The hero cheers on a little spotlight while a won-over customer, calm and smiling, waves back. */

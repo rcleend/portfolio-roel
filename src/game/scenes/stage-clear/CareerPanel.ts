@@ -99,7 +99,8 @@ export class CareerPanel {
     gfx.text('STACK', x, stackY + 4, this.#styles.heading);
     this.#stack.render(gfx, x, stackY + 15);
     if (view.time >= view.timeline.settled) {
-      gfx.text('CONFIRM: READ HIGHLIGHT', x, inner.y + inner.h - 9, this.#styles.hint);
+      const hint = view.focusedRow === null ? 'UP: READ HIGHLIGHTS' : 'CONFIRM: READ HIGHLIGHT';
+      gfx.text(hint, x, inner.y + inner.h - 9, this.#styles.hint);
     }
   }
 
