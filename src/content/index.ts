@@ -1,5 +1,5 @@
-export * from './types';
-export { profile, education, publications } from './profile';
+export { characters, getCharacter, skills } from './characters';
 export { experience, getExperience } from './experience';
-export { characters, skills, getCharacter } from './characters';
-export { levels, nextLevelTeaser, getLevel } from './levels';
+export { getLevel, levels, nextLevelTeaser } from './levels';
+export { education, profile, publications } from './profile';
+export * from './types';

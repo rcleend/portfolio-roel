@@ -86,8 +86,7 @@ export const skills: Readonly<Record<SkillId, Skill>> = {
   'churn-shield': {
     id: 'churn-shield',
     name: 'CHURN SHIELD',
-    tooltip:
-      'A retention bubble no hit gets through. Field-tested in real life: it nearly halved monthly churn.',
+    tooltip: 'A retention bubble no hit gets through. Field-tested in real life: it nearly halved monthly churn.',
     effect: 'Blocks all damage for 5 seconds. Customers who bump into it calm down.',
     cooldownSeconds: 14,
   },

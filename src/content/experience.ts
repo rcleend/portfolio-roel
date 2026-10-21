@@ -88,7 +88,8 @@ export const experience: readonly Experience[] = [
       {
         id: 'fledge-migration',
         title: 'CLOUD MIGRATION',
-        description: 'Led 12 developers in migrating legacy ERP software to the cloud, delivering three core modules within a year.',
+        description:
+          'Led 12 developers in migrating legacy ERP software to the cloud, delivering three core modules within a year.',
       },
       {
         id: 'fledge-mentoring',
