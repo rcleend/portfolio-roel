@@ -245,3 +245,10 @@
     display: none;
   }
 }
+
+/* Touch screens get the on-screen pad instead of keyboard instructions. */
+@media (pointer: coarse) {
+  .flat-host__hint {
+    display: none;
+  }
+}
