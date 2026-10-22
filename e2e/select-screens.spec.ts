@@ -8,6 +8,7 @@ import { clickScreen, scene, trackErrors } from './helpers';
  */
 const KEYS = {
   characterSelect: { confirm: { x: 236, y: 222 }, back: { x: 300, y: 222 } },
+  levelSelect: { confirm: { x: 240, y: 225 }, back: { x: 304, y: 225 } },
 } as const;
 
 /** Opens a scene paused, so every click is played out by explicit steps. */
@@ -37,6 +38,26 @@ test.describe('character select keys', () => {
     await clickScreen(page, KEYS.characterSelect.back);
     await step(page, 60);
     expect(await scene(page)).toBe('title');
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('mission select keys', () => {
+  test('CONFIRM deploys into the focused mission', async ({ page }) => {
+    const errors = trackErrors(page);
+    await open(page, 'levelSelect');
+    await clickScreen(page, KEYS.levelSelect.confirm);
+    await step(page, 120);
+    expect(await scene(page)).toBe('level');
+    expect(errors).toEqual([]);
+  });
+
+  test('BACK returns to the character select', async ({ page }) => {
+    const errors = trackErrors(page);
+    await open(page, 'levelSelect');
+    await clickScreen(page, KEYS.levelSelect.back);
+    await step(page, 60);
+    expect(await scene(page)).toBe('characterSelect');
     expect(errors).toEqual([]);
   });
 });

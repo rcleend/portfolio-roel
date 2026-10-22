@@ -60,7 +60,7 @@ export class Postcards {
 
   #drawMission(gfx: Gfx, slot: MissionSlot, card: Rect, pose: CardPose): void {
     drawWindow(gfx, card, windowThemes.cream);
-    this.#drawTab(gfx, card, slot.level.mission);
+    this.#drawTab(gfx, card, slot.label);
     const picture = previewRect(card);
     gfx.rect(picture.x - 1, picture.y - 1, picture.w + 2, picture.h + 2, palette.navy);
     const art = this.#services.levelArt.get(slot.level.id);
@@ -96,7 +96,7 @@ export class Postcards {
   #drawTeaser(gfx: Gfx, slot: TeaserSlot, card: Rect, pose: CardPose): void {
     const { text } = this.#services;
     drawWindow(gfx, card, windowThemes.steel);
-    this.#drawTab(gfx, card, slot.teaser.mission);
+    this.#drawTab(gfx, card, slot.label);
     const picture = previewRect(card);
     gfx.rect(picture.x - 1, picture.y - 1, picture.w + 2, picture.h + 2, palette.ink);
     drawClassified(gfx, picture, pose.focused ? pose.time : 0);
@@ -115,7 +115,7 @@ export class Postcards {
   }
 }
 
-/** Mission number on a navy tab clipped over the postcard's top edge, like a label on a file folder. */
+/** Company number on a navy tab clipped over the postcard's top edge, like a label on a file folder. */
 function drawTabShape(gfx: Gfx, x: number, y: number, w: number, h = 12): void {
   gfx.fillRect(x, y, w, h, palette.ink);
   gfx.fillRect(x + 1, y + 1, w - 2, h - 2, palette.navy);

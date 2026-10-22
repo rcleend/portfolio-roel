@@ -113,8 +113,8 @@ export interface LevelInfo {
   readonly country: string;
   /** One-paragraph tongue-in-cheek briefing shown on the level select. */
   readonly briefing: string;
-  /** Environmental hazards, as shown on the briefing card. */
-  readonly hazards: readonly string[];
+  /** The mission's objective in arcade capitals, under the briefing, e.g. "FIND PRODUCT-MARKET FIT". */
+  readonly target: string;
   /** Complaints Unhappy Customers shout in this level. */
   readonly complaints: readonly string[];
 }

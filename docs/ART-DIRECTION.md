@@ -65,9 +65,10 @@ Layout follows a classic RPG select (portrait card left, details right) but rend
 
 A tongue-in-cheek mission briefing screen: missions are employers, the location is the stage.
 
-- Each mission is a postcard-like window previewing its parallax stage (live, slowly panning), stamped with mission number, company, city and years.
-- The selected mission shows a briefing panel: role, briefing copy, hazards list and "THREAT: UNHAPPY CUSTOMERS".
-- A locked third slot reads "MISSION 3 — YOUR TEAM?" with a "contact" call to action instead of a stage.
+- Each mission is a postcard-like window previewing its parallax stage (live, slowly panning), stamped with its company number ("COMPANY 1"), company, city and years.
+- The selected mission shows a briefing panel: role, company context, the briefing copy across the panel's full width and a green "TARGET" with the mission's objective ("FIND PRODUCT-MARKET FIT").
+- A locked third slot reads "COMPANY 3 — YOUR TEAM?" with a "contact" call to action instead of a stage.
+- The character select's "⏎ CONFIRM ⌫ BACK" keys sit under the briefing panel, flush with its right edge: CONFIRM deploys (or gets in touch from the locked slot), BACK returns to the character select.
 - A plane or route line animates between the cities in chronological order.
 
 ## Levels
