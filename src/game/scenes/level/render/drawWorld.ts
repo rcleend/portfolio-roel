@@ -2,6 +2,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { renderCustomer } from '../../../entities/customer/renderCustomer';
 import type { RenderKit } from '../../../entities/RenderKit';
 import type { World } from '../../../world/World';
+import { casterSnapshot } from './casterSnapshot';
 
 /**
  * Draws every entity in world space, back to front: stage props, auras
@@ -24,7 +25,7 @@ export function drawWorld(gfx: Gfx, world: World, kit: RenderKit): void {
   for (const block of world.blocks) block.render(gfx, kit.art.tileset, kit.time);
   world.goalFlag?.render(gfx, kit.text.label, kit.time);
 
-  const caster = world.caster;
+  const caster = casterSnapshot(world, kit);
   for (const skill of world.activeSkills) skill.render(gfx, kit, caster, 'behind');
   for (const customer of world.customers) if (customer.won) renderCustomer(gfx, kit, customer, world.modifiers);
   for (const customer of world.customers) if (!customer.won) renderCustomer(gfx, kit, customer, world.modifiers);

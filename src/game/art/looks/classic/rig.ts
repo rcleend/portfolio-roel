@@ -1,9 +1,10 @@
 import type { PixelArtSheet } from '@/engine/gfx/PixelArt';
 import { pixels } from '@/engine/gfx/PixelArt';
-import { FrameBuilder, flipRows, type Rows, recolorRows } from '../compose';
+import { FrameBuilder, flipRows, type Rows, recolorRows } from '../../compose';
+import type { CharacterAnimation } from '../contracts';
 
 /**
- * The shared body rig for the three playable characters.
+ * The classic look's shared body rig for the three playable characters.
  *
  * Every character is drawn from the same skeleton — legs and arms are shared
  * parts painted with palette keys — and supplies only its own head, torso,
@@ -14,9 +15,6 @@ import { FrameBuilder, flipRows, type Rows, recolorRows } from '../compose';
  *   o outline   s skin   S skin shade   c top   C top shade   l top light
  *   p trousers  P trousers shade   b shoes   B shoe sole
  */
-export const CHARACTER_ANIMATIONS = ['idle', 'run', 'jump', 'fall', 'attack', 'skill', 'hurt', 'victory'] as const;
-export type CharacterAnimation = (typeof CHARACTER_ANIMATIONS)[number];
-
 export const FRAME = { w: 32, h: 40 } as const;
 
 /** Anchor points in frame pixels; all parts are positioned relative to these. */
@@ -288,7 +286,7 @@ export const CHARACTER_POSES: Readonly<Record<CharacterAnimation, PoseAnimation>
 };
 
 /** What a character contributes on top of the shared rig. */
-export interface CharacterLook {
+export interface CharacterParts {
   readonly palette: Readonly<Record<string, string>>;
   /** 14 × 13 head per facial expression; missing faces fall back to `normal`. */
   readonly heads: Readonly<Partial<Record<Face, Rows>>> & { readonly normal: Rows };
@@ -301,13 +299,13 @@ export interface CharacterLook {
 }
 
 /** Assembles a playable character's full sheet from its look and the shared poses. */
-export function buildCharacterSheet(look: CharacterLook): PixelArtSheet<CharacterAnimation> {
+export function buildCharacterSheet(look: CharacterParts): PixelArtSheet<CharacterAnimation> {
   return buildSheet(look, CHARACTER_POSES);
 }
 
 /** Assembles any rig-based sheet (characters, the customer) from a look and a pose table. */
 export function buildSheet<A extends string>(
-  look: CharacterLook,
+  look: CharacterParts,
   poses: Readonly<Record<A, PoseAnimation>>,
 ): PixelArtSheet<A> {
   const animations = {} as Record<A, { fps: number; loop: boolean; frames: string[][] }>;
@@ -325,7 +323,7 @@ export function buildSheet<A extends string>(
   return { palette: look.palette, size: FRAME, animations };
 }
 
-function buildFrame(look: CharacterLook, pose: Pose): string[] {
+function buildFrame(look: CharacterParts, pose: Pose): string[] {
   const frame = new FrameBuilder(FRAME.w, FRAME.h);
   if (pose.overlay) frame.stamp(pose.overlay.rows, pose.overlay.x, pose.overlay.y);
   const y = pose.y ?? 0;

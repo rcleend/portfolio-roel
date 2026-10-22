@@ -480,7 +480,7 @@ export class World implements SkillWorld {
 
   #impact(shot: Shot): void {
     const recipe = shot.spec.impact === 'star' ? BURSTS.starImpact : BURSTS.hitSpark;
-    this.feedback.effect(new Burst(shot.x, shot.y, recipe, this.rng));
+    this.feedback.effect(shot.impactEffect(new Burst(shot.x, shot.y, recipe, this.rng)));
   }
 
   #bossLanded(boss: Customer): void {

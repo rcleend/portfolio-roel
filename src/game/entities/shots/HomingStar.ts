@@ -1,5 +1,8 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Vec2 } from '@/engine/math/Vec2';
+import type { Burst } from '../effects/Burst';
+import type { Effect } from '../effects/Effect';
+import { SkillEffect } from '../effects/SkillEffect';
 import type { RenderKit } from '../RenderKit';
 import { Shot, type ShotEnvironment, type ShotTarget, type ShotView } from './Shot';
 
@@ -17,8 +20,8 @@ export interface StarShotView extends ShotView {
  * NORTH STAR: a star that homes in on the most frustrated customer on screen,
  * ignoring everything else on the way (it flies through bubbles).
  */
-export class HomingStar extends Shot {
-  readonly #trail: { x: number; y: number }[] = [];
+export class HomingStar extends Shot implements StarShotView {
+  readonly #trail: Vec2[] = [];
 
   constructor(x: number, y: number, direction: -1 | 1) {
     super(
@@ -44,12 +47,16 @@ export class HomingStar extends Shot {
     this.vy = Math.sin(heading) * SPEED;
   }
 
+  get trail(): readonly Vec2[] {
+    return this.#trail;
+  }
+
   render(gfx: Gfx, kit: RenderKit): void {
-    this.#trail.forEach((point, index) => {
-      if (index % 2 === 1) return;
-      gfx.pixel(point.x, point.y, index < 2 ? '#fff4b0' : '#ffd84a');
-    });
-    gfx.sprite(kit.fx.star, 'twinkle', this.age, this.x, this.y);
+    kit.looks.skills['north-star'].visual.shot?.(gfx, this, kit);
+  }
+
+  impactEffect(burst: Burst): Effect {
+    return new SkillEffect('north-star', { role: 'impact', burst }, burst);
   }
 }
 

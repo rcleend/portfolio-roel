@@ -1,13 +1,12 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { easeOutBack } from '@/engine/motion/easing';
-import { segment } from '@/engine/motion/progress';
 import { Burst } from '../entities/effects/Burst';
+import { SkillEffect } from '../entities/effects/SkillEffect';
 import type { RenderKit } from '../entities/RenderKit';
 import { rectCenter } from './geometry';
-import type { ActiveSkill, Skill, SkillCaster, SkillLayer, SkillModifiers, SkillWorld } from './Skill';
+import type { ActiveSkill, Skill, SkillLayer, SkillModifiers, SkillWorld } from './Skill';
+import type { CasterSnapshot, UxElixirState } from './SkillVisual';
 
 const DURATION = 6;
-const FLASK_SECONDS = 0.7;
 const SPARKLE_EVERY = 0.18;
 const MODIFIERS: SkillModifiers = { customerSpeed: 0.35, customersCalm: true, decisiveHits: true };
 const SPARKLE = {
@@ -27,10 +26,15 @@ export const uxElixir: Skill = {
   cast: () => new Elixir(),
 };
 
-class Elixir implements ActiveSkill {
+class Elixir implements ActiveSkill, UxElixirState {
   readonly modifiers = MODIFIERS;
+  readonly duration = DURATION;
   #age = 0;
   #nextSparkle = 0;
+
+  get age(): number {
+    return this.#age;
+  }
 
   get done(): boolean {
     return this.#age >= DURATION;
@@ -40,28 +44,15 @@ class Elixir implements ActiveSkill {
     this.#age += dt;
     if (this.#age < this.#nextSparkle) return;
     this.#nextSparkle = this.#age + SPARKLE_EVERY;
-    // Understanding spreads: soft pink sparkles drift up from every customer under the spell.
+    // Understanding spreads: sparkles drift up from every customer under the spell.
     for (const target of world.targets()) {
       const center = rectCenter(target.rect);
-      world.effect(new Burst(center.x, target.rect.y + 4, SPARKLE, world.rng));
+      const burst = new Burst(center.x, target.rect.y + 4, SPARKLE, world.rng);
+      world.effect(new SkillEffect('ux-elixir', { role: 'sparkle', burst }, burst));
     }
   }
 
-  render(gfx: Gfx, _kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void {
-    if (layer !== 'front' || this.#age > FLASK_SECONDS) return;
-    // The potion pops up above the hero's head, tips, and is gone.
-    const rise = segment(this.#age, 0, 0.25, easeOutBack);
-    const x = Math.round(caster.x - 3);
-    const y = Math.round(caster.feet - 34 - rise * 10);
-    drawFlask(gfx, x, y, this.#age > 0.45);
+  render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void {
+    kit.looks.skills['ux-elixir'].visual.active?.(gfx, this, caster, layer, kit);
   }
-}
-
-function drawFlask(gfx: Gfx, x: number, y: number, empty: boolean): void {
-  gfx.fillRect(x + 2, y, 3, 1, '#2a1830');
-  gfx.fillRect(x + 2, y + 1, 3, 2, '#b48e74');
-  gfx.fillRect(x, y + 3, 7, 7, '#2a1830');
-  gfx.fillRect(x + 1, y + 4, 5, 5, empty ? '#d6d0dc' : '#ff4fa3');
-  if (!empty) gfx.fillRect(x + 1, y + 4, 5, 1, '#ff9ad8');
-  gfx.pixel(x + 2, y + 5, '#ffffff');
 }

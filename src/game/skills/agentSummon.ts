@@ -1,6 +1,6 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects } from '@/engine/math/Rect';
-import { blink } from '@/engine/motion/oscillators';
+import type { Vec2 } from '@/engine/math/Vec2';
 import type { RenderKit } from '../entities/RenderKit';
 import { DroneShot } from '../entities/shots/DroneShot';
 import { rectCenter } from './geometry';
@@ -12,6 +12,7 @@ import {
   type SkillLayer,
   type SkillWorld,
 } from './Skill';
+import type { AgentSummonState, CasterSnapshot } from './SkillVisual';
 
 const DURATION = 8;
 const ORBIT_SECONDS = 1.6;
@@ -26,19 +27,33 @@ export const agentSummon: Skill = {
   cast: () => new Drone(),
 };
 
-class Drone implements ActiveSkill {
+class Drone implements ActiveSkill, AgentSummonState {
   readonly modifiers = NO_MODIFIERS;
+  readonly duration = DURATION;
   #age = 0;
   #nextShot = 0.35;
+
+  get age(): number {
+    return this.#age;
+  }
 
   get done(): boolean {
     return this.#age >= DURATION;
   }
 
+  get angle(): number {
+    return (this.#age / ORBIT_SECONDS) * Math.PI * 2;
+  }
+
+  droneAt(caster: SkillCaster): Vec2 {
+    const { angle } = this;
+    return { x: caster.x + Math.cos(angle) * ORBIT.x, y: caster.y - ORBIT.lift + Math.sin(angle) * ORBIT.y };
+  }
+
   update(world: SkillWorld, dt: number): void {
     this.#age += dt;
     if (this.#age < this.#nextShot) return;
-    const from = this.#position(world.caster);
+    const from = this.droneAt(world.caster);
     let nearest: { x: number; y: number } | null = null;
     let best = RANGE;
     for (const target of world.targets()) {
@@ -55,22 +70,7 @@ class Drone implements ActiveSkill {
     this.#nextShot = this.#age + FIRE_EVERY;
   }
 
-  render(gfx: Gfx, kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void {
-    if (this.done) return;
-    // The drone passes behind the player on the far half of its orbit.
-    const behind = Math.sin(this.#angle()) < 0;
-    if (behind !== (layer === 'behind')) return;
-    if (DURATION - this.#age < 1 && !blink(this.#age, 3 / 60, 3 / 60)) return;
-    const { x, y } = this.#position(caster);
-    gfx.sprite(kit.fx.drone, 'hover', this.#age, x, y, { flipX: caster.facing < 0 });
-  }
-
-  #angle(): number {
-    return (this.#age / ORBIT_SECONDS) * Math.PI * 2;
-  }
-
-  #position(caster: SkillCaster): { x: number; y: number } {
-    const angle = this.#angle();
-    return { x: caster.x + Math.cos(angle) * ORBIT.x, y: caster.y - ORBIT.lift + Math.sin(angle) * ORBIT.y };
+  render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void {
+    kit.looks.skills['agent-summon'].visual.active?.(gfx, this, caster, layer, kit);
   }
 }

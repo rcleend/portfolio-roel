@@ -6,6 +6,7 @@ import type { SfxId } from '../audio/ids';
 import type { Effect } from '../entities/effects/Effect';
 import type { RenderKit } from '../entities/RenderKit';
 import type { Shot } from '../entities/shots/Shot';
+import type { CasterSnapshot } from './SkillVisual';
 
 /**
  * The Skill behaviour contract.
@@ -20,6 +21,10 @@ import type { Shot } from '../entities/shots/Shot';
  * through `modifiers` (slow customers, block damage, …), which the world
  * combines across every running skill. That keeps each skill a small,
  * self-contained module and the world free of per-skill special cases.
+ *
+ * How a skill looks is not its business: it hands its typed state to the
+ * selected look's `SkillVisual` (skills/SkillVisual.ts), so every look plays
+ * exactly the same skill.
  */
 export interface Skill {
   readonly id: SkillId;
@@ -33,8 +38,8 @@ export interface ActiveSkill {
   /** Rules this skill imposes while it runs; read every step. */
   readonly modifiers: SkillModifiers;
   update(world: SkillWorld, dt: number): void;
-  /** Draws in world coordinates; `layer` puts auras behind the player and beams in front. */
-  render(gfx: Gfx, kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void;
+  /** Draws through the skill's look, in world coordinates; `layer` puts auras behind the player and beams in front. */
+  render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void;
 }
 
 export type SkillLayer = 'behind' | 'front';

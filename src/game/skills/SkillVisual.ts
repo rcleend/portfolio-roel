@@ -102,8 +102,8 @@ export interface FullStackState extends SkillTiming {
 export interface AgentSummonState extends SkillTiming {
   /** Orbit phase in radians: the drone passes behind the hero while `sin(angle) < 0`. */
   readonly angle: number;
-  /** Where the drone is, and where its pulses leave from. */
-  readonly drone: Vec2;
+  /** Where the drone is around a hero standing at `caster`, which is also where its pulses leave from. */
+  droneAt(caster: SkillCaster): Vec2;
 }
 
 /** UX ELIXIR: drunk at the cast, then `sparkle` bursts rise from every customer under the spell. */
@@ -117,7 +117,8 @@ export interface PowerChordState extends SkillTiming {
 
 /** CHURN SHIELD: a bubble around the hero that customers bounce off. */
 export interface ChurnShieldState extends SkillTiming {
-  /** Centre and radius of the bubble, which is also what customers bump into. */
-  readonly center: Vec2;
+  /** The bubble's radius, which is also what customers bump into. */
   readonly radius: number;
+  /** The bubble's centre around a hero standing at `caster`. */
+  centerAt(caster: SkillCaster): Vec2;
 }

@@ -157,7 +157,7 @@ export class BriefingPanel {
     const customerX = inner.x + inner.w - 24;
     const feetY = inner.y + inner.h - 1;
     const shouting = this.#complaint.visible;
-    gfx.sprite(this.#services.sprites.unhappyCustomer, shouting ? 'shout' : 'walk', this.#time, customerX, feetY, {
+    gfx.sprite(this.#services.looks.customer.sheet, shouting ? 'shout' : 'walk', this.#time, customerX, feetY, {
       flipX: true,
     });
     if (shouting) {
@@ -194,7 +194,7 @@ export class BriefingPanel {
     gfx.text(slot.teaser.cta.label, addressX + 15, bounds.y + 6, this.#styles.copy);
 
     this.#renderHint(gfx, 'CONFIRM: GET IN TOUCH   BACK: CHANGE HERO');
-    const hero = this.#services.sprites.characters[this.#characterId];
+    const hero = this.#services.looks.characters[this.#characterId].sheet;
     gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, inner.y + inner.h - 2, { flipX: true });
     if (blink(this.#time, frames(32), frames(16))) {
       gfx.text('?', inner.x + inner.w - 40, inner.y + inner.h - 54, this.#services.text.prompt);

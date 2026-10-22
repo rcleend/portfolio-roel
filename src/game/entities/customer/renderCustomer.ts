@@ -1,12 +1,12 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink, bob } from '@/engine/motion/oscillators';
-import type { CustomerAnimation } from '../../art';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
+import type { CustomerAnimation } from '../../art/looks/contracts';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
 
-/** The bits of the level's rules that change how a customer looks. */
-export interface CustomerLook {
+/** The bits of the level's rules that change how a customer is drawn. */
+export interface CustomerRules {
   /** UX Elixir: customers glow with a pink heart and pink pips. */
   readonly customersCalm: boolean;
 }
@@ -16,7 +16,7 @@ const PIP = { w: 4, h: 3, gap: 1 } as const;
 const STANDING_TIME = 1 / 6 + 1e-6;
 
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
-export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, look: CustomerLook): void {
+export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rules: CustomerRules): void {
   const { animation, time } = pose(customer, kit.time);
   // Hits flicker white on alternate frames and a charge is telegraphed in red, both brief enough to keep the sprite readable.
   const hitFlash = customer.isFlashing(kit.time) && blink(kit.time, 1 / 60, 1 / 60);
@@ -24,7 +24,7 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, loo
   const flash = hitFlash ? '#ffffff' : windingUp ? '#ff5a3a' : undefined;
   drawSpriteScaled(
     gfx,
-    kit.sprites.unhappyCustomer,
+    kit.looks.customer.sheet,
     animation,
     time,
     customer.centerX,
@@ -37,7 +37,7 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, loo
     drawSteam(gfx, customer, kit.time);
     return;
   }
-  const calm = look.customersCalm;
+  const calm = rules.customersCalm;
   drawFrustration(gfx, customer, calm);
   if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - bob(kit.time, 1, 0.5));
 }

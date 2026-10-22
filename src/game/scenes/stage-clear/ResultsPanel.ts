@@ -92,13 +92,13 @@ export class ResultsPanel {
 
   /** The hero cheers on a little spotlight while a won-over customer, calm and smiling, waves back. */
   #renderVictory(gfx: Gfx, inner: Rect, time: number, characterId: CharacterId): void {
-    const { sprites } = this.#services;
+    const { looks } = this.#services;
     const floor = inner.y + inner.h - 3;
     const heroX = inner.x + 30;
     const customerX = inner.x + inner.w - 26;
     drawSpotlight(gfx, heroX, floor);
     drawSpotlight(gfx, customerX, floor);
-    gfx.sprite(sprites.characters[characterId], 'victory', time, heroX, floor);
-    gfx.sprite(sprites.unhappyCustomer, 'happy', time, customerX, floor, { flipX: true });
+    gfx.sprite(looks.characters[characterId].sheet, 'victory', time, heroX, floor);
+    gfx.sprite(looks.customer.sheet, 'happy', time, customerX, floor, { flipX: true });
   }
 }

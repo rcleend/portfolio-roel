@@ -71,8 +71,8 @@ export class CharacterSelectScene implements GameScene {
 
   constructor(services: GameServices) {
     this.#services = services;
-    this.#card = new CardView(services.sprites.characters, services.rng.fork());
-    this.#details = new DetailsPanel(services.text, services.sprites.skillIcons);
+    this.#card = new CardView(services.looks, services.rng.fork());
+    this.#details = new DetailsPanel(services.text, services.looks);
     this.#tooltip = new Tooltip({ maxWidth: TOOLTIP_WIDTH, theme: windowThemes.cream, style: services.text.tooltip });
     this.#select = new Button({
       label: 'SELECT',

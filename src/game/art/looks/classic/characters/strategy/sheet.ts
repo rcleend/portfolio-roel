@@ -1,6 +1,6 @@
 import { pixels } from '@/engine/gfx/PixelArt';
-import { withRows } from '../compose';
-import { buildCharacterSheet } from './rig';
+import { withRows } from '../../../../compose';
+import { buildCharacterSheet } from '../../rig';
 
 /** STRATEGY — slate blazer over a white shirt and red tie, browline glasses, and a clipboard full of sticky notes. */
 const head = pixels(`

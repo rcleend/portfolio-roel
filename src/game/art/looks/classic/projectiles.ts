@@ -1,9 +1,9 @@
 import { type PixelArtSheet, pixels } from '@/engine/gfx/PixelArt';
-import { recolorRows } from '../compose';
-import { outlined } from './outline';
+import { recolorRows } from '../../compose';
+import { outlined } from '../../fx/outline';
 
 /**
- * Projectile sprites. Each is drawn without its rim and passed through
+ * Classic's projectile sprites. Each is drawn without its rim and passed through
  * `outlined`, so every shot carries the same 1 px dark outline and reads
  * against the bright stage art. Origins are centred: shots are positioned
  * by their centre.
@@ -83,35 +83,6 @@ export const stickyNoteSheet: PixelArtSheet<StickyNoteAnimation> = {
       fps: 14,
       loop: true,
       frames: [outlined(noteFace, 'o'), outlined(noteSide, 'o'), outlined(noteEdge, 'o'), outlined(noteSide, 'o')],
-    },
-  },
-};
-
-// ── NORTH STAR ───────────────────────────────────────────────────────────
-
-const star = pixels(`
-  ....y....
-  ....y....
-  ...yyy...
-  yyyywyyyy
-  .yyywyyy.
-  ..yyyyy..
-  ..yYYYy..
-  .yY...Yy.
-  .y.....y.
-`);
-
-export type StarAnimation = 'twinkle';
-
-export const starSheet: PixelArtSheet<StarAnimation> = {
-  palette: { o: '#4a1c08', y: '#ffd84a', Y: '#ff9a1f', w: '#ffffff' },
-  size: { w: 11, h: 11 },
-  origin: centred(11, 11),
-  animations: {
-    twinkle: {
-      fps: 8,
-      loop: true,
-      frames: [outlined(star, 'o'), outlined(recolorRows(star, { y: 'w', w: 'y' }), 'o')],
     },
   },
 };

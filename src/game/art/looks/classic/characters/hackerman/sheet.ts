@@ -1,6 +1,6 @@
 import { pixels } from '@/engine/gfx/PixelArt';
-import { withRows } from '../compose';
-import { buildCharacterSheet } from './rig';
+import { withRows } from '../../../../compose';
+import { buildCharacterSheet } from '../../rig';
 
 /** HACKERMAN — black hoodie with the hood up, dark sunglasses, terminal-green accents. */
 const head = pixels(`

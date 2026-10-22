@@ -1,6 +1,8 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import type { TileGrid } from '../../world/grid';
+import type { Burst } from '../effects/Burst';
+import type { Effect } from '../effects/Effect';
 import type { RenderKit } from '../RenderKit';
 
 /** Something a shot can home in on. */
@@ -42,7 +44,8 @@ export interface ShotSpec {
 /**
  * A projectile fired by the player or one of their skills. Positioned by its
  * centre. Shots stop in solid tiles and remember the cell, so a shot can
- * collect a "?" block just like a head-butt.
+ * collect a "?" block just like a head-butt. A shot is drawn, and its impact
+ * too, by the look of whoever fired it.
  */
 export abstract class Shot implements ShotView {
   readonly spec: ShotSpec;
@@ -110,4 +113,7 @@ export abstract class Shot implements ShotView {
   protected steer(_dt: number, _env: ShotEnvironment): void {}
 
   abstract render(gfx: Gfx, kit: RenderKit): void;
+
+  /** Hands the burst the world rolled where this shot struck to the look that drew the shot. */
+  abstract impactEffect(burst: Burst): Effect;
 }

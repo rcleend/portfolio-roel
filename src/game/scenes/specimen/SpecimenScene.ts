@@ -4,8 +4,7 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { mod } from '@/engine/math/scalar';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
-import { CHARACTER_ANIMATIONS } from '../../art/characters/rig';
-import { CUSTOMER_ANIMATIONS } from '../../art/enemies/unhappy-customer';
+import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS } from '../../art/looks/contracts';
 import type { TextStyleName } from '../../fonts';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
@@ -122,12 +121,12 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
   }
 
   #renderCharacters(gfx: Gfx): void {
-    const { sprites, text } = this.#services;
+    const { looks, text } = this.#services;
     CHARACTER_ANIMATIONS.forEach((animation, column) => {
       const x = 22 + column * 38;
       gfx.text(animation.toUpperCase(), x, 18, { ...text.hud, fill: palette.lavender }, { align: 'center' });
       characters.forEach((character, row) => {
-        const sheet = sprites.characters[character.id];
+        const sheet = looks.characters[character.id].sheet;
         const time = mod(this.#time, sheet.duration(animation) + 0.5);
         gfx.sprite(sheet, animation, time, x, 72 + row * 56);
       });
@@ -139,11 +138,11 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
   }
 
   #renderEnemyAndIcons(gfx: Gfx): void {
-    const { sprites, text } = this.#services;
+    const { looks, text } = this.#services;
     CUSTOMER_ANIMATIONS.forEach((animation, column) => {
       const x = 32 + column * 60;
       gfx.text(animation.toUpperCase(), x, 20, { ...text.hud, fill: palette.lavender }, { align: 'center' });
-      const sheet = sprites.unhappyCustomer;
+      const sheet = looks.customer.sheet;
       gfx.sprite(sheet, animation, mod(this.#time, sheet.duration(animation) + 0.3), x, 78);
       gfx.sprite(sheet, animation, mod(this.#time, sheet.duration(animation) + 0.3), x, 128, {
         flipX: true,
@@ -151,11 +150,11 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
       });
     });
     gfx.text('FLIPPED + HIT FLASH', gfx.width / 2, 132, { ...text.hud, fill: palette.steel }, { align: 'center' });
-    (Object.keys(sprites.skillIcons) as SkillId[]).forEach((id, i) => {
+    (Object.keys(looks.skills) as SkillId[]).forEach((id, i) => {
       const x = 8 + (i % 2) * 156;
       const y = 146 + Math.floor(i / 2) * 30;
       drawWindow(gfx, { x, y, w: 26, h: 26 }, windowThemes.steel);
-      gfx.sprite(sprites.skillIcons[id], 'idle', this.#time, x + 5, y + 5);
+      gfx.sprite(looks.skills[id].icon, 'idle', this.#time, x + 5, y + 5);
       gfx.text(skills[id].name, x + 30, y + 9, { ...text.label });
     });
   }

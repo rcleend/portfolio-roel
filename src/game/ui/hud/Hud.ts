@@ -2,8 +2,8 @@ import type { CharacterId, SkillId } from '@/content';
 import { getCharacter } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
-import type { Sprites } from '../../art';
 import type { FxSprites } from '../../art/fx';
+import type { Looks } from '../../art/looks/Looks';
 import type { TextStyles } from '../../fonts';
 import { formatEuros } from '../../world/scoring';
 import { windowThemes } from '../theme';
@@ -38,7 +38,7 @@ export interface HudState {
 }
 
 export interface HudKit {
-  readonly sprites: Sprites;
+  readonly looks: Looks;
   readonly fx: FxSprites;
   readonly text: TextStyles;
   readonly levelText: LevelTextStyles;
@@ -69,7 +69,7 @@ function drawPortrait(gfx: Gfx, kit: HudKit, characterId: CharacterId): void {
   // Frame the head and shoulders of the idle sprite inside the bevel.
   gfx.withClip(x + 3, y + 3, size - 6, size - 6, () => {
     gfx.fillRect(x + 3, y + 3, size - 6, size - 6, { stops: ['#3a3f57', '#181a28'], bands: 3 });
-    gfx.sprite(kit.sprites.characters[characterId], 'idle', 0, x + size / 2, y + size + 13);
+    gfx.sprite(kit.looks.characters[characterId].sheet, 'idle', 0, x + size / 2, y + size + 13);
   });
 }
 
@@ -91,7 +91,7 @@ function drawSkillSlot(gfx: Gfx, kit: HudKit, slot: HudSkillSlot, x: number, tim
   drawWindow(gfx, { x, y, w: SLOT_SIZE, h: SLOT_SIZE }, glint ? windowThemes.cream : windowThemes.steel);
   const iconX = x + 3;
   const iconY = y + 3;
-  gfx.sprite(kit.sprites.skillIcons[slot.skillId], 'idle', slot.charge >= 1 ? time : 0, iconX, iconY);
+  gfx.sprite(kit.looks.skills[slot.skillId].icon, 'idle', slot.charge >= 1 ? time : 0, iconX, iconY);
   drawCooldownSweep(gfx, iconX, iconY, 16, slot.charge, '#0b0a1f');
   if (slot.charge < 1) {
     gfx.text(String(Math.ceil(slot.remaining)), x + SLOT_SIZE / 2, y + 7, kit.levelText.score, { align: 'center' });

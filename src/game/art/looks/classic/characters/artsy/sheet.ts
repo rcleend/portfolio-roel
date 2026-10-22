@@ -1,6 +1,6 @@
 import { pixels } from '@/engine/gfx/PixelArt';
-import { withRows } from '../compose';
-import { buildCharacterSheet } from './rig';
+import { withRows } from '../../../../compose';
+import { buildCharacterSheet } from '../../rig';
 
 /** ARTSY — red beret, sunny scarf, paint-flecked teal shirt and a white electric guitar slung on the back. */
 const head = pixels(`

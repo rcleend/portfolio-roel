@@ -5,7 +5,7 @@
  *   pnpm shot --scene boot --frames 0:480:30 --out .shots/boot.png  contact sheet, one cell every 30 frames
  *   pnpm shot --host flat --page --out .shots/flat.png              full-page screenshot
  *
- * Options: --scene <id> --params <json> --frames <n | a:b:step> --scale <n> --cols <n>
+ * Options: --scene <id> --params <json> --looks <json> --frames <n | a:b:step> --scale <n> --cols <n>
  *          --seed <n> --host <flat|room> --page --viewport <WxH> --out <path> --url <base>
  *
  * Uses the dev server given by --url; otherwise starts Vite from this checkout
@@ -33,6 +33,7 @@ const { values } = parseArgs({
   options: {
     scene: { type: 'string' },
     params: { type: 'string' },
+    looks: { type: 'string' },
     frames: { type: 'string' },
     scale: { type: 'string', default: '3' },
     cols: { type: 'string' },
@@ -112,6 +113,7 @@ function gameUrl(base: string, frames: number | null): string {
   const query = new URLSearchParams({ debug: '', host: values.host ?? 'flat', seed: values.seed ?? '1' });
   if (values.scene) query.set('scene', values.scene);
   if (values.params) query.set('params', values.params);
+  if (values.looks) query.set('looks', values.looks);
   if (frames !== null) query.set('frames', String(frames));
   return `${base}/?${query}`;
 }

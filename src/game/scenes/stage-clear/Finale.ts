@@ -95,11 +95,11 @@ export class Finale {
         lift: 0,
         time: this.#time,
       });
-      const { sprites } = this.#services;
+      const { looks } = this.#services;
       drawSpotlight(gfx, 62, 126);
       drawSpotlight(gfx, 258, 126);
-      gfx.sprite(sprites.characters[this.#characterId], 'victory', this.#time, 62, 126);
-      gfx.sprite(sprites.unhappyCustomer, 'happy', this.#time, 258, 126, { flipX: true });
+      gfx.sprite(looks.characters[this.#characterId].sheet, 'victory', this.#time, 62, 126);
+      gfx.sprite(looks.customer.sheet, 'happy', this.#time, 258, 126, { flipX: true });
     }
     if (this.#time < BUTTONS_AT) return;
     const { text } = this.#services;

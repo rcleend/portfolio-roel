@@ -7,9 +7,9 @@ import { RecordingScene } from '@/engine/core/testing';
 import { BitmapFont } from '@/engine/gfx/BitmapFont';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
 import { Rng } from '@/engine/math/Rng';
-import type { Sprites } from '../../art';
 import { arcadeFont } from '../../art/fonts/arcade';
 import { smallFont } from '../../art/fonts/small';
+import type { Looks } from '../../art/looks/Looks';
 import type { MusicId, SfxId } from '../../audio/ids';
 import { createTextStyles } from '../../fonts';
 import type { Action } from '../../input/bindings';
@@ -57,7 +57,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     audio,
     fonts,
     text: createTextStyles(fonts),
-    sprites: {} as Sprites,
+    looks: {} as Looks,
     assets: {} as AssetStore,
     levelArt: {} as LevelArtLibrary,
     session,

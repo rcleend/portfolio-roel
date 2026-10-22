@@ -1,12 +1,12 @@
 import type { SkillId } from '@/content';
 import { type PixelArtSheet, pixels } from '@/engine/gfx/PixelArt';
-import { withRows } from '../compose';
+import { withRows } from '../../../compose';
+import type { SkillIconAnimation } from '../../contracts';
 
 /**
- * 16 × 16 skill icons, one sheet per `SkillId`, each with a two-frame `idle`
- * glint so the select screen always has something alive.
+ * Classic's 16 × 16 skill icons, one sheet per `SkillId`, each with a
+ * two-frame `idle` glint so the select screen always has something alive.
  */
-export type SkillIconAnimation = 'idle';
 
 const SIZE = { w: 16, h: 16 } as const;
 const OUTLINE = '#120e24';

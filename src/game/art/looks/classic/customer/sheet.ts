@@ -1,15 +1,13 @@
 import { pixels } from '@/engine/gfx/PixelArt';
-import { buildSheet, type PoseAnimation } from '../characters/rig';
-import { withRows } from '../compose';
+import { withRows } from '../../../compose';
+import type { CustomerAnimation } from '../../contracts';
+import { buildSheet, type PoseAnimation } from '../rig';
 
 /**
  * The Unhappy Customer — the only enemy. Flushed red face, angry brows and a
  * shaking fist; when won over, the same sprite swaps to calm colours and a
  * smile. Built on the shared body rig so it moves like the heroes.
  */
-export const CUSTOMER_ANIMATIONS = ['walk', 'shout', 'hurt', 'stunned', 'happy'] as const;
-export type CustomerAnimation = (typeof CUSTOMER_ANIMATIONS)[number];
-
 const head = pixels(`
   ....oooooo....
   ..oossssssoo..

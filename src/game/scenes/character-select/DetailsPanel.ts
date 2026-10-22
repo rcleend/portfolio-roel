@@ -1,7 +1,6 @@
 import { type Character, type CharacterId, characters, type SkillId, skills } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
-import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
-import type { SkillIconAnimation } from '../../art';
+import type { Looks } from '../../art/looks/Looks';
 import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
 import { Paragraph } from '../../ui/Paragraph';
@@ -31,12 +30,12 @@ export interface DetailsRenderOptions {
  */
 export class DetailsPanel {
   readonly #text: TextStyles;
-  readonly #icons: Readonly<Record<SkillId, SpriteSheet<SkillIconAnimation>>>;
+  readonly #looks: Looks;
   readonly #bios: ReadonlyMap<CharacterId, Paragraph>;
 
-  constructor(text: TextStyles, icons: Readonly<Record<SkillId, SpriteSheet<SkillIconAnimation>>>) {
+  constructor(text: TextStyles, looks: Looks) {
     this.#text = text;
-    this.#icons = icons;
+    this.#looks = looks;
     this.#bios = new Map(
       characters.map((character) => [character.id, new Paragraph(character.bio, text.body, { maxWidth: DETAILS.w })]),
     );
@@ -77,7 +76,7 @@ export class DetailsPanel {
     const lit = options.litSkill === slot;
     const frame = { x: row.x, y: row.y, w: SKILL_SLOT_SIZE, h: SKILL_SLOT_SIZE };
     drawWindow(gfx, frame, lit ? windowThemes.indigo : windowThemes.steel);
-    gfx.sprite(this.#icons[skillId], 'idle', options.time, frame.x + 4, frame.y + 4);
+    gfx.sprite(this.#looks.skills[skillId].icon, 'idle', options.time, frame.x + 4, frame.y + 4);
     gfx.text(skills[skillId].name, row.x + SKILL_SLOT_SIZE + 6, row.y + 8, {
       ...this.#text.label,
       fill: lit ? palette.gold : palette.white,

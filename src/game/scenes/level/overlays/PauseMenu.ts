@@ -3,7 +3,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { InputSnapshot } from '@/engine/input/InputSnapshot';
 import { mod } from '@/engine/math/scalar';
-import type { Sprites } from '../../../art';
+import type { Looks } from '../../../art/looks/Looks';
 import type { TextStyles } from '../../../fonts';
 import type { Action } from '../../../input/bindings';
 import { palette } from '../../../palette';
@@ -30,7 +30,7 @@ const COLUMN = { x: 152, w: 140 } as const;
 export interface PauseMenuKit {
   readonly text: TextStyles;
   readonly levelText: LevelTextStyles;
-  readonly sprites: Sprites;
+  readonly looks: Looks;
   readonly cursor: SpriteSheet<'point'>;
   readonly device: 'keyboard' | 'gamepad';
 }
@@ -102,7 +102,7 @@ export class PauseMenu {
 
   /** The character's attack and skills with their keys and rules, from the content. */
   #renderMoves(gfx: Gfx): void {
-    const { text, sprites, device } = this.#kit;
+    const { text, looks, device } = this.#kit;
     const character = getCharacter(this.#characterId);
     const rules = { ...text.body, fill: palette.lilac };
     let y = FRAME.y + 42;
@@ -112,7 +112,7 @@ export class PauseMenu {
     character.skills.forEach((skillId, index) => {
       const skill = skills[skillId];
       drawWindow(gfx, { x: COLUMN.x, y, w: 22, h: 22 }, windowThemes.steel);
-      gfx.sprite(sprites.skillIcons[skillId], 'idle', 0, COLUMN.x + 3, y + 3);
+      gfx.sprite(looks.skills[skillId].icon, 'idle', 0, COLUMN.x + 3, y + 3);
       gfx.text(skill.name, COLUMN.x + 26, y + 1, text.label);
       const key = keyCapFor(index === 0 ? 'skill1' : 'skill2', device);
       const capWidth = drawKeyCap(gfx, COLUMN.x + 26, y + 11, key, text.label);

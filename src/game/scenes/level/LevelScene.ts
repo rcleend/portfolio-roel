@@ -249,10 +249,10 @@ export class LevelScene implements GameScene<LevelParams> {
   #pause(): void {
     const params = this.#params;
     if (!params) return;
-    const { audio, text, sprites } = this.#services;
+    const { audio, text, looks } = this.#services;
     audio.playSfx('pause');
     const menu = new PauseMenu(
-      { text, levelText: this.#levelText, sprites, cursor: this.#cursor, device: this.#device },
+      { text, levelText: this.#levelText, looks, cursor: this.#cursor, device: this.#device },
       params.characterId,
       () => audio.playSfx('menu-move'),
     );
@@ -353,10 +353,10 @@ export class LevelScene implements GameScene<LevelParams> {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   #kit(world: World, art: LevelArt): RenderKit {
-    const { sprites, text, fonts, settings } = this.#services;
+    const { looks, text, fonts, settings } = this.#services;
     return {
       time: world.time,
-      sprites,
+      looks,
       fx: fxSprites(),
       text,
       fonts,
