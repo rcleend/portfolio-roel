@@ -77,7 +77,8 @@ class FreshnessTest(unittest.TestCase):
                             self.assertEqual(
                                 committed.read_bytes(), path.read_bytes(), "run tools/looks/portrait/skills/build.py"
                             )
-                stray = {p.name for p in (OUT / skill_id).iterdir()} - produced
+                art = {p.name for p in (OUT / skill_id).iterdir() if p.suffix in (".png", ".json")}
+                stray = art - produced
                 self.assertEqual(stray, set(), f"{skill_id}: files no generator produces")
 
     def test_generation_is_deterministic(self) -> None:

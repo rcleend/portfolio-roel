@@ -13,12 +13,6 @@
       "fps": 20,
       "loop": false,
       "frames": 5
-    },
-    {
-      "name": "fizzle",
-      "fps": 15,
-      "loop": false,
-      "frames": 4
     }
   ]
 }

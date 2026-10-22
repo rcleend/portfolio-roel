@@ -6,6 +6,7 @@ It is the Phase B blueprint: which sprite plays when, where it is anchored, what
 - Assets: `src/game/art/looks/portrait/skills/<skillId>/icon.*` and `fx-*.*`, in the look-asset format (one row per animation, alpha 0 or 255, a few dozen colours).
 - Generators: `tools/looks/portrait/skills/` (`build.py` rebuilds every file deterministically, `review.py` renders contact sheets and storyboards, `python3 -m unittest discover -s tools/looks/portrait/skills -t tools/looks/portrait/skills` checks the contract and that the committed files are current).
 - Every pixel is drawn by those generators from geometry and hand-written character art; nothing is image-generated (`tools/art/prompts/looks-portrait-skills.md` says why).
+- **Status:** the six icons are registered (`skills/<skillId>/index.ts`); the effect strips are drawn but not wired to `SkillVisual` yet, so every effect still plays classic's. Since this spec was written, POWER CHORD's stun stars became the customer sheet's, so `fx-ringing` (sound arcs at the ears) replaces `fx-stun`; `fx-potion`'s drink frames carry `lip` and `bulb` anchors for the hero's `mouth`; and NORTH STAR's fizzle was dropped because an expiring star leaves no effect to hang it on.
 
 ## Shared rules
 

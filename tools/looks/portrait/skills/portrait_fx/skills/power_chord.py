@@ -5,8 +5,9 @@ Strips
   fx-strum    at the guitar body (`hand` anchor): the pick's stroke, a burst,
               a ring breaking into sparkles (6); strum-calm for reduced motion
   fx-notes    note particles the shockwave throws off: eighth, beamed (2 each)
-  fx-stun     three stars circling a stunned customer's head, nearer ones
-              larger (8, loop, a third of a turn so identical stars loop seamlessly)
+  fx-ringing  sound arcs pulsing out from a stunned customer's ears while the
+              stun lasts: ring (4, loop), fade (2); the dizzy stars are the
+              customer sheet's own
 The shockwave rings themselves are code: flattened ellipses that grow in
 whole-pixel steps with the SOUND bands (see docs/looks/portrait-skills.md).
 """
@@ -19,7 +20,7 @@ from typing import List, Sequence, Tuple
 from .. import icon_kit, raster
 from ..grid import Grid, rows
 from ..motifs import twinkle
-from ..palette import CHROME, GOLD, MAPLE, PICKGUARD, ROSEWOOD, SOUND, STRAT_BODY, WHITE
+from ..palette import CHROME, MAPLE, PICKGUARD, ROSEWOOD, SOUND, STRAT_BODY, WHITE
 from ..sheet import Animation, Strip
 
 Vec = Tuple[float, float]
@@ -246,38 +247,60 @@ def notes_strip() -> Strip:
     )
 
 
-# ── Stun stars ────────────────────────────────────────────────────────────
+# ── Ringing ears ──────────────────────────────────────────────────────────
+# Stunned customers wear their own dizzy stars (the customer sheet owns them),
+# so the chord's mark on them is sound: arcs pulsing out from both ears, the
+# chord still ringing, for as long as the stun lasts.
 
-STUN_W, STUN_H = 27, 13
-STUN_CENTRE = (13, 6)
+RINGING_W, RINGING_H = 37, 15
+RINGING_CENTRE = (18.5, 7.5)  # the middle of the head, on a pixel corner so both sides mirror exactly
+EAR_RADII = (8.0, 11.5, 15.0)
 
 
-def stun_frames() -> List[Grid]:
+def _ear_arcs(g: Grid, radius: float, tone: str) -> None:
+    ring = raster.thin(raster.ring(*RINGING_CENTRE, radius, radius))
+    g.plot(raster.arc(ring, *RINGING_CENTRE, -28, 28), tone)  # the right ear
+    g.plot(raster.arc(ring, *RINGING_CENTRE, 152, 208), tone)  # the left ear
+
+
+def ringing_frames() -> List[Grid]:
+    """A pulse travels out through three arcs on each side, one step per frame, and starts again."""
     frames = []
-    for f in range(8):
-        g = Grid(STUN_W, STUN_H)
-        stars = []
-        for k in range(3):
-            angle = math.radians(f * 15 + k * 120)
-            x = round(STUN_CENTRE[0] + math.cos(angle) * 10)
-            y = round(STUN_CENTRE[1] + math.sin(angle) * 3)
-            stars.append((math.sin(angle), x, y))
-        # Far stars first, so the nearer ones pass in front of them.
-        for depth, x, y in sorted(stars):
-            if depth > 0.3:
-                twinkle(g, x, y, 2, GOLD[5], GOLD[3])
-                g.set(x, y, WHITE)
-            elif depth > -0.5:
-                twinkle(g, x, y, 1, GOLD[4], GOLD[3])
-            else:
-                twinkle(g, x, y, 1, GOLD[3], GOLD[2])
-        frames.append(g.outline(GOLD[0], corners=False))
+    for step in range(4):
+        g = Grid(RINGING_W, RINGING_H)
+        for index, radius in enumerate(EAR_RADII):
+            # The pulse sits on arc `step`; arcs it has passed are a step dimmer, the rest rest dim.
+            tone = SOUND[4] if index == step else SOUND[3] if index == step - 1 else SOUND[2]
+            if step == 3 and index == 0:
+                tone = SOUND[3]  # the next pulse gathering at the ear
+            _ear_arcs(g, radius, tone)
+        # No outline: arcs this close would merge into one dark shape.
+        frames.append(g)
     return frames
 
 
-def stun_strip() -> Strip:
-    return Strip("fx-stun", STUN_W, STUN_H, (STUN_CENTRE[0], STUN_H - 1), [Animation("orbit", 12, True, stun_frames())])
+def ringing_fade_frames() -> List[Grid]:
+    frames = []
+    for radii, tone in ((EAR_RADII[1:], SOUND[2]), (EAR_RADII[2:], SOUND[1])):
+        g = Grid(RINGING_W, RINGING_H)
+        for radius in radii:
+            _ear_arcs(g, radius, tone)
+        frames.append(g)
+    return frames
+
+
+def ringing_strip() -> Strip:
+    return Strip(
+        "fx-ringing",
+        RINGING_W,
+        RINGING_H,
+        (RINGING_W // 2, RINGING_H // 2),
+        [
+            Animation("ring", 8, True, ringing_frames()),
+            Animation("fade", 6, False, ringing_fade_frames()),
+        ],
+    )
 
 
 def strips() -> List[Strip]:
-    return [icon(), strum_strip(), notes_strip(), stun_strip()]
+    return [icon(), strum_strip(), notes_strip(), ringing_strip()]

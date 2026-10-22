@@ -51,8 +51,9 @@ def check(skill_ids: Sequence[str]) -> int:
                 stale.append(str(committed.relative_to(REPO)))
         expected = {p.relative_to(scratch) for p in Path(scratch).rglob("*") if p.is_file()}
     for skill_id in skill_ids:
-        for path in (OUT / skill_id).glob("*"):
-            if path.relative_to(OUT) not in expected:
+        # Only art is generated; the hand-written index.ts beside it is not ours to judge.
+        for path in sorted((OUT / skill_id).glob("*")):
+            if path.suffix in (".png", ".json") and path.relative_to(OUT) not in expected:
                 stale.append(f"{path.relative_to(REPO)} (not produced by the generators)")
     for line in stale:
         print(f"stale: {line}")

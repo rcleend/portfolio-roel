@@ -5,7 +5,7 @@ Strips
   fx-star     the star in flight: spin (8, loop), half a turn about its
               north-south axis (after half a turn it looks the same again)
   fx-trail    sparkles code leaves along the star's path: spark (3), dot (2)
-  fx-sparkle  launch (5) at the `hand` anchor, fizzle (4) if it never lands
+  fx-sparkle  launch (5) where the star leaves
   fx-impact   a compass-star flash, a ring and drifting sparkles (8);
               impact-calm without the white flash for reduced motion
 """
@@ -224,27 +224,6 @@ def launch_frames() -> List[Grid]:
     return frames
 
 
-def fizzle_frames() -> List[Grid]:
-    c = SPARKLE // 2
-    frames = []
-    g = Grid(SPARKLE, SPARKLE)
-    twinkle(g, c, c, 2, GOLD[5], GOLD[3])
-    frames.append(g.outline(GOLD[0], corners=False))
-    g = Grid(SPARKLE, SPARKLE)
-    twinkle(g, c, c, 1, GOLD[4], GOLD[3])
-    frames.append(g)
-    g = Grid(SPARKLE, SPARKLE)
-    g.set(c, c, GOLD[3])
-    for dx, dy in ((3, -2), (-3, 1), (1, 3), (-1, -3)):
-        g.set(c + dx, c + dy, GOLD[4])
-    frames.append(g)
-    g = Grid(SPARKLE, SPARKLE)
-    for dx, dy in ((4, -4), (-4, 2)):
-        g.set(c + dx, c + dy, GOLD[2])
-    frames.append(g)
-    return frames
-
-
 def sparkle_strip() -> Strip:
     return Strip(
         "fx-sparkle",
@@ -253,7 +232,6 @@ def sparkle_strip() -> Strip:
         (SPARKLE // 2, SPARKLE // 2),
         [
             Animation("launch", 20, False, launch_frames()),
-            Animation("fizzle", 15, False, fizzle_frames()),
         ],
     )
 

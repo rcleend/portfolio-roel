@@ -2,9 +2,10 @@
 
 Strips
   icon            a round flask of rose elixir with a cork (24 x 24)
-  fx-potion       the flask at the `hand` anchor: appear (3) -> drink (5; it
-                  tips towards his mouth while the elixir's surface stays level
-                  and drops) -> vanish (4, it breaks into rose motes)
+  fx-potion       appear (3) raised in the `hand`, drink (5) with its `lip`
+                  anchor on the hero's `mouth` (it tips towards him while the
+                  elixir's surface stays level and drops; `bulb` anchors the
+                  glint), vanish (4, it breaks into rose motes)
   fx-glint        the drinking glint (5)
   fx-calm-heart   above each calmed customer: pop (4) -> beat (8, loop, a
                   lub-dub) -> wane (4)
@@ -106,29 +107,47 @@ def _to_screen(u: float, v: float, degrees: float) -> Tuple[float, float]:
     return (gx + u * math.cos(a) + v * math.sin(a), gy + u * math.sin(a) - v * math.cos(a))
 
 
-def flask(degrees: float, fill: float, glint: bool = False, empty_glass: bool = False) -> Grid:
+Point = Tuple[int, int]
+
+
+def _pixel(u: float, v: float, degrees: float) -> Point:
+    x, y = _to_screen(u, v, degrees)
+    return (int(x), int(y))
+
+
+def lip(degrees: float) -> Point:
+    """The flask's mouth (the top of its lip, cork out), for meeting the hero's `mouth` anchor."""
+    return _pixel(0.0, 3.0, degrees)
+
+
+def bulb(degrees: float) -> Point:
+    """The middle of the bulb, where the drinking glint goes."""
+    return _pixel(BULB[0], BULB[1], degrees)
+
+
+def flask(degrees: float, fill: float, glint: bool = False, empty_glass: bool = False, corked: bool = True) -> Grid:
     """The flask tipped by `degrees` (negative tips the top towards the hero) with `fill` of the bulb full."""
     g = Grid(POTION, POTION)
     bu, bv, r = BULB
     cx, cy = _to_screen(bu, bv, degrees)
-    bulb = raster.disc(cx, cy, r)
+    bulb_mask = raster.disc(cx, cy, r)
     neck = raster.polygon([_to_screen(u, v, degrees) for u, v in NECK])
-    lip = raster.polygon([_to_screen(u, v, degrees) for u, v in LIP])
-    cork = raster.polygon([_to_screen(u, v, degrees) for u, v in STOPPER])
-    g.plot(bulb | neck, GLASS[1] if not empty_glass else GLASS[2])
+    lip_ring = raster.polygon([_to_screen(u, v, degrees) for u, v in LIP])
+    g.plot(bulb_mask | neck, GLASS[1] if not empty_glass else GLASS[2])
     if fill > 0:
-        ys = sorted(y for _, y in bulb)
+        ys = sorted(y for _, y in bulb_mask)
         # The level line, in screen rows: the lowest `fill` of the bulb's area stays filled.
-        target = round(len(bulb) * fill)
+        target = round(len(bulb_mask) * fill)
         level = max(ys)
-        while level >= min(ys) and sum(1 for _, y in bulb if y >= level) < target:
+        while level >= min(ys) and sum(1 for _, y in bulb_mask if y >= level) < target:
             level -= 1
-        for x, y in bulb:
+        for x, y in bulb_mask:
             if y >= level:
                 lit = (x + 0.5 - cx) * 0.6 + (y + 0.5 - cy) * 0.8
                 g.set(x, y, ROSE[4] if y == level else ROSE[3] if lit < 0 else ROSE[2])
-    g.plot(lip, GLASS[3])
-    g.plot(cork, CORK[2])
+    g.plot(lip_ring, GLASS[3])
+    if corked:
+        g.plot(raster.polygon([_to_screen(u, v, degrees) for u, v in STOPPER]), CORK[2])
     out = g.outline(GLASS[0], corners=False)
     # The window highlight sits on the upper-left of the bulb whatever the tilt: it reflects the light, not the glass.
     out.set(round(cx - 2.2), round(cy - 2.2), WHITE)
@@ -144,18 +163,22 @@ def appear_frames() -> List[Grid]:
     return [g0, silhouette, flask(0, 1.0)]
 
 
+#: The drink, as (tilt, fill): it tips towards his mouth while the elixir's level stays flat and drops.
+DRINK = ((0, 1.0), (-40, 0.8), (-80, 0.5), (-115, 0.2), (-115, 0.0))
+VANISH_TILT = -60
+
+
 def drink_frames() -> List[Grid]:
-    return [
-        flask(0, 1.0),
-        flask(-40, 0.8),
-        flask(-80, 0.5),
-        flask(-115, 0.2),
-        flask(-115, 0.0, glint=True, empty_glass=True),
-    ]
+    # The cork is out for the drink: he drinks from the lip.
+    return [flask(tilt, fill, glint=fill == 0, empty_glass=fill == 0, corked=False) for tilt, fill in DRINK]
 
 
 def vanish_frames() -> List[Grid]:
-    frames = [flask(-60, 0.0, empty_glass=True).map(lambda x, y, c: GLASS[4] if c != GLASS[0] else GLASS[2])]
+    frames = [
+        flask(VANISH_TILT, 0.0, empty_glass=True, corked=False).map(
+            lambda x, y, c: GLASS[4] if c != GLASS[0] else GLASS[2]
+        )
+    ]
     motes = [(-3, -2), (2, -4), (4, 1), (-4, 3), (0, 4), (3, 4)]
     for spread, tone in ((1.0, ROSE[4]), (1.8, ROSE[3]), (2.6, ROSE[2])):
         g = Grid(POTION, POTION)
@@ -172,15 +195,20 @@ def vanish_frames() -> List[Grid]:
 
 
 def potion_strip() -> Strip:
+    drink_lips = [lip(tilt) for tilt, _ in DRINK]
     return Strip(
         "fx-potion",
         POTION,
         POTION,
         GRIP,
         [
-            Animation("appear", 20, False, appear_frames()),
-            Animation("drink", 10, False, drink_frames()),
-            Animation("vanish", 15, False, vanish_frames()),
+            # Raised in the hand while the pose winds up (two frames at 12 fps).
+            Animation("appear", 18, False, appear_frames()),
+            # At the lips: `lip` meets the hero's `mouth` anchor; the glint goes on `bulb`.
+            Animation(
+                "drink", 12, False, drink_frames(), {"lip": drink_lips, "bulb": [bulb(tilt) for tilt, _ in DRINK]}
+            ),
+            Animation("vanish", 15, False, vanish_frames(), {"lip": [lip(VANISH_TILT)] * 4}),
         ],
     )
 
