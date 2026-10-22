@@ -1,11 +1,17 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
+import type { Vec2 } from '@/engine/math/Vec2';
 import type { RenderKit } from '../RenderKit';
-import { Shot, type ShotEnvironment, type ShotTarget } from './Shot';
+import { Shot, type ShotEnvironment, type ShotTarget, type ShotView } from './Shot';
 
 const SPEED = 200;
 /** Max turn per second, radians: tight enough to find its mark, loose enough to arc visibly. */
 const TURN_RATE = 6.5;
 const TRAIL = 6;
+
+/** The north star as a look sees it: a shot with the positions it just passed through, newest first. */
+export interface StarShotView extends ShotView {
+  readonly trail: readonly Vec2[];
+}
 
 /**
  * NORTH STAR: a star that homes in on the most frustrated customer on screen,

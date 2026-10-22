@@ -3,6 +3,18 @@ import { easeOutCubic } from '@/engine/motion/easing';
 import { segment } from '@/engine/motion/progress';
 import type { Effect } from './Effect';
 
+/** A spreading ring as a look sees it. */
+export interface RingView {
+  readonly x: number;
+  readonly y: number;
+  /** How far it spreads over its life, px. */
+  readonly radius: number;
+  readonly life: number;
+  readonly age: number;
+  /** Which of a volley this is, counting from 0, so a look can vary them. */
+  readonly index: number;
+}
+
 /** An expanding pixel circle with a white leading edge — a shockwave. Thins as it grows. */
 export class Ring implements Effect {
   readonly #x: number;
