@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 48, "h": 16 },
+  "origin": { "x": 24, "y": 11 },
+  "animations": [
+    { "name": "rise", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "loop", "fps": 10, "loop": true, "frames": 8 },
+    { "name": "fade", "fps": 12, "loop": false, "frames": 4 }
+  ]
+}

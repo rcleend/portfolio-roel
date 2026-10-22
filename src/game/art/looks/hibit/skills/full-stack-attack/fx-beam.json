@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 16, "h": 28 },
+  "origin": { "x": 0, "y": 14 },
+  "animations": [
+    { "name": "open", "fps": 60, "loop": false, "frames": 5 },
+    { "name": "sustain", "fps": 20, "loop": true, "frames": 4 },
+    { "name": "collapse", "fps": 40, "loop": false, "frames": 7 }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 16, "h": 16 },
+  "origin": { "x": 8, "y": 15 },
+  "animations": [
+    { "name": "heart", "fps": 8, "loop": true, "frames": 8 },
+    { "name": "heart-pop", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "mote", "fps": 12, "loop": false, "frames": 6 }
+  ]
+}

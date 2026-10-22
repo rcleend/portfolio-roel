@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 12, "h": 12 },
+  "origin": { "x": 6, "y": 6 },
+  "animations": [
+    { "name": "eighth", "fps": 12, "loop": false, "frames": 6 },
+    { "name": "beamed", "fps": 12, "loop": false, "frames": 6 }
+  ]
+}
