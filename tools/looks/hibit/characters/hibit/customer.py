@@ -208,11 +208,17 @@ STEAM = [
     Sprite.parse("L.L\n.L.", {"L": "#dcd8e2"}),
     Sprite.parse(".L.\nL.L", {"L": "#a29cac"}),
 ]
+#: The manga anger mark, floating off his forehead: bright red ridges with a pale rim so it
+#: still pops against a furious red face.
 VEIN = Sprite.parse("""
-r.r
-.r.
-r.r
-""", {"r": "#ff5a4a"})
+.ww.ww.
+wrr.rrw
+wr...rw
+.......
+wr...rw
+wrr.rrw
+.ww.ww.
+""", {"r": "#ff2a3a", "w": "#ffe2d6"})
 SPIT = Sprite.parse("""
 E..
 ..E
@@ -317,7 +323,7 @@ def shout() -> List[FrameSpec]:
                         near_arm=Limb(swing=50.0 + 40.0 * (up > 0.8), spread=30.0, bend=70.0 - 30.0 * (up > 0.8)))
         head_fx = []
         if "vein" in fx:
-            head_fx.append((VEIN, 1, -12))
+            head_fx.append((VEIN, 6, -17))
         if "spit" in fx:
             head_fx.append((SPIT, 10, -5))
         out.append(FrameSpec(pose, face=face, hair=strand, head_dx=1 if (face == "shout" and i % 2) else 0,

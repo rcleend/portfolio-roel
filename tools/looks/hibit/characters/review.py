@@ -113,6 +113,64 @@ def scenes(directory: Path, scale: int) -> None:
         frame.resize((frame.width * scale, frame.height * scale), Image.NEAREST).save(directory / f"scene-{level_id}.png")
 
 
+def action(directory: Path, scale: int) -> None:
+    """Each hero firing at a customer: attack frame 0 with the muzzle flash on its anchor,
+    the projectile along its path (Artsy's paint lobbed on the game's arc), the impact on
+    a recoiling customer. One strip per hero, on the Berlin night."""
+    customer = customer_frames()
+    rows = []
+    for h in HEROES:
+        png = ART / "characters" / h / "sheet.png"
+        atk = ART / "characters" / h / "attack.png"
+        if not (png.exists() and atk.exists() and customer):
+            continue
+        frames, meta = load_sheet(png)
+        fx, _ = load_sheet(atk)
+        anchors = next(a for a in meta["animations"] if a["name"] == "attack")["anchors"]["muzzle"]
+        hero_x, feet = 70, 200
+        placements = [(frames["attack"][0], hero_x, feet)]
+        mx, my = anchors[0]
+        muzzle = (hero_x - 32 + mx, feet - 64 + my)
+        target_x = 250
+        level = level_scene("scripe", 300, [])
+        scene = level.copy()
+        hero_img = frames["attack"][0]
+        scene.alpha_composite(hero_img, (hero_x - 32, feet - 64))
+        cust = customer["hurt"][0].transpose(Image.FLIP_LEFT_RIGHT)
+        scene.alpha_composite(cust, (target_x - 32, feet - 64))
+        m = fx["muzzle"][0]
+        scene.alpha_composite(m, (muzzle[0] - 16, muzzle[1] - 16))
+        # The flight: the game's speed and gravity, sampled every few frames.
+        if h == "artsy":
+            vx, vy, g = 175.0, -150.0, 720.0
+        elif h == "hackerman":
+            vx, vy, g = 270.0, 0.0, 0.0
+        else:
+            vx, vy, g = 215.0, 0.0, 0.0
+        x, y = float(muzzle[0]), float(muzzle[1])
+        t = 0.0
+        k = 0
+        while x < target_x - 22:
+            t += 1 / 60
+            x = muzzle[0] + vx * t
+            y = muzzle[1] + vy * t + 0.5 * g * t * t
+            if int(t * 60) % 9 == 4:
+                p = fx["projectile"][k % len(fx["projectile"])]
+                scene.alpha_composite(p, (int(x) - 16, int(y) - 16))
+                k += 1
+        impact = fx["impact"][1]
+        scene.alpha_composite(impact, (target_x - 8 - 16, int(feet - 36) - 16))
+        rows.append(scene.crop((20, 120, 300, 210)))
+    if not rows:
+        return
+    out = Image.new("RGBA", (rows[0].width * scale, sum(r.height * scale + 4 for r in rows)), (0, 0, 0, 255))
+    y = 0
+    for r in rows:
+        out.alpha_composite(r.resize((r.width * scale, r.height * scale), Image.NEAREST), (0, y))
+        y += r.height * scale + 4
+    out.save(directory / "action.png")
+
+
 def select_screen(directory: Path, scale: int) -> None:
     """Each hero on the character-select pedestal (native 320x240, feet at the old sprite's)."""
     base = Image.open(REFS / "current-character-select.png").convert("RGBA").resize((320, 240), Image.NEAREST)
@@ -173,6 +231,7 @@ def main(argv: Sequence[str]) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     sheets(args.out, args.scale)
     scenes(args.out, args.scale)
+    action(args.out, args.scale)
     select_screen(args.out, args.scale)
     style_reference(args.out, args.scale)
     print(args.out)

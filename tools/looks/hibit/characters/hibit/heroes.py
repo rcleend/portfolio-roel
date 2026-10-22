@@ -69,7 +69,7 @@ def idle_body(i: int) -> FrameSpec:
     breath = math.sin(2 * math.pi * t)
     pose = Pose(y=0.55 * breath - 0.4, lean=-1.0 + 0.6 * breath, chest_lean=-1.0, hip_yaw=30.0, chest_yaw=50.0,
                 roll=-2.0)
-    pose = planted(pose, near=(3.6, 0.8), far=(-2.6, -0.5), near_pitch=4.0)
+    pose = planted(pose, near=(5.4, 1.0), far=(-4.2, -0.8), near_pitch=4.0)
     face = "blink" if i == 8 else "smile"
     # The hair lags the breath: it floats a moment after the chest drops.
     hair = "lift" if i in (7,) else "rest"
@@ -400,27 +400,27 @@ def artsy_carry(anim: str, i: int, spec: FrameSpec) -> FrameSpec:
 
 
 def artsy_attack() -> List[FrameSpec]:
-    """Power strum: the hand rips down across the strings on frame 0 (paint flies), follows
-    through, the strings ring, and the arm winds back up for the next strum.
-    Six frames at 20 fps = 0.3 s, Artsy's fire rate."""
+    """Power strum. Frame 0 is the rip: the hand has torn down across the strings (a fan
+    smear from the wind-up crosses them) and the paint flies off the guitar. Then the
+    follow-through, the guitar bucking with the strings ringing, and the hand climbs back
+    above the strings to wind up the next strum. Six frames at 20 fps = 0.3 s, his fire rate."""
     keys = [
-        # (near hand offset from strum, guitar angle, lean, face, ring, smear)
-        ((1.0, 6.0), 21.0, 6.0, "cheer", 0, True),
-        ((3.0, 9.0), 20.0, 7.0, "cheer", 1, False),
-        ((1.0, 6.0), 23.0, 5.0, "smile", 2, False),
-        ((-1.0, 1.0), 24.0, 4.0, "smile", 3, False),
-        ((-2.0, -5.0), 25.0, 3.0, "focus", -1, False),
-        ((-2.0, -8.0), 25.0, 2.0, "focus", -1, False),
+        # (near hand, guitar angle, lean, face, hair, ring, smear)
+        (HandAt(37.0, 34.0, 7.0), 21.0, 7.0, "cheer", "sweep", 0, True),
+        (HandAt(38.0, 36.0, 7.0), 20.0, 8.0, "cheer", "sweep", 1, False),
+        (HandAt(36.0, 33.0, 7.0), 23.0, 6.0, "smile", "rest", 2, False),
+        (HandAt(34.0, 29.0, 7.0), 24.0, 4.0, "smile", "rest", 3, False),
+        (HandAt(31.0, 24.0, 6.0), 25.0, 2.0, "focus", "rest", -1, False),
+        (HandAt(30.0, 21.0, 6.0), 25.0, 1.0, "focus", "lift", -1, False),
     ]
     out = []
-    for i, ((dx, dy), angle, lean, face, ring, smeared) in enumerate(keys):
-        base = planted(Pose(lean=lean, chest_lean=2.0, hip_yaw=30.0, chest_yaw=50.0, y=-0.8),
-                       near=(4.0, 0.8), far=(-3.5, -0.6))
+    for i, (hand, angle, lean, face, hair, ring, smeared) in enumerate(keys):
+        base = planted(Pose(lean=lean, chest_lean=2.0, hip_yaw=30.0, chest_yaw=50.0, y=-1.0),
+                       near=(5.0, 1.0), far=(-4.0, -0.8))
         out.append(FrameSpec(
-            base, face=face, hair="sweep" if i < 2 else "rest", glint=i == 2,
-            prop=replace(_SLUNG, angle=angle, variant=f"ring:{ring}" if ring >= 0 else ""),
-            near_hand=Grip("strum", (dx, dy), depth=2.0),
-            far_hand=Grip("neck"),
+            base, face=face, hair=hair, glint=i == 2,
+            prop=replace(_SLUNG, angle=angle, at=(0.0, 5.0), variant=f"ring:{ring}" if ring >= 0 else ""),
+            near_hand=hand, far_hand=Grip("neck"),
             anchors={"muzzle": "muzzle"},
             smear=("near",) if smeared else (),
         ))

@@ -129,10 +129,11 @@ def arm(chain: Chain, outfit: Outfit, part: str, hand: bool = True) -> List[Prim
         basis=_basis(chain.frame),
         radii=(2.4 + sb, 2.5 + sb, 2.2 + sb),
     )
+    bend = _bend(chain)
     upper = Capsule(
         part=part,
         material=outfit.sleeve,
-        pattern=_short_sleeve(outfit) if outfit.short_sleeve is not None else outfit.sleeve_pattern,
+        pattern=_short_sleeve(outfit) if outfit.short_sleeve is not None else _folded(outfit.sleeve_pattern, "upper", bend),
         group=part,
         a=chain.root,
         b=chain.mid,
@@ -144,7 +145,8 @@ def arm(chain: Chain, outfit: Outfit, part: str, hand: bool = True) -> List[Prim
     fore = Capsule(
         part=part,
         material="skin" if outfit.short_sleeve is not None else outfit.sleeve,
-        pattern=None if outfit.short_sleeve is not None else (_cuffed(outfit) if outfit.cuff else outfit.sleeve_pattern),
+        pattern=None if outfit.short_sleeve is not None else _folded(
+            _cuffed(outfit) if outfit.cuff else outfit.sleeve_pattern, "fore", bend),
         group=part,
         a=chain.mid,
         b=fore_end,
@@ -191,6 +193,38 @@ def _cuffed(outfit: Outfit) -> Pattern:
     return pattern
 
 
+def _bend(chain: Chain) -> float:
+    """The joint's flexion in degrees (0 = straight)."""
+    a = norm(sub(chain.mid, chain.root))
+    b = norm(sub(chain.end, chain.mid))
+    c = max(-1.0, min(1.0, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))
+    return math.degrees(math.acos(c))
+
+
+def _folded(base: Optional[Pattern], role: str, bend: float) -> Pattern:
+    """Cloth folds a pixel artist would draw: a crease where a joint bends, a highlight on
+    the kneecap, the hem bunching over the shoe. Applied on top of the outfit's own pattern."""
+
+    def pattern(hit: Hit) -> Tuple[Optional[str], int]:
+        material, offset = base(hit) if base else (None, 0)
+        t, angle, _ = hit.local
+        a = abs(angle)
+        if role == "thigh" and bend > 18 and t > 0.8 and a > 2.1:
+            offset -= 1  # crease behind the knee
+        elif role == "shin":
+            if bend > 25 and t < 0.16 and a < 0.8:
+                offset += 1  # kneecap catching the light
+            elif t > 0.86 and a > 0.6:
+                offset -= 1  # hem bunching over the shoe
+        elif role == "upper" and bend > 35 and t > 0.78 and a < 1.0:
+            offset -= 1  # inside of the elbow
+        elif role == "fore" and bend > 35 and t < 0.18 and a < 1.0:
+            offset -= 1
+        return material, offset
+
+    return pattern
+
+
 def _short_sleeve(outfit: Outfit) -> Pattern:
     def pattern(hit: Hit) -> Tuple[Optional[str], int]:
         if hit.local[0] > (outfit.short_sleeve or 1.0):
@@ -204,26 +238,27 @@ def _short_sleeve(outfit: Outfit) -> Pattern:
 
 def leg(sk: Skeleton, chain: Chain, outfit: Outfit, part: str) -> List[Prim]:
     tb = outfit.trouser_bulk
+    bend = _bend(chain)
     thigh = Capsule(
         part=part,
         material=outfit.trousers,
-        pattern=outfit.trouser_pattern,
+        pattern=_folded(outfit.trouser_pattern, "thigh", bend),
         group=part,
         a=chain.root,
         b=chain.mid,
-        ra=2.85 + tb,
-        rb=2.3 + tb,
+        ra=2.65 + tb,
+        rb=2.15 + tb,
         ref=chain.frame.fwd,
     )
     shin = Capsule(
         part=part,
         material=outfit.trousers,
-        pattern=outfit.trouser_pattern,
+        pattern=_folded(outfit.trouser_pattern, "shin", bend),
         group=part,
         a=chain.mid,
         b=chain.end,
-        ra=2.3 + tb,
-        rb=2.0 + tb,
+        ra=2.15 + tb,
+        rb=1.9 + tb,
         ref=chain.frame.fwd,
     )
     foot = sk.foot_dir(chain)
