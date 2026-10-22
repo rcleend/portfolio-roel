@@ -215,7 +215,10 @@ The game's audio lives in `game/audio/`: `ids.ts` (`MUSIC_IDS` / `SFX_IDS`), `in
 ```
 game/
   createGame.ts        composition: builds services, registers scenes, returns Game + GameSurface
+  resources.ts         loadGameResources: fonts, text styles, sprites and level art, loaded once per page
+  composeServices.ts   ties services and scenes together, for createGame and scene previews alike
   services.ts          GameServices: director, audio, fonts, text, sprites, assets, levelArt, session, rng, settings
+  preview/             scenes shown in isolation for the playground: createPreviewServices, ScenePreview
   palette.ts           shared UI colours
   session.ts           persisted progress (localStorage, versioned schema)
   input/bindings.ts    Action union + default bindings
@@ -232,6 +235,7 @@ game/
 ```
 
 `GameServices` (`director`, `audio`, `fonts`, `text`, `sprites`, `assets`, `levelArt`, `session`, `rng`, `settings.reducedMotion`) is created once in `createGame.ts` and passed to every scene's constructor; scenes never reach for globals.
+The playground builds one per scene preview instead, with `createPreviewServices` (Development harness › Playground).
 `createGame(options)` resolves to `{ game, surface, services }`, stopped and without a scene: the app picks the first scene and starts the loop.
 
 Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and replaces its stub in place, keeping the class name and the `constructor(services: GameServices)` signature, so the registry never changes.
@@ -259,6 +263,7 @@ The title's look is a **lockup** on a **backdrop**, picked by the `title` params
 - A backdrop (`scenes/title/backdrops/TitleBackdrop.ts`) is everything behind the lockup, plus an optional layer in front of it and under the prompt and flash. Its `prepare()` paints the static art once and returns a `BackdropArt`: `drawBehind(gfx, frame)` and an optional `drawInFront(gfx, frame)`, both pure functions of a `TitleFrame` (intro `time`, the `beats`, `reducedMotion`, `screen`, the `impact` point and the settled `lockupBounds`). The contract's doc comment says how a backdrop should behave across the beats, from the opening hit to the idle loop.
 - Each variant is a folder, `lockups/<id>/` or `backdrops/<id>/`, whose `index.ts` exports `{ id, name, description, prepare }`, and is listed in `lockups/index.ts` or `backdrops/index.ts`: adding one is a folder plus an import and an entry in that list. `TitleLockupId` and `TitleBackdropId` derive from the lists.
 - Params are `{ lockup?: TitleLockupId; backdrop?: TitleBackdropId }`. Whatever they leave out comes from `TITLE_DEFAULTS` (`scenes/title/variants.ts`), so promoting a winner is a one-line change; unknown ids throw, naming the registered ones. The boot's black frames paint the default title with `prepareTitle()`.
+- Every registered variant gets a live tile on `/playground` (Development harness › Playground).
 - `scenes/title/variants.test.ts` covers every registered variant: unique ids, every beat drawn with and without reduced motion, drawing as a pure function of its input, seeded randomness only, and lockup bounds that cover the settled drawing, on screen and above the prompt.
 
 Preview a variant through the harness (`?scene=title&params={"lockup":"classic","backdrop":"classic"}`) or with `pnpm shot`:
@@ -314,6 +319,7 @@ Hosts receive `HostProps` (`app/hosts/types.ts`): the `surface`, `powered` (ligh
 The flat host shows the canvas at the largest integer zoom inside a CSS television with scanlines and vignette, runs a CSS power-on, maps DOM pointer coordinates to native pixels, and enables keyboard input only while the screen has focus.
 Overlays: the sound toggle persists `session.muted`; audio unlocks on the first gesture anywhere and is paused (`audio.setPaused`) while the camera is in the room view. The view hint teaches "look around" and "come back" and retires each line once done (`localStorage` `reo-leo:view-hints`). On coarse pointers a Neo Geo-style pad (D-pad, JUMP/ATTACK/SKILL 1/SKILL 2, START) presses the actions of the matching gamepad buttons through `game.input.virtual`, multi-touch, shown only in the TV view; its covered strips become the room's framing insets.
 `openLink` (passed to `createGame`) opens `mailto:` in place and `https:` in a `noopener` tab, and refuses anything else.
+`app/playground/` is the composition root of a second, development-only page, the playground (Development harness › Playground).
 The résumé (`app/resume/Resume.tsx`) is real HTML rendered from `src/content` and is always in the DOM; it is visually hidden until the "Skip to résumé" link (first in tab order, visible on focus) targets it. `index.html` carries meta/Open Graph tags, a JSON-LD `Person` and a `<noscript>` summary, kept in step with `src/content` by `app/indexHtml.test.ts`.
 
 ## Development harness
@@ -341,6 +347,34 @@ pnpm shot --host room --out .shots/room.png --page                  # full page
 
 More options: `--params <json>`, `--scale <n>` (default 3), `--cols <n>` for sheets, `--seed <n>` (default 1), `--viewport WxH` for `--page`.
 The script uses the dev server given by `--url`, otherwise starts Vite from the current checkout on a free port, and fails on any page error. Set `E2E_PORT` to give each checkout its own end-to-end server.
+
+### Playground
+
+`/playground` on the dev server (`playground.html`, development only) compares title variants live and side by side, to pick winners.
+The **Title lockup** board shows every registered lockup on one backdrop and the **Backdrop** board every registered backdrop behind one lockup, each with a picker for the half they share.
+A tile is the real `TitleScene` at a whole-number zoom with the variant's name and line from its registry; what `TITLE_DEFAULTS` ships is marked current, and a variant appears as soon as it is registered.
+Click a tile or press 1–9 for focus mode: one combination at the largest whole zoom that fits, with a picker for each half. Esc closes it.
+
+One transport drives every preview from a single fixed 60 Hz clock: replay (R), play and pause (Space), a frame back or forward (←/→), 0.25×, 0.5× or 1× speed, and a scrubber over the first six seconds with a button per beat (hit, slide, lock, flash, settled).
+Seeking re-runs each scene from a fresh start to the exact frame, so every tile shows frame N as the game would.
+Toggles: CRT (the flat host's own scanlines and vignette), reduced motion (every scene re-created with `settings.reducedMotion`) and sound, which only the focused view ever plays.
+The URL describes the page, so a combination can be shared:
+
+| Param                                     | Effect                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------- |
+| `lockups.backdrop`, `backdrops.lockup`    | the half each board's tiles share                                             |
+| `focus`, `focus.lockup`, `focus.backdrop` | the combination in focus mode (`focus=title`)                                 |
+| `crt`, `reduced`, `sound`                 | `1` turns the toggle on                                                       |
+| `zoom`                                    | tile zoom, `1`–`3`; left out, the largest that keeps two tiles side by side   |
+
+Anything a link names that this checkout does not have falls back to what the game ships and is listed at the top of the page.
+
+`app/playground/main.tsx` loads fonts, sprites and level art once with `loadGameResources()` and shares them with every preview.
+`createPreviewServices` (`game/preview/`) builds `GameServices` for one scene in isolation: those resources, a fresh in-memory session, a director that records `goTo` instead of following it, no input, and silence unless it is given the synthesiser.
+`ScenePreview` runs one scene on its own native canvas; every run starts from fresh services with the same seed, which is what makes seeking exact, and effects passed while catching up to a frame stay silent.
+`PreviewLoop` (`app/playground/runtime/`) is the page's one animation-frame loop: it steps every preview from the clock, so off-screen tiles never fall out of step, but only draws those an IntersectionObserver reports in view, and none behind focus mode.
+A board (`app/playground/boards/`) is a titled grid of tiles comparing every choice of one picker of a subject, a scene plus the pickers that shape it, with the subject's other pickers shared; adding one is a `Board` in `boards/catalog.ts`.
+`window.__playground` exposes the boards' choices and the loop to `e2e/playground.spec.ts`.
 
 ## Quality bar
 
