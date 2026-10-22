@@ -1,6 +1,8 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import type { TileGrid } from '../../world/grid';
+import type { Burst } from '../effects/Burst';
+import type { Effect } from '../effects/Effect';
 import type { RenderKit } from '../RenderKit';
 
 /** Something a shot can home in on. */
@@ -15,8 +17,18 @@ export interface ShotEnvironment {
   readonly targets: readonly ShotTarget[];
 }
 
-/** How a shot's impact looks; the world turns it into an effect. */
+/** Which burst a shot leaves where it strikes; the world rolls it and the shot's owner look draws it. */
 export type ShotImpact = 'spark' | 'paint' | 'note' | 'star';
+
+/** A shot in flight as a look sees it: its centre, velocity, age and heading. */
+export interface ShotView {
+  readonly x: number;
+  readonly y: number;
+  readonly vx: number;
+  readonly vy: number;
+  readonly age: number;
+  readonly direction: -1 | 1;
+}
 
 export interface ShotSpec {
   readonly w: number;
@@ -32,9 +44,10 @@ export interface ShotSpec {
 /**
  * A projectile fired by the player or one of their skills. Positioned by its
  * centre. Shots stop in solid tiles and remember the cell, so a shot can
- * collect a "?" block just like a head-butt.
+ * collect a "?" block just like a head-butt. A shot is drawn, and its impact
+ * too, by the look of whoever fired it.
  */
-export abstract class Shot {
+export abstract class Shot implements ShotView {
   readonly spec: ShotSpec;
   x: number;
   y: number;
@@ -42,7 +55,7 @@ export abstract class Shot {
   vy: number;
   /** The solid grid cell this shot flew into, if any. */
   struckCell: { readonly col: number; readonly row: number } | null = null;
-  protected age = 0;
+  #age = 0;
   #spent = false;
 
   constructor(spec: ShotSpec, x: number, y: number, vx: number, vy: number) {
@@ -54,7 +67,12 @@ export abstract class Shot {
   }
 
   get alive(): boolean {
-    return !this.#spent && this.age < this.spec.life;
+    return !this.#spent && this.#age < this.spec.life;
+  }
+
+  /** Seconds in flight. */
+  get age(): number {
+    return this.#age;
   }
 
   get damage(): number {
@@ -73,7 +91,7 @@ export abstract class Shot {
 
   update(dt: number, env: ShotEnvironment): void {
     if (!this.alive) return;
-    this.age += dt;
+    this.#age += dt;
     this.steer(dt, env);
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -95,4 +113,10 @@ export abstract class Shot {
   protected steer(_dt: number, _env: ShotEnvironment): void {}
 
   abstract render(gfx: Gfx, kit: RenderKit): void;
+
+  /** Hands the burst the world rolled where this shot ended (a customer, a wall) to the look that drew the shot. */
+  abstract impactEffect(burst: Burst): Effect;
+
+  /** Hands the spark the world rolled on the customer this shot hit to the look that drew the shot. */
+  abstract hitEffect(burst: Burst): Effect;
 }

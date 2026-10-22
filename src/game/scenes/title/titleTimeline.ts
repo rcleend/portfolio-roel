@@ -1,34 +1,37 @@
 import { easeOutExpo } from '@/engine/motion/easing';
 import { frames, segment } from '@/engine/motion/progress';
 
+/** The beats the scene acts on, in seconds of intro time; backdrops receive them to play along (`TitleFrame.beats`). */
+export interface TitleBeats {
+  /** The lockup starts sliding in, decelerating hard… */
+  readonly slideStart: number;
+  /** …and arrives, locking with a two-frame screen shake. */
+  readonly slideEnd: number;
+  /** The screen whites out (never under reduced motion)… */
+  readonly flashStart: number;
+  /** …and clears on the settled title: the prompt and copyright appear and glints begin. */
+  readonly settled: number;
+}
+
 /**
  * The title intro as pure functions of intro time, following the Metal Slug
  * title frame by frame (docs/ART-DIRECTION.md › Title). Times are seconds
- * from the start of the intro, which restarts for the attract loop.
+ * from the start of the intro, which restarts for the attract loop; intro
+ * time 0 is the opening hit, when the explosion sounds.
  */
-export const TITLE_TIMES = {
-  /** The fireball has collapsed to nothing… */
-  fireballEnd: 0.3,
-  /** …and the crater is there. */
-  crater: 0.3,
+export const TITLE_TIMES: TitleBeats = {
   slideStart: 0.9,
-  /** Both words have arrived and lock together. */
   slideEnd: 1.2,
   flashStart: 1.25,
-  /** The settled title: prompt and copyright appear. */
   settled: 1.45,
-} as const;
+};
 
-/** Fireball radius on the first frame — big enough to fill most of the screen. */
-export const FIREBALL_RADIUS = 92;
-/** How far off-screen the words start, in pixels. */
+/** How far the lockup travels as it slides in, in pixels: from off-screen to settled. */
 export const SLIDE_DISTANCE = 340;
 /** Settled and untouched for this long, the title replays its intro. */
 export const ATTRACT_AFTER_SECONDS = 25;
 /** After a button press the prompt blinks fast for this long before the screen changes. */
 export const CONFIRM_SECONDS = 0.5;
-
-const FIREBALL_GLOW_STEPS = 3;
 
 /** A shine sweeps across the settled logo now and then, so the screen never looks frozen. */
 export const GLINT = { firstAfter: 0.5, every: 4.5, duration: 0.4 } as const;
@@ -45,21 +48,7 @@ export interface Offset {
   readonly y: number;
 }
 
-export function fireballRadius(time: number): number {
-  if (time >= TITLE_TIMES.fireballEnd) return 0;
-  return Math.round(FIREBALL_RADIUS * (1 - segment(time, 0, TITLE_TIMES.fireballEnd)));
-}
-
-/** How brightly the fireball lights the card, 0–1 in flat steps. */
-export function fireballGlow(time: number): number {
-  return Math.ceil((fireballRadius(time) / FIREBALL_RADIUS) * FIREBALL_GLOW_STEPS) / FIREBALL_GLOW_STEPS;
-}
-
-export function craterVisible(time: number): boolean {
-  return time >= TITLE_TIMES.crater;
-}
-
-/** How far the words still have to travel, 1 → 0, decelerating hard. */
+/** How much of its slide the lockup still has to travel, 1 → 0, decelerating hard. */
 export function slideRemaining(time: number): number {
   return 1 - segment(time, TITLE_TIMES.slideStart, TITLE_TIMES.slideEnd, easeOutExpo);
 }

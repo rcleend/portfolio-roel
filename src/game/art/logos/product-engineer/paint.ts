@@ -52,13 +52,17 @@ function extrusionLayers(face: Mask): Mask[] {
 }
 
 /**
- * Fractional index into the face ramp. The ramp runs top to bottom of the line; fine
- * noise frays the band edges into grain, stretched diagonal noise lays rust
- * streaks across it, and edges are lit from the top left.
+ * Fractional index into the face ramp. The ramp runs top to bottom of the
+ * line, and of a raised initial over its own height, so its top is as
+ * bright as its neighbours'; fine noise frays the band edges into grain,
+ * stretched diagonal noise lays rust streaks across it, and edges are lit
+ * from the top left.
  */
 function faceShade(face: Mask, lettering: Lettering, x: number, y: number, seed: number): number {
-  const { origin, height } = lettering;
-  const along = (y - origin.y) / height;
+  const { origin, height, initial } = lettering;
+  const along = initial?.face.has(x, y)
+    ? (y - (origin.y + height - initial.height)) / initial.height
+    : (y - origin.y) / height;
   let shade = along * (FACE.length - 1);
   shade += (valueNoise(x, y, 2, 2, seed + 3) - 0.5) * 1.0;
   // Streaks follow the slant, like rust running down a weathered plate.

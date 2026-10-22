@@ -1,6 +1,14 @@
-import type { CharacterId, LevelId } from '@/content';
+import type { CharacterId, LevelId, SkillId } from '@/content';
 import type { Scene, Step } from '@/engine/core/Scene';
 import type { Action } from '../input/bindings';
+import type { TitleBackdropId } from './title/backdrops';
+import type { TitleLockupId } from './title/lockups';
+
+/** Which title variants to show; what is left out comes from `TITLE_DEFAULTS`. */
+export interface TitleParams {
+  readonly lockup?: TitleLockupId;
+  readonly backdrop?: TitleBackdropId;
+}
 
 export interface LevelSelectParams {
   /** Mission to highlight on entry, e.g. the one just cleared. */
@@ -30,7 +38,7 @@ export interface StageClearParams {
 /** Scene id → params. `void` means the scene takes no params. */
 export interface SceneParamsMap {
   boot: void;
-  title: void;
+  title: TitleParams | undefined;
   characterSelect: void;
   levelSelect: LevelSelectParams;
   level: LevelParams;
@@ -42,9 +50,20 @@ export interface SpecimenParams {
   readonly page?: number;
 }
 
-/** Development scenes, reachable through the harness (`?scene=specimen`). */
+export interface ShowcaseParams {
+  /** What loops: the hero's moves (default), one of their skills, or the customer's moods. */
+  readonly demo?: 'moves' | 'skill' | 'customer';
+  readonly hero?: CharacterId;
+  /** The skill the `skill` demo casts; the hero defaults to its owner. */
+  readonly skill?: SkillId;
+  /** Whose stage the arena stands on: Berlin (`scripe`) unless asked. */
+  readonly levelId?: LevelId;
+}
+
+/** Development scenes, reachable through the harness (`?scene=specimen`, `?scene=showcase`). */
 export interface DevSceneParamsMap {
   specimen: SpecimenParams | undefined;
+  showcase: ShowcaseParams | undefined;
 }
 
 export type GameSceneMap = SceneParamsMap & DevSceneParamsMap;
