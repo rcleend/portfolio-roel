@@ -178,7 +178,7 @@ Fonts are self-hosted (`@fontsource/*`, OFL) and loaded before the first frame.
 Named styles (`services.text`): `body`, `label`, `prompt` (white → lavender, navy outline and shadow: the INSERT COIN look), `title` (orange bands, dark-red shadow), `hud` (outlined), `tooltip` (navy on cream).
 Draw with `gfx.text(text, x, y, style, { align, maxWidth })`, where (x, y) is the top-left of the first glyph cell and `align` anchors each line on `x`; it returns the laid-out block.
 Derive variants inline (`{ ...text.label, fill: palette.gold }`): styled atlases are cached by value.
-`gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing; `?scene=specimen` shows every font, style, sprite and widget.
+`gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing, and `textBounds` gives the box drawn text covers, outline and shadow included; `?scene=specimen` shows every font, style, sprite and widget.
 
 ### Audio
 
