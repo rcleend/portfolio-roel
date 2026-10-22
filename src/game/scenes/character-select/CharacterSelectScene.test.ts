@@ -6,20 +6,22 @@ import { Director, type SceneFactories } from '@/engine/core/Director';
 import { RecordingScene } from '@/engine/core/testing';
 import { BitmapFont } from '@/engine/gfx/BitmapFont';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
+import type { Rect } from '@/engine/math/Rect';
 import { Rng } from '@/engine/math/Rng';
-import type { Sprites } from '../../art';
 import { arcadeFont } from '../../art/fonts/arcade';
 import { smallFont } from '../../art/fonts/small';
+import { sizedLooks } from '../../art/looks/testing';
 import type { MusicId, SfxId } from '../../audio/ids';
 import { createTextStyles } from '../../fonts';
 import type { Action } from '../../input/bindings';
 import type { LevelArtLibrary } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { SessionStore } from '../../session';
+import { KeyHints } from '../../ui/KeyHints';
 import type { GameSceneMap } from '../params';
 import { CharacterSelectScene } from './CharacterSelectScene';
 import { LEAVE_AT } from './choreography';
-import { SELECT_BUTTON, SKILL_ROWS } from './layout';
+import { KEY_HINTS, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -48,16 +50,18 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     level: record('level'),
     stageClear: record('stageClear'),
     specimen: record('specimen'),
+    showcase: record('showcase'),
   };
   const director = new Director<GameSceneMap, Action>(factories);
   const small = BitmapFont.fromGlyphData(smallFont);
   const fonts = { small, label: small, arcade: BitmapFont.fromGlyphData(arcadeFont) };
+  const text = createTextStyles(fonts);
   services = {
     director,
     audio,
     fonts,
-    text: createTextStyles(fonts),
-    sprites: {} as Sprites,
+    text,
+    looks: sizedLooks(),
     assets: {} as AssetStore,
     levelArt: {} as LevelArtLibrary,
     session,
@@ -79,8 +83,16 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
   const idle = (count: number): void => {
     for (let i = 0; i < count; i++) step();
   };
-  return { audio, session, director, step, idle };
+  // The scene's legend rebuilt from the same anchor and face, to find where its keys are.
+  const keys = new KeyHints({ ...KEY_HINTS, style: text.label });
+  return { audio, session, director, step, idle, keys };
 }
+
+const centre = (r: Rect): Partial<PointerSnapshot> => ({
+  x: r.x + Math.floor(r.w / 2),
+  y: r.y + Math.floor(r.h / 2),
+  over: true,
+});
 
 describe('CharacterSelectScene', () => {
   it('starts on the last chosen character and plays the select music', () => {
@@ -131,9 +143,9 @@ describe('CharacterSelectScene', () => {
     expect(director.current).toBe('title');
   });
 
-  it('chooses when SELECT is clicked, on release', () => {
-    const { audio, step, session } = setup('artsy');
-    const point = { x: SELECT_BUTTON.x + 10, y: SELECT_BUTTON.y + 10, over: true };
+  it('chooses when the CONFIRM key is clicked, on release', () => {
+    const { audio, step, session, keys } = setup('artsy');
+    const point = centre(keys.area('confirm'));
     step([], point);
     step([], { ...point, down: true, pressed: true });
     expect(audio.playedSfx).not.toContain('menu-confirm');
@@ -142,9 +154,20 @@ describe('CharacterSelectScene', () => {
     expect(session.state.characterId).toBe('artsy');
   });
 
+  it('goes back to the title when the BACK key is clicked', () => {
+    const { audio, step, idle, director, keys } = setup();
+    const point = centre(keys.area('back'));
+    step([], { ...point, down: true, pressed: true });
+    step([], { ...point, released: true });
+    expect(audio.playedSfx).toEqual(['menu-back']);
+    idle(60);
+    expect(director.current).toBe('title');
+  });
+
   it('only chimes when focus actually moves', () => {
     const { audio, step } = setup();
-    const skill = { x: SKILL_ROWS[0].x + 4, y: SKILL_ROWS[0].y + 4, over: true };
+    const [row] = selectLayout().skillRows;
+    const skill = { x: row.x + 4, y: row.y + 4, over: true };
     step([], skill);
     step([], skill);
     step([], { ...skill, x: skill.x + 1 });

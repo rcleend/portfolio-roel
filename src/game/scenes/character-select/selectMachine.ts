@@ -8,10 +8,10 @@ import { mod } from '@/engine/math/scalar';
  * without a canvas.
  */
 
-/** Focusable elements, top to bottom: the card (the character itself), both skills, the SELECT button. */
-export type FocusTarget = 'card' | 'skill1' | 'skill2' | 'select';
+/** Focusable elements, top to bottom: the card (the character itself, shown at its heading) and both skills. */
+export type FocusTarget = 'card' | 'skill1' | 'skill2';
 
-export const FOCUS_ORDER: readonly FocusTarget[] = ['card', 'skill1', 'skill2', 'select'];
+export const FOCUS_ORDER: readonly FocusTarget[] = ['card', 'skill1', 'skill2'];
 
 /**
  * How focus arrived. Hover focus follows the pointer, so its tooltip closes
@@ -39,10 +39,9 @@ export type SelectEvent =
   | { readonly type: 'move'; readonly delta: -1 | 1 }
   /** The pointer moved onto (or pressed) a focusable element. */
   | { readonly type: 'point'; readonly target: FocusTarget; readonly pressed: boolean }
-  /** Confirm from keyboard or pad: commits from any focus, as arcade selects do. */
+  /** Confirm from keyboard, pad or the on-screen CONFIRM key: commits from any focus, as arcade selects do. */
   | { readonly type: 'confirm' }
-  /** The SELECT button was clicked. */
-  | { readonly type: 'activate' }
+  /** Back from keyboard, pad or the on-screen BACK key. */
   | { readonly type: 'back' };
 
 export type SelectEffect =
@@ -89,7 +88,6 @@ export function reduceSelect(state: SelectState, event: SelectEvent): SelectResu
       };
     }
     case 'confirm':
-    case 'activate':
       return { state: { ...state, phase: 'chosen' }, effects: [{ type: 'chosen', index: state.index }] };
     case 'back':
       return { state: { ...state, phase: 'leaving' }, effects: [{ type: 'left' }] };

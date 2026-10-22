@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { profile } from '@/content';
+import type { Bitmap } from '../raster/Bitmap';
 import { EXTRUSION_DEPTH, SLANT, setLettering } from './lettering';
 import { logoLetters } from './letters';
 import { buildTitleLogo, logoWords } from './logo';
@@ -74,5 +76,26 @@ describe('painted logo', () => {
     const tm = paintTrademark('#ffffff', '#000000');
     expect(tm.get(0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 255 });
     expect(tm.get(1, 1)).toEqual({ r: 255, g: 255, b: 255, a: 255 });
+  });
+});
+
+describe('classic title logo', () => {
+  const digest = (bitmap: Bitmap): string => createHash('sha256').update(bitmap.data).digest('hex');
+
+  it('paints exactly the pixels it always has: every lettering option defaults to the classic look', () => {
+    const { top, bottom } = buildTitleLogo('Product Engineer');
+    expect({
+      top: digest(top.image),
+      topShine: digest(top.shine),
+      bottom: digest(bottom.image),
+      bottomShine: digest(bottom.shine),
+      trademark: digest(paintTrademark('#efe3b5', '#2a1a0a')),
+    }).toEqual({
+      top: '97a7ae058d715c9751ddd6bf451113bc7b759e27423c541ee24614efbae00dfd',
+      topShine: '1cdac02ea74508ce418167bdd6afbda9e36c0ef473f9e621353807aa3070a51a',
+      bottom: 'd8634a96a5dc91076472aa1b27c0c4b01588116c0d0ed229806c43adb51ce6fa',
+      bottomShine: '270e4244a18b6d30037adca355a0d437136931d4a20100726e33e47d8c201468',
+      trademark: '4c3e2ae85721ba926ee4278409357e20473b78e5e3048de617f72489ae78abac',
+    });
   });
 });

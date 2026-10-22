@@ -29,6 +29,13 @@ export function intersection(a: Rect, b: Rect): Rect | null {
   return right > x && bottom > y ? rect(x, y, right - x, bottom - y) : null;
 }
 
+/** The smallest rectangle covering both. */
+export function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return rect(x, y, Math.max(a.x + a.w, b.x + b.w) - x, Math.max(a.y + a.h, b.y + b.h) - y);
+}
+
 export function inflate(r: Rect, by: number): Rect {
   return rect(r.x - by, r.y - by, r.w + by * 2, r.h + by * 2);
 }

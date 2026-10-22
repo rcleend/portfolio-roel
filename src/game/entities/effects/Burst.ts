@@ -17,6 +17,26 @@ export interface BurstSpec {
   readonly size: number;
 }
 
+/** One piece of debris as a look sees it: where it is, how old, and the colour it was dealt. */
+export interface ParticleView {
+  readonly x: number;
+  readonly y: number;
+  readonly age: number;
+  readonly life: number;
+  readonly color: string;
+}
+
+/** A burst as a look sees it. Drawing never touches the random stream: every roll happened at launch. */
+export interface BurstView {
+  /** Where it went off. */
+  readonly x: number;
+  readonly y: number;
+  readonly age: number;
+  readonly particles: readonly ParticleView[];
+  /** Square particle size in px. */
+  readonly size: number;
+}
+
 interface Particle {
   x: number;
   y: number;
@@ -32,11 +52,16 @@ interface Particle {
  * confetti. Particles blink out over their last quarter instead of fading,
  * the way hardware sprites disappear.
  */
-export class Burst implements Effect {
+export class Burst implements Effect, BurstView {
+  readonly x: number;
+  readonly y: number;
   readonly #particles: Particle[];
   readonly #spec: BurstSpec;
+  #age = 0;
 
   constructor(x: number, y: number, spec: BurstSpec, rng: Rng) {
+    this.x = x;
+    this.y = y;
     this.#spec = spec;
     this.#particles = Array.from({ length: spec.count }, () => {
       const angle = rng.range(spec.angle[0], spec.angle[1]);
@@ -53,11 +78,24 @@ export class Burst implements Effect {
     });
   }
 
+  get age(): number {
+    return this.#age;
+  }
+
+  get particles(): readonly ParticleView[] {
+    return this.#particles;
+  }
+
+  get size(): number {
+    return this.#spec.size;
+  }
+
   get done(): boolean {
     return this.#particles.every((particle) => particle.age >= particle.life);
   }
 
   update(dt: number): void {
+    this.#age += dt;
     for (const particle of this.#particles) {
       particle.age += dt;
       particle.vy += this.#spec.gravity * dt;
@@ -67,13 +105,18 @@ export class Burst implements Effect {
   }
 
   render(gfx: Gfx): void {
-    const size = this.#spec.size;
-    for (const particle of this.#particles) {
-      if (particle.age >= particle.life) continue;
-      const fading = particle.age > particle.life * 0.75;
-      if (fading && !blink(particle.age, 1 / 30, 1 / 30)) continue;
-      gfx.fillRect(particle.x - size / 2, particle.y - size / 2, size, size, particle.color);
-    }
+    drawBurst(gfx, this);
+  }
+}
+
+/** The standard burst: square particles in their dealt colours, blinking out over their last quarter. */
+export function drawBurst(gfx: Gfx, burst: BurstView): void {
+  const { size } = burst;
+  for (const particle of burst.particles) {
+    if (particle.age >= particle.life) continue;
+    const fading = particle.age > particle.life * 0.75;
+    if (fading && !blink(particle.age, 1 / 30, 1 / 30)) continue;
+    gfx.fillRect(particle.x - size / 2, particle.y - size / 2, size, size, particle.color);
   }
 }
 

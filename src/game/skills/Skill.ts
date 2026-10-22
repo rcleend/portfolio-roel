@@ -3,9 +3,11 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import type { Rng } from '@/engine/math/Rng';
 import type { SfxId } from '../audio/ids';
+import type { Burst } from '../entities/effects/Burst';
 import type { Effect } from '../entities/effects/Effect';
 import type { RenderKit } from '../entities/RenderKit';
 import type { Shot } from '../entities/shots/Shot';
+import type { CasterSnapshot } from './SkillVisual';
 
 /**
  * The Skill behaviour contract.
@@ -20,6 +22,10 @@ import type { Shot } from '../entities/shots/Shot';
  * through `modifiers` (slow customers, block damage, …), which the world
  * combines across every running skill. That keeps each skill a small,
  * self-contained module and the world free of per-skill special cases.
+ *
+ * How a skill looks is not its business: it hands its typed state to the
+ * selected look's `SkillVisual` (skills/SkillVisual.ts), so every look plays
+ * exactly the same skill.
  */
 export interface Skill {
   readonly id: SkillId;
@@ -33,8 +39,8 @@ export interface ActiveSkill {
   /** Rules this skill imposes while it runs; read every step. */
   readonly modifiers: SkillModifiers;
   update(world: SkillWorld, dt: number): void;
-  /** Draws in world coordinates; `layer` puts auras behind the player and beams in front. */
-  render(gfx: Gfx, kit: RenderKit, caster: SkillCaster, layer: SkillLayer): void;
+  /** Draws through the skill's look, in world coordinates; `layer` puts auras behind the player and beams in front. */
+  render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void;
 }
 
 export type SkillLayer = 'behind' | 'front';
@@ -65,6 +71,7 @@ export interface SkillTarget {
   readonly rect: Rect;
   readonly frustration: number;
   readonly escalated: boolean;
+  readonly stunned: boolean;
 }
 
 /** What a skill may observe and change in the level. Implemented by the level's world. */
@@ -76,7 +83,12 @@ export interface SkillWorld {
   readonly rng: Rng;
   /** Customers that can still be won over. */
   targets(): readonly SkillTarget[];
-  hit(target: SkillTarget, damage: number, direction: -1 | 1): void;
+  /**
+   * Hits a customer. `spark` wraps the spark the world rolls for the hit,
+   * e.g. in a `SkillEffect`, so the skill's look draws it; without it the
+   * spark is the shared one.
+   */
+  hit(target: SkillTarget, damage: number, direction: -1 | 1, spark?: (burst: Burst) => Effect): void;
   stun(target: SkillTarget, seconds: number): void;
   /** Pops every complaint bubble overlapping `area`; returns how many popped. */
   popBubbles(area: Rect): number;
