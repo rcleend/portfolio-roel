@@ -1,6 +1,7 @@
 import type { CharacterId } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { RenderKit } from '../RenderKit';
+import type { AttackShot } from '../shots/AttackShot';
 import type { AttackImpactView } from '../shots/AttackVisual';
 import { drawLaunched } from '../shots/launch';
 import type { Burst, ParticleView } from './Burst';
@@ -11,12 +12,15 @@ import { LOOK_EFFECT_SECONDS } from './Effect';
 export class AttackImpact implements Effect, AttackImpactView {
   readonly owner: CharacterId;
   readonly direction: -1 | 1;
+  readonly index: number;
   readonly #burst: Burst;
   readonly #part: 'impact' | 'hit';
 
-  constructor(owner: CharacterId, direction: -1 | 1, burst: Burst, part: 'impact' | 'hit') {
-    this.owner = owner;
-    this.direction = direction;
+  /** `shot` is the one the burst belongs to; `part` says which part of its look draws it. */
+  constructor(shot: Pick<AttackShot, 'owner' | 'direction' | 'index'>, burst: Burst, part: 'impact' | 'hit') {
+    this.owner = shot.owner;
+    this.direction = shot.direction;
+    this.index = shot.index;
     this.#burst = burst;
     this.#part = part;
   }

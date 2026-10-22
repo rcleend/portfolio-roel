@@ -58,7 +58,7 @@ src/game/art/looks/<lookId>/
 | hero `sheet`        | 64 × 64 | (32, 64)  | `idle`, `run`, `jump`, `fall`, `attack`, `skill`, `hurt`, `victory` |
 | customer `sheet`    | 64 × 64 | (32, 64)  | `walk`, `shout`, `hurt`, `stunned`, `happy` (won over)              |
 | skill `icon`        | 24 × 24 | (0, 0)    | `idle`, a subtle loop on a dark slot                                |
-| `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and `projectile-<name>` variants |
+| `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and variants (`projectile-<v>`, `impact-<v>`, `muzzle-<v>`) |
 
 All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall. Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
 
@@ -113,7 +113,9 @@ export const look = defineSkillLook('power-chord', {
 
 - `fx` names extra sheets; the factory receives them loaded, typed by those names. PNGs are fetched only when the look is selected.
 - Everything is optional except a hero's or the customer's `sheet`: a hero without `attack`, or a skill without an `icon` or with only some visual parts, is drawn by classic for the rest.
-- `spriteAttack(sheet)` draws the `projectile` animation with the shot, plays `muzzle` (if the strip has one) once where the shot leaves the hand and `impact` once where it strikes, and adds nothing on the customer it hit. Successive shots take turns with any `projectile-<name>` variants, in sheet order (`projectile` first). The strip's origin is the projectile's centre. Write `attack: (fx) => ({ shot, impact, hit })`, or any of them, for anything else.
+- `spriteAttack(sheet)` draws the `projectile` animation with the shot, plays `muzzle` (if the strip has one) once where the shot leaves the hand and `impact` once where it strikes, and adds nothing on the customer it hit. The strip's origin is the projectile's centre.
+- A strip may vary its shots: every `projectile-<v>` is a variant that successive shots take turns with, after the plain `projectile`, in sheet order. A variant's shot plays `impact-<v>` and `muzzle-<v>` where the strip has them and the plain ones otherwise, so Artsy's paint can cycle pink, cyan, yellow with `projectile`, `projectile-cyan`, `impact-cyan`, `projectile-yellow`, `impact-yellow`.
+- Write `attack: (fx) => ({ shot, impact, hit })`, or any of them, for anything else.
 
 ## What a look draws
 
@@ -122,7 +124,7 @@ Behaviour reduces everything visible to small read-only state, and a look draws 
 **A hero's attack** (`AttackVisual`, `entities/shots/AttackVisual.ts`):
 
 - `shot(gfx, shot)`: one shot in flight — `x`, `y` (its centre), `vx`, `vy`, `age`, `direction`, `index` (shots fired before it; classic Artsy cycles paint colours by it) and `from` (where it left the hand, for a muzzle flash).
-- `impact(gfx, impact)`: where it struck a customer or a wall — the spark burst the world rolled (`x`, `y`, `age`, `particles`) and the `direction` it flew.
+- `impact(gfx, impact)`: where it struck a customer or a wall — the spark burst the world rolled (`x`, `y`, `age`, `particles`), the `direction` it flew and the shot's `index`, to match a varied shot.
 - `hit(gfx, hit)`: the spark on the customer it hit, at the customer's centre, alongside the `impact` at the shot. Classic draws a white spark; `spriteAttack` draws nothing, letting its impact speak.
 
 **A skill** (`SkillVisual<K>`, `skills/SkillVisual.ts`), any of:

@@ -36,10 +36,10 @@ export class AttackShot extends Shot implements AttackShotView {
   }
 
   impactEffect(burst: Burst): Effect {
-    return new AttackImpact(this.owner, this.direction, burst, 'impact');
+    return new AttackImpact(this, burst, 'impact');
   }
 
   hitEffect(burst: Burst): Effect {
-    return new AttackImpact(this.owner, this.direction, burst, 'hit');
+    return new AttackImpact(this, burst, 'hit');
   }
 }

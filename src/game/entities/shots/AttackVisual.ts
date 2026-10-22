@@ -31,7 +31,9 @@ export interface AttackShotView extends ShotView {
   readonly from: Vec2;
 }
 
-/** A burst the world rolled for a basic-attack shot (its impact, or the spark of its hit) and the way it flew. */
+/** A burst the world rolled for a basic-attack shot (its impact, or the spark of its hit), the way it flew and which shot it was. */
 export interface AttackImpactView extends BurstView {
   readonly direction: -1 | 1;
+  /** The shot's `index`, so an impact can match a shot that a look varied. */
+  readonly index: number;
 }

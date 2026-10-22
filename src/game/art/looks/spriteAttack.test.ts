@@ -19,9 +19,12 @@ const strip = (animations: readonly { name: string; frames: number; loop: boolea
 
 const ATTACK = strip([
   { name: 'projectile', frames: 2, loop: true },
-  { name: 'projectile-braces', frames: 2, loop: true },
   { name: 'impact', frames: 3, loop: false },
   { name: 'muzzle', frames: 2, loop: false },
+  { name: 'projectile-cyan', frames: 2, loop: true },
+  { name: 'impact-cyan', frames: 3, loop: false },
+  { name: 'projectile-yellow', frames: 2, loop: true },
+  { name: 'muzzle-yellow', frames: 2, loop: false },
 ]);
 
 interface SpriteCall {
@@ -54,21 +57,44 @@ const shot = (index: number, age: number, direction: -1 | 1 = 1): AttackShotView
   from: { x: 90, y: 52 },
 });
 
-const impact = (age: number, direction: -1 | 1): AttackImpactView => ({
+const impact = (age: number, direction: -1 | 1, index = 0): AttackImpactView => ({
   x: 140,
   y: 50,
   age,
   particles: [],
   size: 1,
   direction,
+  index,
 });
 
 describe('spriteAttack', () => {
   it('takes turns between the projectile and its variants, shot by shot, in sheet order', () => {
     const { gfx, calls } = recording();
     const visual = spriteAttack(ATTACK);
-    for (const index of [0, 1, 2]) visual.shot(gfx, shot(index, 1), kit);
-    expect(calls.map((call) => call.animation)).toEqual(['projectile', 'projectile-braces', 'projectile']);
+    for (const index of [0, 1, 2, 3]) visual.shot(gfx, shot(index, 1), kit);
+    expect(calls.map((call) => call.animation)).toEqual([
+      'projectile',
+      'projectile-cyan',
+      'projectile-yellow',
+      'projectile',
+    ]);
+  });
+
+  it("plays a variant's own impact and muzzle where the strip has them, and the plain ones otherwise", () => {
+    const { gfx, calls } = recording();
+    const visual = spriteAttack(ATTACK);
+    for (const index of [1, 2]) {
+      visual.shot(gfx, shot(index, 0), kit);
+      visual.impact(gfx, impact(0, 1, index), kit);
+    }
+    expect(calls.map((call) => call.animation)).toEqual([
+      'muzzle',
+      'projectile-cyan',
+      'impact-cyan',
+      'muzzle-yellow',
+      'projectile-yellow',
+      'impact',
+    ]);
   });
 
   it('plays the muzzle once where the shot left the hand, behind the projectile', () => {
