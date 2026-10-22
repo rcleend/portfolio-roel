@@ -9,6 +9,8 @@ export interface Beat {
 /** The stretch of a scene the scrubber covers, and its beats. */
 export interface Timeline {
   readonly frames: number;
+  /** The scene starts over every `frames`, as the showcase's demos do, so the scrubber wraps with it. */
+  readonly loops: boolean;
   /** In time order; the first one starts at frame 0. */
   readonly beats: readonly Beat[];
 }
@@ -28,8 +30,14 @@ export function framesUntil(seconds: number): number {
   return frame;
 }
 
-/** The beat `frame` falls in, or `null` past the end of the timeline. */
+/** Where the clock's `frame` falls on the timeline: wrapped for a loop, held at the end otherwise. */
+export function positionOn(timeline: Timeline, frame: number): number {
+  return timeline.loops ? frame % timeline.frames : Math.min(frame, timeline.frames);
+}
+
+/** The beat the clock's `frame` falls in, or `null` past the end of a timeline that does not loop. */
 export function beatAt(timeline: Timeline, frame: number): Beat | null {
-  if (frame > timeline.frames) return null;
-  return timeline.beats.findLast((beat) => beat.frame <= frame) ?? null;
+  if (!timeline.loops && frame > timeline.frames) return null;
+  const position = positionOn(timeline, frame);
+  return timeline.beats.findLast((beat) => beat.frame <= position) ?? null;
 }

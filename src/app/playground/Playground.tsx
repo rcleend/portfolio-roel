@@ -3,8 +3,9 @@ import { onFirstGesture } from '../audio/firstGesture';
 import { type Board, boardTiles, type Tile } from './boards/board';
 import type { Picks } from './boards/subject';
 import { useShortcuts } from './input/useShortcuts';
+import { useBoardInView } from './layout/useBoardInView';
 import { type PreviewRuntime, PreviewRuntimeContext } from './runtime/PreviewRuntime';
-import { currentShared, type PlaygroundState, reducePlayground } from './state/playgroundState';
+import { type PlaygroundState, reducePlayground } from './state/playgroundState';
 import { type UrlState, writeUrlState } from './state/urlState';
 import { Transport } from './transport/Transport';
 import { BoardView } from './ui/BoardView';
@@ -20,7 +21,7 @@ interface PlaygroundProps {
   readonly initial: UrlState;
 }
 
-/** Digits open the first nine tiles, in page order. */
+/** Digits open the first nine tiles of the board in view. */
 const SHORTCUT_TILES = 9;
 /** Shared picks of a board the state has none for: stable, so its tiles are not rebuilt on every render. */
 const NO_PICKS: Picks = {};
@@ -35,7 +36,13 @@ export function Playground({ runtime, boards, initial }: PlaygroundProps) {
   const [state, dispatch] = useReducer(reducePlayground, initial.state);
   const [problems, setProblems] = useState(initial.problems);
   const opener = useRef<Element | null>(null);
-  const shortcuts = useMemo(() => numberTiles(boards), [boards]);
+  const boardInView = useBoardInView(boards);
+  const shortcutTiles = useMemo(
+    () =>
+      boardInView ? boardTiles(boardInView, state.shared[boardInView.id] ?? NO_PICKS).slice(0, SHORTCUT_TILES) : [],
+    [boardInView, state.shared],
+  );
+  const shortcuts = useMemo(() => new Map(shortcutTiles.map((tile, index) => [tile.key, index + 1])), [shortcutTiles]);
   const focused = state.focus !== null;
 
   useUrlSync(state, boards);
@@ -56,7 +63,7 @@ export function Playground({ runtime, boards, initial }: PlaygroundProps) {
   const open = useCallback((tile: Tile) => {
     // A digit pressed in focus mode swaps the combination; focus still goes back to what first opened it.
     opener.current ??= document.activeElement;
-    dispatch({ type: 'focus', focus: { subject: tile.board.subject, picks: tile.picks } });
+    dispatch({ type: 'focus', focus: { subject: tile.row.subject, picks: tile.picks } });
   }, []);
   const close = useCallback(() => dispatch({ type: 'focus', focus: null }), []);
   const share = useCallback(
@@ -75,14 +82,14 @@ export function Playground({ runtime, boards, initial }: PlaygroundProps) {
       case 'close':
         return close();
       case 'focusTile': {
-        const tile = pageTiles(boards, state.shared)[shortcut.index];
+        const tile = shortcutTiles[shortcut.index];
         if (tile) open(tile);
         return;
       }
     }
   });
 
-  const timeline = (state.focus?.subject ?? boards[0]?.subject)?.timeline;
+  const timeline = (state.focus?.subject ?? boardInView?.rows[0]?.subject)?.timeline;
   return (
     <PreviewRuntimeContext value={runtime}>
       <div className="playground">
@@ -133,17 +140,6 @@ export function Playground({ runtime, boards, initial }: PlaygroundProps) {
       </div>
     </PreviewRuntimeContext>
   );
-}
-
-/** Every tile on the page, in page order. */
-function pageTiles(boards: readonly Board[], shared: PlaygroundState['shared']): readonly Tile[] {
-  return boards.flatMap((board) => boardTiles(board, shared[board.id] ?? currentShared(board)));
-}
-
-/** The digit of each of the first nine tiles, by tile key; keys do not depend on the shared picks. */
-function numberTiles(boards: readonly Board[]): ReadonlyMap<string, number> {
-  const tiles = pageTiles(boards, {}).slice(0, SHORTCUT_TILES);
-  return new Map(tiles.map((tile, index) => [tile.key, index + 1]));
 }
 
 /** Keeps the URL describing the page, without adding history entries for every click. */

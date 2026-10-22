@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { characters, type SkillId, skills } from '@/content';
+import { lookRegistry } from '@/game/art/looks/registry';
 import { TITLE_BACKDROPS } from '@/game/scenes/title/backdrops';
 import { TITLE_LOCKUPS } from '@/game/scenes/title/lockups';
 import { TITLE_DEFAULTS } from '@/game/scenes/title/variants';
-import { boardTiles, comparedPicker, sharedPickers } from './board';
+import { boardRows, boardTiles, pickerOf, sharedPickers } from './board';
 import { PLAYGROUND_BOARDS, subjectsOf } from './catalog';
+import { characterBoard, customerBoard, skillBoard } from './looks';
 import { chosen, currentPicks } from './subject';
 import { heroSubject, lookBoard, testChoice } from './testing';
 import { backdropBoard, lockupBoard, titleSubject } from './title';
 
+const ids = (board: typeof lookBoard) => boardTiles(board, {}).map((tile) => tile.choice.id);
+
 describe('boards', () => {
   it('give every choice of the compared picker a tile, in registry order, on the shared picks', () => {
     const tiles = boardTiles(lookBoard, { view: 'card' });
-    expect(tiles.map((tile) => tile.key)).toEqual(['looks/classic', 'looks/arcade', 'looks/hibit']);
+    expect(tiles.map((tile) => tile.key)).toEqual(['looks/hero/classic', 'looks/hero/arcade', 'looks/hero/hibit']);
     expect(tiles.map((tile) => tile.picks)).toEqual([
       { view: 'card', look: 'classic' },
       { view: 'card', look: 'arcade' },
@@ -21,10 +26,9 @@ describe('boards', () => {
     expect(tiles[1]?.choice).toEqual(testChoice('arcade'));
   });
 
-  it('share every picker but the one they compare', () => {
-    expect(comparedPicker(lookBoard).id).toBe('look');
+  it('share the pickers they name and refuse ones their subjects lack', () => {
     expect(sharedPickers(lookBoard).map((picker) => picker.id)).toEqual(['view']);
-    expect(() => comparedPicker({ ...lookBoard, compares: 'mood' })).toThrow(/compares "mood"/);
+    expect(() => pickerOf(heroSubject, 'mood')).toThrow(/no picker "mood"/);
   });
 
   it('read picks with today’s choice standing in for a missing or unknown one', () => {
@@ -39,25 +43,66 @@ describe('boards', () => {
 
 describe('the title boards', () => {
   it('compare every registered lockup and every registered backdrop, today’s marked current', () => {
-    expect(boardTiles(lockupBoard, currentPicks(titleSubject)).map((tile) => tile.choice.id)).toEqual(
-      TITLE_LOCKUPS.map((lockup) => lockup.id),
-    );
-    expect(boardTiles(backdropBoard, currentPicks(titleSubject)).map((tile) => tile.choice.id)).toEqual(
-      TITLE_BACKDROPS.map((backdrop) => backdrop.id),
-    );
+    expect(ids(lockupBoard)).toEqual(TITLE_LOCKUPS.map((lockup) => lockup.id));
+    expect(ids(backdropBoard)).toEqual(TITLE_BACKDROPS.map((backdrop) => backdrop.id));
     const current = boardTiles(lockupBoard, {}).filter((tile) => tile.current);
     expect(current.map((tile) => tile.choice.id)).toEqual([TITLE_DEFAULTS.lockup]);
   });
 
-  it('preview the real title scene at the picked lockup and backdrop', () => {
-    expect(titleSubject.preview({ lockup: TITLE_DEFAULTS.lockup, backdrop: TITLE_DEFAULTS.backdrop })).toEqual({
-      scene: 'title',
-      params: { lockup: TITLE_DEFAULTS.lockup, backdrop: TITLE_DEFAULTS.backdrop },
+  it('show the real title scene at the picked lockup and backdrop', () => {
+    expect(titleSubject.show({ lockup: TITLE_DEFAULTS.lockup, backdrop: TITLE_DEFAULTS.backdrop })).toEqual({
+      spec: { scene: 'title', params: { lockup: TITLE_DEFAULTS.lockup, backdrop: TITLE_DEFAULTS.backdrop } },
+      looks: {},
+    });
+  });
+});
+
+describe('the looks boards', () => {
+  const { offer } = lookRegistry;
+
+  it('give every hero a row with a tile per registered look, playing its moves in it', () => {
+    const rows = boardRows(characterBoard, {});
+    expect(rows.map(({ row }) => row.title)).toEqual(characters.map((hero) => hero.name));
+    rows.forEach(({ tiles }, index) => {
+      const hero = characters[index];
+      if (!hero) throw new Error('a row per hero');
+      expect(tiles.map((tile) => tile.choice.id)).toEqual(offer.characters[hero.id]);
+      const last = tiles.at(-1);
+      if (!last) throw new Error('a tile per look');
+      expect(last.row.subject.show(last.picks)).toEqual({
+        spec: { scene: 'showcase', params: { demo: 'moves', hero: hero.id } },
+        looks: {
+          characters: { [hero.id]: last.choice.id },
+          skills: {},
+          customer: undefined,
+        },
+      });
     });
   });
 
-  it('are the boards the page shows, sharing one subject', () => {
-    expect(PLAYGROUND_BOARDS).toEqual([lockupBoard, backdropBoard]);
-    expect(subjectsOf(PLAYGROUND_BOARDS)).toEqual([titleSubject]);
+  it("give every skill a row under its hero, cast by the hero in the skill's look where it has one", () => {
+    const rows = boardRows(skillBoard, {});
+    const order = characters.flatMap((hero) => hero.skills);
+    expect(rows.map(({ row }) => row.title)).toEqual(order.map((skill: SkillId) => skills[skill].name));
+    expect(rows.filter(({ row }) => row.group).map(({ row }) => row.group)).toEqual(
+      characters.map((hero) => hero.name),
+    );
+    rows.forEach(({ tiles }, index) => {
+      const skill = order[index];
+      if (!skill) throw new Error('a row per skill');
+      expect(tiles.map((tile) => tile.choice.id)).toEqual(offer.skills[skill]);
+    });
+  });
+
+  it('give the customer a tile per registered look', () => {
+    expect(ids(customerBoard)).toEqual(offer.customer);
+  });
+
+  it('are on the page after the title boards, each subject focusable once', () => {
+    expect(PLAYGROUND_BOARDS).toEqual([lockupBoard, backdropBoard, characterBoard, skillBoard, customerBoard]);
+    const subjects = subjectsOf(PLAYGROUND_BOARDS);
+    expect(subjects[0]).toBe(titleSubject);
+    expect(new Set(subjects.map((subject) => subject.id)).size).toBe(subjects.length);
+    expect(subjects).toHaveLength(1 + characters.length + Object.keys(skills).length + 1);
   });
 });

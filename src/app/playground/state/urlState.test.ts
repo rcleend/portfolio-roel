@@ -81,6 +81,9 @@ describe('the URL state', () => {
     expect(state.shared).toEqual({
       lockups: { backdrop: TITLE_DEFAULTS.backdrop },
       backdrops: { lockup: TITLE_DEFAULTS.lockup },
+      characters: {},
+      skills: {},
+      customer: {},
     });
   });
 });

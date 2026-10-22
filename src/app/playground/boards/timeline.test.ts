@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beatAt, framesUntil, type Timeline } from './timeline';
+import { beatAt, framesUntil, positionOn, type Timeline } from './timeline';
 
 describe('framesUntil', () => {
   it('finds the frame a scene clock reaches a time on, drift included', () => {
@@ -14,6 +14,7 @@ describe('framesUntil', () => {
 describe('beatAt', () => {
   const timeline: Timeline = {
     frames: 100,
+    loops: false,
     beats: [
       { frame: 0, label: 'hit' },
       { frame: 40, label: 'slide' },
@@ -27,5 +28,12 @@ describe('beatAt', () => {
     expect(beatAt(timeline, 40)?.label).toBe('slide');
     expect(beatAt(timeline, 100)?.label).toBe('settled');
     expect(beatAt(timeline, 101)).toBeNull();
+  });
+
+  it('follows a looping scene round and round', () => {
+    const loop: Timeline = { ...timeline, loops: true };
+    expect(positionOn(loop, 250)).toBe(50);
+    expect(beatAt(loop, 250)?.label).toBe('slide');
+    expect(positionOn(timeline, 250)).toBe(100);
   });
 });

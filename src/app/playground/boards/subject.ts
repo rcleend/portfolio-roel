@@ -1,7 +1,8 @@
+import type { LookSelectionInput } from '@/game/art/looks/selection';
 import type { PreviewSpec } from '@/game/preview';
 import type { Timeline } from './timeline';
 
-/** One option of a picker: a registered variant, as its registry describes it. */
+/** One option of a picker: a registered variant or look, as its registry or docs/LOOKS.md describe it. */
 export interface Choice {
   readonly id: string;
   readonly name: string;
@@ -9,7 +10,7 @@ export interface Choice {
   readonly description: string;
 }
 
-/** One way a subject can vary, e.g. which backdrop the title shows. */
+/** One way a subject can vary, e.g. which backdrop the title shows or which look a hero is drawn in. */
 export interface Picker {
   /** Key in `Picks` and in the page URL. */
   readonly id: string;
@@ -20,8 +21,15 @@ export interface Picker {
   readonly current: string;
 }
 
-/** A choice id for every picker of a subject, by picker id. */
+/** A choice id for pickers of a subject, by picker id; a picker left out stands at its current choice. */
 export type Picks = Readonly<Record<string, string>>;
+
+/** What a live tile shows: a real scene with its params, drawn in a selection of looks. */
+export interface Show {
+  readonly spec: PreviewSpec;
+  /** Whatever it leaves out is `DEFAULT_LOOKS`. */
+  readonly looks: LookSelectionInput;
+}
 
 /**
  * Something the playground shows live: a scene of the game, the pickers
@@ -30,10 +38,10 @@ export type Picks = Readonly<Record<string, string>>;
 export interface Subject {
   readonly id: string;
   readonly label: string;
+  /** Every picker, in the order focus mode offers them. */
   readonly pickers: readonly Picker[];
   readonly timeline: Timeline;
-  /** The scene and params `picks` show; a picker they leave out stands at today's choice. */
-  preview(picks: Picks): PreviewSpec;
+  show(picks: Picks): Show;
 }
 
 /** Every picker of `subject` at what the game shows today. */

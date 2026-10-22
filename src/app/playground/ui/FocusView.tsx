@@ -24,7 +24,7 @@ interface FocusViewProps {
  */
 export function FocusView({ focus, crt, reducedMotion, audio, onPick, onClose }: FocusViewProps) {
   const { subject, picks } = focus;
-  const spec = useMemo(() => subject.preview(picks), [subject, picks]);
+  const show = useMemo(() => subject.show(picks), [subject, picks]);
   const [view, setView] = useState<HTMLElement | null>(null);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
   const { width, height } = useElementSize(stage);
@@ -54,7 +54,7 @@ export function FocusView({ focus, crt, reducedMotion, audio, onPick, onClose }:
       </div>
       <div ref={setStage} className="focus__stage">
         <LiveScreen
-          spec={spec}
+          show={show}
           zoom={fitZoom(width, height)}
           crt={crt}
           reducedMotion={reducedMotion}

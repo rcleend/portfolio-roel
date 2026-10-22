@@ -1,14 +1,14 @@
 import { type CSSProperties, useState } from 'react';
 import type { GameAudio } from '@/game/audio/ids';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '@/game/createGame';
-import type { PreviewSpec } from '@/game/preview';
+import type { Show } from '../boards/subject';
 import type { PreviewLayer } from '../runtime/PreviewLoop';
 import { useLivePreview } from '../runtime/useLivePreview';
 // The CRT look is the flat host's own scanlines and glass, so the playground shows what the fallback TV shows.
 import '../../hosts/FlatHost.css';
 
 interface LiveScreenProps {
-  readonly spec: PreviewSpec;
+  readonly show: Show;
   /** Whole CSS pixels per game pixel. */
   readonly zoom: number;
   readonly crt: boolean;
@@ -18,10 +18,10 @@ interface LiveScreenProps {
   readonly audio?: GameAudio;
 }
 
-/** A live scene at a whole-number zoom, every game pixel a sharp square. */
-export function LiveScreen({ spec, zoom, crt, reducedMotion, layer, audio }: LiveScreenProps) {
+/** A live scene, in its looks, at a whole-number zoom: every game pixel a sharp square. */
+export function LiveScreen({ show, zoom, crt, reducedMotion, layer, audio }: LiveScreenProps) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
-  const failure = useLivePreview(element, spec, { reducedMotion, layer, audio });
+  const failure = useLivePreview(element, show, { reducedMotion, layer, audio });
   const style = {
     width: SCREEN_WIDTH * zoom,
     height: SCREEN_HEIGHT * zoom,

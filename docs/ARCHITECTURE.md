@@ -368,8 +368,9 @@ The script uses the dev server given by `--url`, otherwise starts Vite from the 
 
 `/playground` on the dev server (`playground.html`, development only) compares title variants live and side by side, to pick winners.
 The **Title lockup** board shows every registered lockup on one backdrop and the **Backdrop** board every registered backdrop behind one lockup, each with a picker for the half they share.
-A tile is the real `TitleScene` at a whole-number zoom with the variant's name and line from its registry; what `TITLE_DEFAULTS` ships is marked current, and a variant appears as soon as it is registered.
-Click a tile or press 1–9 for focus mode: one combination at the largest whole zoom that fits, with a picker for each half. Esc closes it.
+The **Characters**, **Skills** and **Customer** boards give every hero, every skill (grouped by hero) and the customer a row with a tile per registered look (docs/LOOKS.md), each playing its showcase demo; a skill's hero wears the skill's look where it has one. Every look loads once (`loadLookLibrary`) and each tile assembles its own selection.
+A tile is the real scene (`TitleScene`, or the showcase for looks) at a whole-number zoom with the variant's name and line from its registry; what `TITLE_DEFAULTS` ships is marked current, and a variant appears as soon as it is registered.
+Click a tile or press 1–9 (the first nine tiles of the board in view) for focus mode: one combination at the largest whole zoom that fits, with a picker for everything it shows, so any hero look can meet any skill and customer look. Esc closes it.
 
 One transport drives every preview from a single fixed 60 Hz clock: replay (R), play and pause (Space), a frame back or forward (←/→), 0.25×, 0.5× or 1× speed, and a scrubber over the first six seconds with a button per beat (hit, slide, lock, flash, settled).
 Seeking re-runs each scene from a fresh start to the exact frame, so every tile shows frame N as the game would.

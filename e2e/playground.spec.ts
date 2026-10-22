@@ -24,11 +24,12 @@ test.describe('playground', () => {
     const errors = trackErrors(page);
     const boards = await openPlayground(page);
     expect(Object.keys(boards)).toEqual(expect.arrayContaining(['lockups', 'backdrops']));
-    for (const [board, choices] of Object.entries(boards)) {
-      expect(choices.length).toBeGreaterThan(0);
-      await expect(page.locator(`[data-board="${board}"] [data-tile]`)).toHaveCount(choices.length);
-      for (const choice of choices) {
-        await expect(page.locator(`[data-board="${board}"] [data-tile="${choice}"] canvas`)).toBeVisible();
+    expect(Object.keys(boards)).toEqual(expect.arrayContaining(['characters', 'skills', 'customer']));
+    for (const [board, tiles] of Object.entries(boards)) {
+      expect(tiles.length).toBeGreaterThan(0);
+      await expect(page.locator(`[data-board="${board}"] [data-tile]`)).toHaveCount(tiles.length);
+      for (const tile of tiles) {
+        await expect(page.locator(`[data-board="${board}"] [data-tile="${tile}"] canvas`)).toBeVisible();
       }
     }
 
