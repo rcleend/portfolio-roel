@@ -109,6 +109,10 @@ export class Customer {
     return !this.won;
   }
 
+  get stunned(): boolean {
+    return this.#mood.kind === 'stunned';
+  }
+
   get rect(): Rect {
     return this.body;
   }

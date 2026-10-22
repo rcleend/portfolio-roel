@@ -148,8 +148,8 @@ export class World implements SkillWorld {
     return this.#customers.filter((customer) => customer.active);
   }
 
-  hit(target: SkillTarget, damage: number, direction: -1 | 1): void {
-    if (target instanceof Customer) this.#hitCustomer(target, damage, direction);
+  hit(target: SkillTarget, damage: number, direction: -1 | 1, spark?: (burst: Burst) => Effect): void {
+    if (target instanceof Customer) this.#hitCustomer(target, damage, direction, spark);
   }
 
   stun(target: SkillTarget, seconds: number): void {
@@ -357,7 +357,7 @@ export class World implements SkillWorld {
       }
       for (const customer of this.#customers) {
         if (!shot.alive || !customer.active || !intersects(shot.rect, customer.rect)) continue;
-        this.#hitCustomer(customer, shot.damage, shot.direction);
+        this.#hitCustomer(customer, shot.damage, shot.direction, (burst) => shot.hitEffect(burst));
         this.#impact(shot);
         shot.strike();
       }
@@ -415,12 +415,18 @@ export class World implements SkillWorld {
 
   // ── Interactions ───────────────────────────────────────────────────────
 
-  #hitCustomer(customer: Customer, damage: number, direction: -1 | 1): void {
+  /** `spark` hands the hit's spark to the look of whoever landed it (a shot, a skill); stomps keep the shared one. */
+  #hitCustomer(
+    customer: Customer,
+    damage: number,
+    direction: -1 | 1,
+    spark: (burst: Burst) => Effect = (burst) => burst,
+  ): void {
     const { feedback } = this;
     const outcome = customer.hit({ damage, direction, decisive: this.#modifiers.decisiveHits }, this.#time);
     if (outcome === 'ignored') return;
     const top = customer.rect.y;
-    feedback.effect(new Burst(customer.centerX, top + customer.rect.h / 2, BURSTS.hitSpark, this.rng));
+    feedback.effect(spark(new Burst(customer.centerX, top + customer.rect.h / 2, BURSTS.hitSpark, this.rng)));
     if (outcome === 'hurt') {
       feedback.sfx('hit');
       return;
@@ -429,8 +435,11 @@ export class World implements SkillWorld {
     this.#score += mrr;
     this.#customersWon++;
     feedback.sfx('customer-happy');
-    feedback.effect(new HeartPop(customer.centerX, top));
-    feedback.effect(new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop'));
+    const { scale } = customer.tuning;
+    feedback.effect(new HeartPop(customer.centerX, top, scale));
+    feedback.effect(
+      new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop', { aboveCustomer: scale }),
+    );
     feedback.emit({ kind: 'customerWon', mrr, escalated: customer.escalated });
     if (customer === this.arena.boss) this.#retain();
   }
@@ -480,7 +489,7 @@ export class World implements SkillWorld {
 
   #impact(shot: Shot): void {
     const recipe = shot.spec.impact === 'star' ? BURSTS.starImpact : BURSTS.hitSpark;
-    this.feedback.effect(new Burst(shot.x, shot.y, recipe, this.rng));
+    this.feedback.effect(shot.impactEffect(new Burst(shot.x, shot.y, recipe, this.rng)));
   }
 
   #bossLanded(boss: Customer): void {

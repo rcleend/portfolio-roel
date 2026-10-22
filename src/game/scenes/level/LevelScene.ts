@@ -1,13 +1,11 @@
 import { getExperience, getLevel, type LevelInfo } from '@/content';
 import { fade, iris } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { drawParallax } from '@/engine/gfx/Parallax';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { layoutText } from '@/engine/gfx/TextStyle';
 import { fxSprites } from '../../art/fx';
 import type { BubbleText } from '../../entities/complaints/SpeechBubble';
 import { IDLE_INTENT } from '../../entities/player/Player';
-import type { RenderKit } from '../../entities/RenderKit';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
@@ -28,11 +26,9 @@ import { HighlightCard } from './overlays/HighlightCard';
 import { drawMissionIntro, missionYears } from './overlays/missionIntro';
 import { type PauseChoice, PauseMenu } from './overlays/PauseMenu';
 import { fadeScreen } from './overlays/screen';
-import { drawWorld } from './render/drawWorld';
-import { drawSparseForeground } from './render/foreground';
+import { drawStage } from './render/drawStage';
 import { drawHitboxes } from './render/hitboxes';
-import { drawPlayPlane } from './render/playPlane';
-import { drawPitSigns, drawRails } from './render/stageDressing';
+import { levelRenderKit } from './render/renderKit';
 import { STAGES } from './stages';
 
 /** The level's flow. The world only advances in `play`, `retained` and `finale`. */
@@ -169,22 +165,8 @@ export class LevelScene implements GameScene<LevelParams> {
     const art = this.#art;
     const level = this.#level;
     if (!world || !art || !level) return;
-    const kit = this.#kit(world, art);
-    const view = world.camera.view;
-    const { stage } = world;
-
-    drawParallax(gfx, art.background, view.x, 0, this.#time);
-    gfx.withOffset(-view.x, -view.y, () => {
-      drawPlayPlane(gfx, stage.layout, art.tileset, view.x);
-      drawPitSigns(gfx, stage.layout, stage.theme.pit, this.#services.text.label, view.x);
-      for (const mover of world.movers) drawRails(gfx, mover, stage.layout, stage.theme.mover);
-      drawWorld(gfx, world, kit);
-      if (this.#dev.hitboxes) drawHitboxes(gfx, world);
-    });
-    drawSparseForeground(gfx, art.foreground, view.x, stage.theme.foreground, world.arenaX);
-    const flash = world.flashColor;
-    if (flash) gfx.fillRect(0, 0, gfx.width, gfx.height, flash);
-
+    const kit = levelRenderKit(this.#services, this.#levelText, world, art);
+    drawStage(gfx, world, kit, this.#time, this.#dev.hitboxes ? (layer) => drawHitboxes(layer, world) : undefined);
     drawHud(gfx, kit, this.#hud.hud(world, this.#time, this.#device));
     const bossBar = this.#hud.bossBar(world, this.#time);
     const celebrating = this.#phase.kind === 'finale' || this.#phase.kind === 'leaving';
@@ -249,10 +231,10 @@ export class LevelScene implements GameScene<LevelParams> {
   #pause(): void {
     const params = this.#params;
     if (!params) return;
-    const { audio, text, sprites } = this.#services;
+    const { audio, text, looks } = this.#services;
     audio.playSfx('pause');
     const menu = new PauseMenu(
-      { text, levelText: this.#levelText, sprites, cursor: this.#cursor, device: this.#device },
+      { text, levelText: this.#levelText, looks, cursor: this.#cursor, device: this.#device },
       params.characterId,
       () => audio.playSfx('menu-move'),
     );
@@ -351,20 +333,6 @@ export class LevelScene implements GameScene<LevelParams> {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-
-  #kit(world: World, art: LevelArt): RenderKit {
-    const { sprites, text, fonts, settings } = this.#services;
-    return {
-      time: world.time,
-      sprites,
-      fx: fxSprites(),
-      text,
-      fonts,
-      levelText: this.#levelText,
-      art,
-      reducedMotion: settings.reducedMotion,
-    };
-  }
 
   #layoutBubble(text: string): BubbleText {
     const block = layoutText(this.#levelText.bubble, text, { maxWidth: BUBBLE_TEXT_WIDTH });

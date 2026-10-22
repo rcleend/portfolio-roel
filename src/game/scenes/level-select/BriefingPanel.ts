@@ -150,10 +150,11 @@ export class BriefingPanel {
     gfx.sprite(this.#envelope, 'idle', this.#time, addressX, bounds.y + 5);
     gfx.text(slot.teaser.cta.label, addressX + 15, bounds.y + 6, this.#styles.copy);
 
-    const hero = this.#services.sprites.characters[this.#characterId];
-    gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, inner.y + inner.h - 2, { flipX: true });
+    const hero = this.#services.looks.characters[this.#characterId].sheet;
+    const feetY = inner.y + inner.h - 2;
+    gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, feetY, { flipX: true });
     if (blink(this.#time, frames(32), frames(16))) {
-      gfx.text('?', inner.x + inner.w - 40, inner.y + inner.h - 54, this.#services.text.prompt);
+      gfx.text('?', inner.x + inner.w - 40, feetY - hero.height - 12, this.#services.text.prompt);
     }
   }
 }

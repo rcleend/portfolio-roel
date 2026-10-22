@@ -8,9 +8,9 @@ import { BitmapFont } from '@/engine/gfx/BitmapFont';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
 import type { Rect } from '@/engine/math/Rect';
 import { Rng } from '@/engine/math/Rng';
-import type { Sprites } from '../../art';
 import { arcadeFont } from '../../art/fonts/arcade';
 import { smallFont } from '../../art/fonts/small';
+import { sizedLooks } from '../../art/looks/testing';
 import type { MusicId, SfxId } from '../../audio/ids';
 import { createTextStyles } from '../../fonts';
 import type { Action } from '../../input/bindings';
@@ -21,7 +21,7 @@ import { KeyHints } from '../../ui/KeyHints';
 import type { GameSceneMap } from '../params';
 import { CharacterSelectScene } from './CharacterSelectScene';
 import { LEAVE_AT } from './choreography';
-import { KEY_HINTS, SKILL_ROWS } from './layout';
+import { KEY_HINTS, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -50,6 +50,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     level: record('level'),
     stageClear: record('stageClear'),
     specimen: record('specimen'),
+    showcase: record('showcase'),
   };
   const director = new Director<GameSceneMap, Action>(factories);
   const small = BitmapFont.fromGlyphData(smallFont);
@@ -60,7 +61,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     audio,
     fonts,
     text,
-    sprites: {} as Sprites,
+    looks: sizedLooks(),
     assets: {} as AssetStore,
     levelArt: {} as LevelArtLibrary,
     session,
@@ -165,7 +166,8 @@ describe('CharacterSelectScene', () => {
 
   it('only chimes when focus actually moves', () => {
     const { audio, step } = setup();
-    const skill = { x: SKILL_ROWS[0].x + 4, y: SKILL_ROWS[0].y + 4, over: true };
+    const [row] = selectLayout().skillRows;
+    const skill = { x: row.x + 4, y: row.y + 4, over: true };
     step([], skill);
     step([], skill);
     step([], { ...skill, x: skill.x + 1 });

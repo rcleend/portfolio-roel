@@ -19,7 +19,7 @@ export interface LivePreviewOptions {
  * screen can say so while the rest of the page plays on.
  */
 export function useLivePreview(element: HTMLElement | null, spec: PreviewSpec, options: LivePreviewOptions): unknown {
-  const { resources, loop } = usePreviewRuntime();
+  const { resources, looks, loop } = usePreviewRuntime();
   const { reducedMotion, layer, audio } = options;
   const [failure, setFailure] = useState<{ readonly error: unknown } | null>(null);
 
@@ -31,7 +31,7 @@ export function useLivePreview(element: HTMLElement | null, spec: PreviewSpec, o
     };
     let preview: ScenePreview;
     try {
-      preview = new ScenePreview({ resources, spec, reducedMotion, audio });
+      preview = new ScenePreview({ resources, looks, spec, reducedMotion, audio });
     } catch (error) {
       fail(error);
       return;
@@ -46,7 +46,7 @@ export function useLivePreview(element: HTMLElement | null, spec: PreviewSpec, o
       preview.canvas.remove();
       preview.dispose();
     };
-  }, [element, resources, loop, spec, reducedMotion, layer, audio]);
+  }, [element, resources, looks, loop, spec, reducedMotion, layer, audio]);
 
   return failure?.error ?? null;
 }

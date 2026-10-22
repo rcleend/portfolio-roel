@@ -1,5 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { AssetStore } from '@/engine/assets/AssetStore';
+import { loadLooks } from '@/game/art/looks/load';
+import { DEFAULT_LOOKS } from '@/game/art/looks/selection';
 import { createGameAudio } from '@/game/audio/createGameAudio';
 import { loadGameResources } from '@/game/resources';
 import { comparedPicker } from './boards/board';
@@ -32,8 +35,9 @@ declare global {
 async function main(): Promise<void> {
   const root = document.getElementById('root');
   if (!root) throw new Error('playground.html is missing #root');
-  // Fonts, sprites and level art load once here and are shared by every preview on the page.
-  const resources = await loadGameResources();
+  // Fonts, level art and the game's own looks load once here and are shared by every preview on the page.
+  const assets = new AssetStore();
+  const [resources, looks] = await Promise.all([loadGameResources(assets), loadLooks(DEFAULT_LOOKS, assets)]);
   const loop = new PreviewLoop();
   window.__playground = {
     boards: Object.fromEntries(
@@ -44,7 +48,7 @@ async function main(): Promise<void> {
   createRoot(root).render(
     <StrictMode>
       <Playground
-        runtime={{ resources, loop, audio: createGameAudio() }}
+        runtime={{ resources, looks, loop, audio: createGameAudio() }}
         boards={PLAYGROUND_BOARDS}
         initial={readUrlState(window.location.search, PLAYGROUND_BOARDS)}
       />

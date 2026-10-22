@@ -1,5 +1,6 @@
 import type { Rect } from '@/engine/math/Rect';
 import { Rng } from '@/engine/math/Rng';
+import type { Burst } from '../entities/effects/Burst';
 import type { Effect } from '../entities/effects/Effect';
 import type { Shot } from '../entities/shots/Shot';
 import type { SkillCaster, SkillTarget, SkillWorld } from './Skill';
@@ -15,7 +16,12 @@ export class FakeSkillWorld implements SkillWorld {
   view: Rect = { x: 0, y: 0, w: 320, h: 240 };
   readonly rng = new Rng(1);
   readonly customers: FakeTarget[] = [];
-  readonly hits: { target: SkillTarget; damage: number; direction: -1 | 1 }[] = [];
+  readonly hits: {
+    target: SkillTarget;
+    damage: number;
+    direction: -1 | 1;
+    spark: ((burst: Burst) => Effect) | undefined;
+  }[] = [];
   readonly stuns: { target: SkillTarget; seconds: number }[] = [];
   readonly popped: Rect[] = [];
   readonly shots: Shot[] = [];
@@ -33,13 +39,14 @@ export class FakeSkillWorld implements SkillWorld {
     return this.customers.filter((customer) => customer.frustration > 0);
   }
 
-  hit(target: SkillTarget, damage: number, direction: -1 | 1): void {
-    this.hits.push({ target, damage, direction });
+  hit(target: SkillTarget, damage: number, direction: -1 | 1, spark?: (burst: Burst) => Effect): void {
+    this.hits.push({ target, damage, direction, spark });
     if (target instanceof FakeTarget) target.frustration = Math.max(0, target.frustration - damage);
   }
 
   stun(target: SkillTarget, seconds: number): void {
     this.stuns.push({ target, seconds });
+    if (target instanceof FakeTarget) target.stunned = true;
   }
 
   popBubbles(area: Rect): number {
@@ -76,6 +83,7 @@ export class FakeTarget implements SkillTarget {
   readonly rect: Rect;
   frustration: number;
   readonly escalated: boolean;
+  stunned = false;
 
   constructor(rect: Rect, frustration: number, escalated: boolean) {
     this.rect = rect;

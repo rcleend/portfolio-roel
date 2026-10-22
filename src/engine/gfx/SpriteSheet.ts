@@ -1,5 +1,8 @@
+import type { Vec2 } from '../math/Vec2';
+import type { PixelImage } from './canvas';
 import { context2d, createCanvas } from './canvas';
-import { type AtlasFrame, type CompiledPixelArt, compilePixelArt, type PixelArtSheet } from './PixelArt';
+import { type AtlasFrame, compilePixelArt, type PixelArtSheet } from './PixelArt';
+import { type SpriteAnimationSpec, type SpriteSheetSpec, specImageSize } from './SpriteSheetSpec';
 
 export interface SpriteDrawOptions {
   /** Mirror horizontally around the origin, e.g. to face left. */
@@ -11,21 +14,67 @@ export interface SpriteDrawOptions {
 }
 
 /**
- * A compiled pixel-art sheet with time-based animation playback.
+ * Everything a sheet plays from: one image holding every frame, the frame
+ * size and origin, and where each animation's frames sit in the image.
+ * Pixel art compiles to one; an image sheet's PNG already is one.
+ */
+export interface SpriteAtlas<A extends string = string> {
+  readonly name: string;
+  readonly width: number;
+  readonly height: number;
+  readonly origin: Vec2;
+  readonly atlas: PixelImage;
+  readonly animations: Readonly<Record<A, AtlasAnimation>>;
+}
+
+export interface AtlasAnimation {
+  readonly fps: number;
+  readonly loop: boolean;
+  readonly frames: readonly AtlasFrame[];
+  /** Named pixels per frame, in frame pixels. */
+  readonly anchors?: Readonly<Record<string, readonly Vec2[]>>;
+}
+
+/**
+ * A sprite sheet with time-based animation playback, drawn the same way
+ * whether it was authored as pixel art or shipped as a PNG with its JSON.
  *
  * Playback is a pure function of time, so scenes only need to keep their own
  * clock: `sheet.frameIndex('run', this.time - runStartedAt)`.
  */
 export class SpriteSheet<A extends string = string> {
-  readonly #art: CompiledPixelArt<A>;
+  readonly #art: SpriteAtlas<A>;
   readonly #flashAtlases = new Map<string, HTMLCanvasElement>();
 
-  private constructor(art: CompiledPixelArt<A>) {
+  private constructor(art: SpriteAtlas<A>) {
     this.#art = art;
   }
 
   static compile<A extends string>(sheet: PixelArtSheet<A>, name: string): SpriteSheet<A> {
     return new SpriteSheet(compilePixelArt(sheet, name));
+  }
+
+  /**
+   * A sheet over a decoded PNG laid out as `spec` describes. The image must be
+   * exactly the size the spec implies, which catches a JSON that drifted from
+   * its PNG. Animation names are unchecked here; callers narrow `A` once they
+   * have checked the names they need.
+   */
+  static fromImage(image: PixelImage, spec: SpriteSheetSpec, name: string): SpriteSheet<string> {
+    const expected = specImageSize(spec);
+    if (image.width !== expected.w || image.height !== expected.h) {
+      throw new Error(
+        `SpriteSheet "${name}": the image is ${image.width}×${image.height}, but its JSON describes ` +
+          `${expected.w}×${expected.h} (${spec.animations.length} rows of ${spec.frame.w}×${spec.frame.h} frames)`,
+      );
+    }
+    const { w, h } = spec.frame;
+    const animations: Record<string, AtlasAnimation> = {};
+    spec.animations.forEach((animation: SpriteAnimationSpec, row) => {
+      const frames = Array.from({ length: animation.frames }, (_, column) => ({ x: column * w, y: row * h }));
+      animations[animation.name] = { fps: animation.fps, loop: animation.loop, frames, anchors: animation.anchors };
+    });
+    return new SpriteSheet({ name, width: w, height: h, origin: spec.origin, atlas: image, animations });
   }
 
   get name(): string {
@@ -40,7 +89,7 @@ export class SpriteSheet<A extends string = string> {
     return this.#art.height;
   }
 
-  get origin(): { readonly x: number; readonly y: number } {
+  get origin(): Vec2 {
     return this.#art.origin;
   }
 
@@ -50,6 +99,11 @@ export class SpriteSheet<A extends string = string> {
 
   has(animation: string): animation is A {
     return Object.hasOwn(this.#art.animations, animation);
+  }
+
+  /** True when the sheet has every one of `animations`, which then narrows its type. */
+  hasAll<N extends string>(animations: readonly N[]): this is SpriteSheet<N> {
+    return animations.every((animation) => this.has(animation));
   }
 
   frameCount(animation: A): number {
@@ -72,6 +126,26 @@ export class SpriteSheet<A extends string = string> {
     const { frames, fps, loop } = this.#animation(animation);
     const raw = Math.floor(Math.max(0, time) * fps + 1e-9);
     return loop ? raw % frames.length : Math.min(raw, frames.length - 1);
+  }
+
+  /** The anchor `name` of the frame shown at `time`, in frame pixels; null where the animation has none. */
+  anchor(animation: A, name: string, time: number): Vec2 | null {
+    const points = this.#animation(animation).anchors?.[name];
+    return points?.[this.frameIndex(animation, time)] ?? null;
+  }
+
+  /**
+   * The screen pixel showing frame pixel `point` when the sheet is drawn with
+   * its origin at (x, y) — rounded like `gfx.sprite`, and mirrored with the
+   * sprite, so an effect pinned to an anchor stays on the same art pixel.
+   */
+  toScreen(point: Vec2, x: number, y: number, flipX = false): Vec2 {
+    const { origin } = this.#art;
+    const left = Math.round(x);
+    return {
+      x: flipX ? left + origin.x - 1 - point.x : left - origin.x + point.x,
+      y: Math.round(y) - origin.y + point.y,
+    };
   }
 
   /** Draws the frame for `time` with its origin at (x, y). Coordinates must already be integers. */
@@ -114,7 +188,7 @@ export class SpriteSheet<A extends string = string> {
     ctx.restore();
   }
 
-  #animation(animation: A) {
+  #animation(animation: A): AtlasAnimation {
     const found = this.#art.animations[animation];
     if (!found) throw new Error(`SpriteSheet "${this.name}" has no animation "${animation}"`);
     return found;

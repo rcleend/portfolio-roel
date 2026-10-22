@@ -1,22 +1,36 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { blink, bob } from '@/engine/motion/oscillators';
-import type { CustomerAnimation } from '../../art';
+import { blink } from '@/engine/motion/oscillators';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
+import type { CustomerAnimation } from '../../art/looks/contracts';
+import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
 
-/** The bits of the level's rules that change how a customer looks. */
-export interface CustomerLook {
-  /** UX Elixir: customers glow with a pink heart and pink pips. */
+/** The bits of the level's rules that change how a customer is drawn. */
+export interface CustomerRules {
+  /** UX ELIXIR: frustration pips turn pink, and the elixir's look marks every customer (classic: a pink heart). */
   readonly customersCalm: boolean;
+  /** The running elixir, for its look; null on the one frame its rule outlasts it. */
+  readonly elixir: UxElixirState | null;
 }
 
 const PIP = { w: 4, h: 3, gap: 1 } as const;
 /** Frame 1 of `walk` has both feet planted: the "standing" pose. */
 const STANDING_TIME = 1 / 6 + 1e-6;
+/** The sprite height everything above a customer was placed for: classic's frame. */
+const TUNED_HEIGHT = 40;
+
+/**
+ * How far everything shown above a customer — pips, hearts, steam, the +MRR
+ * pop — must rise so a look's taller sprite does not wear it on its face.
+ * Zero for classic; the hitbox, and so play, never changes.
+ */
+export function overheadLift(kit: RenderKit, scale: number): number {
+  return (kit.looks.customer.sheet.height - TUNED_HEIGHT) * scale;
+}
 
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
-export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, look: CustomerLook): void {
+export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rules: CustomerRules): void {
   const { animation, time } = pose(customer, kit.time);
   // Hits flicker white on alternate frames and a charge is telegraphed in red, both brief enough to keep the sprite readable.
   const hitFlash = customer.isFlashing(kit.time) && blink(kit.time, 1 / 60, 1 / 60);
@@ -24,7 +38,7 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, loo
   const flash = hitFlash ? '#ffffff' : windingUp ? '#ff5a3a' : undefined;
   drawSpriteScaled(
     gfx,
-    kit.sprites.unhappyCustomer,
+    kit.looks.customer.sheet,
     animation,
     time,
     customer.centerX,
@@ -33,13 +47,23 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, loo
     { flipX: customer.facing < 0, flash },
   );
   if (customer.won) return;
+  const lift = overheadLift(kit, customer.tuning.scale);
   if (customer.escalated) {
-    drawSteam(gfx, customer, kit.time);
+    drawSteam(gfx, customer, lift, kit.time);
     return;
   }
-  const calm = look.customersCalm;
-  drawFrustration(gfx, customer, calm);
-  if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - bob(kit.time, 1, 0.5));
+  const calm = rules.customersCalm;
+  drawFrustration(gfx, customer, lift, calm);
+  if (calm) {
+    const calmed = {
+      x: customer.centerX,
+      feet: customer.feet,
+      scale: customer.tuning.scale,
+      lift,
+      elixir: rules.elixir,
+    };
+    kit.looks.skills['ux-elixir'].visual.customer?.(gfx, calmed, kit);
+  }
 }
 
 function pose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
@@ -66,11 +90,11 @@ function pose(customer: Customer, now: number): { animation: CustomerAnimation; 
 }
 
 /** One pip per point of frustration, emptying as they are won over. */
-function drawFrustration(gfx: Gfx, customer: Customer, calm: boolean): void {
+function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boolean): void {
   const count = customer.tuning.frustration;
   const width = count * PIP.w + (count - 1) * PIP.gap;
   const left = Math.round(customer.centerX - width / 2);
-  const top = Math.round(customer.feet - 39);
+  const top = Math.round(customer.feet - 39 - lift);
   gfx.fillRect(left - 1, top - 1, width + 2, PIP.h + 2, '#1a0a14');
   for (let i = 0; i < count; i++) {
     const x = left + i * (PIP.w + PIP.gap);
@@ -83,26 +107,9 @@ function drawFrustration(gfx: Gfx, customer: Customer, calm: boolean): void {
   }
 }
 
-function drawCalmHeart(gfx: Gfx, x: number, y: number): void {
-  const left = Math.round(x) - 3;
-  const top = Math.round(y);
-  for (const [dx, dy, w] of [
-    [1, 0, 2],
-    [4, 0, 2],
-    [0, 1, 7],
-    [0, 2, 7],
-    [1, 3, 5],
-    [2, 4, 3],
-    [3, 5, 1],
-  ] as const) {
-    gfx.fillRect(left + dx, top + dy, w, 1, '#ff4fa3');
-  }
-  gfx.pixel(left + 1, top + 1, '#ffd0ef');
-}
-
 /** Steam puffing from both sides of the escalated customer's head: more frustration than one sprite can hold. */
-function drawSteam(gfx: Gfx, customer: Customer, time: number): void {
-  const top = customer.feet - customer.rect.h - 4;
+function drawSteam(gfx: Gfx, customer: Customer, lift: number, time: number): void {
+  const top = customer.feet - customer.rect.h - 4 - lift;
   for (let puff = 0; puff < 4; puff++) {
     const phase = (time * 1.4 + puff / 4) % 1;
     if (phase > 0.8 && blink(time, 2 / 60, 2 / 60)) continue;

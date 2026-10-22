@@ -1,18 +1,17 @@
 import { type Character, type CharacterId, characters, type SkillId, skills } from '@/content';
 import { shade } from '@/engine/gfx/color';
 import type { Gfx } from '@/engine/gfx/Gfx';
-import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
-import type { SkillIconAnimation } from '../../art';
+import type { Looks } from '../../art/looks/Looks';
 import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
+import { drawIconSlot } from '../../ui/iconSlot';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
-import { drawWindow } from '../../ui/Window';
 import { classThemes } from './classThemes';
-import { BIO_Y, DETAILS, NAME_Y, PROMPT_Y, SKILL_ROWS, SKILL_SLOT_SIZE, SKILLS_Y } from './layout';
+import { BIO_Y, DETAILS, NAME_Y, PROMPT_Y, type SelectLayout, SKILL_NAME_HEIGHT, SKILLS_Y } from './layout';
 
 /** The heading's outline reaches one pixel left of its pen position. */
 const NAME_MASK_BLEED = 1;
@@ -38,12 +37,14 @@ export interface DetailsRenderOptions {
  */
 export class DetailsPanel {
   readonly #text: TextStyles;
-  readonly #icons: Readonly<Record<SkillId, SpriteSheet<SkillIconAnimation>>>;
+  readonly #looks: Looks;
+  readonly #layout: SelectLayout;
   readonly #bios: ReadonlyMap<CharacterId, Paragraph>;
 
-  constructor(text: TextStyles, icons: Readonly<Record<SkillId, SpriteSheet<SkillIconAnimation>>>) {
+  constructor(text: TextStyles, looks: Looks, layout: SelectLayout) {
     this.#text = text;
-    this.#icons = icons;
+    this.#looks = looks;
+    this.#layout = layout;
     this.#bios = new Map(
       characters.map((character) => [character.id, new Paragraph(character.bio, text.body, { maxWidth: DETAILS.w })]),
     );
@@ -74,12 +75,16 @@ export class DetailsPanel {
   }
 
   #renderSkill(gfx: Gfx, skillId: SkillId, slot: 0 | 1, options: DetailsRenderOptions): void {
-    const row = SKILL_ROWS[slot];
+    const { skillRows, slotSize } = this.#layout;
+    const row = skillRows[slot];
     const lit = options.litSkill === slot;
-    const frame = { x: row.x, y: row.y, w: SKILL_SLOT_SIZE, h: SKILL_SLOT_SIZE };
-    drawWindow(gfx, frame, lit ? windowThemes.indigo : windowThemes.steel);
-    gfx.sprite(this.#icons[skillId], 'idle', options.time, frame.x + 4, frame.y + 4);
-    gfx.text(skills[skillId].name, row.x + SKILL_SLOT_SIZE + 6, row.y + 8, {
+    drawIconSlot(gfx, this.#looks.skills[skillId].icon, options.time, {
+      x: row.x,
+      y: row.y,
+      size: slotSize,
+      theme: lit ? windowThemes.indigo : windowThemes.steel,
+    });
+    gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - SKILL_NAME_HEIGHT) / 2), {
       ...this.#text.label,
       fill: lit ? palette.gold : palette.white,
     });

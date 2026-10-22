@@ -3,9 +3,9 @@ import type { AssetStore } from '@/engine/assets/AssetStore';
 import { NullAudio } from '@/engine/audio/NullAudio';
 import { nullContext } from '@/engine/core/testing';
 import { BitmapFont } from '@/engine/gfx/BitmapFont';
-import type { Sprites } from '../art';
 import { arcadeFont } from '../art/fonts/arcade';
 import { smallFont } from '../art/fonts/small';
+import { sizedLooks } from '../art/looks/testing';
 import type { MusicId, SfxId } from '../audio/ids';
 import { createTextStyles } from '../fonts';
 import type { LevelArtLibrary } from '../levels/art/LevelArt';
@@ -26,7 +26,6 @@ function testResources(): GameResources {
     assets: {} as AssetStore,
     fonts,
     text: createTextStyles(fonts),
-    sprites: {} as Sprites,
     levelArt: {} as LevelArtLibrary,
   };
 }
@@ -84,10 +83,11 @@ afterAll(() => {
 
 describe('ScenePreview', () => {
   const resources = testResources();
+  const looks = sizedLooks();
 
   it('shows a frame alike whether it played there or seeked back to it', () => {
     const screen = recordingScreen();
-    const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion: false, context: screen.context });
+    const preview = new ScenePreview({ resources, looks, spec: TITLE, reducedMotion: false, context: screen.context });
     preview.advanceTo(SETTLED + 40);
     const played = screen.draw(preview);
     preview.advanceTo(SETTLED + 200);
@@ -105,7 +105,7 @@ describe('ScenePreview', () => {
 
   it('starts over at the opening hit when restarted', () => {
     const screen = recordingScreen();
-    const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion: false, context: screen.context });
+    const preview = new ScenePreview({ resources, looks, spec: TITLE, reducedMotion: false, context: screen.context });
     const opening = screen.draw(preview);
     preview.advanceTo(SETTLED);
     preview.restart();
@@ -115,7 +115,14 @@ describe('ScenePreview', () => {
 
   it('enters quietly and keeps the effects it passes while seeking silent, its music playing', () => {
     const audio = new NullAudio<MusicId, SfxId>();
-    const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion: false, audio, context: nullContext() });
+    const preview = new ScenePreview({
+      resources,
+      looks,
+      spec: TITLE,
+      reducedMotion: false,
+      audio,
+      context: nullContext(),
+    });
     expect(audio.currentMusic).toBe('title');
     preview.seek(SETTLED + 60);
     expect(audio.playedSfx).toEqual([]);
@@ -124,7 +131,14 @@ describe('ScenePreview', () => {
 
   it('sounds the opening hit and every cue on the way when played', () => {
     const audio = new NullAudio<MusicId, SfxId>();
-    const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion: false, audio, context: nullContext() });
+    const preview = new ScenePreview({
+      resources,
+      looks,
+      spec: TITLE,
+      reducedMotion: false,
+      audio,
+      context: nullContext(),
+    });
     preview.restart();
     preview.advanceTo(SETTLED + 60);
     expect(audio.playedSfx).toEqual(['explosion', 'flash']);
@@ -133,7 +147,7 @@ describe('ScenePreview', () => {
   it('plays the scene under the reduced motion it was made with', () => {
     const flashes = (reducedMotion: boolean): boolean => {
       const screen = recordingScreen();
-      const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion, context: screen.context });
+      const preview = new ScenePreview({ resources, looks, spec: TITLE, reducedMotion, context: screen.context });
       preview.seek(FLASHING);
       return whitesOut(screen.draw(preview));
     };
@@ -142,7 +156,7 @@ describe('ScenePreview', () => {
   });
 
   it('takes no input, so the scene stays put through its attract loop', () => {
-    const preview = new ScenePreview({ resources, spec: TITLE, reducedMotion: false, context: nullContext() });
+    const preview = new ScenePreview({ resources, looks, spec: TITLE, reducedMotion: false, context: nullContext() });
     preview.advanceTo(SETTLED + 30 * 60);
     expect(preview.requests).toEqual([]);
   });

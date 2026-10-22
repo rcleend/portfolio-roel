@@ -13,7 +13,11 @@ function main(): void {
   if (!root) throw new Error('Missing #root element');
   const config = readHarnessConfig(window.location.search, import.meta.env.DEV);
   // Kick off the game's downloads before React's first render; the app shows progress meanwhile.
-  const loading = createGame({ ...(config.seed === null ? {} : { seed: config.seed }), openLink });
+  const loading = createGame({
+    ...(config.seed === null ? {} : { seed: config.seed }),
+    ...(config.looks === null ? {} : { looks: config.looks }),
+    openLink,
+  });
   createRoot(root).render(
     <StrictMode>
       <App loading={loading} host={chooseHost(config.host, detectWebGL)} config={config} />

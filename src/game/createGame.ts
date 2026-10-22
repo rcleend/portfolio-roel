@@ -1,3 +1,4 @@
+import { AssetStore } from '@/engine/assets/AssetStore';
 import { Director } from '@/engine/core/Director';
 import { Game } from '@/engine/core/Game';
 import type { GameSurface } from '@/engine/core/GameSurface';
@@ -5,6 +6,9 @@ import { createCanvas } from '@/engine/gfx/canvas';
 import { GamepadSource } from '@/engine/input/GamepadSource';
 import { InputManager } from '@/engine/input/InputManager';
 import { Rng } from '@/engine/math/Rng';
+import { loadLooks } from './art/looks/load';
+import { lookRegistry } from './art/looks/registry';
+import { type LookSelectionInput, resolveLooks } from './art/looks/selection';
 import { createGameAudio } from './audio/createGameAudio';
 import type { GameAudio } from './audio/ids';
 import { composeServices } from './composeServices';
@@ -31,6 +35,11 @@ export interface CreateGameOptions {
   readonly reducedMotion?: boolean;
   /** Opens a real-world link chosen in-game; defaults to navigating the current tab (mailto-friendly). */
   readonly openLink?: (href: string) => void;
+  /**
+   * Which look each hero, the customer and each skill is drawn in; anything
+   * left out is `DEFAULT_LOOKS`. Only the looks chosen are downloaded.
+   */
+  readonly looks?: LookSelectionInput;
 }
 
 export interface CreatedGame {
@@ -41,15 +50,19 @@ export interface CreatedGame {
 }
 
 /**
- * Composition root of the game: loads fonts, compiles sprites, wires
- * services and scenes. The game is returned stopped and without a scene;
- * the caller chooses the first scene and calls `game.start()`.
+ * Composition root of the game: loads fonts, level art and the selected
+ * looks, wires services and scenes. The game is returned stopped and without
+ * a scene; the caller chooses the first scene and calls `game.start()`.
  */
 export async function createGame(options: CreateGameOptions = {}): Promise<CreatedGame> {
-  const resources = await loadGameResources();
+  // One asset store for both, so fonts, level art and the selected looks download in parallel.
+  const assets = new AssetStore();
+  const selection = resolveLooks(options.looks ?? {}, lookRegistry.offer);
+  const [resources, looks] = await Promise.all([loadGameResources(assets), loadLooks(selection, assets)]);
   const session = new SessionStore(options.storage === undefined ? defaultStorage() : options.storage);
   const services = composeServices((scenes) => new Director<GameSceneMap, Action>(scenes), {
     ...resources,
+    looks,
     audio: options.audio ?? defaultAudio(session),
     session,
     rng: new Rng(options.seed ?? Date.now()),

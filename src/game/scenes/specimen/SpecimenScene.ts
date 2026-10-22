@@ -4,20 +4,24 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { mod } from '@/engine/math/scalar';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
-import { CHARACTER_ANIMATIONS } from '../../art/characters/rig';
-import { CUSTOMER_ANIMATIONS } from '../../art/enemies/unhappy-customer';
+import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS } from '../../art/looks/contracts';
+import { skillIcons } from '../../art/looks/Looks';
 import type { TextStyleName } from '../../fonts';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { Button } from '../../ui/Button';
 import { handCursorSheet } from '../../ui/cursor';
+import { drawIconSlot, iconSlotSize } from '../../ui/iconSlot';
 import { Tooltip } from '../../ui/Tooltip';
 import { TypewriterText } from '../../ui/TypewriterText';
 import { windowThemes } from '../../ui/theme';
 import { drawWindow, windowContent } from '../../ui/Window';
 import type { GameScene, GameStep, SpecimenParams } from '../params';
+import { enemyPage, heroRows } from './layout';
 
 const PAGES = ['TYPE', 'CHARACTERS', 'ENEMY + ICONS', 'UI KIT'] as const;
+/** The label face's cell height, for centring a skill's name on its slot. */
+const LABEL_HEIGHT = 8;
 
 /**
  * Development-only specimen sheet (`?scene=specimen`): every font, text
@@ -122,41 +126,55 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
   }
 
   #renderCharacters(gfx: Gfx): void {
-    const { sprites, text } = this.#services;
+    const { looks, text } = this.#services;
+    const sheets = characters.map((character) => looks.characters[character.id].sheet);
+    const rows = heroRows(Math.max(...sheets.map((sheet) => sheet.height)));
+    const feet = (row: number) => rows.firstFeet + row * rows.pitch;
     CHARACTER_ANIMATIONS.forEach((animation, column) => {
       const x = 22 + column * 38;
       gfx.text(animation.toUpperCase(), x, 18, { ...text.hud, fill: palette.lavender }, { align: 'center' });
-      characters.forEach((character, row) => {
-        const sheet = sprites.characters[character.id];
+      sheets.forEach((sheet, row) => {
         const time = mod(this.#time, sheet.duration(animation) + 0.5);
-        gfx.sprite(sheet, animation, time, x, 72 + row * 56);
+        gfx.sprite(sheet, animation, time, x, feet(row));
       });
     });
     characters.forEach((character, row) => {
-      gfx.fillRect(4, 72 + row * 56, gfx.width - 8, 1, palette.violet);
-      gfx.text(character.name, 4, 76 + row * 56, { ...text.hud, fill: palette.steel });
+      gfx.fillRect(4, feet(row), gfx.width - 8, 1, palette.violet);
+      gfx.text(character.name, 4, feet(row) + 4, { ...text.hud, fill: palette.steel });
     });
   }
 
   #renderEnemyAndIcons(gfx: Gfx): void {
-    const { sprites, text } = this.#services;
+    const { looks, text } = this.#services;
+    const sheet = looks.customer.sheet;
+    const icons = (Object.keys(looks.skills) as SkillId[]).map((id) => ({ id, icon: looks.skills[id].icon }));
+    const slot = iconSlotSize(26, skillIcons(looks));
+    const page = enemyPage(sheet.height, slot);
+    // Tall art leaves room for one row, which alternates between as drawn and flipped with a hit flash.
+    const [first = 0, second] = page.customerFeet;
+    const flipOnly = second === undefined && Math.floor(this.#time) % 2 === 1;
+    const flipped = { flipX: true, flash: blink(this.#time, frames(4), frames(4)) ? '#ffffff' : undefined };
     CUSTOMER_ANIMATIONS.forEach((animation, column) => {
       const x = 32 + column * 60;
       gfx.text(animation.toUpperCase(), x, 20, { ...text.hud, fill: palette.lavender }, { align: 'center' });
-      const sheet = sprites.unhappyCustomer;
-      gfx.sprite(sheet, animation, mod(this.#time, sheet.duration(animation) + 0.3), x, 78);
-      gfx.sprite(sheet, animation, mod(this.#time, sheet.duration(animation) + 0.3), x, 128, {
-        flipX: true,
-        flash: blink(this.#time, frames(4), frames(4)) ? '#ffffff' : undefined,
-      });
+      const time = mod(this.#time, sheet.duration(animation) + 0.3);
+      gfx.sprite(sheet, animation, time, x, first, flipOnly ? flipped : undefined);
+      if (second !== undefined) gfx.sprite(sheet, animation, time, x, second, flipped);
     });
-    gfx.text('FLIPPED + HIT FLASH', gfx.width / 2, 132, { ...text.hud, fill: palette.steel }, { align: 'center' });
-    (Object.keys(sprites.skillIcons) as SkillId[]).forEach((id, i) => {
+    if (second !== undefined || flipOnly) {
+      gfx.text(
+        'FLIPPED + HIT FLASH',
+        gfx.width / 2,
+        page.captionY,
+        { ...text.hud, fill: palette.steel },
+        { align: 'center' },
+      );
+    }
+    icons.forEach(({ id, icon }, i) => {
       const x = 8 + (i % 2) * 156;
-      const y = 146 + Math.floor(i / 2) * 30;
-      drawWindow(gfx, { x, y, w: 26, h: 26 }, windowThemes.steel);
-      gfx.sprite(sprites.skillIcons[id], 'idle', this.#time, x + 5, y + 5);
-      gfx.text(skills[id].name, x + 30, y + 9, { ...text.label });
+      const y = page.iconsTop + Math.floor(i / 2) * page.iconPitch;
+      drawIconSlot(gfx, icon, this.#time, { x, y, size: slot, theme: windowThemes.steel });
+      gfx.text(skills[id].name, x + slot + 4, y + Math.floor((slot - LABEL_HEIGHT) / 2), { ...text.label });
     });
   }
 

@@ -48,14 +48,13 @@ export const NAME_Y = 33;
 export const BIO_Y = 56;
 export const SKILLS_Y = 124;
 
-/** A skill row: the bevelled icon slot plus the name beside it. The rows stack under the SKILLS header. */
+/** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
 export const SKILL_SLOT_SIZE = 24;
+/** The label face's cell height: a skill's name is centred on its slot. */
+export const SKILL_NAME_HEIGHT = 8;
+/** The skill rows stack under the SKILLS header, this far apart whatever their slots' size. */
 const SKILL_ROWS_Y = SKILLS_Y + 14;
-const SKILL_ROW_PITCH = SKILL_SLOT_SIZE + 4;
-export const SKILL_ROWS: readonly [Rect, Rect] = [
-  { x: DETAILS.x, y: SKILL_ROWS_Y, w: DETAILS.w, h: SKILL_SLOT_SIZE },
-  { x: DETAILS.x, y: SKILL_ROWS_Y + SKILL_ROW_PITCH, w: DETAILS.w, h: SKILL_SLOT_SIZE },
-];
+const SKILL_ROW_GAP = 4;
 
 /** Where the card's focus is shown, and pointing at it focuses the card: the class heading stands for the character. */
 export const NAME_ROW: Rect = { x: DETAILS.x, y: NAME_Y - 2, w: DETAILS.w, h: 16 };
@@ -67,23 +66,48 @@ export const KEY_HINTS: KeyHintsAnchor = { right: DETAILS.x + DETAILS.w, y: HINT
 
 export type HitTarget = FocusTarget | 'arrowLeft' | 'arrowRight';
 
-const HIT_AREAS: readonly (readonly [HitTarget, Rect])[] = [
-  ['arrowLeft', ARROW_LEFT_HIT],
-  ['arrowRight', ARROW_RIGHT_HIT],
-  ['card', CARD],
-  ['card', NAME_ROW],
-  ['skill1', SKILL_ROWS[0]],
-  ['skill2', SKILL_ROWS[1]],
-];
-
-/** What the pointer at (x, y) is over, if anything. */
-export function hitTest(x: number, y: number): HitTarget | null {
-  for (const [target, area] of HIT_AREAS) if (containsPoint(area, x, y)) return target;
-  return null;
+/** The parts of the screen that follow the size of the skill icons on show. */
+export interface SelectLayout {
+  readonly slotSize: number;
+  /** A skill row: the bevelled icon slot plus the name beside it. */
+  readonly skillRows: readonly [Rect, Rect];
+  /** What the pointer at (x, y) is over, if anything. */
+  hitTest(x: number, y: number): HitTarget | null;
+  /** The point the hand cursor's fingertip touches when `target` has focus. */
+  cursorAnchor(target: FocusTarget): { readonly x: number; readonly y: number };
 }
 
-/** The point the hand cursor's fingertip touches when `target` has focus. */
-export function cursorAnchor(target: FocusTarget): { readonly x: number; readonly y: number } {
-  const row = target === 'card' ? NAME_ROW : SKILL_ROWS[target === 'skill1' ? 0 : 1];
-  return { x: row.x - 3, y: row.y + Math.floor(row.h / 2) };
+/**
+ * The layout for skill slots of `slotSize`: classic's 24 px, or 32 px for a
+ * look's 24 px icons. The rows grow down from the SKILLS header; even 32 px
+ * rows end above the reach of the CONFIRM and BACK keys under them.
+ */
+export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
+  const row = (index: number): Rect => ({
+    x: DETAILS.x,
+    y: SKILL_ROWS_Y + index * (slotSize + SKILL_ROW_GAP),
+    w: DETAILS.w,
+    h: slotSize,
+  });
+  const skillRows = [row(0), row(1)] as const;
+  const hitAreas: readonly (readonly [HitTarget, Rect])[] = [
+    ['arrowLeft', ARROW_LEFT_HIT],
+    ['arrowRight', ARROW_RIGHT_HIT],
+    ['card', CARD],
+    ['card', NAME_ROW],
+    ['skill1', skillRows[0]],
+    ['skill2', skillRows[1]],
+  ];
+  return {
+    slotSize,
+    skillRows,
+    hitTest(x, y) {
+      for (const [target, area] of hitAreas) if (containsPoint(area, x, y)) return target;
+      return null;
+    },
+    cursorAnchor(target) {
+      const focused = target === 'card' ? NAME_ROW : skillRows[target === 'skill1' ? 0 : 1];
+      return { x: focused.x - 3, y: focused.y + Math.floor(focused.h / 2) };
+    },
+  };
 }

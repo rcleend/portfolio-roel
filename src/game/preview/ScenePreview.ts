@@ -3,6 +3,7 @@ import { STEP_SECONDS } from '@/engine/core/FixedLoop';
 import { context2d, createCanvas } from '@/engine/gfx/canvas';
 import { Gfx } from '@/engine/gfx/Gfx';
 import { InputSnapshot } from '@/engine/input/InputSnapshot';
+import type { Looks } from '../art/looks/Looks';
 import type { GameAudio, MusicId, SfxId } from '../audio/ids';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../createGame';
 import type { Action } from '../input/bindings';
@@ -14,6 +15,8 @@ import type { PreviewDirector, PreviewSpec, SceneRequest } from './PreviewDirect
 export interface ScenePreviewOptions {
   /** Loaded once per page and shared by every preview. */
   readonly resources: GameResources;
+  /** The art the scene draws heroes, the customer and skills with. */
+  readonly looks: Looks;
   readonly spec: PreviewSpec;
   readonly reducedMotion: boolean;
   /** Where the scene's sound goes; silent when left out. Give it to one preview at a time. */
@@ -95,6 +98,7 @@ export class ScenePreview {
 
   #enter(): PreviewDirector {
     const { director } = createPreviewServices(this.#options.resources, {
+      looks: this.#options.looks,
       reducedMotion: this.#options.reducedMotion,
       audio: this.#audio,
     });
