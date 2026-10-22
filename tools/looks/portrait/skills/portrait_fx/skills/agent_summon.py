@@ -91,32 +91,33 @@ def icon() -> Strip:
 DRONE_W, DRONE_H = 28, 24  # room on the nose side for the muzzle flash
 DRONE_ORIGIN = (12, 12)
 
-# Rows 0-1 are the rotor (drawn per frame), the pod sits on rows 3-12 and the
-# jet hangs below it. The visor wraps round the nose with the eye at the front.
+# The rotor is drawn per frame above the mast; the pod is a teardrop with a
+# wraparound visor at the nose, one bright eye, a status light on its flank,
+# a swept fin at the tail and the emitter under the nose.
 DRONE_SIDE = rows("""
-    ..........hh..........
-    ........ooHHoo........
-    ......ooPPPPPPoo......
-    ....ooPPPPPPPPvvoo....
-    ...oPPPpppppppvVVvo...
-    ..oFPpppppppppvVeEvo..
-    .oFFpppppppppvvveevo..
-    .oFpppppppppppvvvvvoo.
-    ..oLLLLLLLLLLLLLLLLono
-    ...oddLLLLLLLLLLLddoxo
+    .........hh...........
+    .......ooHHoo.........
+    .....ooPPPPPPoo.......
+    ...ooPPPPPPPPPPoo.....
+    ..oPPPpppppppppVVoo...
+    .ooPpppppppppppvVEEvo.
+    oFFopppppcpppppvvEevo.
+    oFFFpppppppppppvvvvoo.
+    .ooLLLLLLLLLLLLLLLLonx
+    ...odLLLLLLLLLLLLLddo.
     ....ooddddddddddddoo..
     ......oooooooooooo....
 """)
 
 DRONE_SIDE_KEY = {
     "o": SHELL[0], "h": SHELL[2], "H": SHELL[3], "P": SHELL[4], "p": SHELL[3], "L": SHELL[3],
-    "d": SHELL[2], "F": SHELL[2], "v": VISOR[0], "V": VISOR[2], "e": EYE[2], "E": EYE[4],
-    "n": SHELL[1], "x": EYE[3],
+    "d": SHELL[2], "F": SHELL[3], "v": VISOR[0], "V": VISOR[2], "e": EYE[3], "E": EYE[4],
+    "c": EYE[2], "n": SHELL[1], "x": EYE[3],
 }
 
 POD_X, POD_Y = 1, 4  # where DRONE_SIDE sits in the frame
-EYE_PIXELS = ((POD_X + 16, POD_Y + 5), (POD_X + 17, POD_Y + 5), (POD_X + 16, POD_Y + 6), (POD_X + 17, POD_Y + 6))
-NOZZLE = (POD_X + 21, POD_Y + 9)  # the emitter tip: shots leave here
+EYE_PIXELS = ((POD_X + 17, POD_Y + 5), (POD_X + 18, POD_Y + 5), (POD_X + 17, POD_Y + 6), (POD_X + 18, POD_Y + 6))
+NOZZLE = (POD_X + 21, POD_Y + 8)  # the emitter tip: shots leave here
 
 HOVER_BOB = (0, 0, -1, -1, -1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0)
 
@@ -147,7 +148,7 @@ def drone_body(dy: int = 0, dx: int = 0, rotor: int = 0, jet: Optional[int] = 0,
     if eye == "closed":
         for x, y in EYE_PIXELS:
             g.set(x + dx, y + dy, VISOR[0])
-        g.hline(POD_X + 16 + dx, POD_X + 17 + dx, POD_Y + 6 + dy, EYE[1])
+        g.hline(POD_X + 17 + dx, POD_X + 18 + dx, POD_Y + 6 + dy, EYE[1])
     elif eye == "bright":
         for x, y in EYE_PIXELS:
             g.set(x + dx, y + dy, EYE[4])

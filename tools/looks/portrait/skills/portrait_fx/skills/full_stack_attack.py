@@ -177,10 +177,11 @@ def muzzle_strip() -> Strip:
         g.set(ox, oy + dy, ramp[2])
     fade.append(g)
     return Strip("fx-muzzle", MUZZLE_W, MUZZLE_H, MUZZLE_ORIGIN, [
-        Animation("charge", 20, False, muzzle_frames()),
+        # 30 fps: the plate opens in the same ~0.1 s the beam takes to reach the edge of the screen.
+        Animation("charge", 30, False, muzzle_frames()),
         Animation("hold", 15, True, [muzzle_hold(i) for i in range(4)]),
-        Animation("fade", 20, False, fade),
-        Animation("charge-calm", 20, False, muzzle_frames(calm=True)),
+        Animation("fade", 25, False, fade),
+        Animation("charge-calm", 30, False, muzzle_frames(calm=True)),
     ])
 
 

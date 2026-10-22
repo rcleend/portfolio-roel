@@ -200,13 +200,13 @@ EIGHTH = rows("""
     .LL...
 """)
 BEAMED = rows("""
-    ..WWWWWW
-    ..LLLLLL
-    ..W....W
-    ..W....W
-    .LW...LW
-    LWLL.LWL
-    .LL...L.
+    ...WWWWWW
+    ...LLLLLL
+    ...W....W
+    ...W....W
+    .LLW..LLW
+    LWLL.LWLL
+    .LL...LL.
 """)
 NOTE = 11
 

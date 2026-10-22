@@ -68,6 +68,7 @@ def _ellipse_ring(canvas: Image.Image, p: dict) -> None:
     cx, cy, rx, ry = p["cx"], p["cy"], p["rx"], p["ry"]
     bands: Sequence[str] = p["bands"]
     dash = p.get("dash", 0)
+    floor = p.get("floor", canvas.height)  # rings roll over the street rather than cutting into it
     for i, color in enumerate(bands):
         r = rx - i
         if r <= 0:
@@ -78,7 +79,9 @@ def _ellipse_ring(canvas: Image.Image, p: dict) -> None:
             a = 2 * math.pi * s / steps
             if dash and (s // dash) % 2:
                 continue
-            _put(canvas, round(cx + math.cos(a) * r - 0.5), round(cy + math.sin(a) * sy - 0.5), color)
+            y = round(cy + math.sin(a) * sy - 0.5)
+            if y <= floor:
+                _put(canvas, round(cx + math.cos(a) * r - 0.5), y, color)
 
 
 def _tile_x(canvas: Image.Image, p: dict) -> None:
@@ -227,8 +230,8 @@ def power_chord(stage: Stage) -> List[Moment]:
     tops = [(cx, GROUND_Y - 56) for cx, _ in stage.customers]
 
     def ring(rx: int, fresh: int = 3, layer: str = "behind") -> Tuple[str, dict]:
-        return ("ellipse_ring", {"cx": gx, "cy": gy, "rx": rx, "ry": max(3, rx * 2 // 5),
-                                 "bands": SOUND_BANDS[:fresh], "layer": layer})
+        return ("ellipse_ring", {"cx": gx, "cy": gy, "rx": rx, "ry": max(3, rx * 9 // 20),
+                                 "bands": SOUND_BANDS[:fresh], "floor": GROUND_Y, "layer": layer})
 
     return [
         Moment("tick 0 - the pick crosses the strings", [Sprite("fx-strum", "strum", 0, gx, gy)]),
