@@ -40,10 +40,12 @@ The logo is a high-contrast wide serif set tight, so the serifs almost touch: 14
 
 ## Title — "PRODUCT ENGINEER" (homage to the Metal Slug title)
 
+The title is a lockup on a backdrop that can be swapped independently (docs/ARCHITECTURE.md › Title variants). What follows is the default pair, `classic`: the khaki card, the fireball and the crater are the classic backdrop; the lettering, the name and the trademark are the classic lockup; the timing, the flash, the prompt and the copyright belong to the scene and hold for every pair.
+
 - Background: warm khaki-olive vertical gradient, dark umber at the top (`#3f3424`) to pale khaki at the bottom (`#b3ab90`), overlaid with horizontal streak noise (rows randomly ±1–2 shades), like an old printed card.
 - 0.00 – 0.30 s: a blinding white-core fireball (white → yellow → orange → red rim) collapses to nothing.
 - 0.30 s: an impact crater appears centre-screen: a glowing orange-red molten core inside a grey metallic splash crown with long diagonal streaks, wobbling slightly.
-- 0.90 – 1.25 s: "PRODUCT" slides in from the right and "ENGINEER" from the left, decelerating hard; they lock together with a 2-frame screen shake.
+- 0.90 – 1.20 s: "PRODUCT" slides in from the right and "ENGINEER" from the left, decelerating hard; they lock together with a 2-frame screen shake.
 - 1.25 – 1.45 s: full-screen white flash (skipped under reduced motion), then the settled title. The crater stays partially visible behind the logo.
 - Logo lettering: huge, heavy, slightly italic, irregular chunky letters. Face is banded orange (yellow-orange top highlight → orange → red-orange), with a rough rust/stone texture of darker streaks, a deep dark-red extrusion towards bottom-left and a near-black 1 px outline. Small "TM" to the lower right.
 - "ROEL LEENDERS" sits above the logo's top-right in a condensed cream face (`#efe3b5`) with a dark outline, the way "SUPER VEHICLE-001" does.

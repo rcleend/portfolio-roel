@@ -76,11 +76,11 @@ Scenes own their elapsed time (`this.time += step.dt`). Choreography reads that 
 `Director<M>` holds scene factories keyed by id and switches between them with typed params:
 
 ```ts
-type SceneParamsMap = { boot: void; title: void; characterSelect: void; levelSelect: LevelSelectParams; level: LevelParams; stageClear: StageClearParams };
+type SceneParamsMap = { boot: void; title: TitleParams | undefined; characterSelect: void; levelSelect: LevelSelectParams; level: LevelParams; stageClear: StageClearParams };
 director.goTo('level', { levelId: 'luna', characterId: 'artsy' }, transitions.iris());
 ```
 
-`goTo(id, params, transition?)`: params may be omitted only for `void` scenes (`goTo('title', undefined, fade())`); no transition means a cut.
+`goTo(id, params, transition?)`: params may be omitted only for `void` scenes (`goTo('characterSelect', undefined, fade())`); no transition means a cut.
 Transitions are render-time overlays built by factories in `engine/core/transitions.ts`: `cut()`, `fade({ color, duration, levels })`, `flash({ color, duration })`, `iris({ x, y, duration })`, `wipe({ direction, duration })`, `pixelDissolve({ block, seed, duration })`.
 The old scene is covered (`out`), swapped at full coverage, and the new one revealed (`in`); fades step through flat levels rather than gliding.
 Scenes keep animating during a transition but receive idle input, so nothing can be triggered mid-switch.
@@ -239,7 +239,7 @@ Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and r
 | Scene id          | File                                               | Params                |
 | ----------------- | -------------------------------------------------- | --------------------- |
 | `boot`            | `scenes/boot/BootScene.ts`                         | none                  |
-| `title`           | `scenes/title/TitleScene.ts`                       | none                  |
+| `title`           | `scenes/title/TitleScene.ts`                       | `{ lockup?, backdrop? }` (variant ids) |
 | `characterSelect` | `scenes/character-select/CharacterSelectScene.ts`  | none                  |
 | `levelSelect`     | `scenes/level-select/LevelSelectScene.ts`          | `{ focus?: LevelId }` |
 | `level`           | `scenes/level/LevelScene.ts`                       | `{ levelId, characterId }` |
@@ -249,6 +249,24 @@ Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and r
 Stubs draw a yellow `STUB · NAME` banner (`scenes/StubBanner.ts`); delete it once every stub is replaced.
 
 UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, { title })` with `windowContent(rect)` for the inner area; `Tooltip` (pops in over four frames with a 1 px overshoot); `Button` (pointer and focus, activates on release); `Paragraph` (wrapped once, can render the first N characters); `TypewriterText`; `handCursorSheet`. Shared UI colours live in `game/palette.ts`.
+
+### Title variants
+
+The title's look is a **lockup** on a **backdrop**, picked by the `title` params, so variants can be compared side by side; the default pair, `classic`, is the Metal Slug homage in docs/ART-DIRECTION.md › Title.
+`TitleScene` keeps the choreography both play to: `TITLE_TIMES`, the slide and its ease, the lock shake, the white flash, the glint's timing, the prompt and copyright, input, audio and the attract loop.
+
+- A lockup (`scenes/title/lockups/TitleLockup.ts`) is the logo lines, the name and the trademark. Its `prepare()` paints it once and returns a `LockupArt`: `draw(gfx, travel)` at any point of the slide (`travel` runs from `SLIDE_DISTANCE` down to 0, settled), the settled `bounds` and the `glint` targets.
+- A backdrop (`scenes/title/backdrops/TitleBackdrop.ts`) is everything behind the lockup, plus an optional layer in front of it and under the prompt and flash. Its `prepare()` paints the static art once and returns a `BackdropArt`: `drawBehind(gfx, frame)` and an optional `drawInFront(gfx, frame)`, both pure functions of a `TitleFrame` (intro `time`, the `beats`, `reducedMotion`, `screen`, the `impact` point and the settled `lockupBounds`). The contract's doc comment says how a backdrop should behave across the beats, from the opening hit to the idle loop.
+- Each variant is a folder, `lockups/<id>/` or `backdrops/<id>/`, whose `index.ts` exports `{ id, name, description, prepare }`, and is listed in `lockups/index.ts` or `backdrops/index.ts`: adding one is a folder plus an import and an entry in that list. `TitleLockupId` and `TitleBackdropId` derive from the lists.
+- Params are `{ lockup?: TitleLockupId; backdrop?: TitleBackdropId }`. Whatever they leave out comes from `TITLE_DEFAULTS` (`scenes/title/variants.ts`), so promoting a winner is a one-line change; unknown ids throw, naming the registered ones. The boot's black frames paint the default title with `prepareTitle()`.
+- `scenes/title/variants.test.ts` covers every registered variant: unique ids, every beat drawn with and without reduced motion, drawing as a pure function of its input, seeded randomness only, and lockup bounds that cover the settled drawing, on screen and above the prompt.
+
+Preview a variant through the harness (`?scene=title&params={"lockup":"classic","backdrop":"classic"}`) or with `pnpm shot`:
+
+```sh
+pnpm shot --scene title --params '{"backdrop":"classic"}' --frames 0:180:6 --scale 1 --out .shots/intro.png  # the intro, every 6th frame
+pnpm shot --scene title --params '{"lockup":"classic"}' --frames 200 --out .shots/settled.png                 # settled, ×3
+```
 
 ### Levels
 

@@ -5,7 +5,7 @@ import type { Mask } from '../../art/logos/raster/Mask';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import type { GameScene, GameStep } from '../params';
-import { prepareTitleArt } from '../title/art';
+import { prepareTitle } from '../title/variants';
 import {
   BLACKOUT_SECONDS,
   BOOT_TIMES,
@@ -77,11 +77,11 @@ export class BootScene implements GameScene {
       if (step.input.anyPressed && this.#time >= this.#skippableFrom) this.#exitAt = this.#time;
       return;
     }
-    // The black frames hide the one-off cost of painting the title; later calls are free.
-    prepareTitleArt();
+    // The black frames hide the one-off cost of painting the default title; later calls are free.
+    prepareTitle();
     if (!this.#left && this.#time >= this.#exitAt + BLACKOUT_SECONDS) {
       this.#left = true;
-      this.#services.director.goTo('title');
+      this.#services.director.goTo('title', undefined);
     }
   }
 

@@ -1,10 +1,10 @@
 import { parseHex } from '@/engine/gfx/color';
 import { Rng } from '@/engine/math/Rng';
-import { Bitmap } from '../../../art/logos/raster/Bitmap';
-import { Mask } from '../../../art/logos/raster/Mask';
-import { hash2, valueNoise } from '../../../art/logos/raster/noise';
-import { rampAt } from '../../../art/logos/raster/ramp';
-import { circle, displace, polygon, type Shape, union, type Vertex } from '../../../art/logos/raster/shape';
+import { Bitmap } from '../../../../art/logos/raster/Bitmap';
+import { Mask } from '../../../../art/logos/raster/Mask';
+import { hash2, valueNoise } from '../../../../art/logos/raster/noise';
+import { rampAt } from '../../../../art/logos/raster/ramp';
+import { circle, displace, polygon, type Shape, union, type Vertex } from '../../../../art/logos/raster/shape';
 
 /**
  * The impact crater behind the title logo, after Metal Slug's: a glowing
