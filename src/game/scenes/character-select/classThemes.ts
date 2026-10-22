@@ -2,12 +2,12 @@ import type { CharacterId } from '@/content';
 
 export type ParticleKind = 'code' | 'paint' | 'notes';
 
-/** Per-character colour accents for the card: the pedestal glow and the drifting particles. */
+/** Per-character colour accents: the card's pedestal glow and drifting particles, and the class heading. */
 export interface ClassTheme {
   readonly particles: ParticleKind;
   /** Pedestal glow ramp, darkest first; the pulse steps through it. */
   readonly glow: readonly [string, string, string, string];
-  /** Colour of the class label on the right. */
+  /** The class colour: the heading on the right is banded from a light tint of it down to it. */
   readonly accent: string;
 }
 

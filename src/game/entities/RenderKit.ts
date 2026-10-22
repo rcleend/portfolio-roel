@@ -1,5 +1,5 @@
-import type { Sprites } from '../art';
 import type { FxSprites } from '../art/fx';
+import type { Looks } from '../art/looks/Looks';
 import type { GameFonts, TextStyles } from '../fonts';
 import type { LevelArt } from '../levels/art/LevelArt';
 import type { LevelTextStyles } from '../ui/hud/styles';
@@ -11,7 +11,9 @@ import type { LevelTextStyles } from '../ui/hud/styles';
 export interface RenderKit {
   /** World time in seconds; all animation is a function of it. */
   readonly time: number;
-  readonly sprites: Sprites;
+  /** The selected look of every hero, the customer and every skill. */
+  readonly looks: Looks;
+  /** Effect sheets every look shares. */
   readonly fx: FxSprites;
   readonly text: TextStyles;
   readonly fonts: GameFonts;

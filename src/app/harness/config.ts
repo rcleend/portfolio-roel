@@ -1,3 +1,4 @@
+import { type LookSelectionInput, parseLookSelection } from '@/game/art/looks/selection';
 import { isSceneId } from '@/game/scenes';
 import type { SceneId } from '@/game/scenes/params';
 
@@ -11,6 +12,8 @@ export interface HarnessConfig {
   readonly seed: number | null;
   /** Step this many frames synchronously, then pause. */
   readonly frames: number | null;
+  /** Which look each hero, the customer and each skill is drawn in, e.g. `{"customer":"hibit"}`. */
+  readonly looks: LookSelectionInput | null;
 }
 
 export class HarnessConfigError extends Error {
@@ -27,29 +30,38 @@ export function readHarnessConfig(search: string, isDev: boolean): HarnessConfig
   const query = new URLSearchParams(search);
   const enabled = isDev || query.has('debug');
   const host = query.get('host');
-  if (!enabled) return { enabled, host, scene: null, params: undefined, seed: null, frames: null };
+  if (!enabled) return { enabled, host, scene: null, params: undefined, seed: null, frames: null, looks: null };
 
   const sceneParam = query.get('scene');
   if (sceneParam !== null && !isSceneId(sceneParam)) throw new HarnessConfigError(`Unknown scene "${sceneParam}"`);
 
   const paramsParam = query.get('params');
-  let params: unknown;
-  if (paramsParam !== null) {
-    try {
-      params = JSON.parse(paramsParam);
-    } catch {
-      throw new HarnessConfigError(`params must be JSON, got ${paramsParam}`);
-    }
-  }
-
+  const looksParam = query.get('looks');
   return {
     enabled,
     host,
     scene: sceneParam,
-    params,
+    params: paramsParam === null ? undefined : jsonParam('params', paramsParam),
     seed: integerParam(query, 'seed'),
     frames: integerParam(query, 'frames'),
+    looks: looksParam === null ? null : looksSelection(jsonParam('looks', looksParam)),
   };
+}
+
+function jsonParam(name: string, raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HarnessConfigError(`${name} must be JSON, got ${raw}`);
+  }
+}
+
+function looksSelection(raw: unknown): LookSelectionInput {
+  try {
+    return parseLookSelection(raw);
+  } catch (error) {
+    throw new HarnessConfigError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function integerParam(query: URLSearchParams, name: string): number | null {

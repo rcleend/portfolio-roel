@@ -2,7 +2,8 @@ import { type CharacterId, characters } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { Rng } from '@/engine/math/Rng';
-import type { CharacterAnimation } from '../../../art';
+import type { CharacterAnimation } from '../../../art/looks/contracts';
+import type { Looks } from '../../../art/looks/Looks';
 import { classThemes } from '../classThemes';
 import { CARD, CARD_INNER, STAGE } from '../layout';
 import { lazy } from '../lazy';
@@ -62,11 +63,11 @@ const EMBLEM_Y = CARD.y + 66;
  * stable while browsing and reproducible under a fixed seed.
  */
 export class CardView {
-  readonly #sprites: Readonly<Record<CharacterId, SpriteSheet<CharacterAnimation>>>;
+  readonly #looks: Looks;
   readonly #scenery: ReadonlyMap<CharacterId, CardScenery>;
 
-  constructor(sprites: Readonly<Record<CharacterId, SpriteSheet<CharacterAnimation>>>, rng: Rng) {
-    this.#sprites = sprites;
+  constructor(looks: Looks, rng: Rng) {
+    this.#looks = looks;
     this.#scenery = new Map(
       characters.map((character) => [
         character.id,
@@ -118,7 +119,7 @@ export class CardView {
       drawParticles(gfx, theme.particles, scenery.particles, x, inner.y, inner.h, time);
     }
     drawPedestal(gfx, cx, STAGE.y, theme, time);
-    gfx.sprite(this.#sprites[id], pose.animation, pose.time, cx, STAGE.y + 1, { flash: pose.flash });
+    gfx.sprite(this.#looks.characters[id].sheet, pose.animation, pose.time, cx, STAGE.y + 1, { flash: pose.flash });
   }
 }
 

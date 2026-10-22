@@ -1,6 +1,7 @@
 import { type CharacterId, getCharacter, skills } from '@/content';
 import { PRIMARY_ATTACKS, type PrimaryAttack } from '../entities/player/attacks';
 import type { PlayerIntent } from '../entities/player/Player';
+import { AttackShot } from '../entities/shots/AttackShot';
 import type { Shot } from '../entities/shots/Shot';
 import { SKILLS } from '../skills';
 import type { ActiveSkill, SkillWorld } from '../skills/Skill';
@@ -19,12 +20,14 @@ const NOTHING: LoadoutStep = { shot: null, casts: [] };
  * skill slots with their content cooldowns.
  */
 export class Loadout {
+  readonly characterId: CharacterId;
   readonly attack: PrimaryAttack;
   readonly slots: readonly [SkillSlot, SkillSlot];
   #cooldown = 0;
   #fired = 0;
 
   constructor(characterId: CharacterId) {
+    this.characterId = characterId;
     this.attack = PRIMARY_ATTACKS[characterId];
     const [first, second] = getCharacter(characterId).skills;
     this.slots = [
@@ -51,7 +54,7 @@ export class Loadout {
 
     let shot: Shot | null = null;
     if (intent.attackHeld && this.#cooldown === 0) {
-      shot = this.attack.fire(hand.x, hand.y, hand.facing, this.#fired++);
+      shot = new AttackShot(this.characterId, this.#fired++, this.attack, hand.x, hand.y, hand.facing);
       this.#cooldown = this.attack.cooldown;
     }
     const casts: { slot: SkillSlot; running: ActiveSkill }[] = [];

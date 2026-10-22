@@ -21,7 +21,12 @@ export interface ResultsData {
   readonly characterId: CharacterId;
 }
 
+/** Tally rows sit this far apart, closing up to `MIN_ROW_HEIGHT` when a look's taller victory pair needs the room. */
 const ROW_HEIGHT = 26;
+/** A value's arcade digits end just above the next row's label. */
+const MIN_ROW_HEIGHT = 22;
+/** The BEST line and the NEW RECORD flag under the rows. */
+const RECORD_SPACE = 23;
 
 /**
  * Left column of the stage-clear screen: the arcade bonus tally (customers
@@ -50,6 +55,7 @@ export class ResultsPanel {
     const left = inner.x + 2;
     const right = inner.x + inner.w - 2;
     const { result } = data;
+    const top = inner.y + 3;
 
     const rows: readonly { label: string; value: string; visible: boolean; unit?: string }[] = [
       {
@@ -66,8 +72,9 @@ export class ResultsPanel {
       },
       { label: 'TIME', value: formatClock(result.timeSeconds), visible: time >= timeline.time },
     ];
+    const rowHeight = this.#rowHeight(inner, data.characterId, rows.length);
     rows.forEach((row, index) => {
-      const y = inner.y + 3 + index * ROW_HEIGHT;
+      const y = top + index * rowHeight;
       gfx.text(row.label, left, y, this.#styles.label);
       if (!row.visible) return;
       const value = gfx.text(row.value, right, y + 9, this.#styles.value, { align: 'right' });
@@ -75,7 +82,7 @@ export class ResultsPanel {
     });
 
     if (time >= timeline.record) {
-      const y = inner.y + 3 + rows.length * ROW_HEIGHT;
+      const y = top + rows.length * rowHeight;
       gfx.fillRect(left, y - 3, inner.w - 4, 1, palette.violet);
       gfx.text('BEST', left, y + 1, this.#styles.label);
       gfx.text(formatMrr(data.best), right, y + 1, this.#styles.unit, { align: 'right' });
@@ -90,15 +97,28 @@ export class ResultsPanel {
     this.#renderVictory(gfx, inner, time, data.characterId);
   }
 
+  /** The tally's row spacing: as roomy as classic, unless the victory pair below stands taller. */
+  #rowHeight(inner: Rect, characterId: CharacterId, rows: number): number {
+    const { looks } = this.#services;
+    const pairHeight = Math.max(looks.characters[characterId].sheet.height, looks.customer.sheet.height);
+    const room = victoryFloor(inner) - pairHeight - (inner.y + 3) - RECORD_SPACE;
+    return Math.max(MIN_ROW_HEIGHT, Math.min(ROW_HEIGHT, Math.floor(room / rows)));
+  }
+
   /** The hero cheers on a little spotlight while a won-over customer, calm and smiling, waves back. */
   #renderVictory(gfx: Gfx, inner: Rect, time: number, characterId: CharacterId): void {
-    const { sprites } = this.#services;
-    const floor = inner.y + inner.h - 3;
+    const { looks } = this.#services;
+    const floor = victoryFloor(inner);
     const heroX = inner.x + 30;
     const customerX = inner.x + inner.w - 26;
     drawSpotlight(gfx, heroX, floor);
     drawSpotlight(gfx, customerX, floor);
-    gfx.sprite(sprites.characters[characterId], 'victory', time, heroX, floor);
-    gfx.sprite(sprites.unhappyCustomer, 'happy', time, customerX, floor, { flipX: true });
+    gfx.sprite(looks.characters[characterId].sheet, 'victory', time, heroX, floor);
+    gfx.sprite(looks.customer.sheet, 'happy', time, customerX, floor, { flipX: true });
   }
+}
+
+/** Where the victory pair stands, just above the panel's bottom edge. */
+function victoryFloor(inner: Rect): number {
+  return inner.y + inner.h - 3;
 }

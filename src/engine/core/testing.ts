@@ -34,9 +34,12 @@ export class ManualScheduler implements FrameScheduler {
   }
 }
 
-/** A 2D context that accepts every call and draws nothing. */
+/** A 2D context that accepts every call and draws nothing; `createImageData` hands out blank pixels to fill. */
 export function nullContext(width = 320, height = 240): CanvasRenderingContext2D {
-  const target: Record<string | symbol, unknown> = { canvas: { width, height } };
+  const target: Record<string | symbol, unknown> = {
+    canvas: { width, height },
+    createImageData: (w: number, h: number) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }),
+  };
   return new Proxy(target, {
     get: (object, key) => (key in object ? object[key] : () => undefined),
     set: (object, key, value) => {

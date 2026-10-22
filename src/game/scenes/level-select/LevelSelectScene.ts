@@ -8,10 +8,11 @@ import { blink } from '@/engine/motion/oscillators';
 import { frames, segment } from '@/engine/motion/progress';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
+import { KeyHints } from '../../ui/KeyHints';
 import type { GameScene, GameStep, LevelSelectParams } from '../params';
 import { InkStamp } from './art/InkStamp';
 import { BriefingPanel } from './BriefingPanel';
-import { cardRect, FOCUS_LIFT, HEADER_Y, previewRect } from './layout';
+import { cardRect, FOCUS_LIFT, HEADER_Y, KEY_HINTS, previewRect } from './layout';
 import { buildSlots, initialFocus, type Slot } from './missions';
 import { Postcards } from './Postcards';
 import { type RouteStop, RouteStrip } from './RouteStrip';
@@ -29,14 +30,16 @@ interface PointerPress {
 /**
  * Mission select (docs/ART-DIRECTION.md › Mission select): employers as
  * missions on postcards with live stage previews, the career route flown by
- * a small plane, the focused mission's briefing, and a locked third slot
- * that invites the visitor to get in touch.
+ * a small plane, the focused mission's briefing with clickable CONFIRM and
+ * BACK keys under it, and a locked third slot that invites the visitor to
+ * get in touch.
  */
 export class LevelSelectScene implements GameScene<LevelSelectParams> {
   readonly #services: GameServices;
   readonly #postcards: Postcards;
   readonly #route: RouteStrip;
   readonly #deployStamp: InkStamp;
+  readonly #keys: KeyHints;
   #characterId: CharacterId = 'hackerman';
   #panel: BriefingPanel | null = null;
   #slots: readonly Slot[] = [];
@@ -62,6 +65,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
       { ...services.text.label, fill: palette.red },
       { paper: palette.white },
     );
+    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
   }
 
   /** `params` may be missing when the scene is opened from the dev harness without any. */
@@ -85,6 +89,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
     if (this.#deployingAt !== null && this.#time - this.#deployingAt >= DEPLOY_DELAY && !this.#leaving) {
       this.#launch();
     }
+    const clicked = this.#keys.update(step.input);
     if (!inputEnabled) return;
 
     const { input } = step;
@@ -94,13 +99,11 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
     if (delta !== 0) this.#focus(mod(this.#index + delta, this.#slots.length));
     this.#updatePointer(step);
 
-    // The teaser's confirm belongs to its CONTACT button (it activates on release, like every button).
-    if (input.wasPressed('confirm') && this.#slot.kind === 'mission') this.#deploy();
-    else if (input.wasPressed('back')) {
-      this.#leaving = true;
-      this.#services.audio.playSfx('menu-back');
-      this.#services.director.goTo('characterSelect', undefined, fade());
-    }
+    // A click on CONFIRM does what the focused slot does: deploy, or get in touch from the teaser. The
+    // teaser's confirm key belongs to its CONTACT button instead (it activates on release, like every button).
+    if (clicked === 'confirm') this.#activate();
+    else if (input.wasPressed('confirm') && this.#slot.kind === 'mission') this.#deploy();
+    else if (clicked === 'back' || input.wasPressed('back')) this.#leave();
   }
 
   render(gfx: Gfx): void {
@@ -117,6 +120,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
     this.#renderDeploy(gfx);
     this.#route.render(gfx, this.#routeStops(), this.#time);
     this.#panel?.render(gfx);
+    this.#keys.render(gfx);
   }
 
   get #slot(): Slot {
@@ -172,6 +176,12 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
       ? fade({ duration: 0.4 })
       : iris({ x: card.x + card.w / 2, y: card.y + card.h / 2, duration: 0.7 });
     this.#services.director.goTo('level', { levelId: slot.level.id, characterId: this.#characterId }, transition);
+  }
+
+  #leave(): void {
+    this.#leaving = true;
+    this.#services.audio.playSfx('menu-back');
+    this.#services.director.goTo('characterSelect', undefined, fade());
   }
 
   #contact(): void {
