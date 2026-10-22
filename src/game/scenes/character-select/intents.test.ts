@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { BitmapFont } from '@/engine/gfx/BitmapFont';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
+import { smallFont } from '../../art/fonts/small';
 import type { Action } from '../../input/bindings';
+import { KeyHints } from '../../ui/KeyHints';
 import { readSelectEvents } from './intents';
-import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, hitTest, SELECT_BUTTON, SKILL_ROWS } from './layout';
+import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, KEY_HINTS, NAME_ROW, SKILL_NAME_HEIGHT, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -15,6 +18,7 @@ function input(pressed: readonly Action[] = [], pointer: Partial<PointerSnapshot
 }
 
 const centre = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+const { hitTest, skillRows: SKILL_ROWS } = selectLayout();
 
 describe('readSelectEvents', () => {
   it('reads nothing from idle input', () => {
@@ -60,9 +64,9 @@ describe('readSelectEvents', () => {
     expect(readSelectEvents(input([], { ...skill, over: true }), IDLE_POINTER, hitTest)).toEqual([
       { type: 'point', target: 'skill2', pressed: false },
     ]);
-    const button = centre(SELECT_BUTTON);
-    expect(readSelectEvents(input([], { ...button, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'select', pressed: false },
+    const heading = centre(NAME_ROW);
+    expect(readSelectEvents(input([], { ...heading, over: true }), IDLE_POINTER, hitTest)).toEqual([
+      { type: 'point', target: 'card', pressed: false },
     ]);
   });
 
@@ -92,7 +96,29 @@ describe('hitTest', () => {
     expect(hitTest(centre(ARROW_RIGHT_HIT).x, centre(ARROW_RIGHT_HIT).y)).toBe('arrowRight');
     expect(hitTest(80, 100)).toBe('card');
     expect(hitTest(centre(SKILL_ROWS[0]).x, centre(SKILL_ROWS[0]).y)).toBe('skill1');
-    expect(hitTest(centre(SELECT_BUTTON).x, centre(SELECT_BUTTON).y)).toBe('select');
+    expect(hitTest(centre(NAME_ROW).x, centre(NAME_ROW).y)).toBe('card');
     expect(hitTest(319, 0)).toBeNull();
+  });
+
+  it("grows the skill rows with a look's bigger icons and keeps them clear of the CONFIRM and BACK keys", () => {
+    const tall = selectLayout(32);
+    const [first, second] = tall.skillRows;
+    // The rows still hang from the SKILLS header and only grow downwards.
+    expect(first).toMatchObject({ y: SKILL_ROWS[0].y, h: 32 });
+    expect(second.y).toBe(first.y + 36);
+    // The second slot, and its name centred on it, end above the keys' finger-sized areas.
+    const keys = new KeyHints({ ...KEY_HINTS, style: { font: BitmapFont.fromGlyphData(smallFont), fill: '#ffffff' } });
+    const reach = Math.min(keys.area('confirm').y, keys.area('back').y);
+    expect(second.y + second.h).toBeLessThanOrEqual(reach);
+    expect(second.y + (32 - SKILL_NAME_HEIGHT) / 2 + SKILL_NAME_HEIGHT).toBeLessThanOrEqual(reach);
+    expect(tall.hitTest(centre(second).x, centre(second).y)).toBe('skill2');
+    expect(tall.hitTest(second.x + 2, second.y + second.h - 1)).toBe('skill2');
+  });
+
+  it('keeps classic-sized rows where the select screen lays them out, under the SKILLS header', () => {
+    expect(selectLayout(24).skillRows).toEqual([
+      { x: 170, y: 138, w: 140, h: 24 },
+      { x: 170, y: 166, w: 140, h: 24 },
+    ]);
   });
 });

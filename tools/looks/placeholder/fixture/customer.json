@@ -1,0 +1,42 @@
+{
+  "frame": {
+    "w": 64,
+    "h": 64
+  },
+  "origin": {
+    "x": 32,
+    "y": 64
+  },
+  "animations": [
+    {
+      "name": "walk",
+      "fps": 8,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "shout",
+      "fps": 8,
+      "loop": false,
+      "frames": 2
+    },
+    {
+      "name": "hurt",
+      "fps": 8,
+      "loop": false,
+      "frames": 2
+    },
+    {
+      "name": "stunned",
+      "fps": 6,
+      "loop": true,
+      "frames": 2
+    },
+    {
+      "name": "happy",
+      "fps": 6,
+      "loop": true,
+      "frames": 2
+    }
+  ]
+}

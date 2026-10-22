@@ -16,14 +16,19 @@ import type { SessionState } from '../../session';
  * from content and the session, so the screen and the stage-clear tally agree
  * on what "cleared" and "n/total highlights" mean.
  */
-export interface MissionSlot {
+interface SlotBase {
+  /** "COMPANY 1": every slot is an employer, numbered in career order. */
+  readonly label: string;
+}
+
+export interface MissionSlot extends SlotBase {
   readonly kind: 'mission';
   readonly level: LevelInfo;
   readonly experience: Experience;
   readonly progress: MissionProgress;
 }
 
-export interface TeaserSlot {
+export interface TeaserSlot extends SlotBase {
   readonly kind: 'teaser';
   readonly teaser: LevelTeaser;
 }
@@ -45,13 +50,18 @@ export function missionProgress(session: SessionState, levelId: LevelId): Missio
 }
 
 export function buildSlots(session: SessionState): readonly Slot[] {
-  const missions: Slot[] = levels.map((level) => ({
+  const missions: Slot[] = levels.map((level, index) => ({
     kind: 'mission',
+    label: companyLabel(index),
     level,
     experience: getExperience(level.experienceId),
     progress: missionProgress(session, level.id),
   }));
-  return [...missions, { kind: 'teaser', teaser: nextLevelTeaser }];
+  return [...missions, { kind: 'teaser', label: companyLabel(missions.length), teaser: nextLevelTeaser }];
+}
+
+function companyLabel(index: number): string {
+  return `COMPANY ${index + 1}`;
 }
 
 /**
