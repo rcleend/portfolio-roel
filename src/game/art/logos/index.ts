@@ -6,15 +6,15 @@ import { buildTitleLogo, type LogoLine } from './product-engineer/logo';
 import { paintTrademark } from './product-engineer/trademark';
 import { bitmapToCanvas } from './raster/toCanvas';
 import { buildMonogram } from './rcl/monogram';
-import { buildWordmark } from './reo-leo/wordmark';
 import { condensedFont } from './type/condensed';
+import { buildWordmark } from './wordmark/wordmark';
 
 /**
  * Procedural logos for the boot and title screens, each generated once on
  * first use. Masks stay masks because their scenes recolour and resample
  * them every frame.
  */
-export const reoLeoWordmark = lazy(() => buildWordmark());
+export const bootWordmark = lazy(() => buildWordmark());
 export const rclMonogram = lazy(() => buildMonogram());
 export const condensedType = lazy(() => BitmapFont.fromGlyphData(condensedFont));
 

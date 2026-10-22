@@ -1,11 +1,11 @@
-import { circle, ellipse, intersect, polygon, rect, type Shape, subtract, union } from '../raster/shape';
+import { ellipse, intersect, polygon, rect, type Shape, subtract, union } from '../raster/shape';
 
 /**
- * Letterforms of the "REO·LEO" wordmark: a wide, high-contrast serif in the
- * spirit of the Neo Geo logo — 7 px stems, 2 px hairlines, bracketed serifs
- * and wedge "beaks" on the arm ends. Coordinates are pixels with the cap
- * line at y = 0 and the baseline at y = CAP_HEIGHT; round letters overshoot
- * by one pixel above and below, as optically corrected type does.
+ * Letterforms of the boot wordmark, "ROEL": a wide, high-contrast serif in
+ * the spirit of the Neo Geo logo — 7 px stems, 2 px hairlines, bracketed
+ * serifs and wedge "beaks" on the arm ends. Coordinates are pixels with the
+ * cap line at y = 0 and the baseline at y = CAP_HEIGHT; round letters
+ * overshoot by one pixel above and below, as optically corrected type does.
  */
 export const CAP_HEIGHT = 32;
 
@@ -121,15 +121,10 @@ function letterR(width: number): WordmarkGlyph {
   };
 }
 
-function interpunct(): WordmarkGlyph {
-  return { width: 7, shape: circle(3.5, CAP_HEIGHT / 2, 3.5) };
-}
-
-/** Every character the wordmark can set, at the widths that make "REO·LEO" about 230 px wide. */
+/** Every letter the wordmark can set, each at its own width. */
 export const wordmarkGlyphs: Readonly<Record<string, WordmarkGlyph>> = {
   R: letterR(36),
   E: letterE(31),
   O: letterO(39),
   L: letterL(29),
-  '·': interpunct(),
 };

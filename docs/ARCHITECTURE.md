@@ -6,7 +6,7 @@ This document is the contract every module is built against. If code and this do
 ## Experience in one paragraph
 
 The page opens zoomed in on the television: bezel, power button and a little of the room around it are visible.
-The TV powers on (CRT line-expansion), plays a Neo Geo-style boot ("REO·LEO"), then a Metal Slug-style title ("PRODUCT ENGINEER").
+The TV powers on (CRT line-expansion), plays a Neo Geo-style boot ("ROEL"), then a Metal Slug-style title ("PRODUCT ENGINEER").
 Any button leads to a character select (three sides of Roel, each with two skills), then a mission select (one mission per employer: Luna in San Francisco, Scripe in Berlin), then a short side-scrolling level whose collectibles are real career highlights.
 Clicking outside the TV pulls the camera back to the whole room and pauses the game; clicking the TV zooms back in and resumes.
 Without WebGL the same game runs in a flat, CSS-framed TV. A semantic HTML résumé carries the same content for screen readers, crawlers and visitors who would rather read than play.

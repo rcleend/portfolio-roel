@@ -17,7 +17,7 @@ describe('condensed font', () => {
   });
 
   it('can set the boot credit and the name over the title logo', () => {
-    for (const char of `A LEENDERS PRODUCTION ${profile.name.toUpperCase()}`) {
+    for (const char of `LEENDERS PRODUCTION ${profile.name.toUpperCase()}`) {
       expect(char === ' ' || font.has(char)).toBe(true);
     }
   });

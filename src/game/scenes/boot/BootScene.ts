@@ -1,6 +1,6 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
-import { condensedType, rclMonogram, reoLeoWordmark } from '../../art/logos';
+import { bootWordmark, condensedType, rclMonogram } from '../../art/logos';
 import type { Mask } from '../../art/logos/raster/Mask';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
@@ -35,7 +35,7 @@ const LAYOUT = {
 const AT_REST = { scaleX: 1, scaleY: 1, mirrored: false } as const;
 
 /**
- * "REO·LEO" — a frame-by-frame homage to the Neo Geo MVS boot
+ * "ROEL" — a frame-by-frame homage to the Neo Geo MVS boot
  * (docs/ART-DIRECTION.md › Boot). The choreography lives in `bootTimeline`;
  * this scene only plays it, ticks the typewriter, handles skipping and hands
  * over to the title through a short black screen.
@@ -53,7 +53,7 @@ export class BootScene implements GameScene {
 
   constructor(services: GameServices) {
     this.#services = services;
-    this.#wordmark = reoLeoWordmark();
+    this.#wordmark = bootWordmark();
     this.#monogram = rclMonogram();
     this.#typeStyle = { font: condensedType(), fill: palette.white };
     this.#skippableFrom = skippableFrom(services.session.state.bootSeen);

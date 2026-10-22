@@ -20,23 +20,23 @@ It should feel authentic first and polished second: chunky hand-placed pixels, l
 - The screen is a CRT: visible scanlines aligned to the 240 game rows, a subtle aperture-grille mask, slight horizontal softness, edge vignette, gentle bloom on bright pixels, faint glass reflection. The screen's light spills onto the nearby cabinet and wall, following the average screen colour.
 - When the camera pulls back to the room the game freezes and an on-screen-display style "PAUSE" glyph appears on the CRT.
 
-## Boot — "REO·LEO" (homage to the Neo Geo MVS boot)
+## Boot — "ROEL" (homage to the Neo Geo MVS boot)
 
 Reference timing at 60 fps (t in seconds from the first boot frame):
 
 | t (s)       | What happens |
 | ----------- | ------------ |
 | 0.00        | Screen is white. |
-| 0.00 – 0.55 | "REO·LEO" logo in black, **mirrored**, spins in around the vertical axis while zooming from small to full size (width grows from a sliver; the narrow phases look tall and condensed). |
+| 0.00 – 0.55 | "ROEL" logo in black, **mirrored**, spins in around the vertical axis while zooming from small to full size (width grows from a sliver; the narrow phases look tall and condensed). |
 | 0.55 – 0.80 | Mirrored logo holds at full size on white. |
 | 0.80 – 1.35 | Background fades white → mid grey in 6–8 flat steps; the logo flips around the horizontal axis: its height squashes to a 1 px line while it greys. |
 | 1.35 – 1.90 | Logo unflips, now readable and white, height growing back; background steps from grey to black. |
-| 1.95 – 3.90 | Two lines of condensed bold sans type out under the logo, one character every 4 frames: "A LEENDERS" then "PRODUCTION". A soft tick per character. |
+| 1.95 – 3.15 | Two lines of condensed bold sans type out under the logo, one character every 4 frames: "LEENDERS" then "PRODUCTION". A soft tick per character. |
 | 4.00 – 4.40 | "RCL" fades in from near-black navy to bright royal blue (`#1f6fff`-ish) in 5 steps. Heavy, wide, italic lettering like the SNK mark. |
 | 4.40 – 6.40 | Hold. Boot jingle resolves. Any button skips from here (and from 1.0 s on revisits). |
 | 6.40        | Cut to black, then title. |
 
-The logo is a high-contrast wide serif with a centred interpunct, roughly 230 × 30 px at rest.
+The logo is a high-contrast wide serif set tight, so the serifs almost touch: 144 × 34 px at rest, centred.
 
 ## Title — "PRODUCT ENGINEER" (homage to the Metal Slug title)
 

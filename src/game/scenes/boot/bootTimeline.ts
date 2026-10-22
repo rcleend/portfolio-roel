@@ -34,7 +34,7 @@ export const BLACKOUT_SECONDS = frames(6);
 /** First visits must sit through the logo; returning visitors may skip almost at once. */
 export const SKIP_FROM = { firstVisit: 4.4, returning: 1.0 } as const;
 
-export const TYPED_LINES = ['A LEENDERS', 'PRODUCTION'] as const;
+export const TYPED_LINES = ['LEENDERS', 'PRODUCTION'] as const;
 
 /** The grey the background passes through while the logo is edge-on. */
 const MID_GREY = 144;

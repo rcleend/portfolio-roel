@@ -38,7 +38,7 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
     this.#services = services;
     this.#tooltip = new Tooltip({ maxWidth: 128, theme: windowThemes.cream, style: services.text.tooltip });
     this.#typewriter = new TypewriterText(
-      'A LEENDERS PRODUCTION — typed one character every four frames.',
+      'LEENDERS PRODUCTION — typed one character every four frames.',
       services.text.body,
       {
         maxWidth: 140,
