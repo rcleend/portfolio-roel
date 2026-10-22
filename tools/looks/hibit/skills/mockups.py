@@ -488,32 +488,59 @@ def hud_board(level: str = "scripe") -> Image.Image:
     return review.labelled([(label, review.upscale(img, 2)) for label, img in frames], 1)
 
 
+def _erase_todays_hero(img: Image.Image, box: Tuple[int, int, int, int] = (68, 128, 96, 171)) -> None:
+    """Paints over today's idle sprite on the select card with each row's background from its edges."""
+    left, top, right, bottom = box
+    pixels = img.load()
+    for y in range(top, bottom):
+        a, b = pixels[left - 1, y], pixels[right, y]
+        for x in range(left, right):
+            pixels[x, y] = a if x < (left + right) // 2 else b
+
+
 def select_board() -> Image.Image:
-    """The select screen with 32 px slots, and stand-in bodies with effects on the pedestal for scale."""
+    """Hackerman's select screen with 32 px skill slots, and the card's pedestal with effects for scale."""
     base = native_ref("current-character-select.png")
-    shots = []
-    for hero, skills in (("hackerman", ORDER[0:2]), ("artsy", ORDER[2:4]), ("strategy", ORDER[4:6])):
-        img = base.copy()
-        # Cover the old 24 px slots and draw 32 px ones with the new icons.
-        for row, skill in enumerate(skills):
-            x, y = 171, 130 + row * 34
-            review.paste(img, review.slot(icon_frames(skill)[0], "indigo" if row == 0 else "steel"), x, y)
-        img.alpha_composite(Image.new("RGBA", (24, 64), (34, 30, 80, 255)), (70, 108))  # hide the old idle sprite
-        review.place_feet(img, review.standin_hero(hero), 82, 170)
-        shots.append((hero, img))
+    select = base.copy()
+    for row, skill in enumerate(ORDER[0:2]):
+        # Today's layout spaces names for 24 px slots; the 32 px slot steps left so the names stay clear.
+        review.paste(select, review.slot(icon_frames(skill)[0], "indigo" if row == 0 else "steel"), 164, 130 + row * 34)
     sheets = {skill: sheet_map(skill) for skill in ORDER}
-    # Effects on the pedestal for scale.
-    a, b, c = (s.copy() for _, s in shots)
-    at(a, sheets["agent-summon"]["fx-drone"], "hover", 0, 104, 136)
-    at(b, sheets["power-chord"]["fx-stun"], "orbit", 2, 82, 108)
-    at(b, sheets["ux-elixir"]["fx-potion"], "held", 0, 98, 140)
-    at(c, sheets["churn-shield"]["fx-bubble"], "shell", 0, 82, 140)
-    tiles = [(f"select: {h}", review.upscale(i, 2)) for h, i in shots] + [
-        ("pedestal scale: drone", review.upscale(a, 2)),
-        ("pedestal scale: potion + stun stars", review.upscale(b, 2)),
-        ("pedestal scale: shield bubble", review.upscale(c, 2)),
+    card = (23, 19, 141, 207)
+    pedestals = []
+    for hero, draw in (
+        ("hackerman", lambda img: at(img, sheets["agent-summon"]["fx-drone"], "hover", 0, 104, 136)),
+        ("artsy", lambda img: (at(img, sheets["power-chord"]["fx-stun"], "orbit", 2, 82, 108), at(img, sheets["ux-elixir"]["fx-potion"], "held", 0, 98, 140))),
+        ("strategy", lambda img: at(img, sheets["churn-shield"]["fx-bubble"], "shell", 0, 82, 140)),
+    ):
+        img = base.copy()
+        _erase_todays_hero(img)
+        review.place_feet(img, review.standin_hero(hero), 82, 170)
+        draw(img)
+        pedestals.append((f"pedestal: {hero}", review.upscale(img.crop(card), 3)))
+    top = review.labelled([("select screen, 32 px slots (Hackerman)", review.upscale(select, 3))], 1)
+    bottom = review.labelled(pedestals, 3)
+    board = Image.new("RGB", (max(top.width, bottom.width), top.height + bottom.height), (20, 20, 24))
+    board.paste(top, (0, 0))
+    board.paste(bottom, (0, top.height))
+    return board
+
+
+def keyframe_board() -> Image.Image:
+    """Each skill's signature moment, in a level, at the new hero scale."""
+    picks = [
+        ("FULL-STACK ATTACK: pierce", full_stack_attack, "scripe", 3),
+        ("AGENT SUMMON: fire", agent_summon, "luna", 2),
+        ("UX ELIXIR: drink, aha, calm wave", ux_elixir, "scripe", 3),
+        ("POWER CHORD: shockwave", power_chord, "scripe", 3),
+        ("NORTH STAR: impact", north_star, "luna", 7),
+        ("CHURN SHIELD: bump", churn_shield, "luna", 5),
     ]
-    return review.labelled(tiles, 3)
+    tiles = []
+    for label, make, level, index in picks:
+        frames = make(level)
+        tiles.append((label, review.upscale(frames[index][1], 2)))
+    return review.labelled(tiles, 2)
 
 
 def style_board() -> Image.Image:
@@ -560,6 +587,7 @@ def write_contacts() -> List[Path]:
 
 
 BOARDS: Dict[str, Callable[[], Image.Image]] = {
+    "keyframes": keyframe_board,
     "icons": icon_board,
     "hud": hud_board,
     "select": select_board,
