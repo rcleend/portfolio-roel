@@ -1,0 +1,66 @@
+{
+  "frame": {
+    "w": 32,
+    "h": 32
+  },
+  "origin": {
+    "x": 16,
+    "y": 16
+  },
+  "animations": [
+    {
+      "name": "projectile",
+      "fps": 16,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "impact",
+      "fps": 20,
+      "loop": false,
+      "frames": 7
+    },
+    {
+      "name": "muzzle",
+      "fps": 24,
+      "loop": false,
+      "frames": 4
+    },
+    {
+      "name": "projectile-cyan",
+      "fps": 16,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "impact-cyan",
+      "fps": 20,
+      "loop": false,
+      "frames": 7
+    },
+    {
+      "name": "muzzle-cyan",
+      "fps": 24,
+      "loop": false,
+      "frames": 4
+    },
+    {
+      "name": "projectile-yellow",
+      "fps": 16,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "impact-yellow",
+      "fps": 20,
+      "loop": false,
+      "frames": 7
+    },
+    {
+      "name": "muzzle-yellow",
+      "fps": 24,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}
