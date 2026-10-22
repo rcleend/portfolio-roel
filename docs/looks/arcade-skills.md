@@ -6,6 +6,8 @@ Gameplay is untouched: every duration, speed and hit test below is read from `sr
 
 This document is the Phase B blueprint: what each sprite is for, when it plays, where it attaches, what it is drawn in front of, and what code draws instead of a sprite.
 
+**Status.** Each skill folder registers its icon only (`index.ts`); the effect strips are drawn and checked in but not wired, so every skill's in-game visual is still classic's until a `visual` built to this spec is added.
+
 ## Files
 
 ```
