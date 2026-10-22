@@ -17,6 +17,7 @@ import math
 from dataclasses import replace
 from typing import Dict, List, Optional, Tuple
 
+from . import hands
 from .anim import foot_path, wave
 from .body import Outfit
 from .canvas import Sprite
@@ -229,12 +230,10 @@ STAR = Sprite.parse("""
 yYy
 .y.
 """, {"y": "#ffd84a", "Y": "#ffffff"})
-THUMB = Sprite.parse("""
-.s.
-.s.
-sss
-sss
-""", {"s": "#efb08e"})
+TWINKLE = [
+    Sprite.parse(".w.\nwWw\n.w.", {"w": "#fff6c0", "W": "#ffffff"}),
+    Sprite.parse("w.w\n.W.\nw.w", {"w": "#fff6c0", "W": "#ffffff"}),
+]
 
 
 def _cust_extras(sk: Skeleton, spec: FrameSpec, placed) -> List[Prim]:
@@ -368,20 +367,23 @@ def stunned() -> List[FrameSpec]:
 
 
 def happy() -> List[FrameSpec]:
-    """Won over: calm and pink, a delighted thumbs-up, a little skip, a heart on his phone.
+    """Won over: calm and pink, a delighted thumbs-up, a skip in his step, a heart on his
+    phone and a twinkle of delight.
 
     No floating heart: the game already springs a HeartPop out of a won-over customer."""
     out = []
     for i in range(8):
         t = i / 8
-        hop = 2.2 * max(0.0, math.sin(4 * math.pi * t))
-        base = _planted(Pose(lean=-3.0, chest_lean=-2.0, y=-0.8 + hop, hip_yaw=26.0, chest_yaw=48.0),
-                        near=(3.0, 0.8), far=(-2.6, -0.6), near_lift=hop * 0.8, far_lift=hop * 0.8)
-        pose = base.but(far_arm=Limb(swing=75.0, spread=6.0, bend=75.0),
-                        near_arm=Limb(swing=10.0 * wave(t * 2), spread=14.0, bend=30.0))
-        out.append(FrameSpec(pose, face="happy", hair="flat",
-                             items=(HandItem("far", THUMB, (1, 3), dz=1.5), HandItem("near", PHONE_HEART, (1, 3))),
-                             extra={"calm": 1.0, "flap": 0.2 * wave(t * 2)}))
+        hop = 3.0 * max(0.0, math.sin(4 * math.pi * t))
+        base = _planted(Pose(lean=-4.0, chest_lean=-3.0, y=-0.8 + hop, hip_yaw=26.0, chest_yaw=48.0, neck=-4.0),
+                        near=(3.4, 0.8), far=(-2.8, -0.6), near_lift=hop * 1.1, far_lift=hop * 0.5)
+        pose = base.but(far_arm=Limb(swing=80.0, spread=6.0, bend=70.0),
+                        near_arm=Limb(swing=12.0 * wave(t * 2), spread=16.0, bend=40.0))
+        fx = ((TWINKLE[i % 2], 7 + (i % 2), -15 + (i % 4)),) if i % 4 in (1, 2) else ()
+        out.append(FrameSpec(pose, face="happy", hair="up" if hop > 2.0 else "flat",
+                             items=(HandItem("far", hands.THUMBS_UP, hands.PIVOTS["thumbs_up"], dz=1.5),
+                                    HandItem("near", PHONE_HEART, (1, 3))),
+                             hide_hands=("far",), head_fx=fx, extra={"calm": 1.0, "flap": 0.25 * wave(t * 2)}))
     return out
 
 

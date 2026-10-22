@@ -184,9 +184,14 @@ def code_impact() -> List[Sprite]:
             p.disc(16, 16, 3.0, 2.5, CODE["core"])
         else:
             r = 3 + f * 2.4
-            for g, dx, dy in shards:
-                if f >= 5 and (f + len(g)) % 2:
+            for k, (g, dx, dy) in enumerate(shards):
+                if f == 6:
+                    # The last embers: two dim bits where the brackets flew, then nothing.
+                    if k in (0, 3):
+                        p.put(16 + dx * 12, 16 + dy * 9, CODE["dim"])
                     continue
+                if f == 5 and k % 2:
+                    continue  # blink out
                 gx = int(16 + dx * r - 1)
                 gy = int(16 + dy * r * 0.8 - 2)
                 color = CODE["core"] if f < 3 else CODE["hot"] if f < 5 else CODE["mid"]
