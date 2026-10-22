@@ -91,10 +91,9 @@ export interface Skill {
 
 export interface Character {
   readonly id: CharacterId;
-  /** Display name split for the select screen: "HACKERMAN" + "ROEL". */
+  /** Arcade name the game calls the player by, e.g. "HACKERMAN" on the mission select and the HUD. */
   readonly name: string;
-  readonly tag: string;
-  /** Arcade class label, e.g. "ENGINEER". */
+  /** Arcade class, e.g. "ENGINEER": the character select's heading. */
   readonly className: string;
   /** Short, playful description of this side of Roel. */
   readonly bio: string;

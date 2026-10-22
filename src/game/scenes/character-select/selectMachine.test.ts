@@ -48,15 +48,15 @@ describe('switching characters', () => {
 });
 
 describe('moving focus', () => {
-  it('walks card → skill 1 → skill 2 → SELECT and wraps', () => {
+  it('walks card → skill 1 → skill 2 and wraps', () => {
     let state = start();
     const visited = [state.focus];
     for (let i = 0; i < FOCUS_ORDER.length; i++) {
       state = reduceSelect(state, { type: 'move', delta: 1 }).state;
       visited.push(state.focus);
     }
-    expect(visited).toEqual(['card', 'skill1', 'skill2', 'select', 'card']);
-    expect(reduceSelect(start(), { type: 'move', delta: -1 }).state.focus).toBe('select');
+    expect(visited).toEqual(['card', 'skill1', 'skill2', 'card']);
+    expect(reduceSelect(start(), { type: 'move', delta: -1 }).state.focus).toBe('skill2');
   });
 
   it('marks keyboard focus as sticky and announces the move', () => {
@@ -91,10 +91,6 @@ describe('choosing and leaving', () => {
     expect(result.effects).toEqual([{ type: 'chosen', index: 1 }]);
   });
 
-  it('commits when SELECT is clicked', () => {
-    expect(reduceSelect(start(2), { type: 'activate' }).effects).toEqual([{ type: 'chosen', index: 2 }]);
-  });
-
   it('commits to the character landed on when switch and confirm arrive in the same step', () => {
     const result = reduceSelectAll(start(0), [{ type: 'switch', delta: 1 }, { type: 'confirm' }]);
     expect(result.effects.at(-1)).toEqual({ type: 'chosen', index: 1 });
@@ -112,7 +108,6 @@ describe('choosing and leaving', () => {
       { type: 'switch', delta: 1 },
       { type: 'move', delta: 1 },
       { type: 'confirm' },
-      { type: 'activate' },
       { type: 'back' },
     ]);
     expect(later).toEqual({ state: chosen, effects: [] });
@@ -126,6 +121,6 @@ describe('choosing and leaving', () => {
 
 describe('focusedSkillSlot', () => {
   it('maps the skill targets to their slot and everything else to null', () => {
-    expect(FOCUS_ORDER.map(focusedSkillSlot)).toEqual([null, 0, 1, null]);
+    expect(FOCUS_ORDER.map(focusedSkillSlot)).toEqual([null, 0, 1]);
   });
 });

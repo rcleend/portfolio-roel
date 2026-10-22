@@ -1,6 +1,10 @@
 import { type Character, type CharacterId, characters, type SkillId, skills } from '@/content';
+import { shade } from '@/engine/gfx/color';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
+import type { TextStyle } from '@/engine/gfx/TextStyle';
+import { blink } from '@/engine/motion/oscillators';
+import { frames } from '@/engine/motion/progress';
 import type { SkillIconAnimation } from '../../art';
 import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
@@ -8,12 +12,15 @@ import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
 import { drawWindow } from '../../ui/Window';
 import { classThemes } from './classThemes';
-import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, SKILL_ROWS, SKILL_SLOT_SIZE } from './layout';
+import { BIO_Y, DETAILS, NAME_Y, PROMPT_Y, SKILL_ROWS, SKILL_SLOT_SIZE, SKILLS_Y } from './layout';
 
 /** The heading's outline reaches one pixel left of its pen position. */
 const NAME_MASK_BLEED = 1;
 /** Cap height plus outline and drop shadow. */
 const NAME_HEIGHT = 18;
+const PROMPT = 'PICK YOUR ROEL';
+/** A slow, even cursor blink: the prompt is waiting, not urging like PRESS START. */
+const PROMPT_CURSOR_BLINK = frames(36);
 
 export interface DetailsRenderOptions {
   readonly character: Character;
@@ -25,9 +32,9 @@ export interface DetailsRenderOptions {
 }
 
 /**
- * The right-hand column: name and tag, class, bio, primary attack and the
- * two skills. Bios are wrapped once up front, so switching characters never
- * re-lays out text mid-frame.
+ * The right-hand column: the PICK YOUR ROEL prompt, the class heading, the
+ * bio and the two skills. Bios are wrapped once up front, so switching
+ * characters never re-lays out text mid-frame.
  */
 export class DetailsPanel {
   readonly #text: TextStyles;
@@ -47,25 +54,19 @@ export class DetailsPanel {
     const text = this.#text;
     const x = DETAILS.x;
 
+    // The cursor takes the next character cell, like a machine waiting for input.
+    const cursor = blink(options.time, PROMPT_CURSOR_BLINK, PROMPT_CURSOR_BLINK) ? '_' : '';
+    gfx.text(`${PROMPT}${cursor}`, x, PROMPT_Y, { ...text.label, fill: palette.lavender });
+
     // The heading settles in from the switch direction behind a mask at the column edge,
     // so it never slides across the hand cursor parked beside it.
     gfx.withClip(x - NAME_MASK_BLEED, NAME_Y - 2, gfx.width - x + NAME_MASK_BLEED, NAME_HEIGHT, () => {
-      const name = gfx.text(character.name, x + options.nameOffset, NAME_Y, text.prompt);
-      gfx.text(character.tag, x + options.nameOffset + name.width + 6, NAME_Y, {
-        ...text.prompt,
-        fill: ['#cfe6ff', palette.sky, palette.royal],
-        bands: 3,
-      });
+      gfx.text(character.className, x + options.nameOffset, NAME_Y, headingStyle(text.prompt, character.id));
     });
-
-    const accent = classThemes[character.id].accent;
-    gfx.fillRect(x, CLASS_Y + 2, 3, 3, accent);
-    gfx.text(character.className, x + 6, CLASS_Y, { ...text.label, fill: accent });
 
     this.#bios.get(character.id)?.render(gfx, x, BIO_Y);
 
-    const attackLabel = gfx.text('ATTACK', x, ATTACK_Y, { ...text.label, fill: palette.gold });
-    gfx.text(character.attack.toUpperCase(), x + attackLabel.width + 6, ATTACK_Y, text.label);
+    gfx.text('SKILLS', x, SKILLS_Y, { ...text.label, fill: palette.gold });
 
     character.skills.forEach((skillId, slot) => {
       this.#renderSkill(gfx, skillId, slot === 0 ? 0 : 1, options);
@@ -83,4 +84,14 @@ export class DetailsPanel {
       fill: lit ? palette.gold : palette.white,
     });
   }
+}
+
+/**
+ * The class heading keeps the prompt face's navy outline and shadow but
+ * bands its fill from a light tint of the class colour down to the colour
+ * itself, so it reads as crisply as the white-to-lavender prompts.
+ */
+function headingStyle(prompt: TextStyle, id: CharacterId): TextStyle {
+  const { accent } = classThemes[id];
+  return { ...prompt, fill: [shade(accent, 0.8), accent], bands: 4 };
 }

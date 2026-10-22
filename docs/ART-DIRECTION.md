@@ -56,9 +56,10 @@ The logo is a high-contrast wide serif with a centred interpunct, roughly 230 ×
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
 
 - Left: a tall card with a bevelled pixel frame (light lavender rim, darker inner rim), deep indigo starfield background with twinkling stars and drifting class-themed particles (green code glyphs, paint flecks, sticky notes), the character idling on a pixel pedestal with a pulsing glow. Chunky triangular arrows either side bob towards the edge and flash on press; switching characters slides the card content with a quick horizontal wipe.
-- Right: the character name in the large arcade face (white, outlined) followed by "ROEL" in blue, a class label, the bio in the small face, and two skills, each a 16 × 16 icon in a bevelled slot plus its name.
-- Hovering (pointer) or highlighting (keys/pad) a skill opens a pixel tooltip window with the skill's tooltip text; it pops in over 4 frames with a 1 px overshoot.
-- A "SELECT" button with a blinking hand/arrow cursor confirms. Confirming plays the character's victory pose, a white flash on the card and a "READY!" stamp before transitioning.
+- Right, top to bottom: a small lavender "PICK YOUR ROEL" call to action in the label face whose underscore cursor blinks slowly; the class name ("ENGINEER", "DESIGNER", "STRATEGIST") in the large arcade face, banded from a light tint of the class colour (green, pink, yellow) down to the colour itself, with the prompts' navy outline and shadow; the bio in the small face; a gold "SKILLS" header over two skills, each a 16 × 16 icon in a bevelled slot plus its name.
+- A blinking hand cursor marks what has focus: the class heading (the character itself) or a skill. Hovering (pointer) or highlighting (keys/pad) a skill opens a pixel tooltip window with the skill's tooltip text; it pops in over 4 frames with a 1 px overshoot.
+- One control legend runs along the bottom in lavender keys and slate labels: "◀▶ CHANGE ▲▼ SKILLS" under the card, "⏎ CONFIRM ⌫ BACK" flush with the details column's right edge. The drawn keys are 7–8 px tall and centred on the label capitals. CONFIRM and BACK are buttons: pointing lights them, pressing sinks the key one pixel and releasing on it clicks; holding the real key sinks its picture too. BACK returns to the title.
+- Confirming plays the character's victory pose, a white flash on the card and a "READY!" stamp before transitioning.
 
 ## Mission select
 

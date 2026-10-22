@@ -7,8 +7,8 @@ import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
 import type { GameServices } from '../../services';
-import { Button } from '../../ui/Button';
 import { handCursorSheet } from '../../ui/cursor';
+import { KeyHints } from '../../ui/KeyHints';
 import { Tooltip } from '../../ui/Tooltip';
 import { windowThemes } from '../../ui/theme';
 import type { GameScene, GameStep } from '../params';
@@ -19,7 +19,17 @@ import { cardFlashAlpha, LEAVE_AT, nameOffset, stampJolt, stampOpening, switchOf
 import { DetailsPanel } from './DetailsPanel';
 import { drawHints } from './hints';
 import { readSelectEvents } from './intents';
-import { CARD, CARD_INNER, cursorAnchor, type HitTarget, hitTest, SELECT_BUTTON, SKILL_ROWS, STAGE } from './layout';
+import {
+  CARD,
+  CARD_INNER,
+  cursorAnchor,
+  HINTS_Y,
+  type HitTarget,
+  hitTest,
+  KEY_HINTS,
+  SKILL_ROWS,
+  STAGE,
+} from './layout';
 import { lazy } from './lazy';
 import { drawReadyStamp } from './readyStamp';
 import {
@@ -44,10 +54,11 @@ interface SwitchBeat {
 /**
  * Character select (docs/ART-DIRECTION.md › Character select): a starfield
  * card on the left with the character idling on a glowing pedestal, details
- * and skills on the right, a SELECT button bottom-right. Left/right switches
- * character, up/down moves focus between the card, both skills and SELECT;
- * a focused or hovered skill opens its tooltip. Choosing plays the victory
- * pose, flashes the card, stamps READY! and moves on to the mission select.
+ * and skills on the right, and a control legend along the bottom whose
+ * CONFIRM and BACK keys can be clicked. Left/right switches character,
+ * up/down moves focus between the heading and both skills; a focused or
+ * hovered skill opens its tooltip. Choosing plays the victory pose, flashes
+ * the card, stamps READY! and moves on to the mission select.
  *
  * Decisions live in the pure `selectMachine`; this class turns its effects
  * into sound and animation beats and draws the result.
@@ -57,7 +68,7 @@ export class CharacterSelectScene implements GameScene {
   readonly #card: CardView;
   readonly #details: DetailsPanel;
   readonly #tooltip: Tooltip;
-  readonly #select: Button;
+  readonly #keys: KeyHints;
   readonly #cursor = lazy(() => SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor'));
   #state: SelectState;
   #time = 0;
@@ -74,12 +85,7 @@ export class CharacterSelectScene implements GameScene {
     this.#card = new CardView(services.sprites.characters, services.rng.fork());
     this.#details = new DetailsPanel(services.text, services.sprites.skillIcons);
     this.#tooltip = new Tooltip({ maxWidth: TOOLTIP_WIDTH, theme: windowThemes.cream, style: services.text.tooltip });
-    this.#select = new Button({
-      label: 'SELECT',
-      bounds: SELECT_BUTTON,
-      theme: windowThemes.indigo,
-      style: services.text.label,
-    });
+    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
     this.#state = initialSelectState(characters.length);
   }
 
@@ -97,7 +103,8 @@ export class CharacterSelectScene implements GameScene {
     const { input } = step;
 
     const events = readSelectEvents(input, this.#pointer, hitTest);
-    if (this.#select.update(input, this.#state.focus === 'select', step.dt)) events.push({ type: 'activate' });
+    const clicked = this.#keys.update(input);
+    if (clicked) events.push({ type: clicked });
     const result = reduceSelectAll(this.#state, events);
     this.#state = result.state;
     for (const effect of result.effects) this.#apply(effect);
@@ -135,8 +142,8 @@ export class CharacterSelectScene implements GameScene {
       nameOffset: this.#switch ? nameOffset(sinceSwitch, this.#switch.delta) : 0,
       litSkill: focusedSkillSlot(this.#state.focus),
     });
-    this.#select.render(gfx);
-    drawHints(gfx, CARD.x, CARD.y + CARD.h + 10, text.label);
+    drawHints(gfx, CARD.x, HINTS_Y, text.label);
+    this.#keys.render(gfx);
 
     this.#renderCursor(gfx);
     if (chosenFor !== null) {
