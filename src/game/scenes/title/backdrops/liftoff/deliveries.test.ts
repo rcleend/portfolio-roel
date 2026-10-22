@@ -14,13 +14,13 @@ const GLINTS = Array.from({ length: Math.ceil(ATTRACT_AFTER_SECONDS / GLINT.ever
   return [start, start + GLINT.duration];
 });
 
-/** Every pixel a delivery draws over its whole life, in screen pixels. */
-function pixelsOf(delivery: Delivery): { x: number; y: number }[] {
+/** Every pixel a delivery draws over its whole life under a logo ending above `logoBottom`, in screen pixels. */
+function pixelsOf(delivery: Delivery, logoBottom: number): { x: number; y: number }[] {
   const drawn: { x: number; y: number }[] = [];
   const context = nullContext();
   context.fillRect = (x: number, y: number) => drawn.push({ x, y });
   const gfx = new Gfx(context, STAGE.width, STAGE.height);
-  for (let frame = 0; frame < DELIVERY_SECONDS * 60; frame++) drawDelivery(gfx, delivery, frames(frame));
+  for (let frame = 0; frame < DELIVERY_SECONDS * 60; frame++) drawDelivery(gfx, delivery, frames(frame), logoBottom);
   return drawn;
 }
 
@@ -60,13 +60,16 @@ describe('continuous delivery', () => {
   });
 
   it('flies clear of the prompt and burns out under every logo', () => {
-    const logoBottom = Math.max(...TITLE_LOCKUPS.map((lockup) => lockup.prepare().bounds).map(({ y, h }) => y + h));
-    for (const delivery of DELIVERIES) {
-      const drawn = pixelsOf(delivery);
-      expect(drawn.length).toBeGreaterThan(0);
-      for (const { x, y } of drawn) {
-        expect(containsPoint(KEEP_CLEAR.prompt, x, y), `(${x}, ${y})`).toBe(false);
-        expect(y).toBeGreaterThanOrEqual(logoBottom);
+    for (const lockup of TITLE_LOCKUPS) {
+      const bounds = lockup.prepare().bounds;
+      const logoBottom = bounds.y + bounds.h;
+      for (const delivery of DELIVERIES) {
+        const drawn = pixelsOf(delivery, logoBottom);
+        expect(drawn.length).toBeGreaterThan(0);
+        for (const { x, y } of drawn) {
+          expect(containsPoint(KEEP_CLEAR.prompt, x, y), `(${x}, ${y})`).toBe(false);
+          expect(y, `under the ${lockup.id} lockup at (${x}, ${y})`).toBeGreaterThanOrEqual(logoBottom);
+        }
       }
     }
   });

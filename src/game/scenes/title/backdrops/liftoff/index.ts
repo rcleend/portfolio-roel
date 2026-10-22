@@ -144,7 +144,7 @@ function paintLiftoffBackdrop(): BackdropArt {
       if (boom !== null) drawBoom(gfx, boom);
       for (const delivery of DELIVERIES) {
         const age = deliveryAge(delivery, time, beats);
-        if (age !== null) drawDelivery(gfx, delivery, age);
+        if (age !== null) drawDelivery(gfx, delivery, age, lockupBounds.y + lockupBounds.h);
       }
       gfx.image(skyline, 0, SKYLINE_TOP);
       drawBeacons(gfx, time, reducedMotion, lockupBounds);

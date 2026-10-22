@@ -33,7 +33,7 @@ export const DELIVERIES: readonly Delivery[] = [
 /** Powered flight, then how long the trail takes to cool away completely. */
 export const BURN_SECONDS = 2.6;
 export const DELIVERY_SECONDS = BURN_SECONDS + 5;
-/** How high it climbs before burnout. */
+/** How high it climbs before burnout, unless the logo reaches lower. */
 const CLIMB = 48;
 /** The climb accelerates: progress along the path goes as time to this power. */
 const THRUST = 1.6;
@@ -46,23 +46,33 @@ export function deliveryAge(delivery: Delivery, time: number, beats: TitleBeats)
   return age >= 0 && age < DELIVERY_SECONDS ? age : null;
 }
 
-/** Draws `delivery` `age` seconds after liftoff: its trail, and the rocket itself until burnout. */
-export function drawDelivery(gfx: Gfx, delivery: Delivery, age: number): void {
+/**
+ * Draws `delivery` `age` seconds after liftoff: its trail, and the rocket
+ * itself until burnout. `logoBottom` is the first row under the lockup, so the
+ * rocket burns out under any lockup, however low it reaches.
+ */
+export function drawDelivery(gfx: Gfx, delivery: Delivery, age: number, logoBottom: number): void {
+  const climb = climbUnder(delivery, logoBottom);
   const reached = progressAt(Math.min(age, BURN_SECONDS));
-  const points = Math.ceil(reached * CLIMB);
+  const points = Math.ceil(reached * climb);
   for (let i = 0; i <= points; i++) {
-    const along = Math.min(reached, i / CLIMB);
+    const along = Math.min(reached, i / climb);
     const step = coolingStep(age - BURN_SECONDS * along ** (1 / THRUST));
     // The coolest trail is broken up, as if dispersing.
     if (step < 0 || (step >= 4 && i % 2 === 1)) continue;
-    gfx.pixel(pathX(delivery, along), pathY(delivery, along), TRAIL[step] ?? TRAIL[0]);
+    gfx.pixel(pathX(delivery, along), pathY(delivery, along, climb), TRAIL[step] ?? TRAIL[0]);
   }
   if (age < BURN_SECONDS) {
     const x = pathX(delivery, reached);
-    const y = pathY(delivery, reached);
+    const y = pathY(delivery, reached, climb);
     gfx.pixel(x, y - 1, TRAIL[0]);
     gfx.pixel(x, y, FLAME[3]);
   }
+}
+
+/** The full `CLIMB`, cut short where the rocket and the trail pixel above it would rise above `logoBottom`. */
+function climbUnder(delivery: Delivery, logoBottom: number): number {
+  return Math.max(1, Math.min(CLIMB, delivery.y - 1 - logoBottom));
 }
 
 /** The `TRAIL` step for a stretch of trail `seconds` old, or -1 once it has cooled away. */
@@ -79,6 +89,6 @@ function pathX(delivery: Delivery, along: number): number {
   return Math.round(delivery.x + delivery.lean * along * along);
 }
 
-function pathY(delivery: Delivery, along: number): number {
-  return Math.round(delivery.y - CLIMB * along);
+function pathY(delivery: Delivery, along: number, climb: number): number {
+  return Math.round(delivery.y - climb * along);
 }
