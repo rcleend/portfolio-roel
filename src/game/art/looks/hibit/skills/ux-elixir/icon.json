@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 24, "h": 24 },
+  "origin": { "x": 0, "y": 0 },
+  "animations": [{ "name": "idle", "fps": 12, "loop": true, "frames": 24 }]
+}

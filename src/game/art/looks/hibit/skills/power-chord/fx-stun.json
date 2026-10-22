@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 32, "h": 16 },
+  "origin": { "x": 16, "y": 15 },
+  "animations": [
+    { "name": "orbit", "fps": 12, "loop": true, "frames": 12 },
+    { "name": "fade", "fps": 12, "loop": false, "frames": 6 }
+  ]
+}

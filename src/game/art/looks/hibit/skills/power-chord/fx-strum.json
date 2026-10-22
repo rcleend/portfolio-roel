@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 40, "h": 40 },
+  "origin": { "x": 20, "y": 20 },
+  "animations": [{ "name": "strum", "fps": 30, "loop": false, "frames": 9 }]
+}

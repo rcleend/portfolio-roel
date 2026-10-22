@@ -1,0 +1,10 @@
+{
+  "frame": { "w": 76, "h": 76 },
+  "origin": { "x": 38, "y": 38 },
+  "animations": [
+    { "name": "form", "fps": 30, "loop": false, "frames": 8 },
+    { "name": "shell", "fps": 10, "loop": true, "frames": 12 },
+    { "name": "thin", "fps": 10, "loop": true, "frames": 2 },
+    { "name": "pop", "fps": 30, "loop": false, "frames": 8 }
+  ]
+}
