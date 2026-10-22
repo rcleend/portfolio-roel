@@ -1,6 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { renderCustomer } from '../../../entities/customer/renderCustomer';
 import type { RenderKit } from '../../../entities/RenderKit';
+import { runningElixir } from '../../../skills/uxElixir';
 import type { World } from '../../../world/World';
 import { casterSnapshot } from './casterSnapshot';
 
@@ -26,9 +27,10 @@ export function drawWorld(gfx: Gfx, world: World, kit: RenderKit): void {
   world.goalFlag?.render(gfx, kit.text.label, kit.time);
 
   const caster = casterSnapshot(world, kit);
+  const rules = { customersCalm: world.modifiers.customersCalm, elixir: runningElixir(world.activeSkills) };
   for (const skill of world.activeSkills) skill.render(gfx, kit, caster, 'behind');
-  for (const customer of world.customers) if (customer.won) renderCustomer(gfx, kit, customer, world.modifiers);
-  for (const customer of world.customers) if (!customer.won) renderCustomer(gfx, kit, customer, world.modifiers);
+  for (const customer of world.customers) if (customer.won) renderCustomer(gfx, kit, customer, rules);
+  for (const customer of world.customers) if (!customer.won) renderCustomer(gfx, kit, customer, rules);
   if (world.playerVisible) world.player.render(gfx, kit);
   for (const shot of world.shots) shot.render(gfx, kit);
   for (const bubble of world.bubbles) bubble.render(gfx, kit);

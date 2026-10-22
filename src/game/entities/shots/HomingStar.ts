@@ -1,4 +1,5 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
+import type { Rect } from '@/engine/math/Rect';
 import type { Vec2 } from '@/engine/math/Vec2';
 import type { Burst } from '../effects/Burst';
 import type { Effect } from '../effects/Effect';
@@ -11,9 +12,11 @@ const SPEED = 200;
 const TURN_RATE = 6.5;
 const TRAIL = 6;
 
-/** The north star as a look sees it: a shot with the positions it just passed through, newest first. */
+/** The north star as a look sees it: a shot with the positions it just passed through, newest first, and its mark. */
 export interface StarShotView extends ShotView {
   readonly trail: readonly Vec2[];
+  /** The customer it is homing on this step, if any. */
+  readonly target: Rect | null;
 }
 
 /**
@@ -22,6 +25,7 @@ export interface StarShotView extends ShotView {
  */
 export class HomingStar extends Shot implements StarShotView {
   readonly #trail: Vec2[] = [];
+  #target: Rect | null = null;
 
   constructor(x: number, y: number, direction: -1 | 1) {
     super(
@@ -37,6 +41,7 @@ export class HomingStar extends Shot implements StarShotView {
     this.#trail.unshift({ x: this.x, y: this.y });
     if (this.#trail.length > TRAIL) this.#trail.pop();
     const target = mostFrustrated(env.targets);
+    this.#target = target?.rect ?? null;
     if (!target) return;
     const desired = Math.atan2(target.rect.y + target.rect.h / 2 - this.y, target.rect.x + target.rect.w / 2 - this.x);
     const current = Math.atan2(this.vy, this.vx);
@@ -51,12 +56,20 @@ export class HomingStar extends Shot implements StarShotView {
     return this.#trail;
   }
 
+  get target(): Rect | null {
+    return this.#target;
+  }
+
   render(gfx: Gfx, kit: RenderKit): void {
     kit.looks.skills['north-star'].visual.shot?.(gfx, this, kit);
   }
 
   impactEffect(burst: Burst): Effect {
     return new SkillEffect('north-star', { role: 'impact', burst }, burst);
+  }
+
+  hitEffect(burst: Burst): Effect {
+    return new SkillEffect('north-star', { role: 'hit', burst }, burst);
   }
 }
 

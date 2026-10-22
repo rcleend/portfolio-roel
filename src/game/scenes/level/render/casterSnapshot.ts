@@ -11,5 +11,5 @@ export function casterSnapshot(world: World, kit: RenderKit): CasterSnapshot {
     const point = sheet.anchor(animation, name, time);
     return point && sheet.toScreen(point, player.centerX, player.feet, player.facing < 0);
   };
-  return { ...world.caster, hand: place('hand'), muzzle: place('muzzle'), height: sheet.height };
+  return { ...world.caster, hand: place('hand'), muzzle: place('muzzle'), anchor: place, height: sheet.height };
 }

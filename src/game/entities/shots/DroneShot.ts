@@ -29,4 +29,8 @@ export class DroneShot extends Shot {
   impactEffect(burst: Burst): Effect {
     return new SkillEffect('agent-summon', { role: 'impact', burst }, burst);
   }
+
+  hitEffect(burst: Burst): Effect {
+    return new SkillEffect('agent-summon', { role: 'hit', burst }, burst);
+  }
 }

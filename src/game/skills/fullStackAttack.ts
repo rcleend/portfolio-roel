@@ -1,6 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects, type Rect } from '@/engine/math/Rect';
 import { BURSTS, Burst } from '../entities/effects/Burst';
+import { Countdown } from '../entities/effects/Effect';
 import { SkillEffect } from '../entities/effects/SkillEffect';
 import { HAND } from '../entities/player/size';
 import type { RenderKit } from '../entities/RenderKit';
@@ -62,12 +63,24 @@ class FullStackBeam implements ActiveSkill, FullStackState {
     for (const target of world.targets()) {
       if (this.#struck.has(target) || !intersects(target.rect, area)) continue;
       this.#struck.add(target);
-      world.hit(target, DAMAGE, this.facing);
+      world.hit(
+        target,
+        DAMAGE,
+        this.facing,
+        (spark) => new SkillEffect('full-stack-attack', { role: 'hit', burst: spark }, spark),
+      );
       const center = rectCenter(target.rect);
       const burst = new Burst(center.x, center.y, BURSTS.hitSpark, world.rng);
-      world.effect(new SkillEffect('full-stack-attack', { role: 'struck', burst }, burst));
+      const struck = { role: 'struck', burst, area, facing: this.facing } as const;
+      world.effect(new SkillEffect('full-stack-attack', struck, burst));
     }
     world.popBubbles(area);
+    if (this.done) {
+      const timer = new Countdown(0);
+      world.effect(
+        new SkillEffect('full-stack-attack', { role: 'ended', state: this, caster: world.caster, timer }, timer),
+      );
+    }
   }
 
   render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void {

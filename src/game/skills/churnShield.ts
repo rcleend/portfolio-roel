@@ -1,5 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Vec2 } from '@/engine/math/Vec2';
+import { Countdown } from '../entities/effects/Effect';
+import { SkillEffect } from '../entities/effects/SkillEffect';
 import type { RenderKit } from '../entities/RenderKit';
 import { circleBounds, circleIntersectsRect, rectCenter } from './geometry';
 import type { ActiveSkill, Skill, SkillCaster, SkillLayer, SkillModifiers, SkillTarget, SkillWorld } from './Skill';
@@ -46,9 +48,19 @@ class Shield implements ActiveSkill, ChurnShieldState {
       const last = this.#bumped.get(target) ?? Number.NEGATIVE_INFINITY;
       if (this.#age - last < BUMP_COOLDOWN) continue;
       this.#bumped.set(target, this.#age);
-      world.hit(target, BUMP_CALM, rectCenter(target.rect).x < x ? -1 : 1);
+      const away = rectCenter(target.rect).x < x ? -1 : 1;
+      world.hit(
+        target,
+        BUMP_CALM,
+        away,
+        (spark) => new SkillEffect('churn-shield', { role: 'hit', burst: spark }, spark),
+      );
     }
     world.popBubbles(circleBounds(x, y, RADIUS));
+    if (this.done) {
+      const timer = new Countdown(0);
+      world.effect(new SkillEffect('churn-shield', { role: 'ended', state: this, caster: world.caster, timer }, timer));
+    }
   }
 
   render(gfx: Gfx, kit: RenderKit, caster: CasterSnapshot, layer: SkillLayer): void {

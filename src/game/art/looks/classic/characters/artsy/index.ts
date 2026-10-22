@@ -21,5 +21,6 @@ export const look = defineHeroLook('artsy', {
       gfx.pixel(shot.x - shot.direction * 4, shot.y - 2, paint.fill);
     },
     impact: drawBurst,
+    hit: drawBurst,
   }),
 });

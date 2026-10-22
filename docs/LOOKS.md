@@ -19,7 +19,7 @@ Hero ids: `hackerman`, `artsy`, `strategy`. Skill ids: `full-stack-attack`, `age
 src/game/art/looks/<lookId>/
   characters/<characterId>/index.ts      registers the hero
   characters/<characterId>/sheet.png + sheet.json     the 8 hero animations, 64 × 64 frames
-  characters/<characterId>/attack.png + attack.json   the basic attack: projectile + impact (optional)
+  characters/<characterId>/attack.png + attack.json   the basic attack: projectile, impact, muzzle (optional)
   customer/index.ts + sheet.png + sheet.json          the 5 customer animations, 64 × 64 frames
   skills/<skillId>/index.ts + icon.png + icon.json    a 24 × 24 icon with one animation, idle
   skills/<skillId>/fx-<name>.png + fx-<name>.json     effect strips, any frame size (optional)
@@ -48,8 +48,8 @@ src/game/art/looks/<lookId>/
 
 - `origin` is the point placed on the position the game draws at: for heroes and the customer, bottom-centre, the feet line.
 - `anchors` are optional, per animation: named pixels, one `[x, y]` per frame, inside the frame.
-  - `muzzle` on `attack`: where the basic attack leaves (the keyboard, the guitar, the throwing hand). The game simulates shots from a fixed hand point; a look with a muzzle has its shots and impacts *drawn* shifted to the muzzle of the first `attack` frame, so hits land exactly where they always did.
-  - `hand` on `skill`: where a skill effect attaches (the potion, the guitar body). Skill visuals receive it in world pixels.
+  - `muzzle` on `attack`: where the basic attack leaves (the keyboard, the guitar, the throwing hand). The game simulates shots from a fixed hand point; a look with a muzzle has its whole attack (shots, impacts, hit sparks) *drawn* shifted to the muzzle of the first `attack` frame, so hits land exactly where they always did.
+  - `hand` on `skill`: where a skill effect attaches (the potion, the guitar body). Skill visuals receive it, and any other anchor of the current frame, in world pixels.
 - Errors name the file and the field, e.g. `animations[2].anchors.muzzle[3] must be [x, y] inside the 64×64 frame`. Unknown keys are rejected, so a typo cannot vanish.
 - The JSON is data, not source: Biome leaves `looks/**/*.json` alone, so a generator's output never fails the lint.
 
@@ -58,7 +58,7 @@ src/game/art/looks/<lookId>/
 | hero `sheet`        | 64 × 64 | (32, 64)  | `idle`, `run`, `jump`, `fall`, `attack`, `skill`, `hurt`, `victory` |
 | customer `sheet`    | 64 × 64 | (32, 64)  | `walk`, `shout`, `hurt`, `stunned`, `happy` (won over)              |
 | skill `icon`        | 24 × 24 | (0, 0)    | `idle`, a subtle loop on a dark slot                                |
-| `attack`, `fx-*`    | any     | any       | any; `attack` for `spriteAttack` has `projectile` and `impact`      |
+| `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and `projectile-<name>` variants |
 
 All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall. Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
 
@@ -113,7 +113,7 @@ export const look = defineSkillLook('power-chord', {
 
 - `fx` names extra sheets; the factory receives them loaded, typed by those names. PNGs are fetched only when the look is selected.
 - Everything is optional except a hero's or the customer's `sheet`: a hero without `attack`, or a skill without an `icon` or with only some visual parts, is drawn by classic for the rest.
-- `spriteAttack(sheet)` draws the `projectile` animation with the shot and plays `impact` once where it strikes. Write `attack: (fx) => ({ shot, impact })` for anything else.
+- `spriteAttack(sheet)` draws the `projectile` animation with the shot, plays `muzzle` (if the strip has one) once where the shot leaves the hand and `impact` once where it strikes, and adds nothing on the customer it hit. Successive shots take turns with any `projectile-<name>` variants, in sheet order (`projectile` first). The strip's origin is the projectile's centre. Write `attack: (fx) => ({ shot, impact, hit })`, or any of them, for anything else.
 
 ## What a look draws
 
@@ -121,27 +121,37 @@ Behaviour reduces everything visible to small read-only state, and a look draws 
 
 **A hero's attack** (`AttackVisual`, `entities/shots/AttackVisual.ts`):
 
-- `shot(gfx, shot)`: one shot in flight — `x`, `y` (its centre), `vx`, `vy`, `age`, `direction` and `index` (shots fired before it; classic Artsy cycles paint colours by it).
+- `shot(gfx, shot)`: one shot in flight — `x`, `y` (its centre), `vx`, `vy`, `age`, `direction`, `index` (shots fired before it; classic Artsy cycles paint colours by it) and `from` (where it left the hand, for a muzzle flash).
 - `impact(gfx, impact)`: where it struck a customer or a wall — the spark burst the world rolled (`x`, `y`, `age`, `particles`) and the `direction` it flew.
+- `hit(gfx, hit)`: the spark on the customer it hit, at the customer's centre, alongside the `impact` at the shot. Classic draws a white spark; `spriteAttack` draws nothing, letting its impact speak.
 
 **A skill** (`SkillVisual<K>`, `skills/SkillVisual.ts`), any of:
 
 - `active(gfx, state, caster, layer)`: the running skill — cast moment and persistent effect — drawn twice a frame, `'behind'` the hero and `'front'`.
 - `shot(gfx, shot)`: its projectiles.
-- `effect(gfx, fx)`: what it leaves in the world: `fx.role` names it.
+- `effect(gfx, fx)`: what it leaves in the world, which may outlive the skill: `fx.role` names it.
+- `customer(gfx, customer)`: what it puts on every customer it holds a rule over, drawn after the customer's frustration meter. Only UX ELIXIR has one: classic's calm heart over each calmed customer, which a look replaces by drawing its own.
 
-`caster` is the hero this frame: `x`, `y` (body centre), `feet`, `facing`, `height` (the hero sprite's frame height) and the current frame's `hand` and `muzzle` anchors in world pixels, or `null`.
+`caster` is the hero this frame: `x`, `y` (body centre), `feet`, `facing`, `height` (the hero sprite's frame height), the current frame's `hand` and `muzzle` anchors in world pixels or `null`, and `anchor(name)` for any other.
 
-| Skill               | `active` state (all have `age`, `duration`)               | `shot`              | `effect` roles            | Runs      |
-| ------------------- | --------------------------------------------------------- | ------------------- | ------------------------- | --------- |
-| `full-stack-attack` | `facing`, `area` (the beam, also its hit box)             | —                   | `struck` (a burst)        | 0.6 s     |
-| `agent-summon`      | `angle` (behind the hero while `sin < 0`), `droneAt(caster)` | a pulse          | `impact` (a burst)        | 8 s       |
-| `ux-elixir`         | —                                                         | —                   | `sparkle` (a burst)       | 6 s       |
-| `power-chord`       | `origin` (caster centre at the strum)                     | —                   | `ring` (`radius`, `life`, `index`) | 0.5 s; rings 0.45 s |
-| `north-star`        | none: the cast is instant                                 | the star (`trail`)  | `launch`, `impact` (bursts) | star ≤ 2.6 s |
-| `churn-shield`      | `radius`, `centerAt(caster)`                              | —                   | —                         | 5 s       |
+| Skill               | `active` state (all have `age`, `duration`)                                          | `shot`                      | `effect` roles                                                         | Runs                |
+| ------------------- | ------------------------------------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------- | ------------------- |
+| `full-stack-attack` | `facing`, `area` (the beam, also its hit box)                                        | —                           | `hit`; `struck` (a burst with the beam's `area` and `facing`); `ended` | 0.6 s               |
+| `agent-summon`      | `angle` (behind the hero while `sin < 0`), `droneAt(caster)`, `lastShot` (`age`, `toward`) | a pulse               | `hit`, `impact`; `ended`                                               | 8 s                 |
+| `ux-elixir`         | — (`customer`: `x`, `feet`, `scale`, `lift`, `elixir`)                               | —                           | `sparkle`; `ended`                                                     | 6 s                 |
+| `power-chord`       | `origin` (caster centre at the strum)                                                | —                           | `ring` (`radius`, `life`, `index`); `stunned`; `ended`                 | 0.5 s; rings 0.45 s |
+| `north-star`        | none: the cast is instant                                                            | the star (`trail`, `target`) | `launch`, `hit`, `impact`                                             | star ≤ 2.6 s        |
+| `churn-shield`      | `radius`, `centerAt(caster)`                                                         | —                           | `hit` (every bump); `ended`                                            | 5 s                 |
 
-A running skill is drawn only while it runs. Impacts and skill effects stay on stage at least 0.5 s (`LOOK_EFFECT_SECONDS`), even after classic's sparks are gone, so a look's impact animation can play out. Shared feedback — the white hit spark on any hit, the heart and +MRR when a customer is won over, complaint bubbles, dust — belongs to no look.
+- `hit`, `impact`, `launch`, `sparkle` and `struck` carry the burst the world rolled (`x`, `y`, `age`, `particles`). `hit` is the spark on a customer the skill hit, at its centre; classic draws it white, like every hit.
+- `stunned` is left on every customer the strum stunned and lasts the 3 s stun: `target` (read live: `rect`, `stunned`, `escalated`), the shockwave's `origin` and a `timer` (`age`, `seconds`).
+- `ended` is left when a timed skill ends, for a last beat after it is gone: its final `state`, the `caster` as it ended and a `timer`.
+- `lastShot` is when (seconds into the skill) and at what point the drone last fired, or `null`; a star's `target` is the customer it is homing on this step, or `null`.
+- `customer.lift` is how much taller the customer look stands than classic at `scale`; `elixir` is the running elixir's state, or `null` on the one frame its rule outlasts it.
+
+A running skill is drawn only while it runs. Impacts and skill effects stay on stage at least 0.5 s (`LOOK_EFFECT_SECONDS`), even after classic's sparks are gone, so a look's impact animation can play out; `ended` lasts exactly that. Shared feedback — the spark of a stomp, the heart and +MRR when a customer is won over, complaint bubbles, dust — belongs to no look.
+
+Icon slots grow with the icons and keep each screen's classic margin: 24 × 24 icons sit in 32 × 32 slots on the select screen and 30 × 30 in the HUD and pause menu.
 
 ## Choosing and previewing looks
 

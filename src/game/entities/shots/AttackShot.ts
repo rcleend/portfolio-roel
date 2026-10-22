@@ -1,5 +1,6 @@
 import type { CharacterId } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
+import type { Vec2 } from '@/engine/math/Vec2';
 import { AttackImpact } from '../effects/AttackImpact';
 import type { Burst } from '../effects/Burst';
 import type { Effect } from '../effects/Effect';
@@ -13,6 +14,7 @@ import { Shot, type ShotEnvironment } from './Shot';
 export class AttackShot extends Shot implements AttackShotView {
   readonly owner: CharacterId;
   readonly index: number;
+  readonly from: Vec2;
   readonly #gravity: number;
 
   /** `index` counts the shots the hero fired before this one. */
@@ -20,6 +22,7 @@ export class AttackShot extends Shot implements AttackShotView {
     super(attack.shot, x, y, facing * attack.launch.x, attack.launch.y);
     this.owner = owner;
     this.index = index;
+    this.from = { x, y };
     this.#gravity = attack.gravity;
   }
 
@@ -33,6 +36,10 @@ export class AttackShot extends Shot implements AttackShotView {
   }
 
   impactEffect(burst: Burst): Effect {
-    return new AttackImpact(this.owner, this.direction, burst);
+    return new AttackImpact(this.owner, this.direction, burst, 'impact');
+  }
+
+  hitEffect(burst: Burst): Effect {
+    return new AttackImpact(this.owner, this.direction, burst, 'hit');
   }
 }

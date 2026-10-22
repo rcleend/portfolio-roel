@@ -13,5 +13,6 @@ export const look = defineHeroLook('strategy', {
       gfx.sprite(fx.note, 'spin', shot.age, shot.x, shot.y + flutter, { flipX: shot.direction < 0 });
     },
     impact: drawBurst,
+    hit: drawBurst,
   }),
 });

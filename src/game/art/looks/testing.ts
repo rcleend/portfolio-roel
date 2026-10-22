@@ -27,7 +27,11 @@ export function sizedLooks(sizes: LookSizes = CLASSIC_SIZES): Looks {
     y: sizes.customer,
   });
   const icon = blankSheet(SKILL_ICON_ANIMATIONS, sizes.icon, { x: 0, y: 0 });
-  const heroLook: HeroLook = { lookId: 'classic', sheet: hero, attack: { shot: () => {}, impact: () => {} } };
+  const heroLook: HeroLook = {
+    lookId: 'classic',
+    sheet: hero,
+    attack: { shot: () => {}, impact: () => {}, hit: () => {} },
+  };
   return {
     selection: DEFAULT_LOOKS,
     characters: Object.fromEntries(characters.map((character) => [character.id, heroLook])) as Looks['characters'],

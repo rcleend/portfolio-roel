@@ -16,5 +16,6 @@ export const look = defineHeroLook('hackerman', {
       gfx.sprite(fx.bolt, 'fly', shot.age, shot.x, shot.y, { flipX: shot.direction < 0 });
     },
     impact: drawBurst,
+    hit: drawBurst,
   }),
 });

@@ -1,6 +1,8 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects } from '@/engine/math/Rect';
 import type { Vec2 } from '@/engine/math/Vec2';
+import { Countdown } from '../entities/effects/Effect';
+import { SkillEffect } from '../entities/effects/SkillEffect';
 import type { RenderKit } from '../entities/RenderKit';
 import { DroneShot } from '../entities/shots/DroneShot';
 import { rectCenter } from './geometry';
@@ -32,9 +34,14 @@ class Drone implements ActiveSkill, AgentSummonState {
   readonly duration = DURATION;
   #age = 0;
   #nextShot = 0.35;
+  #lastShot: { readonly age: number; readonly toward: Vec2 } | null = null;
 
   get age(): number {
     return this.#age;
+  }
+
+  get lastShot(): { readonly age: number; readonly toward: Vec2 } | null {
+    return this.#lastShot;
   }
 
   get done(): boolean {
@@ -52,6 +59,10 @@ class Drone implements ActiveSkill, AgentSummonState {
 
   update(world: SkillWorld, dt: number): void {
     this.#age += dt;
+    if (this.done) {
+      const timer = new Countdown(0);
+      world.effect(new SkillEffect('agent-summon', { role: 'ended', state: this, caster: world.caster, timer }, timer));
+    }
     if (this.#age < this.#nextShot) return;
     const from = this.droneAt(world.caster);
     let nearest: { x: number; y: number } | null = null;
@@ -67,6 +78,7 @@ class Drone implements ActiveSkill, AgentSummonState {
     }
     if (!nearest) return;
     world.fire(new DroneShot(from.x, from.y, nearest.x, nearest.y));
+    this.#lastShot = { age: this.#age, toward: nearest };
     this.#nextShot = this.#age + FIRE_EVERY;
   }
 

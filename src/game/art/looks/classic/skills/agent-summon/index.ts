@@ -27,6 +27,8 @@ export const look = defineSkillLook('agent-summon', {
       gfx.fillRect(shot.x - 1, shot.y - 1, 3, 3, '#6fe8ff');
       gfx.pixel(shot.x, shot.y, '#ffffff');
     },
-    effect: (gfx, fx) => drawBurst(gfx, fx.burst),
+    effect: (gfx, fx) => {
+      if (fx.role !== 'ended') drawBurst(gfx, fx.burst);
+    },
   }),
 });

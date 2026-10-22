@@ -48,6 +48,8 @@ export const ATTACK_Y = 120;
 
 /** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
 export const SKILL_SLOT_SIZE = 24;
+/** The label face's cell height: a skill's name is centred on its slot. */
+export const SKILL_NAME_HEIGHT = 8;
 const SKILLS_TOP = 134;
 const SKILL_ROW_GAP = 2;
 
@@ -70,9 +72,12 @@ export interface SelectLayout {
 }
 
 export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
+  // Bigger slots move the skills up just enough to keep the second name clear of SELECT.
+  const nameBottom = Math.floor((slotSize - SKILL_NAME_HEIGHT) / 2) + SKILL_NAME_HEIGHT;
+  const top = Math.min(SKILLS_TOP, SELECT_BUTTON.y - nameBottom - slotSize - SKILL_ROW_GAP);
   const row = (index: number): Rect => ({
     x: DETAILS.x,
-    y: SKILLS_TOP + index * (slotSize + SKILL_ROW_GAP),
+    y: top + index * (slotSize + SKILL_ROW_GAP),
     w: DETAILS.w,
     h: slotSize,
   });

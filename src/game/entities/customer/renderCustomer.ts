@@ -1,14 +1,17 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { blink, bob } from '@/engine/motion/oscillators';
+import { blink } from '@/engine/motion/oscillators';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
 import type { CustomerAnimation } from '../../art/looks/contracts';
+import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
 
 /** The bits of the level's rules that change how a customer is drawn. */
 export interface CustomerRules {
-  /** UX Elixir: customers glow with a pink heart and pink pips. */
+  /** UX ELIXIR: frustration pips turn pink, and the elixir's look marks every customer (classic: a pink heart). */
   readonly customersCalm: boolean;
+  /** The running elixir, for its look; null on the one frame its rule outlasts it. */
+  readonly elixir: UxElixirState | null;
 }
 
 const PIP = { w: 4, h: 3, gap: 1 } as const;
@@ -51,7 +54,16 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rul
   }
   const calm = rules.customersCalm;
   drawFrustration(gfx, customer, lift, calm);
-  if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - lift - bob(kit.time, 1, 0.5));
+  if (calm) {
+    const calmed = {
+      x: customer.centerX,
+      feet: customer.feet,
+      scale: customer.tuning.scale,
+      lift,
+      elixir: rules.elixir,
+    };
+    kit.looks.skills['ux-elixir'].visual.customer?.(gfx, calmed, kit);
+  }
 }
 
 function pose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
@@ -93,23 +105,6 @@ function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boole
     gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : '#ff3a4a');
     gfx.fillRect(x, top, w, 1, calm ? '#ffd0ef' : '#ff9a9a');
   }
-}
-
-function drawCalmHeart(gfx: Gfx, x: number, y: number): void {
-  const left = Math.round(x) - 3;
-  const top = Math.round(y);
-  for (const [dx, dy, w] of [
-    [1, 0, 2],
-    [4, 0, 2],
-    [0, 1, 7],
-    [0, 2, 7],
-    [1, 3, 5],
-    [2, 4, 3],
-    [3, 5, 1],
-  ] as const) {
-    gfx.fillRect(left + dx, top + dy, w, 1, '#ff4fa3');
-  }
-  gfx.pixel(left + 1, top + 1, '#ffd0ef');
 }
 
 /** Steam puffing from both sides of the escalated customer's head: more frustration than one sprite can hold. */

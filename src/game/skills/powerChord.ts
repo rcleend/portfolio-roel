@@ -1,6 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { intersects } from '@/engine/math/Rect';
 import type { Vec2 } from '@/engine/math/Vec2';
+import { Countdown } from '../entities/effects/Effect';
 import { Ring } from '../entities/effects/Ring';
 import { SkillEffect } from '../entities/effects/SkillEffect';
 import type { RenderKit } from '../entities/RenderKit';
@@ -24,8 +25,12 @@ export const powerChord: Skill = {
   id: 'power-chord',
   sfx: 'skill-power-chord',
   cast(world) {
+    const origin = { x: world.caster.x, y: world.caster.y };
     for (const target of world.targets()) {
-      if (intersects(target.rect, world.view)) world.stun(target, STUN_SECONDS);
+      if (!intersects(target.rect, world.view)) continue;
+      world.stun(target, STUN_SECONDS);
+      const timer = new Countdown(STUN_SECONDS);
+      world.effect(new SkillEffect('power-chord', { role: 'stunned', target, origin, timer }, timer));
     }
     world.popBubbles(world.view);
     world.shake(4, 0.35);
@@ -55,6 +60,10 @@ class Shockwave implements ActiveSkill, PowerChordState {
 
   update(world: SkillWorld, dt: number): void {
     this.#age += dt;
+    if (this.done) {
+      const timer = new Countdown(0);
+      world.effect(new SkillEffect('power-chord', { role: 'ended', state: this, caster: world.caster, timer }, timer));
+    }
     while (this.#rings < RING_DELAYS.length && this.#age >= (RING_DELAYS[this.#rings] ?? 0)) {
       // Each ring reaches a little less far than the one before it.
       const ring = new Ring(this.origin.x, this.origin.y, 300 - this.#rings * 40, RING_LIFE, this.#rings);

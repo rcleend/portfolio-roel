@@ -114,6 +114,9 @@ export abstract class Shot implements ShotView {
 
   abstract render(gfx: Gfx, kit: RenderKit): void;
 
-  /** Hands the burst the world rolled where this shot struck to the look that drew the shot. */
+  /** Hands the burst the world rolled where this shot ended (a customer, a wall) to the look that drew the shot. */
   abstract impactEffect(burst: Burst): Effect;
+
+  /** Hands the spark the world rolled on the customer this shot hit to the look that drew the shot. */
+  abstract hitEffect(burst: Burst): Effect;
 }

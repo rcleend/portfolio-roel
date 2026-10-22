@@ -7,14 +7,12 @@ import { drawIconSlot } from '../../ui/iconSlot';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
 import { classThemes } from './classThemes';
-import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, type SelectLayout } from './layout';
+import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, type SelectLayout, SKILL_NAME_HEIGHT } from './layout';
 
 /** The heading's outline reaches one pixel left of its pen position. */
 const NAME_MASK_BLEED = 1;
 /** Cap height plus outline and drop shadow. */
 const NAME_HEIGHT = 18;
-/** The label face's cell height, for centring a skill's name on its slot. */
-const LABEL_HEIGHT = 8;
 
 export interface DetailsRenderOptions {
   readonly character: Character;
@@ -85,7 +83,7 @@ export class DetailsPanel {
       size: slotSize,
       theme: lit ? windowThemes.indigo : windowThemes.steel,
     });
-    gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - LABEL_HEIGHT) / 2), {
+    gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - SKILL_NAME_HEIGHT) / 2), {
       ...this.#text.label,
       fill: lit ? palette.gold : palette.white,
     });

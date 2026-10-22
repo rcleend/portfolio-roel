@@ -25,7 +25,10 @@ export const look = defineSkillLook('power-chord', {
         }
       }
     },
-    effect: (gfx, { ring }) => {
+    // Classic's stunned customers wear their stars in the customer sheet's `stunned` animation.
+    effect: (gfx, fx) => {
+      if (fx.role !== 'ring') return;
+      const { ring } = fx;
       if (ring.age >= ring.life) return;
       const progress = segment(ring.age, 0, ring.life, easeOutCubic);
       const radius = Math.max(1, Math.round(ring.radius * progress));

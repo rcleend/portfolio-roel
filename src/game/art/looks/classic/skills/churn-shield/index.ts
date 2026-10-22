@@ -1,6 +1,7 @@
 import { ditherOn } from '@/engine/gfx/dither';
 import { blink } from '@/engine/motion/oscillators';
 import { defineSkillLook } from '@/game/art/looks/module';
+import { drawBurst } from '@/game/entities/effects/Burst';
 import { skillIconSheets } from '../icons';
 
 /** Classic CHURN SHIELD: a sparsely dithered cyan bubble with a double rim and a glint sliding around it. */
@@ -29,6 +30,9 @@ export const look = defineSkillLook('churn-shield', {
         const a = angle + i * 0.12;
         gfx.pixel(cx + Math.round(Math.cos(a) * (radius - 3)), cy + Math.round(Math.sin(a) * (radius - 3)), '#ffffff');
       }
+    },
+    effect: (gfx, fx) => {
+      if (fx.role === 'hit') drawBurst(gfx, fx.burst);
     },
   }),
 });

@@ -7,16 +7,18 @@ import type { Burst, ParticleView } from './Burst';
 import type { Effect } from './Effect';
 import { LOOK_EFFECT_SECONDS } from './Effect';
 
-/** Where a hero's basic attack struck: the world's spark burst, drawn by the hero's look. */
+/** A burst the world rolled for a hero's basic attack — where a shot ended, or its hit on a customer — drawn by the hero's look. */
 export class AttackImpact implements Effect, AttackImpactView {
   readonly owner: CharacterId;
   readonly direction: -1 | 1;
   readonly #burst: Burst;
+  readonly #part: 'impact' | 'hit';
 
-  constructor(owner: CharacterId, direction: -1 | 1, burst: Burst) {
+  constructor(owner: CharacterId, direction: -1 | 1, burst: Burst, part: 'impact' | 'hit') {
     this.owner = owner;
     this.direction = direction;
     this.#burst = burst;
+    this.#part = part;
   }
 
   get x(): number {
@@ -49,6 +51,6 @@ export class AttackImpact implements Effect, AttackImpactView {
 
   render(gfx: Gfx, kit: RenderKit): void {
     const hero = kit.looks.characters[this.owner];
-    drawLaunched(gfx, hero.sheet, this.direction, () => hero.attack.impact(gfx, this, kit));
+    drawLaunched(gfx, hero.sheet, this.direction, () => hero.attack[this.#part](gfx, this, kit));
   }
 }

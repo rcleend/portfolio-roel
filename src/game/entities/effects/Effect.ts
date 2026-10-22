@@ -19,6 +19,34 @@ export interface Effect extends Lifetime {
  */
 export const LOOK_EFFECT_SECONDS = 0.5;
 
+/** A clock as a look sees it: seconds since it started, and how long it runs. */
+export interface TimerView {
+  readonly age: number;
+  readonly seconds: number;
+}
+
+/** A lifetime that is nothing but a clock, for effects that are not a burst or a ring (a stun, a skill's end). */
+export class Countdown implements Lifetime, TimerView {
+  readonly seconds: number;
+  #age = 0;
+
+  constructor(seconds: number) {
+    this.seconds = seconds;
+  }
+
+  get age(): number {
+    return this.#age;
+  }
+
+  get done(): boolean {
+    return this.#age >= this.seconds;
+  }
+
+  update(dt: number): void {
+    this.#age += dt;
+  }
+}
+
 /** The world's effects, updated and drawn in insertion order. */
 export class EffectsLayer {
   #effects: Effect[] = [];

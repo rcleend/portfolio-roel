@@ -44,6 +44,8 @@ export const look = defineSkillLook('full-stack-attack', {
       gfx.circle(startX, area.y + area.h / 2, flare, '#ffffff');
       gfx.circle(startX, area.y + area.h / 2, flare - 2, '#6fe8ff');
     },
-    effect: (gfx, fx) => drawBurst(gfx, fx.burst),
+    effect: (gfx, fx) => {
+      if (fx.role === 'hit' || fx.role === 'struck') drawBurst(gfx, fx.burst);
+    },
   }),
 });
