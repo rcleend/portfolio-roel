@@ -53,6 +53,17 @@ The title is a lockup on a backdrop that can be swapped independently (docs/ARCH
 - "© 1996 LEENDERS CORP." near the bottom in the same face, smaller, appearing after the flash.
 - No level or credit counters.
 
+Three more lockups take Metal Slug's own arrangement: the P is raised the way the "M" towers over "ETAL", and the name rides the shelf it leaves above "RODUCT", as "SUPER VEHICLE-001" does.
+
+- The raised P is the logo's own letter, its skeleton scaled before it is rasterised, so it carries the same wobble, chips, cracks, extrusion, outline and glint as its neighbours, with the paint banded over its own height.
+- The name ends on the T's top-right corner, starts two pixels clear of the P's outline, and its drop shadow stops one row above the letters below. The P's top is level with the name's outline, as the M is with its kicker.
+- The name is set in the "SUPER VEHICLE-001" face, hand-drawn: a condensed grotesque, cream (`#efe3b5`), each upright stroke shaded tan (`#8a7656`) on the side facing into its letter, inside a dark outline and a darker drop shadow. Bars are as thick as stems, corners round off in steps, apertures are tight, the I has slab serifs and the R a straight leg.
+- Thirteen characters over six letters, where the reference sets seventeen over four, leave the face at its own size a third short of the shelf; each lockup closes that gap its own way:
+  - `faithful`: the face at its on-screen size, 17 px caps, beside a P scaled ×1.5 every way like the M; the name is tracked out evenly to land on the T.
+  - `headliner`: the name as the hero, the face redrawn at 25 px caps to fill the shelf at its own tight spacing; the P rises as far as that needs (×1.7) and widens less (×1.45).
+  - `heavy-metal`: a bold cut, 22 px caps with 5 px stems around 3 px counters, stamped like plate (banded cream, a lit top edge, a darker foot), beside the broadest P (×1.65 across, ×1.62 up).
+- Each line is centred on screen, so ENGINEER sits indented under the wider PRODUCT, as SLUG does under METAL.
+
 ## Character select
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:

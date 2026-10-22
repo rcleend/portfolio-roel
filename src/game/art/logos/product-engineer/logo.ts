@@ -1,6 +1,7 @@
 import { Bitmap } from '../raster/Bitmap';
-import { type Lettering, SLANT, setLettering } from './lettering';
+import { type InitialScale, type Lettering, SLANT, setLettering } from './lettering';
 import { paintLettering } from './paint';
+import { measureShelf, type Shelf } from './shelf';
 
 /** Cap heights of the two lines: the longer bottom word is set a little smaller, as SLUG is to METAL. */
 const LINE_HEIGHTS = [44, 40] as const;
@@ -11,7 +12,7 @@ export interface LogoLine {
   readonly image: Bitmap;
   /** The letters' face alone in a pale shine colour, for the glint that sweeps across the settled logo. */
   readonly shine: Bitmap;
-  /** Top-left of the first letter's upright box inside `image`; align lines on this point. */
+  /** Top-left of the line's upright cap box inside `image`, where its first letter starts on the cap line; align lines on this point. */
   readonly origin: { readonly x: number; readonly y: number };
   /** Cap height of the line. */
   readonly height: number;
@@ -19,6 +20,8 @@ export interface LogoLine {
   readonly width: number;
   /** Width along the cap line, where the slant has carried the letters furthest right. */
   readonly capWidth: number;
+  /** The room beside a raised first letter, or `null` when it is set like the rest. */
+  readonly shelf: Shelf | null;
 }
 
 export interface TitleLogo {
@@ -42,9 +45,18 @@ export function buildTitleLogo(headline: string): TitleLogo {
   return { top: paintLine(top, 0), bottom: paintLine(bottom, 1) };
 }
 
-function paintLine(word: string, index: 0 | 1): LogoLine {
+/**
+ * The logo's top line on its own, its first letter raised by `initial` so a
+ * name can sit beside it, as "SUPER VEHICLE-001" sits beside the "M" of
+ * METAL SLUG. The bottom line does not change with it.
+ */
+export function buildRaisedTopLine(headline: string, initial: InitialScale): LogoLine {
+  return paintLine(logoWords(headline)[0], 0, initial);
+}
+
+function paintLine(word: string, index: 0 | 1, initial?: InitialScale): LogoLine {
   const seed = SEEDS[index];
-  const lettering: Lettering = setLettering(word, { height: LINE_HEIGHTS[index], seed });
+  const lettering: Lettering = setLettering(word, { height: LINE_HEIGHTS[index], seed, initial });
   const last = lettering.letters[lettering.letters.length - 1];
   const width = last ? last.x + last.w - lettering.origin.x : 0;
   return {
@@ -55,6 +67,7 @@ function paintLine(word: string, index: 0 | 1): LogoLine {
     height: lettering.height,
     width,
     capWidth: Math.round(width + lettering.height * SLANT),
+    shelf: measureShelf(lettering),
   };
 }
 
