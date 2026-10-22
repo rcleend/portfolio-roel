@@ -53,6 +53,26 @@ The title is a lockup on a backdrop that can be swapped independently (docs/ARCH
 - "© 1996 LEENDERS CORP." near the bottom in the same face, smaller, appearing after the flash.
 - No level or credit counters.
 
+### Liftoff backdrop (`liftoff`)
+
+Launch night: the product ships at dusk from a pad between Berlin and San Francisco. The fireball becomes the ignition, the crater the smoke billowing off the pad, and the idle loop the exhaust plume drifting over the logo.
+
+- Sky: banded and dithered, from deep indigo (`#0c0922`) through twilight's purple light (`#583486`) to a rose and peach glow (`#e89a70`) on the horizon. The purple sits right behind the logo, a mid tone its dark-red extrusion and near-black outline read against; the warm bands stay below the logo and the prompt. High cloud streaks lit pink from below, and stars at three depths that twinkle in palette steps and drift west, the nearer the faster.
+- Skyline: one horizon for both missions in near-black plum silhouettes with a lit rim: Berlin's roofs, the Dom, a crane and the Fernsehturm; the Marin hills, the Golden Gate (with a trace of its red) and a hint of the Transamerica Pyramid. Red aviation lights blink slowly.
+- Smoke: round sprite puffs in lavender-greys, ember-lit from below by the exhaust and backlit by the horizon once it has gone, drawn as halos and then bodies so only each mass's outline catches the light. The banks roll by palette cycling.
+- Nothing static stands behind "PRESS ANY BUTTON" or the copyright; only the plume's soft column passes behind the prompt, dusky there in the Earth's shadow.
+- Reduced motion keeps the composition: the ignition only warms the sky, with no white bloom, flare, rumble or sonic boom, and the twinkle, drift and rolling run at half pace.
+
+| t (s)       | What happens |
+| ----------- | ------------ |
+| 0.00        | Ignition: the rocket and its tower stand black against a white bloom, a flare streaks the horizon, light floods the sky from the pad in a stepped dome and fire shoots out of the flame trench. |
+| 0.00 – 0.30 | The light burns down in steps; smoke erupts from the trench. |
+| 0.30 – 0.90 | The smoke rolls out along the ground and up around the pad, glowing like embers; the pad rumbles a pixel and the rocket creeps up out of the cloud. |
+| 0.90 – 1.20 | It accelerates up behind the incoming words, its flame stretching into a streak, leaving the plume. |
+| 1.20 – 1.25 | It clears the top of the screen as the words lock and the flash hits. |
+| 1.45 – 1.95 | A distant sonic-boom ring races across the top of the sky, gone before the first glint. |
+| settled     | The plume widens and shears into a lazy S, sunlit above the Earth's shadow; the smoke banks roll. At 5.6 s and 15.6 s, between glints, a little rocket goes up far away, from Berlin and then San Francisco: continuous delivery. |
+
 ## Character select
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
