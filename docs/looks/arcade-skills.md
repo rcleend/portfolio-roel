@@ -75,7 +75,7 @@ Every ramp runs deep → dark → mid → light → pale and is hue-shifted the 
 | FULL-STACK ATTACK | front-end cyan, back-end violet, database gold | `#1b1f5e #1d5fb8 #22a8f0 #6fe8ff #d4fff8` · `#2a0f4f #6123a8 #a24ee8 #d79bff #f7ddff` · `#5a1f0a #b5470c #f08c14 #ffd23a #fff6b8` | smoke `#2e2638 … #ece6ee` |
 | AGENT SUMMON | agent cyan | as above | white shell `#262a4a … #ffffff`, visor `#18163a`, gold hub |
 | UX ELIXIR | elixir pink | `#4a0c3c #a3156a #e8379a #ff86c8 #ffd9ef` | glass `#25305c … #ffffff`, cork wood |
-| POWER CHORD | sound lavender | `#2a1f6a #5a48c8 #a99cf0 #dcd4ff #f4f0ff` | gold bolt and stun stars, notes in Artsy's paint colours, the Strat's cream, mint, rosewood and maple |
+| POWER CHORD | sound lavender | `#2a1f6a #5a48c8 #a99cf0 #dcd4ff #f4f0ff` | gold bolt, notes in Artsy's paint colours, the Strat's cream, mint, rosewood and maple |
 | NORTH STAR | guiding gold | the gold ramp above | — |
 | CHURN SHIELD | retention teal | `#0c2f4a #12769a #2fc4d8 #8ff4ec #e2fff8` | soap film lavender and pink, heart red `#a8163e #f03a5c #ff8aa2` |
 
@@ -154,7 +154,7 @@ The glyph bits fly back and up from each hit (speed 60–120 px/s, angle −150�
 
 **On a busy screen.**
 Three saturated bands with near-white cores and deep seams between them are the brightest, most graphic thing on screen, and the seams keep the three layers apart over Berlin's neon and Luna's pastel facades.
-The band is 19 px of a 56 px customer, so heads and legs stay visible; it is gone in 0.6 s.
+The band is 19 px of a 48–56 px customer, so heads and legs stay visible; it is gone in 0.6 s.
 
 **Reduced motion.** `charge-calm`, `hit-calm`; hold `fire` on frame 0 instead of looping (no buzz); no shake (already ignored).
 
@@ -173,7 +173,7 @@ The band is 19 px of a 56 px customer, so heads and legs stay visible; it is gon
 | 459–479 | It warps out: white, squeezed to a line, a sparkle, gone exactly at 8 s | `fx-drone/dismiss` (21 ticks) | — | as the drone |
 
 **On a busy screen.**
-The drone is the only white object in either level and is ink-outlined; the black visor and cyan eyes give it a face at 22 px.
+The drone's white shell and ink outline set it apart from both levels' facades; the black visor and cyan eyes give it a face at 22 px.
 Shots are small but white-hot with cyan spikes that read at any angle.
 
 **Reduced motion.** `summon-calm`, `dismiss-calm`, `fx-drone-zap/hit-calm`; hold `expiring` on frame 0 (steady amber eyes, no blinking).
