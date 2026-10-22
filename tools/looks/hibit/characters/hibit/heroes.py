@@ -51,12 +51,27 @@ def _hips(pose: Pose) -> Tuple[Tuple[float, float], Tuple[float, float]]:
 
 def planted(pose: Pose, near: Tuple[float, float] = (3.2, 0.8), far: Tuple[float, float] = (-2.8, -0.6),
             near_lift: float = 0.0, far_lift: float = 0.0, near_pitch: float = 0.0, far_pitch: float = 0.0) -> Pose:
-    """Plants both feet at (dx, dz) from their hips with IK, so the body can bob above them."""
+    """Plants both feet at (dx, dz) from their hips with IK, so the body can bob above them.
+
+    A planted foot must never ride up with the body: if the pose asks for more reach than
+    a soft-kneed leg has, the pelvis settles until both feet are on their marks."""
     (nx, nz), (fx, fz) = _hips(replace(pose, y=0.0, lean=0.0))
+    near_target = (nx + near[0], BUILD.ankle_height + near_lift, nz + near[1])
+    far_target = (fx + far[0], BUILD.ankle_height + far_lift, fz + far[1])
+    reach = (BUILD.thigh + BUILD.shin) * 0.985
+    sk = solve(pose)
+    drop = 0.0
+    for hip, target in ((sk.near_leg.root, near_target), (sk.far_leg.root, far_target)):
+        dx, dz = target[0] - hip[0], target[2] - hip[2]
+        flat = dx * dx + dz * dz
+        if flat < reach * reach:
+            max_height = math.sqrt(reach * reach - flat)
+            drop = max(drop, (hip[1] - target[1]) - max_height)
     return replace(
         pose,
-        near_leg=Limb(target=(nx + near[0], BUILD.ankle_height + near_lift, nz + near[1]), end=near_pitch),
-        far_leg=Limb(target=(fx + far[0], BUILD.ankle_height + far_lift, fz + far[1]), end=far_pitch),
+        y=pose.y - max(0.0, drop),
+        near_leg=Limb(target=near_target, end=near_pitch),
+        far_leg=Limb(target=far_target, end=far_pitch),
     )
 
 
@@ -67,8 +82,8 @@ def idle_body(i: int) -> FrameSpec:
     """A relaxed, weight-on-the-back-leg stance that breathes; blinks once, glints once."""
     t = i / IDLE_FRAMES
     breath = math.sin(2 * math.pi * t)
-    pose = Pose(y=0.55 * breath - 0.4, lean=-1.0 + 0.6 * breath, chest_lean=-1.0, hip_yaw=30.0, chest_yaw=50.0,
-                roll=-2.0)
+    pose = Pose(y=-1.2, chest_rise=0.6 * breath, lean=-1.0, chest_lean=-1.0 + 0.5 * breath, hip_yaw=30.0,
+                chest_yaw=50.0, roll=-2.0)
     pose = planted(pose, near=(5.4, 1.0), far=(-4.2, -0.8), near_pitch=4.0)
     face = "blink" if i == 8 else "smile"
     # The hair lags the breath: it floats a moment after the chest drops.
@@ -215,6 +230,8 @@ class Hero:
     skill: Callable[[], List[FrameSpec]]
     victory: Callable[[], List[FrameSpec]]
     sleeve: str
+    #: Head-relative sprites worn in every frame (Strategy's open collar).
+    worn: Tuple[Tuple, ...] = ()
 
 
 def locomotion(hero: Hero, anim: str) -> List[FrameSpec]:
@@ -233,12 +250,16 @@ def locomotion(hero: Hero, anim: str) -> List[FrameSpec]:
 
 def frames_for(hero: Hero, anim: str) -> List[FrameSpec]:
     if anim == "attack":
-        return hero.attack()
-    if anim == "skill":
-        return hero.skill()
-    if anim == "victory":
-        return hero.victory()
-    return locomotion(hero, anim)
+        specs = hero.attack()
+    elif anim == "skill":
+        specs = hero.skill()
+    elif anim == "victory":
+        specs = hero.victory()
+    else:
+        specs = locomotion(hero, anim)
+    if hero.worn:
+        specs = [replace(spec, head_fx=spec.head_fx + hero.worn) for spec in specs]
+    return specs
 
 
 # ── HACKERMAN: the keyboard, slung like a keytar ──────────────────────────────────
@@ -498,6 +519,15 @@ OOOO
 
 _PAD = HandItem("far", PAD.sprite, (2, 2))
 
+#: The open white collar, framing a V of skin under his chin; placed from the head anchor
+#: (the top of the neck) so it rides with every pose.
+COLLAR = Sprite.parse("""
+oW...Wo.
+oWWsWWo.
+.oWWWo..
+""", {"o": "#6c6e94", "W": "#ffffff", "s": "#d8876f"})
+_COLLAR_FX = ((COLLAR, -3, 1, 3.0),)
+
 
 def strategy_carry(anim: str, i: int, spec: FrameSpec) -> FrameSpec:
     p = spec.extra.get("phase", 0.0)
@@ -625,6 +655,7 @@ STRATEGY_HERO = Hero(
     strategy_skill,
     strategy_victory,
     sleeve="blazer",
+    worn=_COLLAR_FX,
 )
 
 HEROES: Dict[str, Hero] = {h.id: h for h in (HACKERMAN_HERO, ARTSY_HERO, STRATEGY_HERO)}

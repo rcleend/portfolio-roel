@@ -103,8 +103,10 @@ class FrameSpec:
     hide_hands: Tuple[str, ...] = ()
     #: Smear from the previous frame's hand position to this one ("near"/"far"), see render_sequence.
     smear: Tuple[str, ...] = ()
-    #: Sprites placed relative to the head anchor pixel (steam, stars, hearts): (sprite, dx, dy).
-    head_fx: Tuple[Tuple[Sprite, int, int], ...] = ()
+    #: Sprites placed relative to the head anchor pixel: (sprite, dx, dy) floats above
+    #: everything (steam, stars); (sprite, dx, dy, dz) sits at the head's depth plus dz
+    #: (a collar under the chin).
+    head_fx: Tuple[Tuple, ...] = ()
 
 
 ExtraFn = Callable[[Skeleton, FrameSpec, Optional[Placed]], List[Prim]]
@@ -182,8 +184,10 @@ def render_frame(character: Character, spec: FrameSpec) -> Rendered:
     hx, hy = to_pixel(sk.head)
     head_x, head_y = hx - pivot[0] + spec.head_dx, hy - pivot[1] + spec.head_dy
     canvas.stamp(sprite, head_x, head_y, z=sk.head[2] + 6.0, layer="head")
-    for fx_sprite, dx, dy in spec.head_fx:
-        canvas.stamp(fx_sprite, hx + spec.head_dx + dx, hy + spec.head_dy + dy, z=200.0, layer="fx")
+    for fx in spec.head_fx:
+        fx_sprite, dx, dy = fx[0], fx[1], fx[2]
+        z = sk.head[2] + fx[3] if len(fx) > 3 else 200.0
+        canvas.stamp(fx_sprite, hx + spec.head_dx + dx, hy + spec.head_dy + dy, z=z, layer="fx")
     for item in spec.items:
         chain = sk.near_arm if item.hand == "near" else sk.far_arm
         ix, iy = to_pixel(chain.end)

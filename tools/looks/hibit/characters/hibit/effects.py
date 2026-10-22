@@ -108,68 +108,91 @@ GLYPHS: Dict[str, List[str]] = {
 CODE = {"core": "#ffffff", "hot": "#9dffc4", "mid": "#3dff8a", "dim": "#1f9a58", "deep": "#0e4a2a", "ink": "#06200f"}
 
 
+def _outlined_glyph(p: Pixels, rows: Sequence[str], x: int, y: int, fill: str, ink: str) -> None:
+    """A glyph with a 1 px ink outline around it, so it stays legible inside a glow."""
+    for j, row in enumerate(rows):
+        for i, ch in enumerate(row):
+            if ch != "#":
+                continue
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    if p.get(x + i + dx, y + j + dy) is None:
+                        p.put(x + i + dx, y + j + dy, ink)
+    p.glyph(rows, x, y, fill)
+
+
+def _glow(p: Pixels, color: str, sparse: bool = False) -> None:
+    """One stepped band of glow around everything drawn so far (never a soft blur)."""
+    add = []
+    for y in range(p.h):
+        for x in range(p.w):
+            if p.get(x, y) is not None:
+                continue
+            if sparse and (x + y) % 2:
+                continue
+            if any(p.get(x + dx, y + dy) is not None for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))):
+                add.append((x, y))
+    for x, y in add:
+        p.put(x, y, color)
+
+
 def _bolt_core(p: Pixels, cx: int, cy: int, hot: bool) -> None:
-    """`</>` with a two-band stepped glow."""
-    text = ["<", "/", ">"]
-    x = cx - 5
-    for g in text:
-        p.glyph(GLYPHS[g], x, cy - 2, CODE["core"] if hot else CODE["hot"])
-        x += 4
-    # Stepped glow: dilate twice with darker bands (drawn under the glyphs).
-    glyph_px = {(i % p.w, i // p.w) for i, c in enumerate(p.px) if c in (CODE["core"], CODE["hot"])}
-    for band, color in ((1, CODE["mid"]), (2, CODE["dim"])):
-        for x0, y0 in list(glyph_px):
-            for dx in range(-band, band + 1):
-                for dy in range(-band, band + 1):
-                    if abs(dx) + abs(dy) <= band and p.get(x0 + dx, y0 + dy) is None:
-                        p.put(x0 + dx, y0 + dy, color)
+    """`</>` in white-hot mint, inked so it reads, wrapped in a stepped green glow."""
+    fill = CODE["core"] if hot else CODE["hot"]
+    x = cx - 6
+    for g in ("<", "/", ">"):
+        _outlined_glyph(p, GLYPHS[g], x, cy - 2, fill, CODE["ink"])
+        x += 5
+    _glow(p, CODE["mid"])
+    _glow(p, CODE["dim"], sparse=True)
 
 
 def code_projectile() -> List[Sprite]:
-    """Six frames: the bolt shimmers (core flips white/mint) while glyphs stream behind it."""
+    """Six frames: the bolt shimmers (core flips white/mint, the outer glow crawls) while a
+    stream of keyboard glyphs peels off behind it, dimmer with distance."""
     trail_glyphs = [";", "1", "{", "0", "=", "}"]
     frames = []
     for f in range(6):
         p = Pixels()
-        _bolt_core(p, 17, 16, hot=f % 2 == 0)
-        # The stream: glyphs peel off behind and fall away, dimmer with distance.
+        _bolt_core(p, 19, 16, hot=f % 2 == 0)
         for k in range(3):
             g = trail_glyphs[(f + k * 2) % len(trail_glyphs)]
-            gx = 8 - k * 4 - (f % 2)
+            gx = 6 - k * 4 - (f % 2)
             gy = 14 + (1 if (f + k) % 2 else -1) * (k % 2) + (k == 2)
             color = (CODE["mid"], CODE["dim"], CODE["deep"])[k]
-            rows = GLYPHS[g]
-            p.glyph(rows, gx, gy, color)
-        # Scanline sparkle on the leading edge.
-        p.put(25 + (f % 3 == 0), 16 - 2 + (f % 3), CODE["core"])
+            p.glyph(GLYPHS[g], gx, gy, color)
+        # A leading spark that skips along the front edge.
+        p.put(29, 14 + (f % 3), CODE["core"])
         frames.append(p.sprite())
     return frames
 
 
 def code_impact() -> List[Sprite]:
-    """Seven frames: white pop, the bolt shatters into brackets and bits that fly and blink out."""
+    """Seven frames: a white-hot pop, a two-band shock ring, then the bolt's brackets and
+    bits fly apart and blink out like hardware sprites."""
     frames = []
     shards = [("{", -1.0, -0.6), ("}", 1.0, -0.5), ("<", -1.0, 0.5), (">", 1.0, 0.6), (";", 0.1, -1.0), ("0", 0.0, 1.0)]
     for f in range(7):
         p = Pixels()
         if f == 0:
-            p.disc(16, 16, 5.5, 4.5, CODE["dim"])
-            p.disc(16, 16, 4.0, 3.2, CODE["hot"])
-            p.disc(16, 16, 2.5, 2.0, CODE["core"])
+            p.disc(16, 16, 6.0, 5.0, CODE["dim"])
+            p.disc(16, 16, 4.5, 3.6, CODE["hot"])
+            p.disc(16, 16, 3.0, 2.4, CODE["core"])
         elif f == 1:
+            p.ring(16, 16, 8.5, CODE["dim"], 1.0)
             p.ring(16, 16, 7.5, CODE["mid"], 1.0)
             p.disc(16, 16, 3.0, 2.5, CODE["core"])
         else:
             r = 3 + f * 2.4
             for g, dx, dy in shards:
                 if f >= 5 and (f + len(g)) % 2:
-                    continue  # blink out
+                    continue
                 gx = int(16 + dx * r - 1)
                 gy = int(16 + dy * r * 0.8 - 2)
-                color = CODE["hot"] if f < 4 else CODE["mid"] if f < 6 else CODE["dim"]
-                p.glyph(GLYPHS[g], gx, gy, color)
+                color = CODE["core"] if f < 3 else CODE["hot"] if f < 5 else CODE["mid"]
+                _outlined_glyph(p, GLYPHS[g], gx, gy, color, CODE["ink"])
             if f < 4:
-                p.ring(16, 16, 7.5 + (f - 1) * 2.5, CODE["dim"], 1.0)
+                p.ring(16, 16, 9.5 + (f - 1) * 2.5, CODE["dim"], 1.0)
         frames.append(p.sprite())
     return frames
 
@@ -186,12 +209,12 @@ def code_muzzle() -> List[Sprite]:
                 rad = math.radians(a)
                 p.line(16 + math.cos(rad) * 4, 16 + math.sin(rad) * 4, 16 + math.cos(rad) * 6, 16 + math.sin(rad) * 6, CODE["hot"])
         elif f == 1:
-            p.glyph(GLYPHS[">"], 15, 13, CODE["core"])
-            p.glyph(GLYPHS["_"], 19, 17, CODE["hot"])
-            p.ring(16, 16, 6.0, CODE["dim"])
+            _outlined_glyph(p, GLYPHS[">"], 15, 13, CODE["core"], CODE["ink"])
+            _outlined_glyph(p, GLYPHS["_"], 19, 17, CODE["hot"], CODE["ink"])
+            p.ring(16, 16, 7.0, CODE["dim"])
         elif f == 2:
-            p.glyph(GLYPHS[">"], 16, 13, CODE["mid"])
-            p.glyph(GLYPHS["_"], 20, 17, CODE["mid"])
+            _outlined_glyph(p, GLYPHS[">"], 16, 13, CODE["mid"], CODE["ink"])
+            _outlined_glyph(p, GLYPHS["_"], 20, 17, CODE["mid"], CODE["ink"])
         else:
             p.put(18, 15, CODE["dim"])
             p.put(21, 17, CODE["dim"])

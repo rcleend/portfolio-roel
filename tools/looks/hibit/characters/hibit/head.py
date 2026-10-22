@@ -38,8 +38,8 @@ PALETTE: Dict[str, str] = {
     "G": "#1c1622",
     "g": "#5e5262",
     "w": "#ffffff",
-    # eyes, mouth
-    "e": "#2a1e2c",
+    # eyes (his blue-grey irises: a mid tone keeps the far lens a ring, not a black blob), mouth
+    "e": "#4a5a7a",
     "t": "#fbf3ea",
     "m": "#5a1a22",
     "r": "#c0606a",

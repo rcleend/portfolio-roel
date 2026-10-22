@@ -157,11 +157,17 @@ def fan_smear(prev: Tuple[Tuple[float, float], Tuple[float, float]], cur: Tuple[
         for j in range(n + 1):
             u = j / n
             x, y = ex + (hx - ex) * u, ey + (hy - ey) * u
-            color = edge if u > 0.82 and t > 0.25 else (outer if u > 0.45 else inner)
+            leading = u > 0.82 and t > 0.25
+            color = edge if leading else (outer if u > 0.45 else inner)
             px, py = int(math.floor(x)), int(math.floor(y))
             for ox, oy in ((0, 0), (1, 0), (0, 1)):
-                if 0 <= px + ox < w and 0 <= py + oy < h and pixels[(py + oy) * w + px + ox] is None:
-                    pixels[(py + oy) * w + px + ox] = color
+                qx, qy = px + ox, py + oy
+                # The fan's body is dithered (a checkerboard reads as motion-transparent);
+                # only the leading edge, where the hand was, is solid.
+                if not leading and (qx + qy) % 2:
+                    continue
+                if 0 <= qx < w and 0 <= qy < h and pixels[qy * w + qx] is None:
+                    pixels[qy * w + qx] = color
     return Sprite(w, h, pixels)
 
 

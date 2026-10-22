@@ -193,8 +193,8 @@ def _shirt_front(width_top: float, width_bottom: float):
             if up > 0.78 and abs(side) < 0.16:
                 return "skin", 0  # the open collar
             if abs(side + 0.02) < 0.05 and up < 0.78:
-                return "shirt", -1  # placket
-            return "shirt", 0
+                return "shirt", 0  # placket
+            return "shirt", 1  # a crisp white front, a tone above the ramp's shading
         if abs(side) < w + 0.16:
             return None, 1 if side < 0 else -1  # lapel roll catching the light
         return None, 0
@@ -206,8 +206,8 @@ def _shirt_waist(hit: Hit) -> PatternResult:
     fwd, up, side = hit.local
     if fwd > 0.25 and abs(side) < 0.2 + 0.08 * up:
         if abs(side) < 0.05:
-            return "shirt", -1
-        return "shirt", 0
+            return "shirt", 0
+        return "shirt", 1
     if fwd > 0.25 and abs(side) < 0.32:
         return None, 1 if side < 0 else -1
     return None, 0

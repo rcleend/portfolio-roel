@@ -31,8 +31,10 @@ class Build:
     hip_half_width: float = 2.6
     shoulder_half_width: float = 6.6
     shoulder_drop: float = 0.8
-    thigh: float = 13.6
-    shin: float = 12.0
+    # Slightly longer than hip height minus ankle: a standing leg keeps a soft knee, so IK
+    # can always plant the foot exactly and it never rides up and down with a breath.
+    thigh: float = 14.0
+    shin: float = 12.4
     ankle_height: float = 1.9
     upper_arm: float = 8.6
     forearm: float = 7.8
@@ -63,6 +65,8 @@ class Pose:
     chest_lean: float = 0.0  # chest relative to pelvis, forward (+)
     roll: float = 0.0  # spine sideways towards the near side (+)
     neck: float = 0.0  # head nod forward (+), in degrees on the neck
+    #: Breath: lifts chest, shoulders and head (px) while the hips and legs stay put.
+    chest_rise: float = 0.0
     near_arm: Limb = Limb(swing=4.0, spread=9.0, bend=12.0)
     far_arm: Limb = Limb(swing=-4.0, spread=9.0, bend=12.0)
     near_leg: Limb = Limb(swing=3.0, bend=2.0)
@@ -101,12 +105,13 @@ class Skeleton:
     build: Build
 
     def foot_dir(self, leg: Chain) -> Vec:
-        """Heel-to-toe direction: forward in the pelvis frame, pitched by `end`."""
-        shin = norm(sub(leg.end, leg.mid))
+        """Heel-to-toe direction: level along the ground in the hips' facing, pitched only by
+        `end` (toes up +). It ignores the body's lean and the shin, so a planted foot stays
+        pixel-still while the body breathes and bobs above it."""
         fwd = leg.frame.fwd
-        # Flatten forward against the shin so a bent ankle keeps the foot roughly level.
-        f = norm(sub(fwd, scale(shin, dot(fwd, shin) * 0.3)))
-        return norm(rotate(f, leg.frame.side, leg.limb.end * DEG))
+        level = norm((fwd[0], 0.0, fwd[2]))
+        side = norm(cross(level, (0.0, 1.0, 0.0)))
+        return norm(rotate(level, side, leg.limb.end * DEG))
 
 
 def _two_bone(root: Vec, target: Vec, l1: float, l2: float, pole: Vec) -> Tuple[Vec, Vec]:
@@ -157,7 +162,7 @@ def solve(pose: Pose, build: Build = Build()) -> Skeleton:
         .leaned((pose.lean + pose.chest_lean) * DEG)
     )
     chest = add(pelvis, scale(pelvis_frame.up, build.pelvis_to_chest * 0.55))
-    chest = add(chest, scale(chest_frame.up, build.pelvis_to_chest * 0.45))
+    chest = add(chest, scale(chest_frame.up, build.pelvis_to_chest * 0.45 + pose.chest_rise))
     neck_base = add(chest, scale(chest_frame.up, build.chest_to_neck))
     head_frame = chest_frame.leaned(pose.neck * DEG)
     head = add(neck_base, scale(head_frame.up, build.neck_length))
