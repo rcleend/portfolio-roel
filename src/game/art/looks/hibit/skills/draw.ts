@@ -75,7 +75,15 @@ export function drawBandedRing(gfx: Gfx, x: number, y: number, outer: number, ba
   }
 }
 
-function fillAnnulus(gfx: Gfx, cx: number, cy: number, outer: number, inner: number, color: string, every: number): void {
+function fillAnnulus(
+  gfx: Gfx,
+  cx: number,
+  cy: number,
+  outer: number,
+  inner: number,
+  color: string,
+  every: number,
+): void {
   const top = Math.max(WORLD_ROWS.top, cy - Math.ceil(outer));
   const bottom = Math.min(WORLD_ROWS.bottom - 1, cy + Math.ceil(outer));
   for (let row = top; row <= bottom; row++) {
@@ -136,7 +144,9 @@ export function chestLift(heroHeight: number): number {
 
 /** The hero's mouth: the pose's `mouth` anchor, or where a mouth sits on a hero this tall. */
 export function mouthOf(caster: CasterSnapshot): Vec2 {
-  return caster.anchor('mouth') ?? { x: caster.x + caster.facing * 5, y: caster.feet - Math.round(caster.height * 0.78) };
+  return (
+    caster.anchor('mouth') ?? { x: caster.x + caster.facing * 5, y: caster.feet - Math.round(caster.height * 0.78) }
+  );
 }
 
 /** The hand a skill pose holds things in: the `hand` anchor, or in front of a hero this tall at chest height. */
