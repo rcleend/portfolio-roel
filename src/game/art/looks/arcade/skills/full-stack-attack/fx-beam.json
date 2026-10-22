@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 16, "h": 24 },
+  "origin": { "x": 0, "y": 11 },
+  "animations": [
+    { "name": "fire", "fps": 30, "loop": true, "frames": 4 },
+    { "name": "collapse", "fps": 30, "loop": false, "frames": 5 }
+  ]
+}

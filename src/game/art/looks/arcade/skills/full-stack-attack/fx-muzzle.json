@@ -1,0 +1,10 @@
+{
+  "frame": { "w": 32, "h": 32 },
+  "origin": { "x": 16, "y": 16 },
+  "animations": [
+    { "name": "charge", "fps": 30, "loop": false, "frames": 3 },
+    { "name": "charge-calm", "fps": 30, "loop": false, "frames": 3 },
+    { "name": "flare", "fps": 20, "loop": true, "frames": 4 },
+    { "name": "smoke", "fps": 15, "loop": false, "frames": 6 }
+  ]
+}

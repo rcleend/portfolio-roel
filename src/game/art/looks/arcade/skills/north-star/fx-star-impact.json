@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 48, "h": 48 },
+  "origin": { "x": 24, "y": 24 },
+  "animations": [
+    { "name": "burst", "fps": 30, "loop": false, "frames": 9 },
+    { "name": "burst-calm", "fps": 30, "loop": false, "frames": 9 }
+  ]
+}

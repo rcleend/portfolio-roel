@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 8, "h": 8 },
+  "origin": { "x": 4, "y": 4 },
+  "animations": [{ "name": "variants", "fps": 8, "loop": true, "frames": 8 }]
+}

@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 32, "h": 48 },
+  "origin": { "x": 16, "y": 48 },
+  "animations": [{ "name": "travel", "fps": 30, "loop": true, "frames": 4 }]
+}

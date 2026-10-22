@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 32, "h": 48 },
+  "origin": { "x": 6, "y": 28 },
+  "animations": [{ "name": "bump", "fps": 30, "loop": false, "frames": 6 }]
+}

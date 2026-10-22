@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 17, "h": 17 },
+  "origin": { "x": 8, "y": 8 },
+  "animations": [{ "name": "twinkle", "fps": 20, "loop": false, "frames": 6 }]
+}
