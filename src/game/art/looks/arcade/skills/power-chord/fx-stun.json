@@ -1,8 +1,0 @@
-{
-  "frame": { "w": 40, "h": 20 },
-  "origin": { "x": 20, "y": 20 },
-  "animations": [
-    { "name": "spin", "fps": 12, "loop": true, "frames": 8 },
-    { "name": "fade", "fps": 12, "loop": false, "frames": 3 }
-  ]
-}

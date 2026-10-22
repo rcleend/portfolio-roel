@@ -211,7 +211,10 @@ _FLANK = RY * RY / RX
 
 
 def _bump(step: int) -> Sprite:
-    """A bump on the film's right flank: it dents white, rings ripple out, and a heart pops off."""
+    """A bump on the film's right flank: it dents white, rings ripple out and sparks of film spray off.
+
+    No heart: whether the customer calms down is the customer's own state to show.
+    """
     sprite = Sprite(*BUMP)
     bx, by = _BUMP_AT
     # The film near the contact, as an arc of a circle as curved as the capsule's flank.
@@ -227,12 +230,17 @@ def _bump(step: int) -> Sprite:
             continue
         span = 17 - k * 2
         sprite.fill(arc(cx, by + 0.5, _FLANK + reach, _FLANK + reach, -span, span), tone)
-    if step >= 1:
-        rows = HEART_BEAT if step == 1 else HEART_SMALL
-        hx, hy = bx + 9 + step, by - 6 - step * 3
-        heart = Sprite(*BUMP)
-        heart.stamp(rows, HEART_KEY, hx - len(rows[0]) // 2, hy - len(rows) // 2)
-        sprite.blit(heart.outlined(INK, corners=False) if step < 5 else heart)
+    # Droplets of film thrown off the contact, up and out, in the film's own colours.
+    for k, (angle, tone) in enumerate(((-55, TEAL), (-20, PINK), (25, LAVENDER), (60, TEAL))):
+        if step >= 4 and k % 2:
+            continue
+        a = math.radians(angle)
+        r = 3 + step * 3.2
+        x, y = math.floor(bx + math.cos(a) * r), math.floor(by + math.sin(a) * r - step)
+        if step <= 3:
+            sprite.blit(motifs.twinkle(1, tone), x - 1, y - 1)
+        else:
+            sprite.set(x, y, tone.light)
     return sprite
 
 

@@ -8,9 +8,9 @@ spell.
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
-from pixkit.canvas import Sprite
+from pixkit.canvas import Sprite, disc, edge_of, ellipse, ring
 from pixkit.palette import GLASS, INK, PINK, WHITE, WOOD
 from pixkit.sheet import Animation, Strip, with_calm
 
@@ -182,6 +182,13 @@ def _appear(step: int) -> Sprite:
 _DRINK = ((-20, 1.0), (-50, 0.85), (-80, 0.6), (-100, 0.35), (-110, 0.12), (-110, 0.0))
 
 
+def _lip(tilt_degrees: float) -> Tuple[int, int]:
+    """The pixel at the tip of the flask's neck (its cork) for a tilt: where it meets the hero's ``mouth``."""
+    t = math.radians(tilt_degrees)
+    reach = 11.0
+    return math.floor(GRIP[0] + reach * math.sin(t)), math.floor(GRIP[1] - reach * math.cos(t))
+
+
 def _pop(step: int) -> Sprite:
     """The empty flask vanishes in a puff of pink and a heart: understanding, absorbed."""
     sprite = Sprite(*POTION)
@@ -215,7 +222,13 @@ def potion_strip() -> Strip:
         animations=[
             *with_calm(Animation("appear", 30, False, [_appear(i) for i in range(3)]), flashes=[1]),
             Animation("hold", 8, True, [flask(0, 1.0), flask(-4, 1.0)]),
-            Animation("drink", 20, False, [flask(tilt, fill) for tilt, fill in _DRINK]),
+            Animation(
+                "drink",
+                20,
+                False,
+                [flask(tilt, fill) for tilt, fill in _DRINK],
+                anchors={"lip": [_lip(tilt) for tilt, _ in _DRINK]},
+            ),
             *with_calm(Animation("pop", 20, False, [_pop(i) for i in range(5)]), flashes=[0]),
         ],
     )
@@ -245,44 +258,49 @@ def glint_strip() -> Strip:
     )
 
 
-# ── Calm: what floats over a customer under the elixir ─────────────────────
+# ── Calm: the elixir's own marks on the customers it reaches ───────────────
+#
+# The calm heart over a customer's head is the customer's own state
+# indicator (the shared customer renderer draws it, whatever calmed them), so
+# none of these is a heart: the elixir adds the moment it reaches someone, a
+# breath of calm where their steam would be, and sparkles drifting off them.
 
-CALM = (16, 16)
-
-_CALM_HEART = [".xx.xx.", "xHxxxxx", "xxxxxxx", ".xxxxx.", "..xxx..", "...x..."]
-_CALM_HEART_BIG = [
-    ".xx...xx.",
-    "xHHx.xxxx",
-    "xHxxxxxxx",
-    "xxxxxxxxx",
-    ".xxxxxxx.",
-    "..xxxxx..",
-    "...xxx...",
-    "....x....",
-]
+CALM = (24, 24)
+_CC = 11.5
 
 
-def _calm_heart(frame: int) -> Sprite:
-    """A pink heart over a calmed customer's head: a slow bob and one soft beat per loop."""
+def _calm_touch(step: int) -> Sprite:
+    """The calm ring reaching a customer: a soft pink ring blooms round their chest and breaks into sparkles."""
     sprite = Sprite(*CALM)
-    big = frame == 2
-    rows = _CALM_HEART_BIG if big else _CALM_HEART
-    bob = (0, -1, -1, 0)[frame]
-    left = 8 - len(rows[0]) // 2
-    top = 8 - len(rows) // 2 + bob
-    sprite.stamp(rows, {"x": PINK.mid, "H": PINK.pale}, left, top)
-    for x, y, color in list(sprite.pixels()):
-        if color == PINK.mid and sprite.get(x + 1, y + 1) is None and sprite.get(x, y + 1) is None:
-            sprite.set(x, y, PINK.dark)
-    return sprite.outlined(INK, corners=False)
+    c = _CC
+    if step < 3:
+        radius = (4.0, 7.0, 9.5)[step]
+        sprite.fill(ring(c, c, radius, radius, 2 if step < 2 else 1), (PINK.pale, PINK.light, PINK.mid)[step])
+        if step == 0:
+            sprite.fill(disc(c, c, 2.0), WHITE)
+        return sprite
+    for k in range(6):
+        a = math.radians(k * 60 + 30 + step * 10)
+        r = 8.0 + step
+        x, y = math.floor(c + math.cos(a) * r), math.floor(c + math.sin(a) * r)
+        if step == 3 or (step == 4 and k % 2 == 0):
+            sprite.blit(motifs.twinkle(1, PINK), x - 1, y - 1)
+        elif step == 5 and k % 2 == 0:
+            sprite.set(x, y, PINK.mid)
+        else:
+            sprite.set(x, y, PINK.light)
+    return sprite
 
 
 def _calm_wave(frame: int) -> Sprite:
-    """A soft tilde breathed out where an angry customer would steam: the calm version of their steam."""
+    """Two soft tildes breathed out where an angry customer would steam, drifting up as they undulate."""
     sprite = Sprite(*CALM)
-    for x in range(3, 13):
-        y = 8 + round(1.6 * math.sin((x - 3) / 10 * 2 * math.pi + frame * math.pi / 2))
-        sprite.set(x, y, PINK.light if 5 <= x <= 10 else PINK.mid)
+    rise = frame // 2
+    for row, (left, right, tone) in enumerate(((8, 15, PINK.light), (10, 17, PINK.mid))):
+        base = 10 + row * 4 - rise
+        for x in range(left, right + 1):
+            y = base + round(1.4 * math.sin((x - left) / 8 * 2 * math.pi + frame * math.pi / 2))
+            sprite.set(x, y, PINK.pale if row == 0 and left + 2 <= x <= right - 2 else tone)
     return sprite
 
 
@@ -290,18 +308,70 @@ def _calm_sparkle(step: int) -> Sprite:
     """A sparkle drifting up off a calm customer: blooms and closes."""
     sprite = Sprite(*CALM)
     radius = (1, 2, 3, 2, 1)[step]
-    sprite.blit(motifs.twinkle(radius, PINK, diagonals=step == 2), 8 - radius, 8 - radius)
+    sprite.blit(motifs.twinkle(radius, PINK, diagonals=step == 2), 12 - radius, 12 - radius)
     return sprite
 
 
 def calm_strip() -> Strip:
     return Strip(
         frame=CALM,
-        origin=(8, 8),
+        origin=(12, 12),
         animations=[
-            Animation("heart", 6, True, [_calm_heart(i) for i in range(4)]),
+            Animation("touch", 20, False, [_calm_touch(i) for i in range(6)]),
             Animation("wave", 8, True, [_calm_wave(i) for i in range(4)]),
             Animation("sparkle", 15, False, [_calm_sparkle(i) for i in range(5)]),
+        ],
+    )
+
+
+# ── The aura: the elixir still working in him ─────────────────────────────
+#
+# For the six seconds the potion lasts, a pink glow breathes on the street at
+# his feet and small bubbles rise off it: the player can see the buff is on.
+
+AURA = (48, 16)
+_AURA_C = (23.5, 9.5)
+
+
+def _aura_ground(frame: int) -> Sprite:
+    """Stepped pink rings on the ground round his feet, breathing a pixel in and out."""
+    sprite = Sprite(*AURA)
+    cx, cy = _AURA_C
+    swell = (0.0, 1.0, 2.0, 1.0)[frame]
+    outer = ellipse(cx, cy, 20.0 + swell, 5.0 + swell * 0.25)
+    inner = ellipse(cx, cy, 16.0 + swell, 3.6 + swell * 0.25)
+    sprite.fill(edge_of(outer), PINK.dark)
+    sprite.fill(edge_of(inner), PINK.mid)
+    # The front of the inner ring catches the light.
+    for x, y in edge_of(inner):
+        if y > cy and abs(x + 0.5 - cx) < 8:
+            sprite.set(x, y, PINK.light)
+    return sprite
+
+
+def _aura_bubble(step: int) -> Sprite:
+    """A bubble rising off the aura and popping; the game spawns them round his feet and moves them up."""
+    sprite = Sprite(*AURA)
+    cx = 23
+    if step < 4:
+        y = 13 - step * 3
+        radius = 1.6 if step < 3 else 2.0
+        sprite.fill(ring(cx + 0.5, y + 0.5, radius, radius, 1), PINK.light)
+        sprite.set(cx, y - 1, WHITE)
+    elif step == 4:
+        sprite.blit(motifs.twinkle(2, PINK), cx - 2, 0)
+    else:
+        sprite.blit(motifs.twinkle(1, PINK), cx - 1, 0)
+    return sprite
+
+
+def aura_strip() -> Strip:
+    return Strip(
+        frame=AURA,
+        origin=(24, 10),
+        animations=[
+            Animation("ground", 6, True, [_aura_ground(i) for i in range(4)]),
+            Animation("bubble", 12, False, [_aura_bubble(i) for i in range(6)]),
         ],
     )
 
@@ -312,4 +382,5 @@ def build() -> Dict[str, Strip]:
         "fx-potion": potion_strip(),
         "fx-glint": glint_strip(),
         "fx-calm": calm_strip(),
+        "fx-aura": aura_strip(),
     }

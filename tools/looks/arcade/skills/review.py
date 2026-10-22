@@ -240,20 +240,44 @@ def agent_summon_keys(cast: Cast, level: str) -> List[Tuple[str, Image.Image]]:
     return keys
 
 
-def ripple(scene: stage.Scene, cx: int, cy: int, rx: int, ry: int, tones: Sequence[str]) -> None:
-    """A stand-in for the code-drawn ring a skill sends out: concentric 1 px ellipses in stepped tones."""
+def shockwave(scene: stage.Scene, cx: int, cy: int, radius: int, progress: float, ring: str = "main") -> None:
+    """A stand-in for the game's screen-wide ring, banded per ``power_chord.SHOCKWAVE`` at this point of its life.
+
+    Each band is the annulus of pixels whose centres lie between two whole-pixel
+    radii, filled row by row as the game should draw it (stacked 1 px circles
+    leave speckled gaps between them). The last stage breaks into dashes.
+    """
+    from skillart.power_chord import SHOCKWAVE, SHOCKWAVE_DASH_DEGREES, SHOCKWAVE_STAGES
+
+    stage_index = next(i for i, end in enumerate(SHOCKWAVE_STAGES) if progress <= end)
+    profile = SHOCKWAVE[ring][stage_index]
+    dashed = stage_index == len(SHOCKWAVE_STAGES) - 1
+    art = Sprite(320, 240)
+    for y in range(art.height):
+        for x in range(art.width):
+            depth = radius - math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+            if not 0 <= depth < len(profile):
+                continue
+            if dashed and int(math.degrees(math.atan2(y - cy, x - cx)) // SHOCKWAVE_DASH_DEGREES) % 2:
+                continue
+            art.set(x, y, profile[int(depth)])
+    scene.place(art, 0, 0)
+
+
+def ground_ring(scene: stage.Scene, cx: int, cy: int, rx: int, tones: Sequence[str]) -> None:
+    """A stand-in for UX ELIXIR's code-drawn calm ring rolling out along the street: stepped 1 px ellipses."""
     from pixkit.canvas import ring as ring_mask
 
     art = Sprite(320, 240)
     for i, tone in enumerate(tones):
-        art.fill(ring_mask(cx, cy, rx - i * 2, ry - i, 1), tone)
+        art.fill(ring_mask(cx, cy, rx - i * 3, (rx - i * 3) * 0.16, 1), tone)
     scene.place(art, 0, 0)
 
 
 def ux_elixir_keys(cast: Cast, level: str) -> List[Tuple[str, Image.Image]]:
     from pixkit.palette import PINK
 
-    potion, glint, calm = (load("ux-elixir", n) for n in ("fx-potion", "fx-glint", "fx-calm"))
+    potion, glint, calm, aura = (load("ux-elixir", n) for n in ("fx-potion", "fx-glint", "fx-calm", "fx-aura"))
     hand, head = cast.hand or (HERO_X + 9, FEET - 38), (HERO_X + 3, FEET - 49)
     # The flask tips towards the face: drawn for a hand in front of it, mirrored when the hand is behind.
     behind = hand[0] < head[0]
@@ -268,24 +292,32 @@ def ux_elixir_keys(cast: Cast, level: str) -> List[Tuple[str, Image.Image]]:
     s.place(_frame(potion, "drink", 5), *hand, potion.origin, flip=behind)
     s.place(_frame(glint, "twinkle", 3), *head, glint.origin)
     keys.append(("t=0.35 the glint", s.image))
-    s = cast.stage(level)
+    s = stage.Scene(level)
+    s.place(_frame(aura, "ground", 0), HERO_X, FEET, aura.origin)
+    ground_ring(s, HERO_X, FEET - 2, 96, [PINK.light, PINK.mid, PINK.dark])
+    s.place(cast.hero, HERO_X, FEET, (32, 64))
+    for x in CUSTOMERS:
+        s.place(cast.customer, x, FEET, (32, 64), flip=True)
     s.place(_frame(potion, "pop", 2), *hand, potion.origin, flip=behind)
-    ripple(s, HERO_X, FEET - 4, 70, 12, [PINK.light, PINK.mid, PINK.dark])
-    keys.append(("t=0.5 bottle pops, calm spreads", s.image))
-    s = cast.stage(level)
+    s.place(_frame(calm, "touch", 1), CUSTOMERS[0], FEET - 30, calm.origin)
+    keys.append(("t=0.5 bottle pops, calm rolls out", s.image))
+    s = stage.Scene(level)
+    s.place(_frame(aura, "ground", 2), HERO_X, FEET, aura.origin)
+    s.place(cast.hero, HERO_X, FEET, (32, 64))
     for i, x in enumerate(CUSTOMERS):
-        s.place(_frame(calm, "heart", i), x, FEET - 64, calm.origin)
-        s.place(_frame(calm, "wave", i), x + 9, FEET - 54 - i, calm.origin)
-        s.place(_frame(calm, "sparkle", 2 - i % 2), x - 9, FEET - 42 + i * 3, calm.origin)
-    keys.append(("t=2.0 customers calm", s.image))
+        s.place(cast.customer, x, FEET, (32, 64), flip=True)
+        s.place(_frame(calm, "wave", i), x - 11, FEET - 50 - i, calm.origin)
+        s.place(_frame(calm, "sparkle", 2 - i % 2), x + 10, FEET - 40 + i * 3, calm.origin)
+    s.place(_frame(aura, "bubble", 1), HERO_X - 12, FEET - 4, aura.origin)
+    s.place(_frame(aura, "bubble", 3), HERO_X + 14, FEET - 10, aura.origin)
+    keys.append(("t=2.0 the aura at his feet; customers breathe calm", s.image))
     return keys
 
 
 def power_chord_keys(cast: Cast, level: str) -> List[Tuple[str, Image.Image]]:
-    from pixkit.palette import LAVENDER, WHITE
-
-    strum, wave, stun, notes = (load("power-chord", n) for n in ("fx-strum", "fx-wave", "fx-stun", "fx-notes"))
-    body = (HERO_X + 5, FEET - 24)
+    strum, wave, hit, notes = (load("power-chord", n) for n in ("fx-strum", "fx-wave", "fx-sound-hit", "fx-notes"))
+    body = cast.hand or (HERO_X + 5, FEET - 24)
+    centre = (HERO_X, FEET - 28)
     keys = []
     s = cast.stage(level)
     s.place(_frame(strum, "strum", 0), *body, strum.origin)
@@ -294,24 +326,27 @@ def power_chord_keys(cast: Cast, level: str) -> List[Tuple[str, Image.Image]]:
     s.place(_frame(strum, "strum", 1), *body, strum.origin)
     keys.append(("t=0.03 impact frame", s.image))
     s = cast.stage(level)
-    ripple(s, HERO_X, FEET - 28, 64, 64, [WHITE, LAVENDER.pale, LAVENDER.light])
+    shockwave(s, *centre, 70, 0.2)
     s.place(_frame(strum, "strum", 3), *body, strum.origin)
     s.place(_frame(wave, "travel", 0), HERO_X + 52, FEET, wave.origin)
     s.place(_frame(wave, "travel", 2), HERO_X - 52, FEET, wave.origin, flip=True)
     for i, (dx, dy) in enumerate(((20, -48), (-16, -54), (30, -36))):
         s.place(_frame(notes, "variants", i), body[0] + dx, body[1] + dy, notes.origin)
-    keys.append(("t=0.12 rings, sound walls, notes", s.image))
+    keys.append(("t=0.08 the bold wavefront, sound walls, notes", s.image))
     s = cast.stage(level)
-    ripple(s, HERO_X, FEET - 28, 150, 150, [LAVENDER.pale, LAVENDER.light])
+    shockwave(s, *centre, 168, 0.45)
+    shockwave(s, *centre, 120, 0.3, "echo")
     s.place(_frame(strum, "strum", 6), *body, strum.origin)
-    s.place(_frame(wave, "travel", 1), HERO_X + 150, FEET, wave.origin)
-    for i, x in enumerate(CUSTOMERS):
-        s.place(_frame(stun, "spin", i * 3), x, FEET - 58, stun.origin)
-    keys.append(("t=0.3 wave passes, customers stunned", s.image))
+    s.place(_frame(wave, "travel", 1), HERO_X + 156, FEET, wave.origin)
+    s.place(_frame(hit, "hit", 1), CUSTOMERS[0], FEET - 30, hit.origin)
+    s.place(_frame(hit, "hit", 3), CUSTOMERS[0] - 0, FEET - 30, hit.origin)
+    keys.append(("t=0.2 it slams into the customers", s.image))
     s = cast.stage(level)
+    shockwave(s, *centre, 262, 0.9)
+    shockwave(s, *centre, 224, 0.8, "echo")
     for i, x in enumerate(CUSTOMERS):
-        s.place(_frame(stun, "spin", i * 2 + 1), x, FEET - 58, stun.origin)
-    keys.append(("t=1.5 stunned for 3 s", s.image))
+        s.place(_frame(hit, "hit", 3 + i), x, FEET - 30, hit.origin)
+    keys.append(("t=0.35 rings spend themselves; every customer hit", s.image))
     return keys
 
 

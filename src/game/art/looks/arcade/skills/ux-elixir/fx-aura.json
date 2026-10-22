@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 48, "h": 16 },
+  "origin": { "x": 24, "y": 10 },
+  "animations": [
+    { "name": "ground", "fps": 6, "loop": true, "frames": 4 },
+    { "name": "bubble", "fps": 12, "loop": false, "frames": 6 }
+  ]
+}

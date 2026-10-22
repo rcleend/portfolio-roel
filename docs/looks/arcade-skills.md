@@ -15,7 +15,7 @@ src/game/art/looks/arcade/skills/<skillId>/
 tools/looks/arcade/skills/
   build.py                        writes every PNG + JSON above; --check verifies the committed files
   review.py                       review renders: icons in their slots, contact sheets, key frames in both levels
-  pixkit/                         the pixel kit: canvas and shapes, palette, shading, sheet packing, Biome-shaped JSON
+  pixkit/                         the pixel kit: canvas and shapes, palette, sheet packing, Biome-shaped JSON, review stages
   skillart/                       one module per skill (icon + strips), the shared icon frame, shared motifs
   tests/                          the asset contract, freshness, and the pixel kit
 ```
@@ -27,7 +27,7 @@ python3 tools/looks/arcade/skills/review.py icons strips scenes
 python3 -m unittest discover -s tools/looks/arcade/skills -t tools/looks/arcade/skills
 ```
 
-Every pixel is drawn by code: hand-written character grids for the subjects that need a hand (the drone, the flask, the Strat, the hearts, the notes) and parametric drawing for the rest (beam bands, bursts, rings, the tilting flask, the faceted star).
+Every pixel is drawn by code: hand-written character grids for the subjects that need a hand (the drone, the icon's flask, the Strat, hearts, notes) and parametric drawing for the rest (beam bands, bursts, rings, the tilting flask, the faceted star).
 No image generation was used, so there are no raw sources; `tools/art/prompts/looks-arcade-skills.md` records that.
 The build is deterministic and the freshness test compares a fresh build with the committed files pixel for pixel.
 
@@ -46,12 +46,13 @@ All origins are the point placed on the entity or anchor position; all sheets fa
 | | `fx-drone-shot` | 13 × 13 | 6, 6 | `fly` 4 @ 20 ⟳, `trail` 3 @ 20 |
 | | `fx-drone-zap` | 32 × 32 | 16, 16 | `hit` 6 @ 30, `hit-calm` |
 | | `fx-summon-circle` | 48 × 16 | 24, 8 | `open` 7 @ 20 |
-| UX ELIXIR | `fx-potion` | 28 × 28 | 14, 14 (the grip) | `appear` 3 @ 30, `appear-calm`, `hold` 2 @ 8 ⟳, `drink` 6 @ 20, `pop` 5 @ 20, `pop-calm` |
+| UX ELIXIR | `fx-potion` | 28 × 28 | 14, 14 (the grip) | `appear` 3 @ 30, `appear-calm`, `hold` 2 @ 8 ⟳, `drink` 6 @ 20 (anchor `lip`), `pop` 5 @ 20, `pop-calm` |
 | | `fx-glint` | 17 × 17 | 8, 8 | `twinkle` 6 @ 20 |
-| | `fx-calm` | 16 × 16 | 8, 8 | `heart` 4 @ 6 ⟳, `wave` 4 @ 8 ⟳, `sparkle` 5 @ 15 |
+| | `fx-calm` | 24 × 24 | 12, 12 | `touch` 6 @ 20, `wave` 4 @ 8 ⟳, `sparkle` 5 @ 15 |
+| | `fx-aura` | 48 × 16 | 24, 10 (on the street) | `ground` 4 @ 6 ⟳, `bubble` 6 @ 12 |
 | POWER CHORD | `fx-strum` | 48 × 48 | 24, 24 | `strum` 8 @ 30, `strum-calm` |
 | | `fx-wave` | 32 × 48 | 16, 48 (on the street) | `travel` 4 @ 30 ⟳ |
-| | `fx-stun` | 40 × 20 | 20, 20 | `spin` 8 @ 12 ⟳, `fade` 3 @ 12 |
+| | `fx-sound-hit` | 40 × 40 | 20, 20 | `hit` 6 @ 30, `hit-calm` |
 | | `fx-notes` | 12 × 12 | 6, 6 | `variants` 6 (eighth and beamed notes in pink, cyan, gold) |
 | NORTH STAR | `fx-star` | 24 × 24 | 12, 12 | `spin` 8 @ 15 ⟳, `launch` 3 @ 30, `launch-calm` |
 | | `fx-star-trail` | 12 × 12 | 6, 6 | `sparkle` 6 @ 20 |
@@ -83,7 +84,7 @@ The three Hackerman/Artsy/Strategy pairs never share a lead colour, so a glance 
 ### Light, outlines and glows
 
 - Light comes from the top-left: lit facets, window reflections and speculars sit top-left; shadow sides are bottom-right.
-- Solid objects (the drone, the flask, notes, stun stars, hearts, glyph bits) wear the shared 1 px ink outline so they read on both levels.
+- Solid objects (the drone, the flask, notes, hearts, glyph bits) wear the shared 1 px ink outline so they read on both levels.
 - Light itself (beams, flashes, rings, sparks) is never ink-outlined: it is built from a white core out through its ramp to a deep rim (a selective outline), which keeps it luminous.
 - Glows are stepped bands, never blur: the icon's glow is two bands that follow the subject's silhouette; the star wears a warm rim and a deep halo; the bubble's film has a dark edge.
 - No sprite has a semi-transparent pixel; dissolving smoke breaks into smaller clumps instead of fading.
@@ -180,44 +181,64 @@ Shots are small but white-hot with cyan spikes that read at any angle.
 ## UX ELIXIR
 
 **In play** (`uxElixir.ts`): for 6 s (360 ticks) customers move at 0.35× speed, stop shouting and are won over in one hit; today a flask pops over the head for 0.7 s and pink sparkles rise from every customer every 0.18 s.
+The calm heart over each calmed customer belongs to the customer: the shared customer renderer draws it whatever calmed them, so the elixir draws its own marks around it and never a heart over a head.
 
 | Ticks | On screen | Sprite | Code | Layer |
 | --- | --- | --- | --- | --- |
 | 0–5 | The potion pops into his hand | `fx-potion/appear` | at the `hand` anchor | front |
-| 6–23 | He drinks: the flask tips to his lips while the elixir stays level and drains into the neck | `fx-potion/drink` (18 ticks) | flipX when the hand is behind the head (see below) | front |
-| 18–35 | The glint: it clicks | `fx-glint/twinkle` (18 ticks) | at the face: the head's centre, 10 px below the hero's top | front |
-| 24–38 | The empty flask pops into pink smoke and a heart | `fx-potion/pop` (15 ticks) | where the hand last was (the pose has ended) | front |
-| 24–54 | Calm rolls out along the street | — | stepped pink ellipse rings at the hero's feet: rx 0 → 340 px in 0.5 s (easeOutCubic), ry = rx × 0.16; three 1 px bands (`#ff86c8`, `#e8379a`, `#a3156a`) | behind |
-| ring arrival – 360 | Over each customer: a pink heart, a calm wave breathed out where steam would be, sparkles drifting up | `fx-calm/heart`, `fx-calm/wave`, `fx-calm/sparkle` | the heart replaces today's code-drawn calm heart; one sparkle per customer every 0.36 s drifting up 12 px/s | front |
-| 330–360 | The spell wears off: each heart turns into a last sparkle | `fx-calm/sparkle` | — | front |
+| 6–23 | He drinks: the flask tips to his lips while the elixir stays level and drains into the neck | `fx-potion/drink` (18 ticks) | lip to `mouth` (see below) | front |
+| 18–35 | The glint: it clicks | `fx-glint/twinkle` (18 ticks) | at the `mouth` anchor, 6 px up (the glasses) | front |
+| 24–38 | The empty flask pops into pink smoke and a little heart: understanding, absorbed | `fx-potion/pop` (15 ticks) | where the flask last was (the pose has ended) | front |
+| 24–54 | Calm rolls out along the street | — | stepped pink ellipse rings at the hero's feet: rx 0 → 340 px in 0.5 s (easeOutCubic), ry = rx × 0.16; three 1 px bands (`#ff86c8`, `#e8379a`, `#a3156a`) 3 px apart | behind |
+| ring arrival | As the ring reaches each customer: a soft pink ring blooms round their chest and breaks into sparkles | `fx-calm/touch` (18 ticks) | at the customer's chest when the ring's rx passes their distance | front |
+| arrival – 360 | Each customer breathes calm where its steam would be; sparkles drift off it | `fx-calm/wave` beside the head, `fx-calm/sparkle` | the wave on the side away from the hero; one sparkle per customer every 0.36 s drifting up 12 px/s | front |
+| 24–360 | The elixir still working in him: a pink glow breathing at his feet, bubbles rising off it | `fx-aura/ground` (loop), `fx-aura/bubble` | the ground glow follows his feet; a bubble every 0.4 s at ±12 px round his feet | behind |
+| 330–360 | It wears off: the glow and the waves stop, one last sparkle per customer | `fx-calm/sparkle` | — | front |
 
-**Tip towards the face.**
-The flask is drawn tipping towards the upper left, which is right for a hand held in front of the face.
-When the hand anchor is behind the head (x left of the head's centre while facing right, mirrored when facing left), draw it flipped so it tips the other way: in the character crew's current Artsy pose the fist is raised above and behind the head, and the flipped flask reads as a rock-star chug.
+**Lips to the mouth.**
+Artsy's `skill` pose carries a `mouth` anchor (frame pixels, per frame) as well as `hand`.
+Each `drink` frame carries a `lip` anchor: the tip of the flask's neck.
+While drinking, place the flask so that `lip` lands on `mouth` (origin = mouth − (lip − origin)), so the elixir meets his lips whatever the pose; outside `drink` it sits on `hand`.
+The frames tip the neck towards the upper left, which is right for a mouth up and to the left of the hand; when the mouth is to the right of the hand (after the facing flip), draw them mirrored.
+Without a `mouth` anchor, estimate one 10 px below the hero's top at the head's centre.
 
 **On a busy screen.**
-Pink is the only pink in either level's play plane, and the calm motifs are small (≤ 9 px) and sit above heads, never over faces.
+Pink is the only pink in either level's play plane; the marks on customers are small and sit beside heads and chests, never over faces, and leave the head clear for the customer's own calm heart.
 
-**Reduced motion.** `appear-calm`, `pop-calm`; draw the calm ring as a single band.
+**Reduced motion.** `appear-calm`, `pop-calm`; draw the calm ring as a single band; hold `fx-aura/ground` on frame 0.
 
 ## POWER CHORD
 
 **In play** (`powerChord.ts`): one strum stuns every on-screen customer for 3 s (180 ticks) and pops every complaint bubble; the active skill lasts 0.5 s (30 ticks), with rings at 0, 0.07 and 0.14 s (radius 300 / 260 / 220, life 0.45 s), wave fronts at 520 px/s, `shake(4, 0.35)` and `flash('#ffffff', 0.08)`.
+The dizzy stars over a stunned customer belong to the customer (its `stunned` animation draws them, whatever stunned it); the chord draws everything up to the hit.
 
 | Ticks | On screen | Sprite | Code | Layer |
 | --- | --- | --- | --- | --- |
 | 0–15 | The strum: six strings flash, a white burst, a lavender burst with a ring, the ring frays into arcs and sparkles | `fx-strum/strum` (16 ticks) | at the `hand` anchor, the guitar body | front |
-| 0 / 4 / 8 → +27 | Three screen-wide rings | — | midpoint circles, radius 0 → 300 / 260 / 220 (easeOutCubic); leading 1 px white, then 1 px `#f4f0ff`, then 1 px `#dcd4ff`; one band after 60 % of their life | front |
+| 0 / 4 / 8 → +27 | The shockwave: a bold banded wavefront and two thinner echoes tear across the screen | — | see "The wavefront" below | front |
 | 0–29 | Two walls of sound race along the street | `fx-wave/travel` | origins at `hero.x ± 520 px/s × t` on the feet line, the left one flipped | front |
+| as the front reaches each customer | The wave slams into them: a white thump and brackets of sound bursting off both sides | `fx-sound-hit/hit` (12 ticks) | at the customer's chest, when the main ring's radius passes their distance from the strum | front |
 | 2–50 | Notes fly off the strings | `fx-notes/variants` | 6–8 particles: 60–140 px/s at −160°…−20°, gravity 180 px/s², life 0.5–0.8 s, ±1 px sine wobble, blink out over the last quarter | front |
-| 0–180 | Stars circle every stunned customer's head | `fx-stun/spin` | origin at (customer centre x, head top + 9) | front |
-| 180–195 | The stun ends and the stars spin off | `fx-stun/fade` (15 ticks) | — | front |
+
+**The wavefront.**
+Arcade's shockwave is punchy, not a hairline: a 10 px banded front with a white leading edge and a dark rim that carries it over Luna's bright sky.
+The game draws each ring as filled annulus bands (per-row spans of the pixels whose centres lie between two whole-pixel radii), not as stacked 1 px circles, which leave speckled gaps and cost more.
+Radius grows 0 → 300 (main), 260 and 220 (echoes) over 0.45 s with easeOutCubic; the banding, from the leading edge inwards, steps through four stages of the ring's life (`skillart/power_chord.py` holds the same data):
+
+| Life | Main ring (1 px each, outside → in) | Echoes |
+| --- | --- | --- |
+| 0–35 % | deep · white · white · white · pale · pale · light · light · mid · dark | deep · white · pale · light · mid |
+| 35–65 % | deep · white · white · pale · light · mid · dark | deep · pale · light · mid |
+| 65–85 % | deep · pale · light · mid | light · mid |
+| 85–100 % | light · mid, broken into 8° dashes | mid, broken into 8° dashes |
+
+Lavender ramp: deep `#2a1f6a`, dark `#5a48c8`, mid `#a99cf0`, light `#dcd4ff`, pale `#f4f0ff`.
 
 **On a busy screen.**
-It is the loudest moment in the game and the shortest: everything but the stun stars is gone in half a second, and the rings are thin lines.
-The stars are bright gold with ink outlines and sit above the head, so a stunned customer reads at a glance for the whole 3 s.
+It is the loudest moment in the game and the shortest: everything is gone in half a second, and the band thins as it grows so it never sits on the screen as a wall of lavender.
+The hits make the stun legible before the customer's own stars take over.
 
-**Reduced motion.** `strum-calm`; draw one ring (the first) instead of three; the game's own flash and shake are already ignored.
+**Reduced motion.** `strum-calm`, `fx-sound-hit/hit-calm`; draw only the main ring, in its stage 2 banding throughout; the game's own flash and shake are already ignored.
 
 ## NORTH STAR
 
@@ -246,7 +267,7 @@ The star's warm rim and deep halo make it glow on the night street and keep a cr
 | --- | --- | --- | --- | --- |
 | 0–11 | A bubble is blown up from his chest, swells past its size and settles | `fx-shield/form` | centred at `(caster.x, feet − 31)` | front |
 | 12–251 | It holds: the soap film's colours turn, motes twinkle in it | `fx-shield/hold` | follows the hero | front |
-| on a bump | The film dents and flashes, rings ripple out and a heart pops off it | `fx-shield-bump/bump` (12 ticks) | origin on the film at `(centre x ± 24, customer's chest y)`, flipped on the left | effects |
+| on a bump | The film dents and flashes, rings ripple out and droplets of film spray off | `fx-shield-bump/bump` (12 ticks) | origin on the film at `(centre x ± 24, customer's chest y)`, flipped on the left | effects |
 | 252–285 | It wears thin: a wobble | `fx-shield/wobble` | replaces today's blink | front |
 | 286–299 | It pops: the film tears into arcs, beads off, two hearts float up; done exactly at 5 s | `fx-shield/pop` (14 ticks) | — | front |
 
@@ -262,7 +283,12 @@ Only the film is drawn, so the hero is never hidden; its dark edge carries it on
 ## For Phase B
 
 - **Slots.** 24 px icons need 32 × 32 slots in the select screen and the HUD; the cooldown sweep's size becomes 24.
-- **Effects that outlive their skill.** The FULL-STACK muzzle smoke, the UX ELIXIR pop (after the pose) and the hits are effects in their own right. POWER CHORD's stun lasts 3 s but its active skill ends after 0.5 s, so the stun stars belong in the customer's render path while its mood is `stunned` (any source of stun), or in an effect that follows the customer.
-- **Shots.** NORTH STAR's cast is instant and AGENT SUMMON fires real `Shot`s; their visuals hang off the shots' positions, velocities and impacts, not off the active skill.
-- **The character crew.** If the arcade customer sheet's `stunned` animation already draws stars, skip `fx-stun`. Artsy's single `hand` anchor should follow the strumming hand: on the guitar body it serves POWER CHORD, and raised it holds the flask.
-- **Visual and hit geometry.** The beam follows the hand anchor within a clamp and the bubble is sized to the bump test, as described above; the drone's orbit is the gameplay orbit, unchanged. NORTH STAR's star is spawned at chest height by the game while Strategy's current skill pose points straight up: draw `launch` on the `hand` anchor and ease the drawn star from the anchor to its true position over its first 6 ticks.
+- **Customer-owned indicators.** Stun stars and the calm heart belong to the customer (Phase B decision): no skill strip draws them.
+- **Projectiles and impacts.** The look covers them: NORTH STAR's star, trail, lock and impact and the drone's shots, trail and zaps hang off the shots' positions, velocities and impacts (NORTH STAR's cast is instant; the drone fires real `Shot`s), not off the active skill.
+- **Effects that outlive their skill.** The FULL-STACK muzzle smoke, the UX ELIXIR pop (after the pose) and every hit are effects in their own right.
+- **Anchors.** Artsy's `hand` should follow the strumming hand (the guitar body for POWER CHORD) and his `mouth` meets the flask's `lip`.
+- **Gameplay sizes stay as they are**, so some visuals meet hit tests built for 40 px heroes:
+  - the beam runs level with the hand anchor, clamped to `feet − 34 … feet − 18`, while the hit band is `feet − 24 … feet − 10`;
+  - the bubble is shaped to today's 20 px bump radius (customers meet its film as the bump fires); if the radius is retuned, `RX`/`RY` in `skillart/churn_shield.py` are the one place to change;
+  - the drone orbits ±22 px round a hero that is now ±12 px wide, so it crosses his chest on the near half of its orbit;
+  - NORTH STAR's star spawns at chest height while Strategy's current skill pose points straight up: draw `launch` on the `hand` anchor and ease the drawn star from the anchor to its true position over its first 6 ticks.

@@ -217,41 +217,91 @@ def wave_strip() -> Strip:
     return Strip(frame=WAVE, origin=(16, 48), animations=[Animation("travel", 30, True, [_wave(i) for i in range(4)])])
 
 
-# ── Stunned: stars circling a customer's head for the three seconds ────────
+# ── The screen-wide shockwave: code draws it, the art direction lives here ──
+#
+# Rings that grow to 300 px are drawn by the game as concentric whole-pixel
+# circles, but their banding is part of the look, so it is defined (and
+# reviewed) here and copied into the Phase B code: each tuple lists the ring's
+# colours from its leading edge inwards, one pixel each, for the four stages
+# of its life. The first ring is the bold one; the two echoes follow thinner.
 
-STUN = (40, 20)
-_STAR_BACK = ["..x..", ".xXx.", "xXXXx", ".xXx.", ".x.x."]
-_STAR_FRONT = ["....x....", "...xXx...", "xxxXXXxxx", ".xXXXXXx.", "..xXXXx..", "..xXxXx..", ".xx...xx."]
+SHOCKWAVE_STAGES = (0.35, 0.65, 0.85, 1.0)
+SHOCKWAVE = {
+    "main": (
+        (
+            LAVENDER.deep,
+            WHITE,
+            WHITE,
+            WHITE,
+            LAVENDER.pale,
+            LAVENDER.pale,
+            LAVENDER.light,
+            LAVENDER.light,
+            LAVENDER.mid,
+            LAVENDER.dark,
+        ),
+        (LAVENDER.deep, WHITE, WHITE, LAVENDER.pale, LAVENDER.light, LAVENDER.mid, LAVENDER.dark),
+        (LAVENDER.deep, LAVENDER.pale, LAVENDER.light, LAVENDER.mid),
+        (LAVENDER.light, LAVENDER.mid),
+    ),
+    "echo": (
+        (LAVENDER.deep, WHITE, LAVENDER.pale, LAVENDER.light, LAVENDER.mid),
+        (LAVENDER.deep, LAVENDER.pale, LAVENDER.light, LAVENDER.mid),
+        (LAVENDER.light, LAVENDER.mid),
+        (LAVENDER.mid,),
+    ),
+}
+#: In its last stage a ring breaks into dashes: on for this many degrees, off for as many.
+SHOCKWAVE_DASH_DEGREES = 8
 
 
-def _stun(frame: int, fading: int = -1) -> Sprite:
-    """Three stars circling a head; ``fading`` drops the first n stars as the stun wears off."""
-    sprite = Sprite(*STUN)
-    stars = []
-    for k in range(3):
-        angle = math.radians(frame * 45 + k * 120)
-        x = 19.5 + math.cos(angle) * 13
-        y = 11.0 + math.sin(angle) * 4.0
-        front = math.sin(angle) > -0.2
-        stars.append((y, x, front, k))
-    # Back stars first, smaller and dimmer; front stars big and bright: depth from two sizes and two tones.
-    for y, x, front, k in sorted(stars):
-        if fading >= 0 and k < fading:
+# ── The wave hitting a customer ────────────────────────────────────────────
+#
+# The stun itself is the customer's to show (its own dizzy stars, whatever
+# stunned it); the chord's part is the hit: the wall of sound slamming into
+# each customer it reaches, a white thump and arcs of sound bursting off them.
+
+SOUND_HIT = (40, 40)
+_HC = 19.5
+
+
+def _sound_hit(step: int) -> Sprite:
+    """The wavefront reaching a customer: a white thump, sound arcs bursting both ways, sparks."""
+    sprite = Sprite(*SOUND_HIT)
+    c = _HC
+    if step == 0:
+        # The impact frame (skipped under reduced motion).
+        sprite.fill(polygon(motifs.star_points(c, c, [(-90, 14), (0, 9), (90, 14), (180, 9)], 3.5)), WHITE)
+        return sprite
+    radius = (0, 6.0, 9.0, 12.0, 14.5, 16.5)[step]
+    tones = (None, WHITE, LAVENDER.pale, LAVENDER.light, LAVENDER.mid, LAVENDER.dark)
+    for side in (0, 180):
+        # Brackets of sound left and right: ")" and "(" racing apart round the customer.
+        for k, gap in enumerate((0.0, 4.0)):
+            r = radius - gap
+            if r <= 2:
+                continue
+            tone = tones[min(step + k, len(tones) - 1)]
+            sprite.fill(arc(c, c, r, r * 1.3, side - 40, side + 40), tone)
+            if step <= 2 and k == 0:
+                sprite.fill(arc(c, c, r - 1, r * 1.3 - 1, side - 30, side + 30), tone)
+    if step <= 2:
+        sprite.fill(disc(c, c, 3.0 - step), WHITE if step == 1 else LAVENDER.pale)
+    for k, angle in enumerate((-60, -120, 60, 120)):
+        if step >= 4 and k % 2:
             continue
-        rows = _STAR_FRONT if front else _STAR_BACK
-        key = {"x": GOLD.light if front else GOLD.mid, "X": GOLD.pale if front else GOLD.light}
-        sprite.stamp(rows, key, int(x) - len(rows[0]) // 2, int(y) - len(rows) // 2)
-    return sprite.outlined(INK, corners=False)
+        a = math.radians(angle)
+        r = 6 + step * 2.2
+        x, y = math.floor(c + math.cos(a) * r), math.floor(c + math.sin(a) * r)
+        sprite.blit(motifs.twinkle(1, LAVENDER), x - 1, y - 1)
+    return sprite
 
 
-def stun_strip() -> Strip:
+def sound_hit_strip() -> Strip:
     return Strip(
-        frame=STUN,
+        frame=SOUND_HIT,
         origin=(20, 20),
-        animations=[
-            Animation("spin", 12, True, [_stun(i) for i in range(8)]),
-            Animation("fade", 12, False, [_stun(i, fading=i + 1) for i in range(3)]),
-        ],
+        animations=with_calm(Animation("hit", 30, False, [_sound_hit(i) for i in range(6)]), flashes=[0]),
     )
 
 
@@ -285,6 +335,6 @@ def build() -> Dict[str, Strip]:
         "icon": emblem.icon_strip(_icon_subject, LAVENDER, _icon_sound),
         "fx-strum": strum_strip(),
         "fx-wave": wave_strip(),
-        "fx-stun": stun_strip(),
+        "fx-sound-hit": sound_hit_strip(),
         "fx-notes": notes_strip(),
     }
