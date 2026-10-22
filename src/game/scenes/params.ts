@@ -1,6 +1,14 @@
 import type { CharacterId, LevelId } from '@/content';
 import type { Scene, Step } from '@/engine/core/Scene';
 import type { Action } from '../input/bindings';
+import type { TitleBackdropId } from './title/backdrops';
+import type { TitleLockupId } from './title/lockups';
+
+/** Which title variants to show; what is left out comes from `TITLE_DEFAULTS`. */
+export interface TitleParams {
+  readonly lockup?: TitleLockupId;
+  readonly backdrop?: TitleBackdropId;
+}
 
 export interface LevelSelectParams {
   /** Mission to highlight on entry, e.g. the one just cleared. */
@@ -30,7 +38,7 @@ export interface StageClearParams {
 /** Scene id → params. `void` means the scene takes no params. */
 export interface SceneParamsMap {
   boot: void;
-  title: void;
+  title: TitleParams | undefined;
   characterSelect: void;
   levelSelect: LevelSelectParams;
   level: LevelParams;

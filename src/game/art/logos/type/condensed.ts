@@ -3,7 +3,7 @@ import { type GlyphFontData, parseGlyphSheet } from '@/engine/gfx/BitmapFont';
 /**
  * "Condensed": a narrow bold sans, 12 px caps with 2 px strokes — the face of
  * the boot screen's "MAX 330 MEGA" lines and of the "SUPER VEHICLE-001"
- * kicker over the Metal Slug logo. Used here for "A LEENDERS PRODUCTION" and
+ * kicker over the Metal Slug logo. Used here for "LEENDERS PRODUCTION" and
  * the "ROEL LEENDERS" line above the title logo. Caps, digits and a little
  * punctuation; lowercase falls back to "?".
  */

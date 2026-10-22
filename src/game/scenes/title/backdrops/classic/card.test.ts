@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { paintBackdrop } from './backdrop';
+import { paintCard } from './card';
 
-function rowBrightness(bitmap: ReturnType<typeof paintBackdrop>, y: number): number {
+function rowBrightness(bitmap: ReturnType<typeof paintCard>, y: number): number {
   let total = 0;
   for (let x = 0; x < bitmap.width; x++) {
     const pixel = bitmap.get(x, y);
@@ -10,8 +10,8 @@ function rowBrightness(bitmap: ReturnType<typeof paintBackdrop>, y: number): num
   return total / bitmap.width;
 }
 
-describe('title backdrop', () => {
-  const bitmap = paintBackdrop(320, 240);
+describe('khaki card', () => {
+  const bitmap = paintCard(320, 240);
 
   it('runs from dark umber at the top to pale khaki at the bottom', () => {
     expect(rowBrightness(bitmap, 0)).toBeLessThan(rowBrightness(bitmap, 120));
@@ -25,6 +25,6 @@ describe('title backdrop', () => {
   });
 
   it('is identical every time it is painted', () => {
-    expect(paintBackdrop(32, 24).data).toEqual(paintBackdrop(32, 24).data);
+    expect(paintCard(32, 24).data).toEqual(paintCard(32, 24).data);
   });
 });

@@ -116,6 +116,20 @@ function gameUrl(base: string, frames: number | null): string {
   return `${base}/?${query}`;
 }
 
+/**
+ * Waits for the requested frame. A page error means it will never come (an
+ * unknown scene or title variant, say), so the error ends the run at once
+ * rather than a timeout twenty seconds later.
+ */
+async function waitUntilReady(page: Page, errors: readonly string[]): Promise<void> {
+  const crashed = new Promise<void>((resolveCrash) => page.once('pageerror', () => resolveCrash()));
+  if (errors.length === 0) {
+    const ready = page.waitForFunction(() => window.__arcadeReady === true, null, { timeout: READY_TIMEOUT_MS });
+    await Promise.race([ready, crashed]);
+  }
+  if (errors.length > 0) fail(`page errors:\n  ${errors.join('\n  ')}`);
+}
+
 /** Copies the native canvas into a nearest-neighbour upscale and returns PNG bytes. */
 async function captureCanvas(page: Page, scale: number): Promise<Buffer> {
   const dataUrl = await page.evaluate((factor) => {
@@ -191,8 +205,7 @@ async function main(): Promise<void> {
     });
     const startFrame = frames === null ? null : typeof frames === 'number' ? frames : frames.start;
     await page.goto(gameUrl(base, startFrame));
-    await page.waitForFunction(() => window.__arcadeReady === true, null, { timeout: READY_TIMEOUT_MS });
-    if (errors.length > 0) fail(`page errors:\n  ${errors.join('\n  ')}`);
+    await waitUntilReady(page, errors);
 
     let png: Buffer;
     if (values.page) png = await page.screenshot({ fullPage: true });
