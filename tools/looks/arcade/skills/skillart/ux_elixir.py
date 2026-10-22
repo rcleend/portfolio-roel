@@ -177,9 +177,9 @@ def _appear(step: int) -> Sprite:
     return full.recolor({c: WHITE for c in full.colors() if c != INK}) if step == 1 else full
 
 
-#: (tilt, fill) per drink frame: tip to the lips, pour, chug, last drops, empty. Never past the
-#: horizontal by much, so it reads as drinking whether the pose holds the flask at the chin or overhead.
-_DRINK = ((-20, 1.0), (-50, 0.85), (-80, 0.6), (-100, 0.35), (-110, 0.12), (-110, 0.0))
+#: (tilt, fill) per drink frame: tip to the lips, pour, chug, last drops, empty. The lip meets the hero's
+#: ``mouth`` anchor, so the flask can go past the horizontal like a real chug and the elixir runs into the neck.
+_DRINK = ((-20, 1.0), (-55, 0.8), (-90, 0.6), (-118, 0.38), (-132, 0.15), (-138, 0.0))
 
 
 def _lip(tilt_degrees: float) -> Tuple[int, int]:
@@ -193,7 +193,7 @@ def _pop(step: int) -> Sprite:
     """The empty flask vanishes in a puff of pink and a heart: understanding, absorbed."""
     sprite = Sprite(*POTION)
     if step == 0:
-        empty = flask(-110, 0.0)
+        empty = flask(-138, 0.0)
         return empty.recolor({c: WHITE for c in empty.colors() if c != INK})
     if step == 1:
         motifs.banded_burst(sprite, GRIP[0], GRIP[1], 8, 9, 4, [PINK.light, PINK.pale, WHITE], phase=22.5)

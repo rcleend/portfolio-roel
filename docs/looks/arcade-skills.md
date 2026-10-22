@@ -199,7 +199,7 @@ The calm heart over each calmed customer belongs to the customer: the shared cus
 Artsy's `skill` pose carries a `mouth` anchor (frame pixels, per frame) as well as `hand`.
 Each `drink` frame carries a `lip` anchor: the tip of the flask's neck.
 While drinking, place the flask so that `lip` lands on `mouth` (origin = mouth − (lip − origin)), so the elixir meets his lips whatever the pose; outside `drink` it sits on `hand`.
-The frames tip the neck towards the upper left, which is right for a mouth up and to the left of the hand; when the mouth is to the right of the hand (after the facing flip), draw them mirrored.
+The frames swing the neck to the left and past the horizontal, a proper chug in which the elixir runs into the neck; they suit a mouth to the left of the hand, so when the mouth is to its right (after the facing flip), draw them mirrored.
 Without a `mouth` anchor, estimate one 10 px below the hero's top at the head's centre.
 
 **On a busy screen.**
