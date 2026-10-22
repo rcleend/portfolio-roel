@@ -1,0 +1,66 @@
+{
+  "frame": {
+    "w": 64,
+    "h": 64
+  },
+  "origin": {
+    "x": 32,
+    "y": 64
+  },
+  "animations": [
+    {
+      "name": "idle",
+      "fps": 10,
+      "loop": true,
+      "frames": 12
+    },
+    {
+      "name": "run",
+      "fps": 15,
+      "loop": true,
+      "frames": 8
+    },
+    {
+      "name": "jump",
+      "fps": 12,
+      "loop": false,
+      "frames": 4
+    },
+    {
+      "name": "fall",
+      "fps": 10,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "attack",
+      "fps": 20,
+      "loop": false,
+      "frames": 4,
+      "anchors": {
+        "muzzle": [[37, 19], [38, 22], [34, 22], [30, 22]]
+      }
+    },
+    {
+      "name": "skill",
+      "fps": 20,
+      "loop": false,
+      "frames": 8,
+      "anchors": {
+        "hand": [[28, 26], [28, 27], [29, 6], [27, 5], [27, 5], [28, 5], [32, 8], [33, 20]]
+      }
+    },
+    {
+      "name": "hurt",
+      "fps": 20,
+      "loop": false,
+      "frames": 6
+    },
+    {
+      "name": "victory",
+      "fps": 10,
+      "loop": true,
+      "frames": 12
+    }
+  ]
+}
