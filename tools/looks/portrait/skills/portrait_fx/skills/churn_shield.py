@@ -25,16 +25,19 @@ from ..grid import Grid, rows
 from ..palette import AQUA, CORAL, IRIS, WHITE
 from ..sheet import Animation, Strip
 
-HEART = rows("""
+HEART = rows(
+    """
     .HH.hh.
     HHhhhhh
     Hhhhhhs
     .hhhhs.
     ..hhs..
     ...s...
-""")
+"""
+)
 
-HEART_BEAT = rows("""
+HEART_BEAT = rows(
+    """
     .HHH.hhh.
     HHHhhhhhh
     HHhhhhhhs
@@ -43,9 +46,11 @@ HEART_BEAT = rows("""
     ..hhhss..
     ...hss...
     ....s....
-""")
+"""
+)
 
 HEART_KEY = {"H": CORAL[3], "h": CORAL[2], "s": CORAL[1]}
+BUBBLE_INSIDE = "#123540"  # the icon bubble's deep interior, a step above the dark slot
 
 
 def bubble_icon(frame: int) -> Grid:
@@ -53,7 +58,7 @@ def bubble_icon(frame: int) -> Grid:
     art = Grid(icon_kit.SIZE, icon_kit.SIZE)
     body = raster.disc(cx, cy, r)
     # Deep interior, a lighter band just inside the rim (the Fresnel edge that makes glass read as glass).
-    art.plot(body, "#123540")
+    art.plot(body, BUBBLE_INSIDE)
     art.plot(raster.ring(cx, cy, r - 1, r - 1, 1), AQUA[1])
     rim = raster.ring(cx, cy, r, r, 1)
     art.plot(raster.arc(rim, cx, cy, 300, 120), AQUA[2])
@@ -96,14 +101,18 @@ def _sector_tone(angle: float, lit: Sequence[str]) -> str:
     return lit[3] if facing > 0.7 else lit[2] if facing > 0.0 else lit[1] if facing > -0.7 else lit[0]
 
 
-def rim(g: Grid, radius: float, dim: int = 0, film_turn: float = 0.0,
-        keep: Optional[Callable[[float], bool]] = None) -> None:
-    """The near rim: a 2 px band shaded by direction, a dark selective outline on the shadow side, film colour."""
+def rim(
+    g: Grid, radius: float, dim: int = 0, film_turn: float = 0.0, keep: Optional[Callable[[float], bool]] = None
+) -> None:
+    """The near rim: a 2 px band shaded by direction, a dark selective outline on the shadow side, film colour.
+
+    `dim` lowers the brightest step of the outer band (the forming and waning
+    bubble is less sure of itself); `keep(angle)` drops parts of the rim.
+    """
     outer = raster.thin(raster.ring(*CENTRE, radius, radius))
     inner = raster.thin(raster.ring(*CENTRE, radius - 1, radius - 1)) - outer
     edge = raster.thin(raster.ring(*CENTRE, radius + 1, radius + 1)) - outer - inner
-    ramp_outer = (AQUA[2], AQUA[3], AQUA[4], AQUA[5])[: 4 - dim] if dim < 4 else (AQUA[2],)
-    ramp_outer = tuple(ramp_outer) + (ramp_outer[-1],) * (4 - len(ramp_outer))
+    ramp_outer = tuple(AQUA[min(step, 5 - dim)] for step in (2, 3, 4, 5))
     ramp_inner = (AQUA[1], AQUA[2], AQUA[3], AQUA[4])
     for mask, ramp in ((outer, ramp_outer), (inner, ramp_inner)):
         for x, y in mask:
@@ -129,7 +138,10 @@ def highlights(g: Grid, radius: float, bright: bool = True, sparkle: bool = Fals
     """The window: a crescent and a spec on the lit side, and a faint bounce on the far side."""
     window = raster.ring(*CENTRE, radius - 4, radius - 4, 2)
     g.plot(raster.arc(window, *CENTRE, 205, 245), AQUA[5] if bright else AQUA[4])
-    g.plot(raster.arc(raster.thin(raster.ring(*CENTRE, radius - 4, radius - 4)), *CENTRE, 214, 236), WHITE if bright else AQUA[5])
+    g.plot(
+        raster.arc(raster.thin(raster.ring(*CENTRE, radius - 4, radius - 4)), *CENTRE, 214, 236),
+        WHITE if bright else AQUA[5],
+    )
     sx, sy = C - round(radius * 0.48), C - round(radius * 0.62)
     g.rect(sx, sy, 2, 2, WHITE if bright else AQUA[5])
     bounce = raster.thin(raster.ring(*CENTRE, radius - 4, radius - 4))
@@ -142,20 +154,21 @@ def highlights(g: Grid, radius: float, bright: bool = True, sparkle: bool = Fals
 BAYER_4 = (0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
 
 
-def back_layer(radius: float, film: float = 0.25, dim: bool = False) -> Grid:
+def back_layer(radius: float, film: float = 0.25, dim: bool = False, swirl: int = 0) -> Grid:
     """Behind the hero: the far side of the rim and a thin film near the edge.
 
     A soap film is seen edge-on near the rim and face-on in the middle, so it
     only shows as a band just inside the rim (an ordered dither, densest at
     the edge). The middle stays clear, which keeps the hero and a busy
-    backdrop free of screen-door noise.
+    backdrop free of screen-door noise. `swirl` slides the dither pattern
+    round the bubble a step per frame, so the film drifts while it shimmers.
     """
     g = Grid(SHELL, SHELL)
     band = raster.disc(*CENTRE, radius - 2) - raster.disc(*CENTRE, radius - 6)
     for x, y in band:
         depth = radius - 2 - math.hypot(x + 0.5 - C, y + 0.5 - C)  # 0 at the rim, 4 at the band's inner edge
         coverage = film * (1 - depth / 4)
-        if BAYER_4[(y % 4) * 4 + x % 4] / 16 < coverage:
+        if BAYER_4[(y % 4) * 4 + (x + swirl) % 4] / 16 < coverage:
             g.set(x, y, AQUA[2] if not dim else AQUA[1])
     far = raster.thin(raster.ring(*CENTRE, radius - 2, radius - 2))
     g.plot(raster.arc(far, *CENTRE, 20, 160), AQUA[1])
@@ -191,7 +204,7 @@ def form_frames(back: bool) -> List[Grid]:
 
 def shimmer_frames(back: bool) -> List[Grid]:
     if back:
-        return [back_layer(RADIUS) for _ in range(8)]
+        return [back_layer(RADIUS, swirl=i // 2) for i in range(8)]
     return [front_layer(RADIUS, film_turn=i * 90 / 8, sparkle=i == 3) for i in range(8)]
 
 
@@ -218,14 +231,18 @@ def pop_frames() -> List[Grid]:
     g.plot(ring, AQUA[5])
     g.plot(raster.thin(raster.ring(*CENTRE, RADIUS, RADIUS)), WHITE)
     frames.append(g)
-    for radius, span, drops, tone in ((35, 22, 0, AQUA[4]), (38, 14, 1, AQUA[4]), (41, 7, 2, AQUA[3]), (43, 0, 3, AQUA[2])):
+    for radius, span, drops, tone in (
+        (35, 22, 0, AQUA[4]),
+        (38, 14, 1, AQUA[4]),
+        (41, 7, 2, AQUA[3]),
+        (43, 0, 3, AQUA[2]),
+    ):
         g = Grid(SHELL, SHELL)
         ring = raster.thin(raster.ring(*CENTRE, radius, radius))
         if span:
             g.plot({p for p in ring if _within_arc(p, span)}, tone)
-        for k in range(8):
-            if drops == 0:
-                break
+        # Droplets fly out between the arcs and start to fall (drops is how far along they are).
+        for k in range(8 if drops else 0):
             a = math.radians(k * 45 + 22.5)
             r = radius - 2 + drops * 2
             x, y = round(C + math.cos(a) * r), round(C + math.sin(a) * r + drops * drops)
@@ -247,21 +264,33 @@ def _within_arc(p: Tuple[int, int], span: float) -> bool:
 
 
 def shell_strip() -> Strip:
-    return Strip("fx-shell", SHELL, SHELL, (C, C), [
-        Animation("form", 20, False, form_frames(back=False)),
-        Animation("shimmer", 8, True, shimmer_frames(back=False)),
-        Animation("wane", 8, True, wane_frames(back=False)),
-        Animation("pop", 20, False, pop_frames()),
-        Animation("pop-calm", 20, False, pop_frames()[1:]),
-    ])
+    return Strip(
+        "fx-shell",
+        SHELL,
+        SHELL,
+        (C, C),
+        [
+            Animation("form", 20, False, form_frames(back=False)),
+            Animation("shimmer", 8, True, shimmer_frames(back=False)),
+            Animation("wane", 8, True, wane_frames(back=False)),
+            Animation("pop", 20, False, pop_frames()),
+            Animation("pop-calm", 20, False, pop_frames()[1:]),
+        ],
+    )
 
 
 def shell_back_strip() -> Strip:
-    return Strip("fx-shell-back", SHELL, SHELL, (C, C), [
-        Animation("form", 20, False, form_frames(back=True)),
-        Animation("shimmer", 8, True, shimmer_frames(back=True)),
-        Animation("wane", 8, True, wane_frames(back=True)),
-    ])
+    return Strip(
+        "fx-shell-back",
+        SHELL,
+        SHELL,
+        (C, C),
+        [
+            Animation("form", 20, False, form_frames(back=True)),
+            Animation("shimmer", 8, True, shimmer_frames(back=True)),
+            Animation("wane", 8, True, wane_frames(back=True)),
+        ],
+    )
 
 
 # ── Ripple: a bump spreads across the surface ────────────────────────────
@@ -277,8 +306,14 @@ def ripple_frames() -> List[Grid]:
     bubble_cx = CONTACT[0] - RADIUS + 0.5
     inside = raster.disc(bubble_cx, CONTACT[1] + 0.5, RADIUS + 0.5)
     frames = []
-    for echoes in (((2, AQUA[5]),), ((4, AQUA[5]), (1, WHITE)), ((7, AQUA[4]), (3, AQUA[5])),
-                   ((11, AQUA[3]), (6, AQUA[4])), ((15, AQUA[2]), (10, AQUA[3])), ((14, AQUA[2]),)):
+    for echoes in (
+        ((2, AQUA[5]),),
+        ((4, AQUA[5]), (1, WHITE)),
+        ((7, AQUA[4]), (3, AQUA[5])),
+        ((11, AQUA[3]), (6, AQUA[4])),
+        ((15, AQUA[2]), (10, AQUA[3])),
+        ((14, AQUA[2]),),
+    ):
         g = Grid(RIPPLE_W, RIPPLE_H)
         for radius, tone in echoes:
             ring = raster.thin(raster.ring(CONTACT[0] + 0.5, CONTACT[1] + 0.5, radius + 0.5, radius + 0.5))
@@ -296,16 +331,20 @@ def ripple_strip() -> Strip:
 
 # ── Heart: a calmed customer's thanks ─────────────────────────────────────
 
-SMALL_HEART = rows("""
+SMALL_HEART = rows(
+    """
     HH.hh
     Hhhhs
     .hhs.
     ..s..
-""")
-TINY_HEART = rows("""
+"""
+)
+TINY_HEART = rows(
+    """
     H.h
     .s.
-""")
+"""
+)
 HEART_SPRITE = 9
 
 
@@ -319,9 +358,15 @@ def heart_frames() -> List[Grid]:
 
 
 def heart_strip() -> Strip:
-    return Strip("fx-heart", HEART_SPRITE, HEART_SPRITE, (HEART_SPRITE // 2, HEART_SPRITE - 2), [
-        Animation("pop", 10, False, heart_frames()),
-    ])
+    return Strip(
+        "fx-heart",
+        HEART_SPRITE,
+        HEART_SPRITE,
+        (HEART_SPRITE // 2, HEART_SPRITE - 2),
+        [
+            Animation("pop", 10, False, heart_frames()),
+        ],
+    )
 
 
 def strips() -> List[Strip]:

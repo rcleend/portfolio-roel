@@ -9,9 +9,9 @@ rasterised curves look jaggy, the cleanup an artist does by hand.
 from __future__ import annotations
 
 import math
-from typing import Callable, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Sequence, Set, Tuple
 
-from .grid import NEIGHBOURS_4, Point
+from .grid import NEIGHBOURS_4, NEIGHBOURS_8, Point
 
 Mask = Set[Point]
 
@@ -62,7 +62,8 @@ def thin(mask: Mask) -> Mask:
 
 
 def _degree(mask: Mask, p: Point) -> int:
-    return sum((p[0] + dx, p[1] + dy) in mask for dx, dy in ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)))
+    """How many of the 8 neighbours of `p` are in `mask`."""
+    return sum((p[0] + dx, p[1] + dy) in mask for dx, dy in NEIGHBOURS_8)
 
 
 def arc(mask: Mask, cx: float, cy: float, start_deg: float, end_deg: float) -> Mask:
@@ -111,41 +112,17 @@ def _inside_polygon(px: float, py: float, points: Sequence[Tuple[float, float]])
     return inside
 
 
-def rotate(points: Iterable[Tuple[float, float]], cx: float, cy: float, degrees: float) -> List[Tuple[float, float]]:
-    """Rotates polygon vertices (not pixels) around (cx, cy); positive is clockwise on screen."""
-    a = math.radians(degrees)
-    cos_a, sin_a = math.cos(a), math.sin(a)
-    return [(cx + (x - cx) * cos_a - (y - cy) * sin_a, cy + (x - cx) * sin_a + (y - cy) * cos_a) for x, y in points]
+def star(cx: float, cy: float, rays: Sequence[Tuple[float, float, float]]) -> Mask:
+    """A union of kite-shaped rays radiating from (cx, cy), so a star is described as data rather than pixels.
 
-
-def star(cx: float, cy: float, rays: Sequence[Tuple[float, float, float]], rotation: float = 0.0) -> Mask:
-    """A union of thin diamonds radiating from (cx, cy).
-
-    Each ray is (angle_deg, length, half_width): a kite from the centre to the
-    tip, widest at the centre. Rays are added in angle order, so a star is
-    described as data rather than as pixels.
+    Each ray is (angle in degrees, length, half-width): a kite from just behind
+    the centre out to the tip, widest at the centre.
     """
     found: Mask = set()
     for angle, length, half_width in rays:
-        a = math.radians(angle + rotation)
+        a = math.radians(angle)
         tip = (cx + math.cos(a) * length, cy + math.sin(a) * length)
         side = (-math.sin(a) * half_width, math.cos(a) * half_width)
         back = (cx - math.cos(a) * half_width * 0.9, cy - math.sin(a) * half_width * 0.9)
         found |= polygon([tip, (cx + side[0], cy + side[1]), back, (cx - side[0], cy - side[1])])
     return found
-
-
-def bounds(mask: Mask) -> Optional[Tuple[int, int, int, int]]:
-    if not mask:
-        return None
-    xs = [p[0] for p in mask]
-    ys = [p[1] for p in mask]
-    return (min(xs), min(ys), max(xs), max(ys))
-
-
-def shift(mask: Mask, dx: int, dy: int) -> Mask:
-    return {(x + dx, y + dy) for x, y in mask}
-
-
-def where(mask: Mask, test: Callable[[int, int], bool]) -> Mask:
-    return {(x, y) for x, y in mask if test(x, y)}

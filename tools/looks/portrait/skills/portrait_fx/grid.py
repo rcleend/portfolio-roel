@@ -8,7 +8,7 @@ legal native-resolution pixel art; the sheet writer only has to pack it.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Callable, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
 from PIL import Image
 
@@ -99,12 +99,6 @@ class Grid:
         for px, py in other.points():
             self.set(x + px, y + py, other.get(px, py))
 
-    def under(self, other: "Grid", x: int = 0, y: int = 0) -> None:
-        """Copies `other`'s opaque pixels only where this grid is still transparent."""
-        for px, py in other.points():
-            if not self.opaque(x + px, y + py):
-                self.set(x + px, y + py, other.get(px, py))
-
     def recolor(self, mapping: Mapping[str, Color]) -> "Grid":
         """A copy with colours swapped through `mapping` (unlisted colours are kept)."""
         out = self.copy()
@@ -137,43 +131,11 @@ class Grid:
                     out.set(x, y, color)
         return out
 
-    def edge(self) -> List[Point]:
-        """Opaque pixels that touch transparency or the canvas border (4-connected)."""
-        found = []
-        for x, y in self.points():
-            if any(not self.opaque(x + dx, y + dy) for dx, dy in NEIGHBOURS_4):
-                found.append((x, y))
-        return found
-
     # ── Transforms ────────────────────────────────────────────────────────
 
     def copy(self) -> "Grid":
         out = Grid(self.width, self.height)
         out._px = list(self._px)
-        return out
-
-    def flipped_x(self) -> "Grid":
-        out = Grid(self.width, self.height)
-        for x, y in self.points():
-            out.set(self.width - 1 - x, y, self.get(x, y))
-        return out
-
-    def flipped_y(self) -> "Grid":
-        out = Grid(self.width, self.height)
-        for x, y in self.points():
-            out.set(x, self.height - 1 - y, self.get(x, y))
-        return out
-
-    def shifted(self, dx: int, dy: int) -> "Grid":
-        out = Grid(self.width, self.height)
-        out.paste(self, dx, dy)
-        return out
-
-    def cropped(self, x: int, y: int, w: int, h: int) -> "Grid":
-        out = Grid(w, h)
-        for px in range(w):
-            for py in range(h):
-                out.set(px, py, self.get(x + px, y + py))
         return out
 
     # ── Export ────────────────────────────────────────────────────────────
@@ -185,18 +147,6 @@ class Grid:
             hex_color = self.get(x, y) or ""
             pixels[x, y] = (int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16), 255)
         return image
-
-    @staticmethod
-    def from_rows(rows: Sequence[str], key: Mapping[str, Color]) -> "Grid":
-        """A grid sized to character art; every character must be in `key` ('.' may map to None)."""
-        width = max(len(row) for row in rows)
-        grid = Grid(width, len(rows))
-        for y, row in enumerate(rows):
-            for x, ch in enumerate(row):
-                if ch not in key:
-                    raise KeyError(f"character {ch!r} at ({x}, {y}) has no colour")
-                grid.set(x, y, key[ch])
-        return grid
 
 
 def bresenham(x0: int, y0: int, x1: int, y1: int) -> List[Point]:
@@ -222,8 +172,3 @@ def rows(text: str) -> List[str]:
     lines = [line for line in text.split("\n") if line.strip()]
     indent = min(len(line) - len(line.lstrip()) for line in lines)
     return [line[indent:].rstrip() for line in lines]
-
-
-def key(**entries: Color) -> Dict[str, Color]:
-    """A stamp key that always maps '.' to transparent-skip."""
-    return dict(entries)

@@ -15,10 +15,11 @@ Strips
 from __future__ import annotations
 
 import math
-from typing import List, Sequence, Tuple
+from typing import List, Mapping, Sequence, Tuple
 
 from .. import icon_kit, raster
 from ..grid import Grid, rows
+from ..motifs import twinkle
 from ..palette import CORK, GLASS, ROSE, WHITE
 from ..sheet import Animation, Strip
 
@@ -138,13 +139,19 @@ def flask(degrees: float, fill: float, glint: bool = False, empty_glass: bool = 
 
 def appear_frames() -> List[Grid]:
     g0 = Grid(POTION, POTION)
-    sparkle(g0, GRIP[0], GRIP[1] - 3, 2, ROSE[5])
+    twinkle(g0, GRIP[0], GRIP[1] - 3, 2, WHITE, ROSE[5])
     silhouette = flask(0, 1.0).map(lambda x, y, c: ROSE[5] if c != GLASS[0] else ROSE[3])
     return [g0, silhouette, flask(0, 1.0)]
 
 
 def drink_frames() -> List[Grid]:
-    return [flask(0, 1.0), flask(-40, 0.8), flask(-80, 0.5), flask(-115, 0.2), flask(-115, 0.0, glint=True, empty_glass=True)]
+    return [
+        flask(0, 1.0),
+        flask(-40, 0.8),
+        flask(-80, 0.5),
+        flask(-115, 0.2),
+        flask(-115, 0.0, glint=True, empty_glass=True),
+    ]
 
 
 def vanish_frames() -> List[Grid]:
@@ -155,29 +162,30 @@ def vanish_frames() -> List[Grid]:
         for i, (dx, dy) in enumerate(motes):
             if spread > 2 and i % 2:
                 continue
-            g.set(GRIP[0] + round(dx * spread), GRIP[1] - 3 + round(dy * spread) - round(spread), tone if i % 3 else GLASS[3])
+            g.set(
+                GRIP[0] + round(dx * spread),
+                GRIP[1] - 3 + round(dy * spread) - round(spread),
+                tone if i % 3 else GLASS[3],
+            )
         frames.append(g)
     return frames
 
 
 def potion_strip() -> Strip:
-    return Strip("fx-potion", POTION, POTION, GRIP, [
-        Animation("appear", 20, False, appear_frames()),
-        Animation("drink", 10, False, drink_frames()),
-        Animation("vanish", 15, False, vanish_frames()),
-    ])
+    return Strip(
+        "fx-potion",
+        POTION,
+        POTION,
+        GRIP,
+        [
+            Animation("appear", 20, False, appear_frames()),
+            Animation("drink", 10, False, drink_frames()),
+            Animation("vanish", 15, False, vanish_frames()),
+        ],
+    )
 
 
 # ── Glint ─────────────────────────────────────────────────────────────────
-
-
-def sparkle(g: Grid, x: int, y: int, reach: int, arm: str, core: str = WHITE) -> None:
-    """A four-point twinkle: a white core and arms of `reach` pixels."""
-    g.set(x, y, core)
-    for step in range(1, reach + 1):
-        tone = core if step < reach else arm
-        for dx, dy in ((step, 0), (-step, 0), (0, step), (0, -step)):
-            g.set(x + dx, y + dy, tone)
 
 
 GLINT = 11
@@ -187,7 +195,7 @@ def glint_strip() -> Strip:
     frames = []
     for reach in (0, 1, 3, 2, 1):
         g = Grid(GLINT, GLINT)
-        sparkle(g, GLINT // 2, GLINT // 2, reach, ROSE[4] if reach > 1 else ROSE[5])
+        twinkle(g, GLINT // 2, GLINT // 2, reach, WHITE, ROSE[4] if reach > 1 else ROSE[5])
         if reach == 3:
             for dx, dy in ((1, 1), (-1, -1), (1, -1), (-1, 1)):
                 g.set(GLINT // 2 + dx, GLINT // 2 + dy, ROSE[5])
@@ -197,15 +205,18 @@ def glint_strip() -> Strip:
 
 # ── Calm motifs ───────────────────────────────────────────────────────────
 
-HEART_7 = rows("""
+HEART_7 = rows(
+    """
     .HH.hh.
     HWhhhhh
     Hhhhhhs
     .hhhhs.
     ..hhs..
     ...s...
-""")
-HEART_9 = rows("""
+"""
+)
+HEART_9 = rows(
+    """
     .HHH.hhh.
     HHWhhhhhh
     HHhhhhhhs
@@ -214,17 +225,22 @@ HEART_9 = rows("""
     ..hhhss..
     ...hss...
     ....s....
-""")
-HEART_5 = rows("""
+"""
+)
+HEART_5 = rows(
+    """
     HH.hh
     Hhhhs
     .hhs.
     ..s..
-""")
-HEART_3 = rows("""
+"""
+)
+HEART_3 = rows(
+    """
     H.h
     .s.
-""")
+"""
+)
 HEART_KEY = {"H": ROSE[4], "W": ROSE[5], "h": ROSE[3], "s": ROSE[2]}
 CALM_HEART = 11
 
@@ -246,28 +262,37 @@ def calm_heart_strip() -> Strip:
     wane_motes.set(7, 2, ROSE[4])
     wane = [_heart(HEART_5), _heart(HEART_3), wane_motes, Grid(CALM_HEART, CALM_HEART)]
     wane[-1].set(7, 1, ROSE[2])
-    return Strip("fx-calm-heart", CALM_HEART, CALM_HEART, (CALM_HEART // 2, CALM_HEART - 1), [
-        Animation("pop", 15, False, pop),
-        Animation("beat", 8, True, beat),
-        Animation("wane", 8, False, wane),
-    ])
+    return Strip(
+        "fx-calm-heart",
+        CALM_HEART,
+        CALM_HEART,
+        (CALM_HEART // 2, CALM_HEART - 1),
+        [
+            Animation("pop", 15, False, pop),
+            Animation("beat", 8, True, beat),
+            Animation("wane", 8, False, wane),
+        ],
+    )
 
 
 MOTE = 7
 
 
 def calm_motes_strip() -> Strip:
-    def mote(art: Sequence[str], key: dict) -> Grid:
+    def mote(art: Sequence[str], key: Mapping[str, str]) -> Grid:
         g = Grid(MOTE, MOTE)
         g.stamp(MOTE // 2 - len(art[0]) // 2, MOTE // 2 - len(art) // 2, art, key)
         return g
 
-    hearts = [mote(HEART_5, HEART_KEY).outline(ROSE[0], corners=False), mote(HEART_5, {"H": ROSE[3], "h": ROSE[2], "s": ROSE[1]}),
-              mote(HEART_3, {"H": ROSE[3], "h": ROSE[2], "s": ROSE[1]})]
+    hearts = [
+        mote(HEART_5, HEART_KEY).outline(ROSE[0], corners=False),
+        mote(HEART_5, {"H": ROSE[3], "h": ROSE[2], "s": ROSE[1]}),
+        mote(HEART_3, {"H": ROSE[3], "h": ROSE[2], "s": ROSE[1]}),
+    ]
     sparks = []
     for reach, arm in ((2, ROSE[4]), (1, ROSE[4]), (0, ROSE[3])):
         g = Grid(MOTE, MOTE)
-        sparkle(g, MOTE // 2, MOTE // 2, reach, arm, core=ROSE[5] if reach else ROSE[3])
+        twinkle(g, MOTE // 2, MOTE // 2, reach, ROSE[5] if reach else ROSE[3], arm)
         sparks.append(g)
     bubbles = []
     for radius, tone in ((2.0, ROSE[4]), (1.5, ROSE[3]), (0.8, ROSE[2])):
@@ -276,11 +301,17 @@ def calm_motes_strip() -> Strip:
         if radius > 1.5:
             g.set(MOTE // 2 - 1, MOTE // 2 - 1, ROSE[5])
         bubbles.append(g)
-    return Strip("fx-calm-motes", MOTE, MOTE, (MOTE // 2, MOTE // 2), [
-        Animation("heart", 6, False, hearts),
-        Animation("spark", 6, False, sparks),
-        Animation("bubble", 6, False, bubbles),
-    ])
+    return Strip(
+        "fx-calm-motes",
+        MOTE,
+        MOTE,
+        (MOTE // 2, MOTE // 2),
+        [
+            Animation("heart", 6, False, hearts),
+            Animation("spark", 6, False, sparks),
+            Animation("bubble", 6, False, bubbles),
+        ],
+    )
 
 
 def strips() -> List[Strip]:

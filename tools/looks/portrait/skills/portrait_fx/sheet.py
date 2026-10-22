@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from PIL import Image
 
@@ -63,17 +63,21 @@ class Strip:
                 found.append(f"{where}: fps must be positive")
             for index, frame in enumerate(animation.frames):
                 if (frame.width, frame.height) != (self.frame_w, self.frame_h):
-                    found.append(f"{where}[{index}]: frame is {frame.width}x{frame.height}, expected {self.frame_w}x{self.frame_h}")
+                    found.append(
+                        f"{where}[{index}]: frame is {frame.width}x{frame.height}, expected {self.frame_w}x{self.frame_h}"
+                    )
             for anchor, points in animation.anchors.items():
                 if len(points) != len(animation.frames):
-                    found.append(f"{where}: anchor {anchor!r} has {len(points)} points for {len(animation.frames)} frames")
+                    found.append(
+                        f"{where}: anchor {anchor!r} has {len(points)} points for {len(animation.frames)} frames"
+                    )
         colors = self.colors()
         if len(colors) > MAX_COLORS:
             found.append(f"{self.name}: {len(colors)} colours, the budget is {MAX_COLORS}")
         return found
 
-    def colors(self) -> set:
-        found = set()
+    def colors(self) -> Set[str]:
+        found: Set[str] = set()
         for animation in self.animations:
             for frame in animation.frames:
                 found |= frame.colors()
@@ -118,10 +122,6 @@ class Strip:
         return png, manifest
 
 
-def frame_of(animation_frames: Sequence[Grid], index: int) -> Grid:
-    return animation_frames[min(max(index, 0), len(animation_frames) - 1)]
-
-
 # ── Biome-compatible JSON ─────────────────────────────────────────────────
 
 
@@ -132,7 +132,10 @@ def format_json(value: Any, indent: int = 0) -> str:
     if isinstance(value, dict):
         if not value:
             return "{}"
-        items = [f"{inner}{json.dumps(k)}: {_inline_or_block(v, indent + 2, len(inner) + len(json.dumps(k)) + 2)}" for k, v in value.items()]
+        items = [
+            f"{inner}{json.dumps(k)}: {_inline_or_block(v, indent + 2, len(inner) + len(json.dumps(k)) + 2)}"
+            for k, v in value.items()
+        ]
         return "{\n" + ",\n".join(items) + "\n" + pad + "}"
     if isinstance(value, list):
         return _inline_or_block(value, indent, indent)
@@ -175,9 +178,10 @@ def validate_files(png: Path, manifest: Path) -> List[str]:
     frame = data["frame"]
     animations = data["animations"]
     with Image.open(png) as opened:
-        image = opened.convert("RGBA") if opened.mode != "RGBA" else opened.copy()
-    if opened.mode != "RGBA":
-        found.append(f"{png.name}: mode {opened.mode}, expected RGBA")
+        mode = opened.mode
+        image = opened.convert("RGBA")
+    if mode != "RGBA":
+        found.append(f"{png.name}: mode {mode}, expected RGBA")
     columns = max(a["frames"] for a in animations)
     expected = (frame["w"] * columns, frame["h"] * len(animations))
     if image.size != expected:
@@ -187,7 +191,9 @@ def validate_files(png: Path, manifest: Path) -> List[str]:
         found.append(f"{png.name}: partial alpha values {sorted(alphas - {0, 255})[:5]}")
     for row, animation in enumerate(animations):
         for column in range(animation["frames"], columns):
-            cell = image.crop((column * frame["w"], row * frame["h"], (column + 1) * frame["w"], (row + 1) * frame["h"]))
+            cell = image.crop(
+                (column * frame["w"], row * frame["h"], (column + 1) * frame["w"], (row + 1) * frame["h"])
+            )
             if any(px[3] for px in cell.getdata()):
                 found.append(f"{png.name}: unused cell ({column}, {row}) of {animation['name']} is not transparent")
     colors = {px[:3] for px in image.getdata() if px[3]}

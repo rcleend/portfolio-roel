@@ -18,26 +18,31 @@ from typing import List, Sequence, Tuple
 
 from .. import icon_kit, raster
 from ..grid import Grid, rows
+from ..motifs import twinkle
 from ..palette import CHROME, GOLD, MAPLE, PICKGUARD, ROSEWOOD, SOUND, STRAT_BODY, WHITE
 from ..sheet import Animation, Strip
 
 Vec = Tuple[float, float]
 
-# The Strat in its own frame: x across the body (bass side negative), y along
-# the neck (towards the headstock positive), in icon pixels. Only the outline
-# vertices are rotated; the pixels are rasterised once, at the final angle.
+# The Strat in its own frame: u across the body (the bass side negative), v
+# along the neck (towards the headstock positive), in icon pixels. Only the
+# outline vertices are rotated; the pixels are rasterised once, at the final angle.
+# fmt: off
 BODY = [
-    (0.0, -7.4), (2.6, -7.1), (4.5, -5.9), (5.3, -3.6), (5.0, -1.6), (4.3, 0.4), (4.7, 2.4),
-    (4.8, 4.6), (4.4, 6.2), (3.8, 6.9), (3.1, 6.3), (2.5, 4.6), (1.9, 3.3), (1.1, 3.5),
-    (-1.1, 3.5), (-1.8, 3.4), (-2.4, 5.0), (-2.8, 7.4), (-3.4, 8.7), (-4.2, 8.4), (-4.7, 6.4),
-    (-4.9, 3.8), (-4.6, 1.8), (-4.2, 0.4), (-5.0, -1.6), (-5.3, -3.6), (-4.5, -5.9), (-2.6, -7.1),
+    (0.0, -7.4), (2.6, -7.1), (4.5, -5.9), (5.3, -3.6), (5.0, -1.6),  # butt and lower bout, treble side
+    (4.3, 0.4), (4.7, 2.4), (4.8, 4.6), (4.4, 6.2), (3.8, 6.9),  # waist up to the treble horn
+    (3.1, 6.3), (2.5, 4.6), (1.9, 3.3), (1.1, 3.5),  # treble cutaway into the neck pocket
+    (-1.1, 3.5), (-1.8, 3.4), (-2.4, 5.0), (-2.8, 7.4),  # bass cutaway, a deep one
+    (-3.4, 8.7), (-4.2, 8.4), (-4.7, 6.4), (-4.9, 3.8),  # the long bass horn
+    (-4.6, 1.8), (-4.2, 0.4), (-5.0, -1.6), (-5.3, -3.6), (-4.5, -5.9), (-2.6, -7.1),  # waist and lower bout
 ]
 PICKGUARD_SHAPE = [
-    (-1.1, 3.9), (1.1, 3.9), (1.9, 2.8), (2.9, 0.2), (3.2, -3.0), (2.2, -4.4), (-0.4, -4.0),
-    (-2.4, -3.2), (-3.4, -1.0), (-3.3, 2.2), (-2.4, 4.4), (-1.8, 4.6),
+    (-1.1, 3.9), (1.1, 3.9), (1.9, 2.8), (2.9, 0.2), (3.2, -3.0), (2.2, -4.4),
+    (-0.4, -4.0), (-2.4, -3.2), (-3.4, -1.0), (-3.3, 2.2), (-2.4, 4.4), (-1.8, 4.6),
 ]
 NECK = [(-1.05, 3.6), (1.05, 3.6), (1.0, 16.6), (-1.0, 16.6)]
 HEADSTOCK = [(-1.1, 16.4), (1.2, 16.4), (1.7, 17.6), (1.1, 20.9), (-0.4, 21.6), (-1.5, 20.8), (-1.4, 18.4)]
+# fmt: on
 
 
 class Pose:
@@ -57,6 +62,7 @@ class Pose:
 
 
 def strat(pose: Pose, size: int) -> Grid:
+    """The Olympic White Strat: cream body, mint pickguard and pickups, rosewood board, maple neck and headstock."""
     grid = Grid(size, size)
     body = raster.polygon(pose.shape(BODY))
     # Olympic White, lit from the top-left: lighter on the bass horn side, a cool shade towards the butt.
@@ -69,8 +75,12 @@ def strat(pose: Pose, size: int) -> Grid:
     for x, y in guard:
         grid.set(x, y, PICKGUARD[2])
     # Three single-coil pickups and the chrome bridge, across the strings.
-    for v, u0, u1, tone in ((2.2, -1.1, 1.1, PICKGUARD[0]), (0.2, -1.1, 1.1, PICKGUARD[0]),
-                            (-1.9, -1.2, 1.0, PICKGUARD[0]), (-4.3, -1.4, 1.4, CHROME[2])):
+    for v, u0, u1, tone in (
+        (2.2, -1.1, 1.1, PICKGUARD[0]),
+        (0.2, -1.1, 1.1, PICKGUARD[0]),
+        (-1.9, -1.2, 1.0, PICKGUARD[0]),
+        (-4.3, -1.4, 1.4, CHROME[2]),
+    ):
         a, b = pose.point(u0, v), pose.point(u1, v)
         grid.line(round(a[0] - 0.5), round(a[1] - 0.5), round(b[0] - 0.5), round(b[1] - 0.5), tone)
     neck = raster.polygon(pose.shape(NECK))
@@ -88,10 +98,14 @@ def strat(pose: Pose, size: int) -> Grid:
 
 def sound_arcs(grid: Grid, cx: float, cy: float, frame: int) -> None:
     """Three tight arcs of sound off the treble side; a bright pulse travels outwards once per loop."""
-    lit = {12: 0, 13: 1, 14: 2}.get(frame)
+    pulse = {12: 0, 13: 1, 14: 2}.get(frame)  # which arc the pulse is on, if any
+    at_rest = (SOUND[4], SOUND[3], SOUND[2])  # fading outwards
     for index, radius in enumerate((3.5, 6.0, 8.5)):
         arc = raster.arc(raster.thin(raster.ring(cx, cy, radius, radius)), cx, cy, -48, 48)
-        tone = SOUND[4] if index == lit else (SOUND[4], SOUND[3], SOUND[2])[index] if lit is None else SOUND[2]
+        if pulse is None:
+            tone = at_rest[index]
+        else:
+            tone = SOUND[4] if index == pulse else SOUND[2]
         for x, y in arc:
             if not grid.opaque(x, y):
                 grid.set(x, y, tone)
@@ -126,20 +140,11 @@ def _rays(g: Grid, lengths: Sequence[int], start: int, core: str, edge: str, dia
             g.set(C + dx * i, C + dy * i, tone)
 
 
-def _ring(g: Grid, radius: float, tones: Sequence[str], dash: int = 0) -> None:
+def _ring(g: Grid, radius: float, tones: Sequence[str], dashes: int = 0) -> None:
+    """Concentric one-pixel rings from `radius` inwards, one per tone; `dashes` > 0 breaks them into even dashes."""
     for i, tone in enumerate(tones):
         ring = raster.thin(raster.ring(*CENTRE, radius - i, radius - i))
-        for x, y in ring:
-            if dash and ((x * 7 + y * 3) // dash) % 2:
-                continue
-            g.set(x, y, tone)
-
-
-def _star4(g: Grid, x: int, y: int, size: int, core: str, arm: str) -> None:
-    g.set(x, y, core)
-    for i in range(1, size + 1):
-        for dx, dy in ((i, 0), (-i, 0), (0, i), (0, -i)):
-            g.set(x + dx, y + dy, core if i < size else arm)
+        g.plot(raster.dashed(ring, *CENTRE, dashes, 0.55) if dashes else ring, tone)
 
 
 def strum_frames(calm: bool) -> List[Grid]:
@@ -157,7 +162,7 @@ def strum_frames(calm: bool) -> List[Grid]:
         frames.append(g)
     g = Grid(STRUM, STRUM)  # the ring leaves; the rays break off at their tips
     _ring(g, 9.5, (SOUND[4], SOUND[3]))
-    for (dx, dy) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
         for i in (12, 13, 14):
             g.set(C + dx * i, C + dy * i, SOUND[3] if calm else SOUND[4])
     if not calm:
@@ -165,12 +170,12 @@ def strum_frames(calm: bool) -> List[Grid]:
         g.set(C, C, WHITE)
     frames.append(g)
     g = Grid(STRUM, STRUM)
-    _ring(g, 14.5, (SOUND[3],), dash=4)
+    _ring(g, 14.5, (SOUND[3],), dashes=14)
     for x, y in ((C - 15, C - 9), (C + 16, C - 6), (C + 10, C + 14), (C - 11, C + 13)):
-        _star4(g, x, y, 1, SOUND[4], SOUND[3])
+        twinkle(g, x, y, 1, SOUND[4], SOUND[3])
     frames.append(g)
     g = Grid(STRUM, STRUM)
-    _ring(g, 18.5, (SOUND[2],), dash=3)
+    _ring(g, 18.5, (SOUND[2],), dashes=18)
     for x, y in ((C - 17, C - 11), (C + 18, C - 8), (C + 12, C + 16), (C - 13, C + 15)):
         g.set(x, y, SOUND[4])
     frames.append(g)
@@ -182,15 +187,22 @@ def strum_frames(calm: bool) -> List[Grid]:
 
 
 def strum_strip() -> Strip:
-    return Strip("fx-strum", STRUM, STRUM, (C, C), [
-        Animation("strum", 20, False, strum_frames(calm=False)),
-        Animation("strum-calm", 20, False, strum_frames(calm=True)),
-    ])
+    return Strip(
+        "fx-strum",
+        STRUM,
+        STRUM,
+        (C, C),
+        [
+            Animation("strum", 20, False, strum_frames(calm=False)),
+            Animation("strum-calm", 20, False, strum_frames(calm=True)),
+        ],
+    )
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────
 
-EIGHTH = rows("""
+EIGHTH = rows(
+    """
     ...W..
     ...WW.
     ...W.W
@@ -198,8 +210,10 @@ EIGHTH = rows("""
     .LLW..
     LWLL..
     .LL...
-""")
-BEAMED = rows("""
+"""
+)
+BEAMED = rows(
+    """
     ...WWWWWW
     ...LLLLLL
     ...W....W
@@ -207,7 +221,8 @@ BEAMED = rows("""
     .LLW..LLW
     LWLL.LWLL
     .LL...LL.
-""")
+"""
+)
 NOTE = 11
 
 
@@ -219,10 +234,16 @@ def note(art: Sequence[str], bright: bool) -> Grid:
 
 
 def notes_strip() -> Strip:
-    return Strip("fx-notes", NOTE, NOTE, (NOTE // 2, NOTE - 2), [
-        Animation("eighth", 8, True, [note(EIGHTH, False), note(EIGHTH, True)]),
-        Animation("beamed", 8, True, [note(BEAMED, False), note(BEAMED, True)]),
-    ])
+    return Strip(
+        "fx-notes",
+        NOTE,
+        NOTE,
+        (NOTE // 2, NOTE - 2),
+        [
+            Animation("eighth", 8, True, [note(EIGHTH, False), note(EIGHTH, True)]),
+            Animation("beamed", 8, True, [note(BEAMED, False), note(BEAMED, True)]),
+        ],
+    )
 
 
 # ── Stun stars ────────────────────────────────────────────────────────────
@@ -244,12 +265,12 @@ def stun_frames() -> List[Grid]:
         # Far stars first, so the nearer ones pass in front of them.
         for depth, x, y in sorted(stars):
             if depth > 0.3:
-                _star4(g, x, y, 2, GOLD[5], GOLD[3])
+                twinkle(g, x, y, 2, GOLD[5], GOLD[3])
                 g.set(x, y, WHITE)
             elif depth > -0.5:
-                _star4(g, x, y, 1, GOLD[4], GOLD[3])
+                twinkle(g, x, y, 1, GOLD[4], GOLD[3])
             else:
-                _star4(g, x, y, 1, GOLD[3], GOLD[2])
+                twinkle(g, x, y, 1, GOLD[3], GOLD[2])
         frames.append(g.outline(GOLD[0], corners=False))
     return frames
 

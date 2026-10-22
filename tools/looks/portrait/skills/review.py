@@ -12,6 +12,9 @@ Sections:
   mockups   storyboards of each skill's key frames over the real level backdrops,
             with stand-in heroes and customers at the new 54-60 px scale
   styleref  effect key frames beside the captain's style reference grid
+  boards    the curated review set: the icon board, one board per hero with
+            both skills' key frames (one on the Berlin night, one in the San
+            Francisco golden hour), the style reference, every effect sprite
 
 Stand-ins are cut from the style reference at review time when `--ref` is
 given (they are never committed); otherwise plain silhouettes are drawn.
@@ -21,11 +24,10 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw
 
@@ -39,6 +41,7 @@ from portrait_fx.skills import SKILLS  # noqa: E402
 from storyboards import STORYBOARDS, STYLEREF, Moment, Sprite, Stage, draw_code  # noqa: E402
 
 DEFAULT_OUT = Path("/tmp/arcade-looks-portrait-skills")
+DEFAULT_BOARDS = Path("/tmp/arcade-looks-portrait-skills-review")
 #: The part of a mockup the zoomed review shows: hero on the left, customers on the right.
 ZOOM = (56, 112, 296, 208)
 GROUND_Y = 200
@@ -93,7 +96,9 @@ def review_icons(out: Path) -> List[Path]:
         for c, skill_id in enumerate(SKILLS):
             slot = preview.slot(32, theme)
             slot.alpha_composite(strips_of(skill_id)["icon"].animations[0].frames[0].to_image(), (4, 4))
-            set_sheet.alpha_composite(preview.scaled(slot, scale), (12 + c * (32 * scale + 12), 12 + r * (32 * scale + 12)))
+            set_sheet.alpha_composite(
+                preview.scaled(slot, scale), (12 + c * (32 * scale + 12), 12 + r * (32 * scale + 12))
+            )
     path = out / "icons-set-4x.png"
     set_sheet.save(path)
     written.append(path)
@@ -130,15 +135,21 @@ def icons_in_context() -> Image.Image:
 # ── Strips ────────────────────────────────────────────────────────────────
 
 
-def strip_sheet(strip: Strip, scale: int, background: Tuple[int, int, int, int]) -> Image.Image:
+def strip_sheet(strip: Strip, scale: int, background: Tuple[int, int, int, int], title: str = "") -> Image.Image:
+    """Every animation of a strip as a row of frames at `scale`, with the origin marked in red."""
     fw, fh = strip.frame_w * scale, strip.frame_h * scale
+    row_h = max(fh, 46)  # room for the three lines of the row's label
     columns = max(len(a.frames) for a in strip.animations)
     label_w = 110
-    sheet = Image.new("RGBA", (label_w + columns * (fw + 4) + 4, len(strip.animations) * (fh + 16) + 20), (16, 15, 30, 255))
+    heading = f"{title or strip.name}  {strip.frame_w}x{strip.frame_h}  origin {strip.origin}"
+    width = max(
+        label_w + columns * (fw + 4) + 4, round(ImageDraw.Draw(Image.new("RGBA", (1, 1))).textlength(heading)) + 12
+    )
+    sheet = Image.new("RGBA", (width, len(strip.animations) * (row_h + 16) + 20), (16, 15, 30, 255))
     draw = ImageDraw.Draw(sheet)
-    draw.text((4, 4), f"{strip.name}  {strip.frame_w}x{strip.frame_h}  origin {strip.origin}", fill=(230, 230, 240, 255))
+    draw.text((4, 4), heading, fill=(230, 230, 240, 255))
     for r, animation in enumerate(strip.animations):
-        y = 20 + r * (fh + 16)
+        y = 20 + r * (row_h + 16)
         draw.text((4, y + 4), f"{animation.name}", fill=(220, 220, 235, 255))
         draw.text((4, y + 18), f"{len(animation.frames)}f @{animation.fps:g}fps", fill=(150, 150, 170, 255))
         draw.text((4, y + 32), "loop" if animation.loop else "once", fill=(150, 150, 170, 255))
@@ -207,7 +218,9 @@ def level_backdrop(level_id: str, camera_x: int, foreground: bool = False) -> Im
     # Flat ground only: the demo pit and platforms would distract from the effect.
     for col in range(level.width // 16 + 1):
         for i, name in enumerate(("ground_top", "ground_fill", "ground_base")):
-            module._composite_clipped(frame, level.tile(name + ("_alt" if col % 2 else "")), col * 16, level.ground_y + i * 16)
+            module._composite_clipped(
+                frame, level.tile(name + ("_alt" if col % 2 else "")), col * 16, level.ground_y + i * 16
+            )
     if foreground:
         for layer in level.manifest["layers"]:
             if layer["foreground"]:
@@ -244,7 +257,12 @@ def cut_figures(reference: Path) -> List[Image.Image]:
                 for dx in (-1, 0, 1):
                     for dy in (-1, 0, 1):
                         nx, ny = cx + dx, cy + dy
-                        if 0 <= nx < w and 0 <= ny < h and not seen[ny][nx] and not is_background(image.getpixel((nx, ny))):
+                        if (
+                            0 <= nx < w
+                            and 0 <= ny < h
+                            and not seen[ny][nx]
+                            and not is_background(image.getpixel((nx, ny)))
+                        ):
                             seen[ny][nx] = True
                             stack.append((nx, ny))
             if len(points) < 300:
@@ -266,8 +284,11 @@ def _despeckle(image: Image.Image) -> Image.Image:
         for x in range(w):
             if px[x, y][3] == 0:
                 continue
-            neighbours = sum(1 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-                             if 0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3])
+            neighbours = sum(
+                1
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                if 0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3]
+            )
             if neighbours <= 1:
                 px[x, y] = (0, 0, 0, 0)
     return image
@@ -290,9 +311,16 @@ def make_cast(reference: Optional[Path]) -> Cast:
         figures = cut_figures(reference)
         by_size = {i: f for i, f in enumerate(figures)}
         hero = by_size.get(1) or figures[0]
-        customers = [f.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for f in (by_size.get(8), by_size.get(13), by_size.get(12)) if f]
+        customers = [
+            f.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            for f in (by_size.get(8), by_size.get(13), by_size.get(12))
+            if f
+        ]
         return Cast(hero, customers)
-    return Cast(silhouette(58, "#2a2f45", "#e8b896"), [silhouette(56, "#c86a3a", "#f0a080").transpose(Image.Transpose.FLIP_LEFT_RIGHT)] * 3)
+    return Cast(
+        silhouette(58, "#2a2f45", "#e8b896"),
+        [silhouette(56, "#c86a3a", "#f0a080").transpose(Image.Transpose.FLIP_LEFT_RIGHT)] * 3,
+    )
 
 
 # ── Mockups ───────────────────────────────────────────────────────────────
@@ -394,11 +422,131 @@ def review_styleref(out: Path, reference: Optional[Path]) -> List[Path]:
     return [path]
 
 
+# ── Boards: the curated review set ───────────────────────────────────────
+
+#: Each hero's two skills and the stage each is shown on, so every board shows both backdrops.
+HERO_BOARDS = (
+    ("hackerman", (("full-stack-attack", "scripe", 140), ("agent-summon", "luna", 60))),
+    ("artsy", (("ux-elixir", "luna", 60), ("power-chord", "scripe", 140))),
+    ("strategy", (("north-star", "scripe", 140), ("churn-shield", "luna", 60))),
+)
+#: Where the action is: hero on the left, the customers to the right, the ground at the bottom.
+BOARD_CROP = (36, 100, 316, 208)
+BOARD_SCALE = 3
+
+
+def _titled(image: Image.Image, title: str, subtitle: str = "") -> Image.Image:
+    bar = 34 if subtitle else 22
+    out = Image.new("RGBA", (image.width, image.height + bar), (12, 11, 24, 255))
+    draw = ImageDraw.Draw(out)
+    draw.text((8, 5), title, fill=(240, 236, 255, 255))
+    if subtitle:
+        draw.text((8, 19), subtitle, fill=(160, 156, 190, 255))
+    out.alpha_composite(image, (0, bar))
+    return out
+
+
+def _stack(images: List[Image.Image], gap: int = 10) -> Image.Image:
+    out = Image.new("RGBA", (max(i.width for i in images), sum(i.height + gap for i in images) - gap), (8, 8, 14, 255))
+    y = 0
+    for image in images:
+        out.alpha_composite(image, (0, y))
+        y += image.height + gap
+    return out
+
+
+def review_boards(out: Path, reference: Optional[Path]) -> List[Path]:
+    out.mkdir(parents=True, exist_ok=True)
+    written = []
+
+    icons = []
+    set_row = Image.open(DEFAULT_OUT / "icons-set-4x.png") if (DEFAULT_OUT / "icons-set-4x.png").exists() else None
+    if set_row is None:
+        review_icons(DEFAULT_OUT)
+        set_row = Image.open(DEFAULT_OUT / "icons-set-4x.png")
+    icons.append(
+        _titled(
+            set_row.convert("RGBA"),
+            "The six icons at rest, 4x",
+            "top: steel slot (HUD, unlit row) / bottom: indigo slot (lit row)",
+        )
+    )
+    loops = Image.open(DEFAULT_OUT / "icons-loops-4x.png").convert("RGBA")
+    loops = loops.resize((loops.width // 2, loops.height // 2), Image.Resampling.NEAREST)
+    icons.append(
+        _titled(
+            loops,
+            "Idle loops, 16 frames at 8 fps (shown at 2x)",
+            "one moment of life each, a hero's two icons never move together",
+        )
+    )
+    context = Image.open(DEFAULT_OUT / "icons-in-context-3x.png").convert("RGBA")
+    icons.append(_titled(context, "At 1x in the select rows and the HUD (shown at 3x)"))
+    path = out / "01-icons.png"
+    _stack(icons).save(path)
+    written.append(path)
+
+    cast = make_cast(reference)
+    for number, (hero, skills) in enumerate(HERO_BOARDS, start=2):
+        parts = []
+        for skill_id, level, camera in skills:
+            stage = Stage(camera=camera)
+            moments = STORYBOARDS[skill_id](stage)
+            cells = [
+                (m.label, preview.scaled(render_moment(skill_id, level, m, cast, stage).crop(BOARD_CROP), BOARD_SCALE))
+                for m in moments
+            ]
+            where = "Berlin night" if level == "scripe" else "San Francisco golden hour"
+            parts.append(
+                _titled(
+                    preview.label_sheet(cells, 2), f"{skill_id.upper().replace('-', ' ')} - {where}, {BOARD_SCALE}x"
+                )
+            )
+        title = f"PORTRAIT - {hero.upper()} - key frames at the new 54-60 px hero scale (stand-ins cut from the style reference)"
+        path = out / f"0{number}-{hero}-skills.png"
+        _titled(_stack(parts), title).save(path)
+        written.append(path)
+
+    styleref = review_styleref(DEFAULT_OUT, reference)
+    if styleref:
+        path = out / "05-style-reference.png"
+        _titled(
+            Image.open(styleref[0]).convert("RGBA"),
+            "Effect key frames beside the captain's style reference, at its pixel scale",
+        ).save(path)
+        written.append(path)
+
+    sheets = []
+    for skill_id in SKILLS:
+        for name, strip in strips_of(skill_id).items():
+            if name != "icon":
+                scale = 2 if max(strip.frame_w, strip.frame_h) <= 48 else 1
+                sheets.append(strip_sheet(strip, scale, NAVY, f"{skill_id} / {name}"))
+    columns = [[], []]
+    heights = [0, 0]
+    for sheet in sheets:
+        column = heights.index(min(heights))
+        columns[column].append(sheet)
+        heights[column] += sheet.height + 8
+    halves = [_stack(c, 8) for c in columns if c]
+    board = Image.new("RGBA", (sum(h.width for h in halves) + 12, max(h.height for h in halves)), (8, 8, 14, 255))
+    board.alpha_composite(halves[0], (0, 0))
+    if len(halves) > 1:
+        board.alpha_composite(halves[1], (halves[0].width + 12, 0))
+    path = out / "06-effect-sprites.png"
+    _titled(board, "Every effect strip, one row per animation (red: origin)").save(path)
+    written.append(path)
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("sections", nargs="*", default=["icons", "strips", "mockups", "styleref"])
+    parser.add_argument("sections", nargs="*", default=["icons", "strips", "mockups", "styleref", "boards"])
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
-    parser.add_argument("--ref", type=Path, default=None, help="refs/style-reference-grid.png, for stand-ins and the side-by-side")
+    parser.add_argument("--boards", type=Path, default=DEFAULT_BOARDS, help="where the curated review set goes")
+    parser.add_argument(
+        "--ref", type=Path, default=None, help="refs/style-reference-grid.png, for stand-ins and the side-by-side"
+    )
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     written: List[Path] = []
@@ -410,6 +558,8 @@ def main() -> int:
         written += review_mockups(args.out, args.ref)
     if "styleref" in args.sections:
         written += review_styleref(args.out, args.ref)
+    if "boards" in args.sections:
+        written += review_boards(args.boards, args.ref)
     for path in written:
         print(path)
     return 0

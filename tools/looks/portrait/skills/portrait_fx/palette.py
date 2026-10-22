@@ -20,14 +20,6 @@ class Ramp(Tuple[str, ...]):
     def __new__(cls, *colors: str) -> "Ramp":
         return super().__new__(cls, tuple(c.lower() for c in colors))  # type: ignore[arg-type]
 
-    @property
-    def darkest(self) -> str:
-        return self[0]
-
-    @property
-    def lightest(self) -> str:
-        return self[-1]
-
 
 # ── Shared ────────────────────────────────────────────────────────────────
 
@@ -45,7 +37,6 @@ AMBER = Ramp("#3a1e08", "#76400e", "#bd7a1c", "#eeb444", "#ffe39a")
 SHELL = Ramp("#151a2c", "#3a4058", "#7c829e", "#b9bfd2", "#e7eaf2")
 VISOR = Ramp("#0a0f1e", "#18233c", "#2b3d5e")
 EYE = Ramp("#17596e", "#2c93ae", "#62cde2", "#b6f0f6", "#effdff")
-LED = Ramp("#5a1a22", "#c43c3c", "#ff7a66")
 
 # ── UX ELIXIR: glass flask, rose elixir, cork ────────────────────────────
 

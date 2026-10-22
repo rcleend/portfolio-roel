@@ -20,6 +20,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 from . import raster
 from .grid import Grid
+from .motifs import twinkle
 from .palette import WHITE
 from .sheet import Animation, Strip
 
@@ -41,9 +42,10 @@ def glow(accent: str, strength: float = 1.0) -> Tuple[str, str]:
 
     `strength` < 1 suits bright accents (gold), which glow enough with less colour.
     """
+
     def mix(t: float) -> str:
-        a = [int(SLOT_MID[i:i + 2], 16) for i in (1, 3, 5)]
-        b = [int(accent[i:i + 2], 16) for i in (1, 3, 5)]
+        a = [int(SLOT_MID[i : i + 2], 16) for i in (1, 3, 5)]
+        b = [int(accent[i : i + 2], 16) for i in (1, 3, 5)]
         return "#" + "".join(f"{round(a[k] + (b[k] - a[k]) * t):02x}" for k in range(3))
 
     return mix(0.16 * strength), mix(0.28 * strength)
@@ -58,16 +60,11 @@ def backlight(outer: str, inner: str, frame: int = 0) -> Grid:
 
 
 def glint(grid: Grid, x: int, y: int, phase: int, core: str = WHITE, arm: Optional[str] = None) -> None:
-    """The shared four-point twinkle, centred on (x, y). Phases 1-3 grow and shrink; 0 draws nothing."""
-    arm = arm or core
-    if phase <= 0:
-        return
-    grid.set(x, y, core)
-    reach = {1: 1, 2: 2, 3: 1}.get(phase, 0)
-    for step in range(1, reach + 1):
-        tone = arm if step == reach and reach > 1 else core
-        for dx, dy in ((step, 0), (-step, 0), (0, step), (0, -step)):
-            grid.set(x + dx, y + dy, tone)
+    """The shared glint, centred on (x, y): phases 1-3 grow and shrink the twinkle; 0 draws nothing."""
+    if phase == 2:
+        twinkle(grid, x, y, 2, core, arm or core)
+    elif phase in (1, 3):
+        twinkle(grid, x, y, 1, core, core)
 
 
 def compose(background: Grid, art: Grid) -> Grid:
@@ -82,8 +79,8 @@ def icon_strip(frames: Sequence[Grid]) -> Strip:
     return Strip("icon", SIZE, SIZE, (0, 0), [Animation("idle", FPS, True, list(frames))])
 
 
-def build_icon(disc: Sequence[str], draw: Callable[[int], Grid]) -> Strip:
-    """Composes `draw(frame)` (the object, already outlined) over the shared backlight for every frame."""
+def build_icon(disc: Tuple[str, str], draw: Callable[[int], Grid]) -> Strip:
+    """Composes `draw(frame)` (the object, already outlined) over the shared backlight, `disc` from `glow`."""
     outer, inner = disc
     frames: List[Grid] = [compose(backlight(outer, inner, i), draw(i)) for i in range(FRAMES)]
     return icon_strip(frames)

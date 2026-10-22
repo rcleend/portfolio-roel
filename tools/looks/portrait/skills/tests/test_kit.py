@@ -23,13 +23,16 @@ class GridTest(unittest.TestCase):
         self.assertIsNone(round_rim.get(1, 1))
         self.assertEqual(round_rim.get(1, 2), "#000000")
 
-    def test_stamp_and_from_rows(self) -> None:
-        art = rows("""
+    def test_stamp_skips_characters_without_a_colour(self) -> None:
+        art = rows(
+            """
             .a.
             aba
-        """)
-        g = Grid.from_rows(art, {".": None, "a": "#111111", "b": "#222222"})
-        self.assertEqual((g.width, g.height), (3, 2))
+        """
+        )
+        self.assertEqual(art, [".a.", "aba"])
+        g = Grid(3, 2)
+        g.stamp(0, 0, art, {"a": "#111111", "b": "#222222"})
         self.assertEqual(g.get(1, 1), "#222222")
         self.assertIsNone(g.get(0, 0))
 
@@ -37,10 +40,12 @@ class GridTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Grid(1, 1).set(0, 0, "red")
 
-    def test_flips(self) -> None:
-        g = Grid(3, 1)
+    def test_recolor_swaps_listed_colours_only(self) -> None:
+        g = Grid(2, 1)
         g.set(0, 0, "#ffffff")
-        self.assertEqual(g.flipped_x().get(2, 0), "#ffffff")
+        g.set(1, 0, "#000000")
+        swapped = g.recolor({"#ffffff": "#ff0000"})
+        self.assertEqual((swapped.get(0, 0), swapped.get(1, 0)), ("#ff0000", "#000000"))
 
 
 class RasterTest(unittest.TestCase):
@@ -68,10 +73,16 @@ class SheetTest(unittest.TestCase):
         a, b = Grid(4, 2), Grid(4, 2)
         a.set(0, 0, "#ff0000")
         b.set(3, 1, "#00ff00")
-        return Strip("fx-test", 4, 2, (2, 1), [
-            Animation("go", 10, False, [a, b], {"tip": [(1, 1), (2, 1)]}),
-            Animation("stay", 4, True, [a]),
-        ])
+        return Strip(
+            "fx-test",
+            4,
+            2,
+            (2, 1),
+            [
+                Animation("go", 10, False, [a, b], {"tip": [(1, 1), (2, 1)]}),
+                Animation("stay", 4, True, [a]),
+            ],
+        )
 
     def test_packs_one_row_per_animation(self) -> None:
         with tempfile.TemporaryDirectory() as scratch:
@@ -96,7 +107,9 @@ class SheetTest(unittest.TestCase):
 
     def test_json_is_biome_shaped(self) -> None:
         text = format_json({"frame": {"w": 4}, "a": [{"n": [[1, 2], [3, 4]]}]})
-        self.assertEqual(text, '{\n  "frame": {\n    "w": 4\n  },\n  "a": [\n    {\n      "n": [[1, 2], [3, 4]]\n    }\n  ]\n}')
+        self.assertEqual(
+            text, '{\n  "frame": {\n    "w": 4\n  },\n  "a": [\n    {\n      "n": [[1, 2], [3, 4]]\n    }\n  ]\n}'
+        )
 
 
 if __name__ == "__main__":

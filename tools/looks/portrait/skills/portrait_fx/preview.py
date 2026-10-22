@@ -8,19 +8,31 @@ the background they will sit on in the select screen and the HUD.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Sequence, Tuple
 
 from PIL import Image, ImageDraw
 
-from .grid import Grid
 
 RGBA = Tuple[int, int, int, int]
 
-#: `windowThemes` from src/game/ui/theme.ts.
-THEMES: Dict[str, Dict[str, object]] = {
-    "steel": {"outline": "#0b0a14", "light": "#eef0f6", "mid": "#8a90a8", "dark": "#3a3f57", "fill": ("#343852", "#181a28")},
-    "indigo": {"outline": "#0b0a1f", "light": "#e4dcff", "mid": "#a99cf0", "dark": "#3d2f8f", "fill": ("#2a2468", "#14123a")},
-    "cream": {"outline": "#2a2010", "light": "#fffdf0", "mid": "#e6d7a0", "dark": "#a8955e", "fill": ("#fffae6", "#f1e6bd")},
+
+@dataclass(frozen=True)
+class Theme:
+    """One of `windowThemes` (src/game/ui/theme.ts): the frame's four tones and the fill's two stops."""
+
+    outline: str
+    light: str
+    mid: str
+    dark: str
+    fill: Tuple[str, str]
+    dither: bool = True
+
+
+THEMES: Dict[str, Theme] = {
+    "steel": Theme("#0b0a14", "#eef0f6", "#8a90a8", "#3a3f57", ("#343852", "#181a28")),
+    "indigo": Theme("#0b0a1f", "#e4dcff", "#a99cf0", "#3d2f8f", ("#2a2468", "#14123a")),
+    "cream": Theme("#2a2010", "#fffdf0", "#e6d7a0", "#a8955e", ("#fffae6", "#f1e6bd"), dither=False),
 }
 
 FRAME_PATTERN = [
@@ -76,23 +88,23 @@ def banded_fill(w: int, h: int, stops: Sequence[str], bands: int, dither: bool) 
 def slot(size: int, theme: str = "steel") -> Image.Image:
     """A bevelled window of `size` x `size`, like `drawWindow(gfx, rect, windowThemes[theme])`."""
     t = THEMES[theme]
-    stops = t["fill"]
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    image.alpha_composite(banded_fill(size - 4, size - 4, stops, 4, theme != "cream"), (2, 2))  # type: ignore[arg-type]
-    colors = {"o": t["outline"], "L": t["light"], "m": t["mid"], "d": t["dark"]}
+    image.alpha_composite(banded_fill(size - 4, size - 4, t.fill, 4, t.dither), (2, 2))
+    colors = {"o": t.outline, "L": t.light, "m": t.mid, "d": t.dark}
     px = image.load()
     n = len(FRAME_PATTERN)
 
-    def pattern_at(sx: int, sy: int) -> Optional[str]:
-        ch = FRAME_PATTERN[sy][sx]
-        return colors.get(ch)  # type: ignore[return-value]
+    def source(i: int) -> int:
+        """Nine-slice: the 4 px borders come from the pattern's borders, the middle tiles its centre."""
+        if i < BORDER:
+            return i
+        if i >= size - BORDER:
+            return n - (size - i)
+        return BORDER + (i - BORDER) % (n - 2 * BORDER)
 
     for y in range(size):
         for x in range(size):
-            # Nine-slice: corners and edges come from the 4 px border of the pattern, the edges tile.
-            sx = x if x < BORDER else (n - (size - x) if x >= size - BORDER else BORDER + (x - BORDER) % (n - 2 * BORDER))
-            sy = y if y < BORDER else (n - (size - y) if y >= size - BORDER else BORDER + (y - BORDER) % (n - 2 * BORDER))
-            color = pattern_at(sx, sy)
+            color = colors.get(FRAME_PATTERN[source(y)][source(x)])
             if color:
                 px[x, y] = rgba(color)
     return image
@@ -102,17 +114,9 @@ def scaled(image: Image.Image, scale: int) -> Image.Image:
     return image.resize((image.width * scale, image.height * scale), Image.Resampling.NEAREST)
 
 
-def on(background: Image.Image, sprite: Image.Image, x: int, y: int) -> Image.Image:
-    out = background.copy()
-    out.alpha_composite(sprite, (x, y))
-    return out
-
-
-def grid_image(grid: Grid) -> Image.Image:
-    return grid.to_image()
-
-
-def label_sheet(cells: List[Tuple[str, Image.Image]], columns: int, gap: int = 8, background: RGBA = (22, 22, 30, 255)) -> Image.Image:
+def label_sheet(
+    cells: List[Tuple[str, Image.Image]], columns: int, gap: int = 8, background: RGBA = (22, 22, 30, 255)
+) -> Image.Image:
     """A labelled contact sheet of same-sized images."""
     if not cells:
         raise ValueError("nothing to lay out")

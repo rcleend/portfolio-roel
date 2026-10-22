@@ -74,7 +74,9 @@ class FreshnessTest(unittest.TestCase):
                         committed = OUT / skill_id / path.name
                         with self.subTest(str(committed.relative_to(REPO))):
                             self.assertTrue(committed.exists(), "run tools/looks/portrait/skills/build.py")
-                            self.assertEqual(committed.read_bytes(), path.read_bytes(), "run tools/looks/portrait/skills/build.py")
+                            self.assertEqual(
+                                committed.read_bytes(), path.read_bytes(), "run tools/looks/portrait/skills/build.py"
+                            )
                 stray = {p.name for p in (OUT / skill_id).iterdir()} - produced
                 self.assertEqual(stray, set(), f"{skill_id}: files no generator produces")
 

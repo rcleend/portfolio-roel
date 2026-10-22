@@ -12,18 +12,19 @@ Strips
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Literal, Optional, Tuple
 
 from .. import icon_kit, raster
 from ..grid import Grid, rows
-from ..palette import EYE, LED, SHELL, VISOR, WHITE
+from ..palette import EYE, SHELL, VISOR, WHITE
 from ..sheet import Animation, Strip
 
 # ── Icon: face-on ─────────────────────────────────────────────────────────
 
 # Front view: a top rotor on a short mast over a porcelain pod with a smoked
 # visor and one wide scanning eye, side fins, and a hover jet underneath.
-DRONE_FRONT = rows("""
+DRONE_FRONT = rows(
+    """
     ..........oooo..........
     .........oMMMmo.........
     ..........omo...........
@@ -40,30 +41,37 @@ DRONE_FRONT = rows("""
     .....oodLLLLLLLLLddo....
     .......ooddddddddoo.....
     ..........oooooo........
-""")
+"""
+)
 
 DRONE_FRONT_KEY = {
-    "o": SHELL[0], "M": SHELL[3], "m": SHELL[2], "P": SHELL[4], "p": SHELL[3], "L": SHELL[3],
-    "d": SHELL[2], "F": SHELL[3], "v": VISOR[0], "V": VISOR[2], "e": EYE[2], "E": EYE[4],
+    "o": SHELL[0],
+    "M": SHELL[3],
+    "m": SHELL[2],
+    "P": SHELL[4],
+    "p": SHELL[3],
+    "L": SHELL[3],
+    "d": SHELL[2],
+    "F": SHELL[3],
+    "v": VISOR[0],
+    "V": VISOR[2],
+    "e": EYE[2],
+    "E": EYE[4],
 }
 
-# The rotor seen edge-on, one continuous blur over a dark hub; a long and a short
-# blur alternate every other frame, which reads as spin without flicker.
-ROTOR_LONG = [SHELL[2], SHELL[3], SHELL[4], SHELL[4], SHELL[3], SHELL[3], SHELL[3], SHELL[2], SHELL[2],
-              SHELL[3], SHELL[3], SHELL[3], SHELL[4], SHELL[4], SHELL[3], SHELL[2]]
-ROTOR_SHORT = [None, SHELL[2], SHELL[3], SHELL[4], SHELL[3], SHELL[3], SHELL[2], SHELL[2], SHELL[2],
-               SHELL[2], SHELL[3], SHELL[3], SHELL[4], SHELL[3], SHELL[2], None]
+# The rotor seen edge-on: one continuous blur over a mid-grey hub. A long and a
+# short blur alternate every other frame, which reads as spin without flicker.
+ROTOR_LONG = "dLPPLLLddLLLPPLd"
+ROTOR_SHORT = ".dLPLLddddLLPLd."
+ROTOR_KEY = {"d": SHELL[2], "L": SHELL[3], "P": SHELL[4]}
 
 
 def drone_icon(frame: int) -> Grid:
     art = Grid(icon_kit.SIZE, icon_kit.SIZE)
-    bob = -1 if frame in (4, 5, 6, 7) else 0
+    bob = -1 if frame in (8, 9, 10, 11) else 0
     top = 2 + bob
     art.stamp(0, top + 1, DRONE_FRONT, DRONE_FRONT_KEY)
-    blades = ROTOR_LONG if frame % 4 < 2 else ROTOR_SHORT
-    for i, tone in enumerate(blades):
-        if tone:
-            art.set(4 + i, top, tone)
+    art.stamp(4, top, [ROTOR_LONG if frame % 4 < 2 else ROTOR_SHORT], ROTOR_KEY)
     # The eye scans: its bright core glides across the visor once per loop, out of step with FULL-STACK's pulse.
     eye_row = top + 9
     core = {12: 8, 13: 10, 14: 13, 15: 15}.get(frame)
@@ -94,7 +102,8 @@ DRONE_ORIGIN = (12, 12)
 # The rotor is drawn per frame above the mast; the pod is a teardrop with a
 # wraparound visor at the nose, one bright eye, a status light on its flank,
 # a swept fin at the tail and the emitter under the nose.
-DRONE_SIDE = rows("""
+DRONE_SIDE = rows(
+    """
     .........hh...........
     .......ooHHoo.........
     .....ooPPPPPPoo.......
@@ -107,12 +116,25 @@ DRONE_SIDE = rows("""
     ...odLLLLLLLLLLLLLddo.
     ....ooddddddddddddoo..
     ......oooooooooooo....
-""")
+"""
+)
 
 DRONE_SIDE_KEY = {
-    "o": SHELL[0], "h": SHELL[2], "H": SHELL[3], "P": SHELL[4], "p": SHELL[3], "L": SHELL[3],
-    "d": SHELL[2], "F": SHELL[3], "v": VISOR[0], "V": VISOR[2], "e": EYE[3], "E": EYE[4],
-    "c": EYE[2], "n": SHELL[1], "x": EYE[3],
+    "o": SHELL[0],
+    "h": SHELL[2],
+    "H": SHELL[3],
+    "P": SHELL[4],
+    "p": SHELL[3],
+    "L": SHELL[3],
+    "d": SHELL[2],
+    "F": SHELL[3],
+    "v": VISOR[0],
+    "V": VISOR[2],
+    "e": EYE[3],
+    "E": EYE[4],
+    "c": EYE[2],
+    "n": SHELL[1],
+    "x": EYE[3],
 }
 
 POD_X, POD_Y = 1, 4  # where DRONE_SIDE sits in the frame
@@ -141,7 +163,11 @@ def _jet(g: Grid, y: int, phase: int) -> None:
         g.hline(cx, cx + 1, y + 2, EYE[1])
 
 
-def drone_body(dy: int = 0, dx: int = 0, rotor: int = 0, jet: Optional[int] = 0, eye: str = "open") -> Grid:
+Eye = Literal["open", "closed", "bright"]
+
+
+def drone_body(dy: int = 0, dx: int = 0, rotor: int = 0, jet: Optional[int] = 0, eye: Eye = "open") -> Grid:
+    """The side-view pod nudged by (dx, dy), with a rotor phase, a jet phase (None: no jet) and an eye state."""
     g = Grid(DRONE_W, DRONE_H)
     g.stamp(POD_X + dx, POD_Y + dy, DRONE_SIDE, DRONE_SIDE_KEY)
     _rotor(g, POD_Y + dy - 1, rotor)
@@ -215,7 +241,12 @@ def summon_frames() -> List[Grid]:
     frames.append(g)
     g = Grid(DRONE_W, DRONE_H)  # f1: a scan line and corner brackets frame the space it will occupy
     g.hline(POD_X + 2, POD_X + 19, DRONE_ORIGIN[1], EYE[3])
-    for x, y, sx, sy in ((POD_X, top, 1, 1), (POD_X + 21, top, -1, 1), (POD_X, bottom, 1, -1), (POD_X + 21, bottom, -1, -1)):
+    for x, y, sx, sy in (
+        (POD_X, top, 1, 1),
+        (POD_X + 21, top, -1, 1),
+        (POD_X, bottom, 1, -1),
+        (POD_X + 21, bottom, -1, -1),
+    ):
         g.set(x, y, EYE[2])
         g.set(x + sx, y, EYE[2])
         g.set(x, y + sy, EYE[2])
@@ -251,12 +282,18 @@ def dismiss_frames() -> List[Grid]:
 def drone_strip() -> Strip:
     fire, muzzle = fire_frames()
     hover = hover_frames()
-    return Strip("fx-drone", DRONE_W, DRONE_H, DRONE_ORIGIN, [
-        Animation("summon", 15, False, summon_frames()),
-        Animation("hover", 10, True, hover),
-        Animation("fire", 15, False, fire, {"muzzle": muzzle}),
-        Animation("dismiss", 15, False, dismiss_frames()),
-    ])
+    return Strip(
+        "fx-drone",
+        DRONE_W,
+        DRONE_H,
+        DRONE_ORIGIN,
+        [
+            Animation("summon", 15, False, summon_frames()),
+            Animation("hover", 10, True, hover),
+            Animation("fire", 15, False, fire, {"muzzle": muzzle}),
+            Animation("dismiss", 15, False, dismiss_frames()),
+        ],
+    )
 
 
 # ── Shot and impact ───────────────────────────────────────────────────────
@@ -275,7 +312,13 @@ def shot_frame(bright: bool) -> Grid:
 
 
 def shot_strip() -> Strip:
-    return Strip("fx-shot", SHOT, SHOT, (SHOT // 2, SHOT // 2), [Animation("fly", 15, True, [shot_frame(False), shot_frame(True)])])
+    return Strip(
+        "fx-shot",
+        SHOT,
+        SHOT,
+        (SHOT // 2, SHOT // 2),
+        [Animation("fly", 15, True, [shot_frame(False), shot_frame(True)])],
+    )
 
 
 IMPACT = 24
@@ -323,10 +366,16 @@ def impact_frames() -> List[Grid]:
 
 def impact_strip() -> Strip:
     frames = impact_frames()
-    return Strip("fx-impact", IMPACT, IMPACT, (IMPACT // 2, IMPACT // 2), [
-        Animation("hit", 20, False, frames),
-        Animation("hit-calm", 20, False, frames[1:]),
-    ])
+    return Strip(
+        "fx-impact",
+        IMPACT,
+        IMPACT,
+        (IMPACT // 2, IMPACT // 2),
+        [
+            Animation("hit", 20, False, frames),
+            Animation("hit-calm", 20, False, frames[1:]),
+        ],
+    )
 
 
 def strips() -> List[Strip]:

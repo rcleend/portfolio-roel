@@ -17,6 +17,8 @@ from typing import Callable, Dict, List, Sequence, Tuple
 
 from PIL import Image
 
+from portrait_fx.skills.full_stack_attack import BEAM_START
+
 GROUND_Y = 200
 
 
@@ -142,23 +144,44 @@ def full_stack_attack(stage: Stage) -> List[Moment]:
     targets = [(cx, GROUND_Y - 34) for cx, _ in stage.customers]
 
     def beam(animation: str, frame: int, length: int, offset: int = 0) -> Tuple[str, dict]:
-        return ("tile_x", {"image": _strip_image("full-stack-attack", "fx-beam", animation, frame),
-                           "x0": hx, "x1": hx + length, "y": beam_y, "offset": offset, "layer": "front"})
+        return (
+            "tile_x",
+            {
+                "image": _strip_image("full-stack-attack", "fx-beam", animation, frame),
+                "x0": hx + BEAM_START,
+                "x1": hx + BEAM_START + length,
+                "y": beam_y,
+                "offset": offset,
+                "layer": "front",
+            },
+        )
 
     return [
         Moment("tick 2 - charge at the hand", [Sprite("fx-muzzle", "charge", 1, hx, hy)]),
-        Moment("tick 4 - the beam races out", [
-            Sprite("fx-muzzle", "charge", 3, hx, hy),
-            Sprite("fx-tip", "race", 0, hx + 120, hy),
-        ], [beam("grow", 1, 120)]),
-        Moment("tick 12 - hold: every customer in line is hit", [
-            Sprite("fx-muzzle", "hold", 0, hx, hy),
-            *[Sprite("fx-hit", "hit", 1 + i % 2, x, y) for i, (x, y) in enumerate(targets)],
-        ], [beam("hold", 0, 320 - hx, 6)]),
-        Moment("tick 31 - collapse", [
-            Sprite("fx-muzzle", "fade", 1, hx, hy),
-            *[Sprite("fx-hit", "hit", 4, x, y) for x, y in targets],
-        ], [beam("fade", 1, 320 - hx, 12)]),
+        Moment(
+            "tick 4 - the beam races out",
+            [
+                Sprite("fx-muzzle", "charge", 3, hx, hy),
+                Sprite("fx-tip", "race", 0, hx + 120, hy),
+            ],
+            [beam("grow", 1, 120)],
+        ),
+        Moment(
+            "tick 12 - hold: every customer in line is hit",
+            [
+                Sprite("fx-muzzle", "hold", 0, hx, hy),
+                *[Sprite("fx-hit", "hit", 1 + i % 2, x, y) for i, (x, y) in enumerate(targets)],
+            ],
+            [beam("hold", 0, 320 - hx, 6)],
+        ),
+        Moment(
+            "tick 31 - collapse",
+            [
+                Sprite("fx-muzzle", "fade", 1, hx, hy),
+                *[Sprite("fx-hit", "hit", 4, x, y) for x, y in targets],
+            ],
+            [beam("fade", 1, 320 - hx, 12)],
+        ),
     ]
 
 
@@ -180,13 +203,28 @@ def agent_summon(stage: Stage) -> List[Moment]:
     sy = y1 + round((target_y - y1) * 0.45)
     return [
         Moment("0.2 s - summoned: the hologram prints itself", [Sprite("fx-drone", "summon", 3, x0, y0, layer=l0)]),
-        Moment("1.6 s - fires at the nearest customer", [
-            Sprite("fx-drone", "fire", 0, x1, y1, layer=l1),
-            Sprite("fx-shot", "fly", 0, sx, sy),
-            Sprite("fx-impact", "hit", 1, target_x, target_y),
-        ], [("line", {"points": [(sx - 3 - i, sy) for i in range(4)],
-                      "colors": ["#62cde2", "#2c93ae", "#17596e"], "layer": "front"})]),
-        Moment("1.2 s - far side of the orbit, behind the hero", [Sprite("fx-drone", "hover", 4, x2, y2, flip=True, layer=l2)]),
+        Moment(
+            "1.6 s - fires at the nearest customer",
+            [
+                Sprite("fx-drone", "fire", 0, x1, y1, layer=l1),
+                Sprite("fx-shot", "fly", 0, sx, sy),
+                Sprite("fx-impact", "hit", 1, target_x, target_y),
+            ],
+            [
+                (
+                    "line",
+                    {
+                        "points": [(sx - 3 - i, sy) for i in range(4)],
+                        "colors": ["#62cde2", "#2c93ae", "#17596e"],
+                        "layer": "front",
+                    },
+                )
+            ],
+        ),
+        Moment(
+            "1.2 s - far side of the orbit, behind the hero",
+            [Sprite("fx-drone", "hover", 4, x2, y2, flip=True, layer=l2)],
+        ),
         Moment("7.85 s - dismissed", [Sprite("fx-drone", "dismiss", 2, x3, y3, layer=l3)]),
     ]
 
@@ -201,24 +239,46 @@ def ux_elixir(stage: Stage) -> List[Moment]:
     everyone = list(range(len(stage.customers)))
 
     def wave(rx: int) -> Tuple[str, dict]:
-        return ("ellipse_ring", {"cx": chest[0], "cy": chest[1], "rx": rx, "ry": max(4, rx * 3 // 10),
-                                 "bands": ROSE_BANDS, "dash": 3, "layer": "behind"})
+        return (
+            "ellipse_ring",
+            {
+                "cx": chest[0],
+                "cy": chest[1],
+                "rx": rx,
+                "ry": max(4, rx * 3 // 10),
+                "bands": ROSE_BANDS,
+                "dash": 3,
+                "layer": "behind",
+            },
+        )
 
-    motes = [Sprite("fx-calm-motes", "heart", 0, heads[0][0] - 9, heads[0][1] + 10),
-             Sprite("fx-calm-motes", "spark", 0, heads[1][0] + 8, heads[1][1] + 4),
-             Sprite("fx-calm-motes", "bubble", 1, heads[2][0] - 7, heads[2][1] + 16),
-             Sprite("fx-calm-motes", "heart", 1, heads[1][0] - 10, heads[1][1] - 6)]
+    motes = [
+        Sprite("fx-calm-motes", "heart", 0, heads[0][0] - 9, heads[0][1] + 10),
+        Sprite("fx-calm-motes", "spark", 0, heads[1][0] + 8, heads[1][1] + 4),
+        Sprite("fx-calm-motes", "bubble", 1, heads[2][0] - 7, heads[2][1] + 16),
+        Sprite("fx-calm-motes", "heart", 1, heads[1][0] - 10, heads[1][1] - 6),
+    ]
     return [
         Moment("0.1 s - the elixir appears in his hand", [Sprite("fx-potion", "appear", 2, hx, hy)]),
-        Moment("0.35 s - he drinks; the elixir stays level as the flask tips", [Sprite("fx-potion", "drink", 2, hx, hy)]),
-        Moment("0.5 s - glint, and a wave of understanding goes out", [
-            Sprite("fx-potion", "drink", 4, hx, hy),
-            Sprite("fx-glint", "glint", 2, hx + 4, hy - 6),
-        ], [wave(96)]),
-        Moment("2 s - every customer calmed: aura, heart, motes", [
-            *[Sprite("fx-calm-heart", "beat", 4 if i == 1 else 0, x, y) for i, (x, y) in enumerate(heads)],
-            *motes,
-        ], [("aura", {"customers": everyone, "color": "#ea74ad"})]),
+        Moment(
+            "0.35 s - he drinks; the elixir stays level as the flask tips", [Sprite("fx-potion", "drink", 2, hx, hy)]
+        ),
+        Moment(
+            "0.5 s - glint, and a wave of understanding goes out",
+            [
+                Sprite("fx-potion", "drink", 4, hx, hy),
+                Sprite("fx-glint", "glint", 2, hx + 4, hy - 6),
+            ],
+            [wave(96)],
+        ),
+        Moment(
+            "2 s - every customer calmed: aura, heart, motes",
+            [
+                *[Sprite("fx-calm-heart", "beat", 4 if i == 1 else 0, x, y) for i, (x, y) in enumerate(heads)],
+                *motes,
+            ],
+            [("aura", {"customers": everyone, "color": "#c23f88"})],
+        ),
     ]
 
 
@@ -230,27 +290,46 @@ def power_chord(stage: Stage) -> List[Moment]:
     tops = [(cx, GROUND_Y - 56) for cx, _ in stage.customers]
 
     def ring(rx: int, fresh: int = 3, layer: str = "behind") -> Tuple[str, dict]:
-        return ("ellipse_ring", {"cx": gx, "cy": gy, "rx": rx, "ry": max(3, rx * 9 // 20),
-                                 "bands": SOUND_BANDS[:fresh], "floor": GROUND_Y, "layer": layer})
+        return (
+            "ellipse_ring",
+            {
+                "cx": gx,
+                "cy": gy,
+                "rx": rx,
+                "ry": max(3, rx * 9 // 20),
+                "bands": SOUND_BANDS[:fresh],
+                "floor": GROUND_Y,
+                "layer": layer,
+            },
+        )
 
     return [
         Moment("tick 0 - the pick crosses the strings", [Sprite("fx-strum", "strum", 0, gx, gy)]),
         Moment("tick 3 - the chord lands; the first ring leaves", [Sprite("fx-strum", "strum", 1, gx, gy)], [ring(26)]),
-        Moment("0.15 s - three rings sweep the screen and throw off notes", [
-            Sprite("fx-strum", "strum", 3, gx, gy),
-            Sprite("fx-notes", "eighth", 1, gx + 52, gy - 22),
-            Sprite("fx-notes", "beamed", 0, gx + 96, gy - 30),
-            Sprite("fx-notes", "eighth", 0, gx - 40, gy - 18, flip=True),
-        ], [ring(160, 2), ring(118, 3), ring(74, 3)]),
-        Moment("1 s - every customer stunned for three seconds", [
-            *[Sprite("fx-stun", "orbit", i * 3, x, y) for i, (x, y) in enumerate(tops)],
-            Sprite("fx-notes", "beamed", 1, tops[0][0] + 16, tops[0][1] - 14),
-            Sprite("fx-notes", "eighth", 0, tops[2][0] - 18, tops[2][1] - 20),
-        ]),
+        Moment(
+            "0.15 s - three rings sweep the screen and throw off notes",
+            [
+                Sprite("fx-strum", "strum", 3, gx, gy),
+                Sprite("fx-notes", "eighth", 1, gx + 52, gy - 22),
+                Sprite("fx-notes", "beamed", 0, gx + 96, gy - 30),
+                Sprite("fx-notes", "eighth", 0, gx - 40, gy - 18, flip=True),
+            ],
+            [ring(160, 2), ring(118, 3), ring(74, 3)],
+        ),
+        Moment(
+            "1 s - every customer stunned for three seconds",
+            [
+                *[Sprite("fx-stun", "orbit", i * 3, x, y) for i, (x, y) in enumerate(tops)],
+                Sprite("fx-notes", "beamed", 1, tops[0][0] + 16, tops[0][1] - 14),
+                Sprite("fx-notes", "eighth", 0, tops[2][0] - 18, tops[2][1] - 20),
+            ],
+        ),
     ]
 
 
-def homing_path(x: float, y: float, facing: int, target: Tuple[float, float], seconds: float) -> List[Tuple[float, float]]:
+def homing_path(
+    x: float, y: float, facing: int, target: Tuple[float, float], seconds: float
+) -> List[Tuple[float, float]]:
     """HomingStar's flight (src/game/entities/shots/HomingStar.ts), one point per 60 Hz step."""
     speed, turn_rate, dt = 200.0, 6.5, 1 / 60
     vx, vy = facing * speed * 0.6, -speed * 0.8
@@ -278,19 +357,28 @@ def north_star(stage: Stage) -> List[Moment]:
     def flying(step: int) -> List[Sprite]:
         x, y = path[step]
         trail = [path[max(0, step - k)] for k in (2, 4, 6)]
-        return [Sprite("fx-star", "spin", step // 5 % 4, round(x), round(y)),
-                *[Sprite("fx-trail", "spark", k, round(tx), round(ty)) for k, (tx, ty) in enumerate(trail)]]
+        return [
+            Sprite("fx-star", "spin", step // 5 % 8, round(x), round(y)),
+            *[Sprite("fx-trail", "spark", k, round(tx), round(ty)) for k, (tx, ty) in enumerate(trail)],
+        ]
 
     def ribbon(step: int) -> Tuple[str, dict]:
-        points = [(round(x), round(y)) for x, y in reversed(path[max(0, step - 10):step])]
+        points = [(round(x), round(y)) for x, y in reversed(path[max(0, step - 10) : step])]
         return ("line", {"points": points, "colors": GOLD_RIBBON, "layer": "front"})
 
     mid = hit // 2
     return [
         Moment("tick 0 - launched from the hand", [Sprite("fx-sparkle", "launch", 1, hx, hy), *flying(1)[:1]]),
         Moment(f"{mid / 60:.2f} s - arcs up and homes on the most frustrated", flying(mid), [ribbon(mid)]),
-        Moment(f"{hit / 60:.2f} s - impact", [Sprite("fx-impact", "impact", 1, round(target[0]), round(target[1]))], [ribbon(hit)]),
-        Moment(f"{(hit + 8) / 60:.2f} s - the ring opens into sparkles", [Sprite("fx-impact", "impact", 4, round(target[0]), round(target[1]))]),
+        Moment(
+            f"{hit / 60:.2f} s - impact",
+            [Sprite("fx-impact", "impact", 1, round(target[0]), round(target[1]))],
+            [ribbon(hit)],
+        ),
+        Moment(
+            f"{(hit + 8) / 60:.2f} s - the ring opens into sparkles",
+            [Sprite("fx-impact", "impact", 4, round(target[0]), round(target[1]))],
+        ),
     ]
 
 
@@ -308,11 +396,14 @@ def churn_shield(stage: Stage) -> List[Moment]:
 
     return [
         Moment("0.1 s - the bubble forms round him", bubble("form", 3)),
-        Moment("1.5 s - a customer bumps it: ripple and a heart", [
-            *bubble("shimmer", 2),
-            Sprite("fx-ripple", "bump", 2, contact[0], contact[1]),
-            Sprite("fx-heart", "pop", 2, contact[0] + 6, contact[1] - 22),
-        ]),
+        Moment(
+            "1.5 s - a customer bumps it: ripple and a heart",
+            [
+                *bubble("shimmer", 2),
+                Sprite("fx-ripple", "bump", 2, contact[0], contact[1]),
+                Sprite("fx-heart", "pop", 2, contact[0] + 6, contact[1] - 22),
+            ],
+        ),
         Moment("4.4 s - waning: the rim goes to dashes", bubble("wane", 1)),
         Moment("4.85 s - pop", bubble("pop", 2, back=False)),
     ]
@@ -331,8 +422,23 @@ STORYBOARDS: Dict[str, Callable[[Stage], List[Moment]]] = {
 STYLEREF: Dict[str, List[Tuple[str, str, int]]] = {
     "full-stack-attack": [("fx-muzzle", "hold", 0), ("fx-beam", "hold", 0), ("fx-hit", "hit", 1), ("fx-hit", "hit", 2)],
     "agent-summon": [("fx-drone", "hover", 0), ("fx-drone", "fire", 0), ("fx-shot", "fly", 0), ("fx-impact", "hit", 1)],
-    "ux-elixir": [("fx-potion", "drink", 0), ("fx-potion", "drink", 2), ("fx-glint", "glint", 2), ("fx-calm-heart", "beat", 0)],
-    "power-chord": [("fx-strum", "strum", 1), ("fx-strum", "strum", 2), ("fx-notes", "beamed", 1), ("fx-stun", "orbit", 0)],
-    "north-star": [("fx-star", "spin", 0), ("fx-star", "spin", 1), ("fx-impact", "impact", 1), ("fx-impact", "impact", 3)],
+    "ux-elixir": [
+        ("fx-potion", "drink", 0),
+        ("fx-potion", "drink", 2),
+        ("fx-glint", "glint", 2),
+        ("fx-calm-heart", "beat", 0),
+    ],
+    "power-chord": [
+        ("fx-strum", "strum", 1),
+        ("fx-strum", "strum", 2),
+        ("fx-notes", "beamed", 1),
+        ("fx-stun", "orbit", 0),
+    ],
+    "north-star": [
+        ("fx-star", "spin", 0),
+        ("fx-star", "spin", 1),
+        ("fx-impact", "impact", 1),
+        ("fx-impact", "impact", 3),
+    ],
     "churn-shield": [("fx-shell", "shimmer", 0), ("fx-ripple", "bump", 2), ("fx-heart", "pop", 2)],
 }
