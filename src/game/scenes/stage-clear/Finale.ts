@@ -12,6 +12,7 @@ import { handCursorSheet } from '../../ui/cursor';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
 import { envelopeSheet } from '../level-select/art/icons';
+import type { TeaserSlot } from '../level-select/missions';
 import { Postcards } from '../level-select/Postcards';
 import type { GameStep } from '../params';
 import { SlamTitle } from './SlamTitle';
@@ -90,7 +91,9 @@ export class Finale {
     const rise = segment(this.#time, CARD_IN.start, CARD_IN.end, easeOutBack);
     if (this.#time >= CARD_IN.start) {
       const card = { ...CARD, y: CARD.y + Math.round((1 - rise) * 40) };
-      this.#postcards.draw(gfx, { kind: 'teaser', teaser: nextLevelTeaser }, card, {
+      // The tab names the postcard the way the caption under it does.
+      const teaser: TeaserSlot = { kind: 'teaser', label: nextLevelTeaser.mission, teaser: nextLevelTeaser };
+      this.#postcards.draw(gfx, teaser, card, {
         focused: true,
         lift: 0,
         time: this.#time,

@@ -58,17 +58,19 @@ The title is a lockup on a backdrop that can be swapped independently (docs/ARCH
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
 
 - Left: a tall card with a bevelled pixel frame (light lavender rim, darker inner rim), deep indigo starfield background with twinkling stars and drifting class-themed particles (green code glyphs, paint flecks, sticky notes), the character idling on a pixel pedestal with a pulsing glow. Chunky triangular arrows either side bob towards the edge and flash on press; switching characters slides the card content with a quick horizontal wipe.
-- Right: the character name in the large arcade face (white, outlined) followed by "ROEL" in blue, a class label, the bio in the small face, and two skills, each a 16 × 16 icon in a bevelled slot plus its name.
-- Hovering (pointer) or highlighting (keys/pad) a skill opens a pixel tooltip window with the skill's tooltip text; it pops in over 4 frames with a 1 px overshoot.
-- A "SELECT" button with a blinking hand/arrow cursor confirms. Confirming plays the character's victory pose, a white flash on the card and a "READY!" stamp before transitioning.
+- Right, top to bottom: a small lavender "PICK YOUR ROEL" call to action in the label face whose underscore cursor blinks slowly; the class name ("ENGINEER", "DESIGNER", "STRATEGIST") in the large arcade face, banded from a light tint of the class colour (green, pink, yellow) down to the colour itself, with the prompts' navy outline and shadow; the bio in the small face; a gold "SKILLS" header over two skills, each a 16 × 16 icon in a bevelled slot plus its name.
+- A blinking hand cursor marks what has focus: the class heading (the character itself) or a skill. Hovering (pointer) or highlighting (keys/pad) a skill opens a pixel tooltip window with the skill's tooltip text; it pops in over 4 frames with a 1 px overshoot.
+- One control legend runs along the bottom in lavender keys and slate labels: "◀▶ CHANGE ▲▼ SKILLS" under the card, "⏎ CONFIRM ⌫ BACK" flush with the details column's right edge. The drawn keys are 7–8 px tall and centred on the label capitals. CONFIRM and BACK are buttons: pointing lights them, pressing sinks the key one pixel and releasing on it clicks; holding the real key sinks its picture too. BACK returns to the title.
+- Confirming plays the character's victory pose, a white flash on the card and a "READY!" stamp before transitioning.
 
 ## Mission select
 
 A tongue-in-cheek mission briefing screen: missions are employers, the location is the stage.
 
-- Each mission is a postcard-like window previewing its parallax stage (live, slowly panning), stamped with mission number, company, city and years.
-- The selected mission shows a briefing panel: role, briefing copy, hazards list and "THREAT: UNHAPPY CUSTOMERS".
-- A locked third slot reads "MISSION 3 — YOUR TEAM?" with a "contact" call to action instead of a stage.
+- Each mission is a postcard-like window previewing its parallax stage (live, slowly panning), stamped with its company number ("COMPANY 1"), company, city and years.
+- The selected mission shows a briefing panel: role, company context, the briefing copy across the panel's full width and a green "TARGET" with the mission's objective ("FIND PRODUCT-MARKET FIT").
+- A locked third slot reads "COMPANY 3 — YOUR TEAM?" with a "contact" call to action instead of a stage.
+- The character select's "⏎ CONFIRM ⌫ BACK" keys sit under the briefing panel, flush with its right edge: CONFIRM deploys (or gets in touch from the locked slot), BACK returns to the character select.
 - A plane or route line animates between the cities in chronological order.
 
 ## Levels

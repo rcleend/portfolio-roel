@@ -5,7 +5,6 @@ export const characters: readonly Character[] = [
   {
     id: 'hackerman',
     name: 'HACKERMAN',
-    tag: 'ROEL',
     className: 'ENGINEER',
     bio:
       'Speaks fluent TypeScript. Ships end to end: React front-ends, NestJS back-ends, a native iOS app ' +
@@ -16,7 +15,6 @@ export const characters: readonly Character[] = [
   {
     id: 'artsy',
     name: 'ARTSY',
-    tag: 'ROEL',
     className: 'DESIGNER',
     bio:
       'Sees the interface before it exists. Interaction Technology MSc by day, guitarist by night. ' +
@@ -27,7 +25,6 @@ export const characters: readonly Character[] = [
   {
     id: 'strategy',
     name: 'STRATEGY',
-    tag: 'ROEL',
     className: 'STRATEGIST',
     bio:
       'Talks to customers before writing a line of code. Turns fuzzy founder ideas into jobs-to-be-done, ' +

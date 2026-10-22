@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
 import type { Action } from '../../input/bindings';
 import { readSelectEvents } from './intents';
-import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, hitTest, SELECT_BUTTON, SKILL_ROWS } from './layout';
+import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, hitTest, NAME_ROW, SKILL_ROWS } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -60,9 +60,9 @@ describe('readSelectEvents', () => {
     expect(readSelectEvents(input([], { ...skill, over: true }), IDLE_POINTER, hitTest)).toEqual([
       { type: 'point', target: 'skill2', pressed: false },
     ]);
-    const button = centre(SELECT_BUTTON);
-    expect(readSelectEvents(input([], { ...button, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'select', pressed: false },
+    const heading = centre(NAME_ROW);
+    expect(readSelectEvents(input([], { ...heading, over: true }), IDLE_POINTER, hitTest)).toEqual([
+      { type: 'point', target: 'card', pressed: false },
     ]);
   });
 
@@ -92,7 +92,7 @@ describe('hitTest', () => {
     expect(hitTest(centre(ARROW_RIGHT_HIT).x, centre(ARROW_RIGHT_HIT).y)).toBe('arrowRight');
     expect(hitTest(80, 100)).toBe('card');
     expect(hitTest(centre(SKILL_ROWS[0]).x, centre(SKILL_ROWS[0]).y)).toBe('skill1');
-    expect(hitTest(centre(SELECT_BUTTON).x, centre(SELECT_BUTTON).y)).toBe('select');
+    expect(hitTest(centre(NAME_ROW).x, centre(NAME_ROW).y)).toBe('card');
     expect(hitTest(319, 0)).toBeNull();
   });
 });

@@ -27,6 +27,10 @@ describe('buildSlots', () => {
     const [luna] = buildSlots(session());
     expect(luna?.kind === 'mission' && luna.experience.id).toBe('luna');
   });
+
+  it('numbers the slots as companies in career order, the visitor’s team last', () => {
+    expect(buildSlots(session()).map((slot) => slot.label)).toEqual(['COMPANY 1', 'COMPANY 2', 'COMPANY 3']);
+  });
 });
 
 describe('missionProgress', () => {
