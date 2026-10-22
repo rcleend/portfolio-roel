@@ -11,8 +11,8 @@ droplets.
 Sprites:
 - ``fx-bubble`` (76 x 76, origin = bubble centre): ``form``, ``shell`` (the
   wobble-and-shimmer loop), ``thin`` (the last-0.8 s warning pair) and ``pop``.
-- ``fx-bubble-bump`` (24 x 40, origin = the contact point on the rim, drawn
-  for a customer on the right; code mirrors it): ``bump``.
+- ``fx-bubble-bump`` (32 x 32, origin = the bumping customer's centre):
+  ``bump``, the film flexing where they press into it.
 - ``fx-shield-calm`` (16 x 24, origin bottom centre, over the customer's
   head): ``puff``, a heart in a tiny bubble that floats up and pops.
 """
@@ -198,44 +198,46 @@ def _pop_frames(cx: float, cy: float) -> List[Canvas]:
 
 
 # ── bump ripple ─────────────────────────────────────────────────────────
+#
+# A bump only tells the look which customer was hit, not where on the rim,
+# so the film ripples where the customer presses into it: centred on them.
 
-BUMP = (24, 40)
-BUMP_ORIGIN = (12, 20)
+BUMP = (32, 32)
+BUMP_ORIGIN = (16, 16)
 
 
 def bump_sheet() -> Sheet:
-    """A customer meets the rim: the film dents and flashes white, then ripples run up and down the rim."""
+    """The film flexes where a customer pushes into it: a flash, two tall rings spreading, beads of film."""
     ox, oy = BUMP_ORIGIN
-    rim_cx = ox - RADIUS + 0.5
+    cx, cy = ox + 0.5, oy + 0.5
     frames = []
     for f in range(8):
         c = Canvas(*BUMP)
-        dent = 1 if f <= 1 else 0
-        for x, y in ring(BUMP, rim_cx - dent * 2, oy + 0.5, RADIUS, RADIUS):
-            d = abs(y - oy)
-            reach = (8, 12, 6, 0, 0, 0, 0, 0)[f]
-            if d <= reach:
-                c.set(x, y, WHITE if d <= reach // 2 else BUBBLE[5])
-                c.set(x - 1, y, BUBBLE[4])
-        if f <= 1:
-            c.disc(ox - 0.5, oy + 0.5, 2.6 - f, WHITE)
-        for k in range(2):
-            age = f - 1 - k
-            if not 0 <= age <= 5:
-                continue
-            spread = 9 + age * 3
-            tone = (WHITE, BUBBLE[5], BUBBLE[5], BUBBLE[4], BUBBLE[3], BUBBLE[3])[age]
-            for x, y in ring(BUMP, rim_cx, oy + 0.5, RADIUS, RADIUS):
-                d = abs(y - oy)
-                if spread - 3 <= d <= spread and (age < 4 or (x + y) % 2 == 0):
-                    c.set(x, y, tone)
-                    if age < 3:
-                        c.set(x + 1, y, BUBBLE[3])
+        if f == 0:
+            c.disc(cx, cy, 2.2, WHITE)
+            for d in range(2, 5):
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    c.set(ox + dx * d, oy + dy * d, WHITE if d < 4 else BUBBLE[5])
         if 1 <= f <= 5:
-            for k, (dx, dy) in enumerate(((2, -5), (3, 0), (2, 5))):
-                x = ox + dx + f * 2
-                y = oy + dy + (dy // 5) * f
-                c.set(x, y, WHITE if f < 3 else BUBBLE[4])
+            rx, ry = (0, 4, 7, 9, 11, 12)[f], (0, 6, 9, 12, 14, 15)[f]
+            for x, y in ring(BUMP, cx, cy, rx, ry):
+                if f >= 4 and (x + y) % 2:
+                    continue
+                c.set(x, y, WHITE if f == 1 else (BUBBLE[5] if f <= 3 else BUBBLE[3]))
+            if f <= 3:
+                for x, y in ring(BUMP, cx, cy, rx - 1.5, ry - 1.5):
+                    c.set(x, y, BUBBLE[3] if f <= 2 else BUBBLE[2])
+        if 2 <= f:
+            for k in range(4):
+                angle = math.radians(45 + k * 90)
+                d = 6 + f * 1.8
+                x, y = polar(ox, oy, d, angle)
+                y += max(0, f - 4)  # the beads start to fall
+                if f >= 6 and k % 2:
+                    continue
+                c.set(x, y, BUBBLE[5] if f < 5 else BUBBLE[4])
+                if f < 5:
+                    c.set(x + 1, y, BUBBLE[3])
         frames.append(c)
     return Sheet("fx-bubble-bump", BUMP, BUMP_ORIGIN, [Anim("bump", 30, False, frames)])
 

@@ -8,15 +8,16 @@ throwing sound arcs.
 In game the strum flashes at the guitar body (the ``hand`` anchor), three
 shockwave rings (code: midpoint circles in whole-pixel steps, banded white,
 lilac, violet) roll out behind every body, sound crests race along the
-ground both ways, notes spray up, and every stunned customer gets a crown
-of orbiting stars for the three-second stun.
+ground both ways, notes spray up, and sound keeps ringing round every
+stunned customer's head for the three-second stun.
 
 Sprites:
 - ``fx-strum`` (40 x 40, origin = strum point): the ``strum`` burst.
-- ``fx-wavefront`` (16 x 48, origin = bottom centre, on the ground): the
+- ``fx-wavefront`` (20 x 52, origin = bottom centre, on the ground): the
   ``crest`` loop, mirrored by code for the left-going wave.
-- ``fx-stun`` (32 x 16, origin = bottom centre, above the head): ``orbit``
-  loop and its ``fade``.
+- ``fx-stun`` (40 x 24, origin = the head's centre): the stunned customer's
+  ears ``ring`` with sound for the stun, then ``fade``; its dizzy stars are
+  the customer sheet's.
 - ``fx-notes`` (12 x 12, origin centre): ``eighth`` and ``beamed`` note
   particles (pop in, wobble, blink out).
 """
@@ -24,7 +25,7 @@ Sprites:
 from __future__ import annotations
 
 import math
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
 from ..icon import FRAMES, accent_window, backlight, glint, glint_stage, icon_sheet, layered
 from ..palette import CHROME, GOLD, GUARD, MAPLE, ROSEWOOD, SOUND, STRAT, WHITE, POTION
@@ -165,88 +166,74 @@ def strum_sheet() -> Sheet:
 
 # ── sound crests racing along the ground ───────────────────────────────
 
-CREST = (16, 48)
-CREST_ORIGIN = (8, 47)
+CREST = (20, 52)
+CREST_ORIGIN = (10, 51)
 
 
 def crest_sheet() -> Sheet:
-    """Four nested arcs bowed outward (rightward), tallest in front; their bands shimmer."""
+    """Four nested arcs bowed outward (rightward), tallest in front; a 3 px banded leading arc, shimmering bands."""
     tones = (WHITE, SOUND[5], SOUND[4], SOUND[3])
     frames = []
     for f in range(4):
         c = Canvas(*CREST)
         for k in range(4):
-            height = 40 - k * 9
-            x0 = 13 - k * 4
-            tone = tones[(k + f) % 4] if k else (WHITE if f % 2 == 0 else SOUND[5])
+            height = 46 - k * 10
+            x0 = 16 - k * 4
             for y in range(height):
                 t = y / max(1, height - 1)
                 bow = round(math.sin(t * math.pi) * 3)
                 x = x0 + bow - 3
-                py = 47 - y
-                c.set(x, py, tone)
+                py = CREST_ORIGIN[1] - y
                 if k == 0:
-                    c.set(x - 1, py, SOUND[3])
+                    # The leading front: white edge, lilac, violet, a dithered tail.
+                    c.set(x, py, WHITE if f % 2 == 0 else SOUND[5])
+                    c.set(x - 1, py, SOUND[5] if f % 2 == 0 else SOUND[4])
+                    c.set(x - 2, py, SOUND[3])
                     if y % 2:
-                        c.set(x - 2, py, SOUND[1])
+                        c.set(x - 3, py, SOUND[2])
+                else:
+                    c.set(x, py, tones[(k + f) % 4])
+                    c.set(x - 1, py, SOUND[2] if (y + f) % 2 else SOUND[3])
         frames.append(c)
     return Sheet("fx-wavefront", CREST, CREST_ORIGIN, [Anim("crest", 20, True, frames)])
 
 
-# ── stun stars ──────────────────────────────────────────────────────────
+# ── the stunned customer's ears ring ─────────────────────────────────
+#
+# The customer's own `stunned` animation draws its dizzy stars; this look
+# only adds what the chord leaves behind: sound still ringing at both sides
+# of the head.
 
-STUN = (32, 16)
-STUN_ORIGIN = (16, 15)
-
-_STAR5 = rows("""
-..y..
-.yYy.
-yYWYy
-.yYy.
-.y.y.
-""")
-_STAR3 = rows("""
-.y.
-yWy
-.y.
-""")
-_NOTE = rows("""
-..##
-..#.
-..#.
-###.
-##..
-""")
+STUN = (40, 24)
+STUN_ORIGIN = (20, 12)
 
 
-def _orbit_point(phase: float) -> Tuple[float, float, float]:
-    """x, y on the crown's ellipse and the depth (positive = in front of the head)."""
-    cx, cy = STUN_ORIGIN[0], STUN_ORIGIN[1] - 6
-    return cx + math.cos(phase) * 11, cy + math.sin(phase) * 4, math.sin(phase)
+def _ear_arcs(c: Canvas, spread: int, tones: Sequence[str], dotted: bool = False) -> None:
+    """Two concentric arcs on each side of the head, ``spread`` px out from its centre."""
+    ox, oy = STUN_ORIGIN
+    for side in (-1, 1):
+        for k, tone in enumerate(tones):
+            r = spread + k * 3
+            for y in range(-4 + k, 5 - k):
+                if dotted and (y + k) % 2:
+                    continue
+                bow = round((1 - (y / 5) ** 2) * 2)
+                c.set(ox + side * (r + bow), oy + y, tone)
 
 
 def stun_sheet() -> Sheet:
-    """Three stars and a note circling the head; far-side stars are smaller and dimmer."""
-    def frame(f: int, count: int) -> Canvas:
+    ring = []
+    for f in range(6):
         c = Canvas(*STUN)
-        items = []
-        for k in range(count):
-            phase = (f / 12) * math.tau + k * (math.tau / 4)
-            x, y, depth = _orbit_point(phase)
-            items.append((depth, k, int(round(x)), int(round(y))))
-        for depth, k, x, y in sorted(items):
-            near = depth >= 0
-            if k == 3:
-                c.stamp(_NOTE, {"#": SOUND[5] if near else SOUND[3]}, x - 2, y - 3)
-            elif near:
-                c.stamp(_STAR5, {"y": GOLD[3], "Y": GOLD[5], "W": WHITE}, x - 2, y - 2)
-            else:
-                c.stamp(_STAR3, {"y": GOLD[2], "W": GOLD[4]}, x - 1, y - 1)
-        return c
-
-    orbit = [frame(f, 4) for f in range(12)]
-    fade = [frame(f, n) for f, n in zip(range(6), (4, 3, 3, 2, 1, 1))]
-    return Sheet("fx-stun", STUN, STUN_ORIGIN, [Anim("orbit", 12, True, orbit), Anim("fade", 12, False, fade)])
+        pulse = (0, 1, 2, 2, 1, 0)[f]
+        _ear_arcs(c, 9 + pulse, (WHITE if pulse == 2 else SOUND[5], SOUND[4] if pulse else SOUND[3]))
+        ring.append(c)
+    fade = []
+    for spread, tones, dotted in ((10, (SOUND[4], SOUND[3]), False), (11, (SOUND[3], SOUND[2]), True), (12, (SOUND[2],), True)):
+        c = Canvas(*STUN)
+        _ear_arcs(c, spread, tones, dotted)
+        fade.append(c)
+    return Sheet("fx-stun", STUN, STUN_ORIGIN, [Anim("ring", 12, True, ring), Anim("fade", 12, False, fade)])
 
 
 # ── note particles ──────────────────────────────────────────────────────

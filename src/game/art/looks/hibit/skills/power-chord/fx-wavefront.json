@@ -1,5 +1,5 @@
 {
-  "frame": { "w": 16, "h": 48 },
-  "origin": { "x": 8, "y": 47 },
+  "frame": { "w": 20, "h": 52 },
+  "origin": { "x": 10, "y": 51 },
   "animations": [{ "name": "crest", "fps": 20, "loop": true, "frames": 4 }]
 }
