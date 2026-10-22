@@ -9,7 +9,7 @@ import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } f
 import { Rng } from '@/engine/math/Rng';
 import { arcadeFont } from '../../art/fonts/arcade';
 import { smallFont } from '../../art/fonts/small';
-import type { Looks } from '../../art/looks/Looks';
+import { sizedLooks } from '../../art/looks/testing';
 import type { MusicId, SfxId } from '../../audio/ids';
 import { createTextStyles } from '../../fonts';
 import type { Action } from '../../input/bindings';
@@ -19,7 +19,7 @@ import { SessionStore } from '../../session';
 import type { GameSceneMap } from '../params';
 import { CharacterSelectScene } from './CharacterSelectScene';
 import { LEAVE_AT } from './choreography';
-import { SELECT_BUTTON, SKILL_ROWS } from './layout';
+import { SELECT_BUTTON, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -57,7 +57,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     audio,
     fonts,
     text: createTextStyles(fonts),
-    looks: {} as Looks,
+    looks: sizedLooks(),
     assets: {} as AssetStore,
     levelArt: {} as LevelArtLibrary,
     session,
@@ -144,7 +144,8 @@ describe('CharacterSelectScene', () => {
 
   it('only chimes when focus actually moves', () => {
     const { audio, step } = setup();
-    const skill = { x: SKILL_ROWS[0].x + 4, y: SKILL_ROWS[0].y + 4, over: true };
+    const [row] = selectLayout().skillRows;
+    const skill = { x: row.x + 4, y: row.y + 4, over: true };
     step([], skill);
     step([], skill);
     step([], { ...skill, x: skill.x + 1 });

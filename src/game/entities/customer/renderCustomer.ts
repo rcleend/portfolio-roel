@@ -14,6 +14,17 @@ export interface CustomerRules {
 const PIP = { w: 4, h: 3, gap: 1 } as const;
 /** Frame 1 of `walk` has both feet planted: the "standing" pose. */
 const STANDING_TIME = 1 / 6 + 1e-6;
+/** The sprite height everything above a customer was placed for: classic's frame. */
+const TUNED_HEIGHT = 40;
+
+/**
+ * How far everything shown above a customer — pips, hearts, steam, the +MRR
+ * pop — must rise so a look's taller sprite does not wear it on its face.
+ * Zero for classic; the hitbox, and so play, never changes.
+ */
+export function overheadLift(kit: RenderKit, scale: number): number {
+  return (kit.looks.customer.sheet.height - TUNED_HEIGHT) * scale;
+}
 
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
 export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rules: CustomerRules): void {
@@ -33,13 +44,14 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rul
     { flipX: customer.facing < 0, flash },
   );
   if (customer.won) return;
+  const lift = overheadLift(kit, customer.tuning.scale);
   if (customer.escalated) {
-    drawSteam(gfx, customer, kit.time);
+    drawSteam(gfx, customer, lift, kit.time);
     return;
   }
   const calm = rules.customersCalm;
-  drawFrustration(gfx, customer, calm);
-  if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - bob(kit.time, 1, 0.5));
+  drawFrustration(gfx, customer, lift, calm);
+  if (calm) drawCalmHeart(gfx, customer.centerX, customer.feet - 46 - lift - bob(kit.time, 1, 0.5));
 }
 
 function pose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
@@ -66,11 +78,11 @@ function pose(customer: Customer, now: number): { animation: CustomerAnimation; 
 }
 
 /** One pip per point of frustration, emptying as they are won over. */
-function drawFrustration(gfx: Gfx, customer: Customer, calm: boolean): void {
+function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boolean): void {
   const count = customer.tuning.frustration;
   const width = count * PIP.w + (count - 1) * PIP.gap;
   const left = Math.round(customer.centerX - width / 2);
-  const top = Math.round(customer.feet - 39);
+  const top = Math.round(customer.feet - 39 - lift);
   gfx.fillRect(left - 1, top - 1, width + 2, PIP.h + 2, '#1a0a14');
   for (let i = 0; i < count; i++) {
     const x = left + i * (PIP.w + PIP.gap);
@@ -101,8 +113,8 @@ function drawCalmHeart(gfx: Gfx, x: number, y: number): void {
 }
 
 /** Steam puffing from both sides of the escalated customer's head: more frustration than one sprite can hold. */
-function drawSteam(gfx: Gfx, customer: Customer, time: number): void {
-  const top = customer.feet - customer.rect.h - 4;
+function drawSteam(gfx: Gfx, customer: Customer, lift: number, time: number): void {
+  const top = customer.feet - customer.rect.h - 4 - lift;
   for (let puff = 0; puff < 4; puff++) {
     const phase = (time * 1.4 + puff / 4) % 1;
     if (phase > 0.8 && blink(time, 2 / 60, 2 / 60)) continue;

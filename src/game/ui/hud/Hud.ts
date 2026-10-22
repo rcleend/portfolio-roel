@@ -6,6 +6,7 @@ import type { FxSprites } from '../../art/fx';
 import type { Looks } from '../../art/looks/Looks';
 import type { TextStyles } from '../../fonts';
 import { formatEuros } from '../../world/scoring';
+import { drawIconSlot, iconInSlot, iconSlotSize } from '../iconSlot';
 import { windowThemes } from '../theme';
 import { drawWindow } from '../Window';
 import { drawCooldownSweep } from './cooldownSweep';
@@ -46,7 +47,10 @@ export interface HudKit {
 
 const TOP = 3;
 const PORTRAIT = { x: 4, y: TOP, size: 26 } as const;
+/** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
 const SLOT_SIZE = 22;
+/** The score face's digit height, for centring the seconds left on a slot. */
+const DIGIT_HEIGHT = 8;
 
 /**
  * The Metal Slug-style HUD across the top: portrait, name and hearts on the
@@ -57,8 +61,12 @@ const SLOT_SIZE = 22;
 export function drawHud(gfx: Gfx, kit: HudKit, state: HudState): void {
   drawPortrait(gfx, kit, state.characterId);
   drawNameAndHearts(gfx, kit, state);
+  const size = iconSlotSize(
+    SLOT_SIZE,
+    state.slots.map((slot) => kit.looks.skills[slot.skillId].icon),
+  );
   for (const [index, slot] of state.slots.entries())
-    drawSkillSlot(gfx, kit, slot, 96 + index * (SLOT_SIZE + 5), state.time);
+    drawSkillSlot(gfx, kit, slot, 96 + index * (size + 5), size, state.time);
   drawScore(gfx, kit, state);
   drawHighlights(gfx, kit, state);
 }
@@ -66,10 +74,11 @@ export function drawHud(gfx: Gfx, kit: HudKit, state: HudState): void {
 function drawPortrait(gfx: Gfx, kit: HudKit, characterId: CharacterId): void {
   const { x, y, size } = PORTRAIT;
   drawWindow(gfx, { x, y, w: size, h: size }, windowThemes.steel);
-  // Frame the head and shoulders of the idle sprite inside the bevel.
+  // Frame the head and shoulders of the idle sprite inside the bevel: heads sit near the top of every look's frame.
+  const sheet = kit.looks.characters[characterId].sheet;
   gfx.withClip(x + 3, y + 3, size - 6, size - 6, () => {
     gfx.fillRect(x + 3, y + 3, size - 6, size - 6, { stops: ['#3a3f57', '#181a28'], bands: 3 });
-    gfx.sprite(kit.looks.characters[characterId].sheet, 'idle', 0, x + size / 2, y + size + 13);
+    gfx.sprite(sheet, 'idle', 0, x + size / 2, y - 1 + sheet.height);
   });
 }
 
@@ -85,18 +94,23 @@ function drawNameAndHearts(gfx: Gfx, kit: HudKit, state: HudState): void {
   }
 }
 
-function drawSkillSlot(gfx: Gfx, kit: HudKit, slot: HudSkillSlot, x: number, time: number): void {
+function drawSkillSlot(gfx: Gfx, kit: HudKit, slot: HudSkillSlot, x: number, size: number, time: number): void {
   const y = TOP;
   const glint = slot.readyFor < 0.3 && blink(slot.readyFor, 2 / 60, 2 / 60);
-  drawWindow(gfx, { x, y, w: SLOT_SIZE, h: SLOT_SIZE }, glint ? windowThemes.cream : windowThemes.steel);
-  const iconX = x + 3;
-  const iconY = y + 3;
-  gfx.sprite(kit.looks.skills[slot.skillId].icon, 'idle', slot.charge >= 1 ? time : 0, iconX, iconY);
-  drawCooldownSweep(gfx, iconX, iconY, 16, slot.charge, '#0b0a1f');
+  const icon = kit.looks.skills[slot.skillId].icon;
+  drawIconSlot(gfx, icon, slot.charge >= 1 ? time : 0, {
+    x,
+    y,
+    size,
+    theme: glint ? windowThemes.cream : windowThemes.steel,
+  });
+  const at = iconInSlot(icon, x, y, size);
+  drawCooldownSweep(gfx, at.x, at.y, icon.width, slot.charge, '#0b0a1f');
   if (slot.charge < 1) {
-    gfx.text(String(Math.ceil(slot.remaining)), x + SLOT_SIZE / 2, y + 7, kit.levelText.score, { align: 'center' });
+    const textY = y + Math.floor((size - DIGIT_HEIGHT) / 2);
+    gfx.text(String(Math.ceil(slot.remaining)), x + size / 2, textY, kit.levelText.score, { align: 'center' });
   }
-  drawKeyCap(gfx, x + SLOT_SIZE - 8, y + SLOT_SIZE - 6, slot.key, kit.text.label);
+  drawKeyCap(gfx, x + size - 8, y + size - 6, slot.key, kit.text.label);
 }
 
 function drawScore(gfx: Gfx, kit: HudKit, state: HudState): void {

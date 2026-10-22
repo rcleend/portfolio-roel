@@ -38,3 +38,8 @@ export interface SkillLook<K extends SkillId> {
 
 /** Each skill's look keeps its own skill's typing, so `skills['power-chord'].visual` draws power-chord state. */
 export type SkillLooks = { readonly [K in SkillId]: SkillLook<K> };
+
+/** Every skill's icon on show, e.g. to size a row of slots for the largest. */
+export function skillIcons(looks: Looks): readonly SpriteSheet<SkillIconAnimation>[] {
+  return Object.values(looks.skills).map((skill) => skill.icon);
+}

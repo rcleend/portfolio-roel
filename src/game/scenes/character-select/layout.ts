@@ -46,12 +46,10 @@ export const CLASS_Y = 40;
 export const BIO_Y = 55;
 export const ATTACK_Y = 120;
 
-/** A skill row: the bevelled icon slot plus the name beside it. */
+/** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
 export const SKILL_SLOT_SIZE = 24;
-export const SKILL_ROWS: readonly [Rect, Rect] = [
-  { x: DETAILS.x, y: 134, w: DETAILS.w, h: SKILL_SLOT_SIZE },
-  { x: DETAILS.x, y: 160, w: DETAILS.w, h: SKILL_SLOT_SIZE },
-];
+const SKILLS_TOP = 134;
+const SKILL_ROW_GAP = 2;
 
 export const SELECT_BUTTON: Rect = { x: DETAILS.x + DETAILS.w - 72, y: CARD.y + CARD.h - 22, w: 72, h: 22 };
 
@@ -60,24 +58,45 @@ export const NAME_ROW: Rect = { x: DETAILS.x, y: NAME_Y - 2, w: DETAILS.w, h: 16
 
 export type HitTarget = FocusTarget | 'arrowLeft' | 'arrowRight';
 
-const HIT_AREAS: readonly (readonly [HitTarget, Rect])[] = [
-  ['arrowLeft', ARROW_LEFT_HIT],
-  ['arrowRight', ARROW_RIGHT_HIT],
-  ['card', CARD],
-  ['skill1', SKILL_ROWS[0]],
-  ['skill2', SKILL_ROWS[1]],
-  ['select', SELECT_BUTTON],
-];
-
-/** What the pointer at (x, y) is over, if anything. */
-export function hitTest(x: number, y: number): HitTarget | null {
-  for (const [target, area] of HIT_AREAS) if (containsPoint(area, x, y)) return target;
-  return null;
+/** The parts of the screen that follow the size of the skill icons on show. */
+export interface SelectLayout {
+  readonly slotSize: number;
+  /** A skill row: the bevelled icon slot plus the name beside it. */
+  readonly skillRows: readonly [Rect, Rect];
+  /** What the pointer at (x, y) is over, if anything. */
+  hitTest(x: number, y: number): HitTarget | null;
+  /** The point the hand cursor's fingertip touches when `target` has focus. */
+  cursorAnchor(target: FocusTarget): { readonly x: number; readonly y: number };
 }
 
-/** The point the hand cursor's fingertip touches when `target` has focus. */
-export function cursorAnchor(target: FocusTarget): { readonly x: number; readonly y: number } {
-  const row =
-    target === 'card' ? NAME_ROW : target === 'select' ? SELECT_BUTTON : SKILL_ROWS[target === 'skill1' ? 0 : 1];
-  return { x: row.x - 3, y: row.y + Math.floor(row.h / 2) };
+export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
+  const row = (index: number): Rect => ({
+    x: DETAILS.x,
+    y: SKILLS_TOP + index * (slotSize + SKILL_ROW_GAP),
+    w: DETAILS.w,
+    h: slotSize,
+  });
+  const skillRows = [row(0), row(1)] as const;
+  // SELECT comes before the skills: a look's taller skill rows may reach down beside it.
+  const hitAreas: readonly (readonly [HitTarget, Rect])[] = [
+    ['arrowLeft', ARROW_LEFT_HIT],
+    ['arrowRight', ARROW_RIGHT_HIT],
+    ['card', CARD],
+    ['select', SELECT_BUTTON],
+    ['skill1', skillRows[0]],
+    ['skill2', skillRows[1]],
+  ];
+  return {
+    slotSize,
+    skillRows,
+    hitTest(x, y) {
+      for (const [target, area] of hitAreas) if (containsPoint(area, x, y)) return target;
+      return null;
+    },
+    cursorAnchor(target) {
+      const focused =
+        target === 'card' ? NAME_ROW : target === 'select' ? SELECT_BUTTON : skillRows[target === 'skill1' ? 0 : 1];
+      return { x: focused.x - 3, y: focused.y + Math.floor(focused.h / 2) };
+    },
+  };
 }

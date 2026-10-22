@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type ActionState, IDLE_POINTER, InputSnapshot, type PointerSnapshot } from '@/engine/input/InputSnapshot';
 import type { Action } from '../../input/bindings';
 import { readSelectEvents } from './intents';
-import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, hitTest, SELECT_BUTTON, SKILL_ROWS } from './layout';
+import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, SELECT_BUTTON, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -15,6 +15,7 @@ function input(pressed: readonly Action[] = [], pointer: Partial<PointerSnapshot
 }
 
 const centre = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+const { hitTest, skillRows: SKILL_ROWS } = selectLayout();
 
 describe('readSelectEvents', () => {
   it('reads nothing from idle input', () => {
@@ -94,5 +95,14 @@ describe('hitTest', () => {
     expect(hitTest(centre(SKILL_ROWS[0]).x, centre(SKILL_ROWS[0]).y)).toBe('skill1');
     expect(hitTest(centre(SELECT_BUTTON).x, centre(SELECT_BUTTON).y)).toBe('select');
     expect(hitTest(319, 0)).toBeNull();
+  });
+
+  it("grows the skill rows with a look's bigger icons and keeps SELECT reachable beside them", () => {
+    const tall = selectLayout(30);
+    const [first, second] = tall.skillRows;
+    expect(first).toMatchObject({ y: SKILL_ROWS[0].y, h: 30 });
+    expect(second.y).toBe(first.y + 32);
+    expect(tall.hitTest(centre(second).x, centre(second).y)).toBe('skill2');
+    expect(tall.hitTest(SELECT_BUTTON.x + 2, SELECT_BUTTON.y + 2)).toBe('select');
   });
 });

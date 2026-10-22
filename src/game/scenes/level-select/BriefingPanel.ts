@@ -157,12 +157,13 @@ export class BriefingPanel {
     const customerX = inner.x + inner.w - 24;
     const feetY = inner.y + inner.h - 1;
     const shouting = this.#complaint.visible;
-    gfx.sprite(this.#services.looks.customer.sheet, shouting ? 'shout' : 'walk', this.#time, customerX, feetY, {
+    const customer = this.#services.looks.customer.sheet;
+    gfx.sprite(customer, shouting ? 'shout' : 'walk', this.#time, customerX, feetY, {
       flipX: true,
     });
     if (shouting) {
       const bubble = this.#complaint.size;
-      const bottom = feetY - 44;
+      const bottom = feetY - customer.height - 4;
       this.#complaint.render(gfx, inner.x + inner.w - bubble.w, bottom - bubble.h);
       drawBubbleTail(gfx, customerX - 4, bottom - 4);
     }
@@ -195,9 +196,10 @@ export class BriefingPanel {
 
     this.#renderHint(gfx, 'CONFIRM: GET IN TOUCH   BACK: CHANGE HERO');
     const hero = this.#services.looks.characters[this.#characterId].sheet;
-    gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, inner.y + inner.h - 2, { flipX: true });
+    const feetY = inner.y + inner.h - 2;
+    gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, feetY, { flipX: true });
     if (blink(this.#time, frames(32), frames(16))) {
-      gfx.text('?', inner.x + inner.w - 40, inner.y + inner.h - 54, this.#services.text.prompt);
+      gfx.text('?', inner.x + inner.w - 40, feetY - hero.height - 12, this.#services.text.prompt);
     }
   }
 }

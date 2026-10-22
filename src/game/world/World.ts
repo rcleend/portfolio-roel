@@ -429,8 +429,11 @@ export class World implements SkillWorld {
     this.#score += mrr;
     this.#customersWon++;
     feedback.sfx('customer-happy');
-    feedback.effect(new HeartPop(customer.centerX, top));
-    feedback.effect(new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop'));
+    const { scale } = customer.tuning;
+    feedback.effect(new HeartPop(customer.centerX, top, scale));
+    feedback.effect(
+      new FloatingText(formatMrrGain(mrr), customer.centerX, top - 22, 'mrrPop', { aboveCustomer: scale }),
+    );
     feedback.emit({ kind: 'customerWon', mrr, escalated: customer.escalated });
     if (customer === this.arena.boss) this.#retain();
   }

@@ -3,16 +3,18 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Looks } from '../../art/looks/Looks';
 import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
+import { drawIconSlot } from '../../ui/iconSlot';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
-import { drawWindow } from '../../ui/Window';
 import { classThemes } from './classThemes';
-import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, SKILL_ROWS, SKILL_SLOT_SIZE } from './layout';
+import { ATTACK_Y, BIO_Y, CLASS_Y, DETAILS, NAME_Y, type SelectLayout } from './layout';
 
 /** The heading's outline reaches one pixel left of its pen position. */
 const NAME_MASK_BLEED = 1;
 /** Cap height plus outline and drop shadow. */
 const NAME_HEIGHT = 18;
+/** The label face's cell height, for centring a skill's name on its slot. */
+const LABEL_HEIGHT = 8;
 
 export interface DetailsRenderOptions {
   readonly character: Character;
@@ -31,11 +33,13 @@ export interface DetailsRenderOptions {
 export class DetailsPanel {
   readonly #text: TextStyles;
   readonly #looks: Looks;
+  readonly #layout: SelectLayout;
   readonly #bios: ReadonlyMap<CharacterId, Paragraph>;
 
-  constructor(text: TextStyles, looks: Looks) {
+  constructor(text: TextStyles, looks: Looks, layout: SelectLayout) {
     this.#text = text;
     this.#looks = looks;
+    this.#layout = layout;
     this.#bios = new Map(
       characters.map((character) => [character.id, new Paragraph(character.bio, text.body, { maxWidth: DETAILS.w })]),
     );
@@ -72,12 +76,16 @@ export class DetailsPanel {
   }
 
   #renderSkill(gfx: Gfx, skillId: SkillId, slot: 0 | 1, options: DetailsRenderOptions): void {
-    const row = SKILL_ROWS[slot];
+    const { skillRows, slotSize } = this.#layout;
+    const row = skillRows[slot];
     const lit = options.litSkill === slot;
-    const frame = { x: row.x, y: row.y, w: SKILL_SLOT_SIZE, h: SKILL_SLOT_SIZE };
-    drawWindow(gfx, frame, lit ? windowThemes.indigo : windowThemes.steel);
-    gfx.sprite(this.#looks.skills[skillId].icon, 'idle', options.time, frame.x + 4, frame.y + 4);
-    gfx.text(skills[skillId].name, row.x + SKILL_SLOT_SIZE + 6, row.y + 8, {
+    drawIconSlot(gfx, this.#looks.skills[skillId].icon, options.time, {
+      x: row.x,
+      y: row.y,
+      size: slotSize,
+      theme: lit ? windowThemes.indigo : windowThemes.steel,
+    });
+    gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - LABEL_HEIGHT) / 2), {
       ...this.#text.label,
       fill: lit ? palette.gold : palette.white,
     });

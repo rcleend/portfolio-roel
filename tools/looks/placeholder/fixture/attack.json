@@ -1,0 +1,24 @@
+{
+  "frame": {
+    "w": 16,
+    "h": 16
+  },
+  "origin": {
+    "x": 8,
+    "y": 8
+  },
+  "animations": [
+    {
+      "name": "projectile",
+      "fps": 12,
+      "loop": true,
+      "frames": 2
+    },
+    {
+      "name": "impact",
+      "fps": 15,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}
