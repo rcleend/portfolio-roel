@@ -1,0 +1,36 @@
+{
+  "frame": {
+    "w": 16,
+    "h": 32
+  },
+  "origin": {
+    "x": 6,
+    "y": 16
+  },
+  "animations": [
+    {
+      "name": "charge",
+      "fps": 20,
+      "loop": false,
+      "frames": 5
+    },
+    {
+      "name": "hold",
+      "fps": 15,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "fade",
+      "fps": 20,
+      "loop": false,
+      "frames": 4
+    },
+    {
+      "name": "charge-calm",
+      "fps": 20,
+      "loop": false,
+      "frames": 5
+    }
+  ]
+}

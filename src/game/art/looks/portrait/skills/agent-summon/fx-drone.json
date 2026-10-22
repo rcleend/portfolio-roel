@@ -1,0 +1,39 @@
+{
+  "frame": {
+    "w": 28,
+    "h": 24
+  },
+  "origin": {
+    "x": 12,
+    "y": 12
+  },
+  "animations": [
+    {
+      "name": "summon",
+      "fps": 15,
+      "loop": false,
+      "frames": 6
+    },
+    {
+      "name": "hover",
+      "fps": 10,
+      "loop": true,
+      "frames": 16
+    },
+    {
+      "name": "fire",
+      "fps": 15,
+      "loop": false,
+      "frames": 4,
+      "anchors": {
+        "muzzle": [[23, 13], [23, 13], [24, 13], [24, 13]]
+      }
+    },
+    {
+      "name": "dismiss",
+      "fps": 15,
+      "loop": false,
+      "frames": 6
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "frame": {
+    "w": 20,
+    "h": 20
+  },
+  "origin": {
+    "x": 10,
+    "y": 10
+  },
+  "animations": [
+    {
+      "name": "appear",
+      "fps": 20,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "drink",
+      "fps": 10,
+      "loop": false,
+      "frames": 5
+    },
+    {
+      "name": "vanish",
+      "fps": 15,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}

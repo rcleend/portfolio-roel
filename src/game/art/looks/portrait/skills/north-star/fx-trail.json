@@ -1,0 +1,24 @@
+{
+  "frame": {
+    "w": 7,
+    "h": 7
+  },
+  "origin": {
+    "x": 3,
+    "y": 3
+  },
+  "animations": [
+    {
+      "name": "spark",
+      "fps": 15,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "dot",
+      "fps": 10,
+      "loop": false,
+      "frames": 2
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "frame": {
+    "w": 48,
+    "h": 48
+  },
+  "origin": {
+    "x": 24,
+    "y": 24
+  },
+  "animations": [
+    {
+      "name": "strum",
+      "fps": 20,
+      "loop": false,
+      "frames": 6
+    },
+    {
+      "name": "strum-calm",
+      "fps": 20,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}
