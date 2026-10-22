@@ -4,9 +4,9 @@ import type { StageDefinition } from '../../world/stage';
 import { STAGES } from '../level/stages';
 
 /** One screen of 16 px columns, so the camera never moves. */
-export const ARENA_COLUMNS = 20;
+const ARENA_COLUMNS = 20;
 /** Where the hero starts, in columns. */
-export const HERO_COLUMN = 3;
+const HERO_COLUMN = 3;
 
 /**
  * A flat, one-screen stretch of a real stage for the showcase: the stage's

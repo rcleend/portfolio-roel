@@ -13,7 +13,7 @@ export interface LookSizes {
   readonly icon: number;
 }
 
-export const CLASSIC_SIZES: LookSizes = { hero: 40, customer: 40, icon: 16 };
+const CLASSIC_SIZES: LookSizes = { hero: 40, customer: 40, icon: 16 };
 
 /**
  * Looks of the given sizes that draw nothing, for tests that lay out or step
