@@ -6,6 +6,7 @@ import { CharacterSelectScene } from './character-select/CharacterSelectScene';
 import { LevelScene } from './level/LevelScene';
 import { LevelSelectScene } from './level-select/LevelSelectScene';
 import type { GameSceneMap, SceneId } from './params';
+import { ShowcaseScene } from './showcase/ShowcaseScene';
 import { SpecimenScene } from './specimen/SpecimenScene';
 import { StageClearScene } from './stage-clear/StageClearScene';
 import { TitleScene } from './title/TitleScene';
@@ -27,6 +28,7 @@ export function createSceneFactories(services: () => GameServices): SceneFactori
     level: () => new LevelScene(services()),
     stageClear: () => new StageClearScene(services()),
     specimen: () => new SpecimenScene(services()),
+    showcase: () => new ShowcaseScene(services()),
   };
 }
 
@@ -38,6 +40,7 @@ const SCENE_IDS: readonly SceneId[] = [
   'level',
   'stageClear',
   'specimen',
+  'showcase',
 ];
 
 /** Narrows untrusted input (URL parameters, the dev console) to a registered scene id. */

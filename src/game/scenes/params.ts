@@ -1,4 +1,4 @@
-import type { CharacterId, LevelId } from '@/content';
+import type { CharacterId, LevelId, SkillId } from '@/content';
 import type { Scene, Step } from '@/engine/core/Scene';
 import type { Action } from '../input/bindings';
 
@@ -42,9 +42,20 @@ export interface SpecimenParams {
   readonly page?: number;
 }
 
-/** Development scenes, reachable through the harness (`?scene=specimen`). */
+export interface ShowcaseParams {
+  /** What loops: the hero's moves (default), one of their skills, or the customer's moods. */
+  readonly demo?: 'moves' | 'skill' | 'customer';
+  readonly hero?: CharacterId;
+  /** The skill the `skill` demo casts; the hero defaults to its owner. */
+  readonly skill?: SkillId;
+  /** Whose stage the arena stands on: Berlin (`scripe`) unless asked. */
+  readonly levelId?: LevelId;
+}
+
+/** Development scenes, reachable through the harness (`?scene=specimen`, `?scene=showcase`). */
 export interface DevSceneParamsMap {
   specimen: SpecimenParams | undefined;
+  showcase: ShowcaseParams | undefined;
 }
 
 export type GameSceneMap = SceneParamsMap & DevSceneParamsMap;
