@@ -223,6 +223,91 @@ def style_reference(directory: Path, scale: int) -> None:
     out.resize((out.width * scale, out.height * scale), Image.NEAREST).save(directory / "style-reference.png")
 
 
+def _label(img: Image.Image, text: str) -> Image.Image:
+    out = Image.new("RGBA", (img.width, img.height + 14), (18, 16, 24, 255))
+    out.alpha_composite(img, (0, 14))
+    ImageDraw.Draw(out).text((3, 1), text, fill=(225, 225, 235, 255))
+    return out
+
+
+def keyframes(directory: Path, scale: int) -> None:
+    """The cast's key poses at a glance: one row per hero, then the customer's states."""
+    picks = [("idle", 0), ("run", 1), ("run", 4), ("jump", 3), ("fall", 0), ("attack", 0), ("skill", 3),
+             ("hurt", 1), ("victory", 2)]
+    rows: List[Image.Image] = []
+    heroes = hero_frames()
+    for h in HEROES:
+        if h not in heroes:
+            continue
+        cells = []
+        for anim, f in picks:
+            frames = heroes[h][anim]
+            tile = Image.new("RGBA", (64, 64), DARK)
+            tile.alpha_composite(frames[min(f, len(frames) - 1)])
+            cells.append(_label(tile.resize((64 * scale, 64 * scale), Image.NEAREST), f"{h} {anim}"))
+        rows.append(cells)
+    customer = customer_frames()
+    if customer:
+        cells = []
+        for anim, f in (("walk", 0), ("walk", 3), ("shout", 1), ("shout", 2), ("hurt", 1), ("stunned", 2),
+                        ("happy", 1), ("happy", 2)):
+            tile = Image.new("RGBA", (64, 64), DARK)
+            tile.alpha_composite(customer[anim][f])
+            cells.append(_label(tile.resize((64 * scale, 64 * scale), Image.NEAREST), f"customer {anim}"))
+        rows.append(cells)
+    cw, ch = rows[0][0].size
+    out = Image.new("RGBA", (max(len(r) for r in rows) * (cw + 4), len(rows) * (ch + 4)), (10, 10, 14, 255))
+    for r, cells in enumerate(rows):
+        for c, cell in enumerate(cells):
+            out.alpha_composite(cell, (c * (cw + 4), r * (ch + 4)))
+    out.save(directory / "keyframes.png")
+
+
+def likeness(directory: Path) -> None:
+    """The likeness kit next to the photos it was drawn from, and the heroes at game scale."""
+    from PIL import ImageOps
+
+    from hibit import head
+
+    def fit(img: Image.Image, h: int = 300) -> Image.Image:
+        return img.resize((round(img.width * h / img.height), h), Image.LANCZOS)
+
+    def big(sprite, z: int = 20) -> Image.Image:
+        bg = Image.new("RGBA", (sprite.width, sprite.height), MID)
+        bg.alpha_composite(sprite.to_image())
+        return bg.resize((sprite.width * z, sprite.height * z), Image.NEAREST)
+
+    blazer = ImageOps.mirror(Image.open(REFS / "roel-photo-white-shirt-blazer.jpg").convert("RGBA").crop((190, 180, 600, 720)))
+    smile = Image.open(REFS / "roel-photo-smile-closeup.jpg").convert("RGBA").crop((30, 30, 240, 330))
+    cap = Image.open(REFS / "roel-photo-cap-sweater.jpg").convert("RGBA").crop((720, 940, 960, 1260))
+    heroes = hero_frames()
+    game = []
+    for h in HEROES:
+        if h in heroes:
+            tile = Image.new("RGBA", (64, 64), MID)
+            tile.alpha_composite(heroes[h]["idle"][0])
+            game.append(tile.crop((14, 0, 50, 30)).resize((36 * 6, 30 * 6), Image.NEAREST))
+    expressions = [big(head.head(e), 8) for e in ("smile", "neutral", "focus", "hurt", "cheer")]
+    top = [fit(blazer), big(head.head("smile")), fit(smile), fit(cap), big(head.head("smile", cap=True))]
+    width = max(sum(t.width + 12 for t in top), sum(t.width + 12 for t in game), sum(t.width + 12 for t in expressions))
+    height = 300 + 12 + max(t.height for t in game) + 12 + max(t.height for t in expressions)
+    out = Image.new("RGBA", (width, height), (36, 34, 44, 255))
+    x = 0
+    for t in top:
+        out.alpha_composite(t, (x, 0))
+        x += t.width + 12
+    x = 0
+    for t in game:
+        out.alpha_composite(t, (x, 312))
+        x += t.width + 12
+    x = 0
+    y = 312 + max(t.height for t in game) + 12
+    for t in expressions:
+        out.alpha_composite(t, (x, y))
+        x += t.width + 12
+    out.save(directory / "likeness.png")
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", type=Path, default=Path("/tmp/arcade-looks-hibit-chars/review"))
@@ -232,6 +317,8 @@ def main(argv: Sequence[str]) -> int:
     sheets(args.out, args.scale)
     scenes(args.out, args.scale)
     action(args.out, args.scale)
+    keyframes(args.out, args.scale)
+    likeness(args.out)
     select_screen(args.out, args.scale)
     style_reference(args.out, args.scale)
     print(args.out)

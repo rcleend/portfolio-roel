@@ -123,6 +123,8 @@ class Character:
     head_fn: Optional[Callable[[FrameSpec], Tuple[Sprite, Tuple[int, int]]]] = None
     #: Body proportions (the customer is shorter and stockier than Roel).
     build: Build = Build()
+    #: The mouth in the head sprite's pixels, for the `mouth` anchor (None: Roel's kit).
+    mouth: Optional[Tuple[int, int]] = None
 
 
 @dataclass
@@ -203,7 +205,8 @@ def render_frame(character: Character, spec: FrameSpec) -> Rendered:
         elif ref == "far_hand":
             anchors[name] = to_pixel(sk.far_arm.end)
         elif ref == "mouth":
-            anchors[name] = (head_x + head_kit.MOUTH[0], head_y + head_kit.MOUTH[1])
+            mx, my = character.mouth or head_kit.MOUTH
+            anchors[name] = (head_x + mx, head_y + my)
         elif placed is not None and isinstance(ref, str):
             anchors[name] = to_pixel(placed.grip(ref))
     return Rendered(canvas, anchors, sk)

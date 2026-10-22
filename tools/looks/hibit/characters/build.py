@@ -104,7 +104,11 @@ def build_customer() -> None:
     cursor = 0
     for anim in customer.ANIMATIONS:
         count = len(rendered[anim])
-        animations.append(Animation(anim, customer.FPS[anim], customer.LOOP[anim], unified[cursor:cursor + count]))
+        anchors: Dict[str, List[Tuple[int, int]]] = {}
+        for name in sorted({n for r in rendered[anim] for n in r.anchors}):
+            anchors[name] = [r.anchors[name] for r in rendered[anim]]
+        animations.append(Animation(anim, customer.FPS[anim], customer.LOOP[anim], unified[cursor:cursor + count],
+                                    anchors))
         cursor += count
     sheet = Sheet(64, 64, (32, 64), animations)
     png, _ = write(sheet, OUT / "customer")

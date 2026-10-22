@@ -247,7 +247,16 @@ def _head_fn(spec: FrameSpec) -> Tuple[Sprite, Tuple[int, int]]:
     return sprite, HEAD_PIVOT
 
 
-CHARACTER = Character("unhappy-customer", OUTFIT, extras=(_cust_extras,), head_fn=_head_fn, build=BUILD)
+#: Where his mouth is in the head kit: complaint bubbles should leave from here.
+HEAD_MOUTH = (9, 11)
+
+CHARACTER = Character("unhappy-customer", OUTFIT, extras=(_cust_extras,), head_fn=_head_fn, build=BUILD,
+                      mouth=HEAD_MOUTH)
+
+
+def with_mouth(specs: List[FrameSpec]) -> List[FrameSpec]:
+    """Adds the `mouth` anchor (bubble origin) to every frame."""
+    return [replace(spec, anchors={**spec.anchors, "mouth": "mouth"}) for spec in specs]
 
 
 # ── Animations ───────────────────────────────────────────────────────────────────
@@ -387,5 +396,10 @@ def happy() -> List[FrameSpec]:
     return out
 
 
+#: Animations whose frames carry the `mouth` anchor: the ones he complains from.
+MOUTH_ANCHORED = {"walk", "shout", "stunned"}
+
+
 def frames_for(anim: str) -> List[FrameSpec]:
-    return {"walk": walk, "shout": shout, "hurt": hurt, "stunned": stunned, "happy": happy}[anim]()
+    specs = {"walk": walk, "shout": shout, "hurt": hurt, "stunned": stunned, "happy": happy}[anim]()
+    return with_mouth(specs) if anim in MOUTH_ANCHORED else specs
