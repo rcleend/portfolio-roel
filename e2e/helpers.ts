@@ -33,3 +33,12 @@ export async function waitForRunning(page: Page): Promise<void> {
 export function hostElement(page: Page) {
   return page.locator('[data-host]');
 }
+
+/** Clicks the flat host's screen at a native game pixel, through the same pointer mapping a visitor's mouse takes. */
+export async function clickScreen(page: Page, point: { readonly x: number; readonly y: number }): Promise<void> {
+  const canvas = page.locator('.tv__canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('The flat host is not showing its screen');
+  const scale = box.width / (await canvas.evaluate((element) => (element as HTMLCanvasElement).width));
+  await page.mouse.click(box.x + (point.x + 0.5) * scale, box.y + (point.y + 0.5) * scale);
+}

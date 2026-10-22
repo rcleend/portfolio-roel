@@ -48,6 +48,17 @@ test('lets a returning visitor skip the boot after a second, but not a first-tim
   expect(errors).toEqual([]);
 });
 
+test('shows the title variants the params name, and refuses unknown ones by name', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/?host=flat&scene=title&params={"lockup":"classic","backdrop":"classic"}&frames=120');
+  await page.waitForFunction(() => window.__arcadeReady === true);
+  expect(await scene(page)).toBe('title');
+  expect(errors).toEqual([]);
+
+  await page.goto('/?host=flat&scene=title&params={"backdrop":"volcano"}&frames=120');
+  await expect.poll(() => errors.join('\n'), { timeout: 15_000 }).toContain('unknown backdrop "volcano"');
+});
+
 test('keeps the résumé in the DOM and reachable from the skip link', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/?host=flat');

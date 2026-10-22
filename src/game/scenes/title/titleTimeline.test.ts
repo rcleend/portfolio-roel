@@ -3,11 +3,7 @@ import { frames } from '@/engine/motion/progress';
 import {
   ATTRACT_AFTER_SECONDS,
   attractDue,
-  craterVisible,
   crossed,
-  FIREBALL_RADIUS,
-  fireballGlow,
-  fireballRadius,
   flashCoverage,
   GLINT,
   glintProgress,
@@ -18,23 +14,6 @@ import {
   slideRemaining,
   TITLE_TIMES,
 } from './titleTimeline';
-
-describe('impact', () => {
-  it('collapses the fireball to nothing just as the crater appears', () => {
-    expect(fireballRadius(0)).toBe(FIREBALL_RADIUS);
-    expect(fireballRadius(TITLE_TIMES.fireballEnd / 2)).toBeLessThan(FIREBALL_RADIUS);
-    expect(fireballRadius(TITLE_TIMES.fireballEnd)).toBe(0);
-    expect(craterVisible(TITLE_TIMES.fireballEnd - frames(1))).toBe(false);
-    expect(craterVisible(TITLE_TIMES.crater)).toBe(true);
-  });
-
-  it('lights the card with the fireball in flat steps', () => {
-    expect(fireballGlow(0)).toBe(1);
-    expect(fireballGlow(TITLE_TIMES.fireballEnd)).toBe(0);
-    const levels = new Set(Array.from({ length: 20 }, (_, i) => fireballGlow(i / 60)));
-    expect(levels.size).toBeLessThanOrEqual(4);
-  });
-});
 
 describe('logo slide', () => {
   it('starts off-screen, decelerates hard and arrives on time', () => {

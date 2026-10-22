@@ -1,18 +1,31 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
+import type { Rect } from '@/engine/math/Rect';
+import type { Vec2 } from '@/engine/math/Vec2';
+import type { Burst } from '../effects/Burst';
+import type { Effect } from '../effects/Effect';
+import { SkillEffect } from '../effects/SkillEffect';
 import type { RenderKit } from '../RenderKit';
-import { Shot, type ShotEnvironment, type ShotTarget } from './Shot';
+import { Shot, type ShotEnvironment, type ShotTarget, type ShotView } from './Shot';
 
 const SPEED = 200;
 /** Max turn per second, radians: tight enough to find its mark, loose enough to arc visibly. */
 const TURN_RATE = 6.5;
 const TRAIL = 6;
 
+/** The north star as a look sees it: a shot with the positions it just passed through, newest first, and its mark. */
+export interface StarShotView extends ShotView {
+  readonly trail: readonly Vec2[];
+  /** The customer it is homing on this step, if any. */
+  readonly target: Rect | null;
+}
+
 /**
  * NORTH STAR: a star that homes in on the most frustrated customer on screen,
  * ignoring everything else on the way (it flies through bubbles).
  */
-export class HomingStar extends Shot {
-  readonly #trail: { x: number; y: number }[] = [];
+export class HomingStar extends Shot implements StarShotView {
+  readonly #trail: Vec2[] = [];
+  #target: Rect | null = null;
 
   constructor(x: number, y: number, direction: -1 | 1) {
     super(
@@ -28,6 +41,7 @@ export class HomingStar extends Shot {
     this.#trail.unshift({ x: this.x, y: this.y });
     if (this.#trail.length > TRAIL) this.#trail.pop();
     const target = mostFrustrated(env.targets);
+    this.#target = target?.rect ?? null;
     if (!target) return;
     const desired = Math.atan2(target.rect.y + target.rect.h / 2 - this.y, target.rect.x + target.rect.w / 2 - this.x);
     const current = Math.atan2(this.vy, this.vx);
@@ -38,12 +52,24 @@ export class HomingStar extends Shot {
     this.vy = Math.sin(heading) * SPEED;
   }
 
+  get trail(): readonly Vec2[] {
+    return this.#trail;
+  }
+
+  get target(): Rect | null {
+    return this.#target;
+  }
+
   render(gfx: Gfx, kit: RenderKit): void {
-    this.#trail.forEach((point, index) => {
-      if (index % 2 === 1) return;
-      gfx.pixel(point.x, point.y, index < 2 ? '#fff4b0' : '#ffd84a');
-    });
-    gfx.sprite(kit.fx.star, 'twinkle', this.age, this.x, this.y);
+    kit.looks.skills['north-star'].visual.shot?.(gfx, this, kit);
+  }
+
+  impactEffect(burst: Burst): Effect {
+    return new SkillEffect('north-star', { role: 'impact', burst }, burst);
+  }
+
+  hitEffect(burst: Burst): Effect {
+    return new SkillEffect('north-star', { role: 'hit', burst }, burst);
   }
 }
 

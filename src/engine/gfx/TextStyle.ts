@@ -1,3 +1,4 @@
+import { type Rect, rect } from '../math/Rect';
 import type { BitmapFont, Glyph } from './BitmapFont';
 import { context2d, createCanvas } from './canvas';
 import { bandColors, parseHex, type Rgba } from './color';
@@ -47,6 +48,23 @@ export function layoutText(style: TextStyle, text: string, options: TextOptions 
   const width = Math.max(0, ...lines.map((line) => font.measure(line)));
   const height = lines.length === 0 ? 0 : (lines.length - 1) * lineHeight + font.cellHeight;
   return { lines, width, height, lineHeight };
+}
+
+/**
+ * The box `drawText` covers when given the same arguments: the laid-out
+ * glyph cells, grown by however far the outline and the shadow reach.
+ */
+export function textBounds(style: TextStyle, text: string, x: number, y: number, options: TextOptions = {}): Rect {
+  const block = layoutText(style, text, options);
+  const reach = decorationReach(style);
+  const left = alignedX(x, block.width, options.align ?? 'left');
+  return rect(left - reach, y - reach, block.width + reach * 2, block.height + reach * 2);
+}
+
+/** How far the outline and the shadow can reach past a glyph's cell, in pixels. */
+function decorationReach(style: TextStyle): number {
+  const { outline, shadow } = style;
+  return (outline ? 1 : 0) + (shadow ? Math.max(Math.abs(shadow.x), Math.abs(shadow.y)) : 0);
 }
 
 /**
@@ -103,8 +121,7 @@ class StyledAtlas {
   constructor(style: TextStyle) {
     const { font } = style;
     const shadow = style.shadow;
-    const outline = style.outline ? 1 : 0;
-    this.#pad = outline + (shadow ? Math.max(Math.abs(shadow.x), Math.abs(shadow.y)) : 0);
+    this.#pad = decorationReach(style);
     this.#rowHeight = font.cellHeight + this.#pad * 2;
     this.#layers = new Set<Layer>([
       'fill',

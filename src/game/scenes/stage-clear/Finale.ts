@@ -12,6 +12,7 @@ import { handCursorSheet } from '../../ui/cursor';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
 import { envelopeSheet } from '../level-select/art/icons';
+import type { TeaserSlot } from '../level-select/missions';
 import { Postcards } from '../level-select/Postcards';
 import type { GameStep } from '../params';
 import { SlamTitle } from './SlamTitle';
@@ -90,16 +91,18 @@ export class Finale {
     const rise = segment(this.#time, CARD_IN.start, CARD_IN.end, easeOutBack);
     if (this.#time >= CARD_IN.start) {
       const card = { ...CARD, y: CARD.y + Math.round((1 - rise) * 40) };
-      this.#postcards.draw(gfx, { kind: 'teaser', teaser: nextLevelTeaser }, card, {
+      // The tab names the postcard the way the caption under it does.
+      const teaser: TeaserSlot = { kind: 'teaser', label: nextLevelTeaser.mission, teaser: nextLevelTeaser };
+      this.#postcards.draw(gfx, teaser, card, {
         focused: true,
         lift: 0,
         time: this.#time,
       });
-      const { sprites } = this.#services;
+      const { looks } = this.#services;
       drawSpotlight(gfx, 62, 126);
       drawSpotlight(gfx, 258, 126);
-      gfx.sprite(sprites.characters[this.#characterId], 'victory', this.#time, 62, 126);
-      gfx.sprite(sprites.unhappyCustomer, 'happy', this.#time, 258, 126, { flipX: true });
+      gfx.sprite(looks.characters[this.#characterId].sheet, 'victory', this.#time, 62, 126);
+      gfx.sprite(looks.customer.sheet, 'happy', this.#time, 258, 126, { flipX: true });
     }
     if (this.#time < BUTTONS_AT) return;
     const { text } = this.#services;
