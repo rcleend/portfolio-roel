@@ -16,10 +16,10 @@ import math
 from dataclasses import dataclass, replace
 from typing import Callable, Dict, List, Optional, Tuple
 
-from . import ramps
-from .anim import arc_points, ease_in_out, foot_path, smear, wave
+from . import hands, ramps
+from .anim import ease_in_out, fan_smear, foot_path, wave
 from .canvas import Sprite
-from .compose import Character, FrameSpec, Grip, HandItem, Overlay, PropPose
+from .compose import Character, FrameSpec, Grip, HandAt, HandItem, Overlay, PropPose
 from .outfits import ARTSY, HACKERMAN, STRATEGY, drawstrings, strap
 from .props import KEYBOARD, PAD, STRAT
 from .rig import Build, Limb, Pose, solve
@@ -29,6 +29,9 @@ BUILD = Build()
 FPS = {"idle": 10, "run": 15, "jump": 12, "fall": 10, "attack": 20, "skill": 20, "hurt": 20, "victory": 10}
 LOOP = {"idle": True, "run": True, "jump": False, "fall": True, "attack": False, "skill": False, "hurt": False,
         "victory": True}
+#: Animations whose smears wrap from the last frame to the first: the attack restarts on
+#: every shot while the button is held, so its wind-up leads straight into frame 0.
+SMEAR_WRAP = {"idle", "run", "fall", "attack", "victory"}
 ANIMATIONS = ("idle", "run", "jump", "fall", "attack", "skill", "hurt", "victory")
 
 RUN_FRAMES = 8
@@ -129,18 +132,20 @@ def jump_body(i: int) -> FrameSpec:
 
 
 def fall_body(i: int) -> FrameSpec:
-    """Falling: legs reaching for the ground, arms up for balance, hair and strings fluttering."""
+    """Falling: tipped back a touch, the near knee drawn up and the far leg reaching for the
+    ground, arms up for balance; hair and strings stream upwards and flutter (2-frame beat)."""
     flutter = (-1) ** i
-    base = Pose(lean=-3.0, chest_lean=-2.0, y=1.0, hip_yaw=26.0, chest_yaw=48.0, neck=2.0)
+    base = Pose(lean=-5.0, chest_lean=-3.0, y=1.5, hip_yaw=24.0, chest_yaw=46.0, neck=3.0, roll=-2.0)
     (nx, nz), (fx, fz) = _hips(base)
     pose = replace(
         base,
-        near_leg=Limb(target=(nx + 3.0, BUILD.ankle_height + 2.5 + 0.5 * flutter, nz + 0.6), end=10.0),
-        far_leg=Limb(target=(fx - 2.0, BUILD.ankle_height + 4.0 - 0.5 * flutter, fz - 0.4), end=-10.0),
-        near_arm=Limb(swing=70 + 4 * flutter, spread=34, bend=30),
-        far_arm=Limb(swing=40 - 4 * flutter, spread=38, bend=24),
+        near_leg=Limb(target=(nx + 4.5, BUILD.ankle_height + 7.0 + 0.6 * flutter, nz + 0.6), end=-6.0),
+        far_leg=Limb(target=(fx - 2.5, BUILD.ankle_height + 2.0 - 0.6 * flutter, fz - 0.4), end=-24.0),
+        near_arm=Limb(swing=110 + 5 * flutter, spread=40, bend=40),
+        far_arm=Limb(swing=70 - 5 * flutter, spread=36, bend=30),
     )
-    return FrameSpec(pose, hair="lift", face="smile", extra={"phase": i / 4.0, "swing": 2.6 + 0.25 * flutter})
+    return FrameSpec(pose, hair="lift", face="smile", head_dy=-1 if i % 2 else 0,
+                     extra={"phase": i / 4.0, "swing": 2.7 + 0.25 * flutter})
 
 
 HURT_KEYS = [
@@ -173,17 +178,18 @@ def hurt_body(i: int) -> FrameSpec:
 # ── Overlays ─────────────────────────────────────────────────────────────────────
 
 
-def arm_smear(sleeve: str) -> Callable[[str, Tuple[int, int], Tuple[int, int]], Optional[Overlay]]:
-    """A smear from the hand's previous position to its new one, in the sleeve's ramp."""
+def arm_smear(sleeve: str) -> Callable[..., Optional[Overlay]]:
+    """A smear frame: the fan the forearm sweeps since the last frame, in the sleeve's
+    lighter tones with the hand's skin on the leading edge."""
     ramp = ramps.RAMPS[sleeve]
     skin = ramps.RAMPS["skin"]
 
-    def make(hand: str, start: Tuple[int, int], end: Tuple[int, int]) -> Optional[Overlay]:
-        if abs(start[0] - end[0]) + abs(start[1] - end[1]) < 4:
+    def make(hand: str, prev: Tuple[Tuple[int, int], Tuple[int, int]],
+             cur: Tuple[Tuple[int, int], Tuple[int, int]]) -> Optional[Overlay]:
+        (_, ph), (_, ch) = prev, cur
+        if abs(ph[0] - ch[0]) + abs(ph[1] - ch[1]) < 5:
             return None
-        mid = ((start[0] + end[0]) / 2 + (end[1] - start[1]) * 0.25, (start[1] + end[1]) / 2 - (end[0] - start[0]) * 0.25)
-        pts = [start, mid, end]
-        sprite = smear([(x + 0.5, y + 0.5) for x, y in pts], [ramp.tones[2], ramp.tones[3], skin.tones[3]], width=1.6)
+        sprite = fan_smear(prev, cur, inner=ramp.tones[2], outer=ramp.tones[3], edge=skin.tones[3])
         return Overlay(sprite, 0, 0, z=-50.0)
 
     return make
@@ -237,11 +243,30 @@ def frames_for(hero: Hero, anim: str) -> List[FrameSpec]:
 
 # ── HACKERMAN: the keyboard, slung like a keytar ──────────────────────────────────
 
-_KEYTAR = PropPose(angle=15.0, at=(3.5, 5.0), depth=6.5)
+#: Held nearly flat at the waist so the keycaps stay crisp; it sways a few degrees in motion.
+_KEYTAR = PropPose(angle=10.0, at=(6.5, 4.5), depth=6.5)
 
 
 def _strings(sk, spec: FrameSpec, placed):
     return drawstrings(sk, spec.extra.get("swing", 0.0))
+
+
+def _typing(near_down: bool, lift: float = 1.5) -> dict:
+    """Both hands on the keys, drawn by hand: one strikes while the other lifts."""
+    near = hands.TYPE_DOWN if near_down else hands.TYPE_UP
+    far = hands.TYPE_UP if near_down else hands.TYPE_DOWN
+    return dict(
+        near_hand=Grip("keys_left", (-1.0, -3.0 - (0.0 if near_down else lift)), depth=2.0),
+        far_hand=Grip("keys_right", (1.0, -3.0 - (lift if near_down else 0.0)), depth=2.0),
+        hide_hands=("near", "far"),
+        items=(HandItem("near", near, hands.PIVOTS["type_down"], dz=1.0),
+               HandItem("far", far, hands.PIVOTS["type_down"], dz=1.0)),
+    )
+
+
+def _gripping() -> dict:
+    """Hands on the ends, carrying it like a keytar."""
+    return dict(near_hand=Grip("near", (1.0, -1.0), depth=1.5), far_hand=Grip("far", (0.0, -1.0), depth=1.5))
 
 
 def hackerman_carry(anim: str, i: int, spec: FrameSpec) -> FrameSpec:
@@ -251,101 +276,94 @@ def hackerman_carry(anim: str, i: int, spec: FrameSpec) -> FrameSpec:
         tap = i in (5, 6)
         return replace(
             spec,
-            prop=replace(_KEYTAR, at=(3.5, 5.0 + 0.3 * breath), variant=f"glow:0{',lit:2' if i == 6 else ''}"),
-            near_hand=Grip("keys_left", (0.5, -1.0 if tap and i == 5 else 0.0)),
-            far_hand=Grip("far"),
+            prop=replace(_KEYTAR, at=(6.5, 4.5 + 0.3 * breath), variant="lit:2" if i == 6 else ""),
+            **_typing(near_down=i != 5, lift=1.5 if tap else 0.0),
         )
     if anim == "run":
         bob = spec.extra.get("bob", 0.0)
-        return replace(
-            spec,
-            prop=replace(_KEYTAR, angle=13 + 3 * wave(p * 2), at=(3.0, 5.5 - 0.35 * bob)),
-            near_hand=Grip("keys_left", (0, -1)),
-            far_hand=Grip("far"),
-        )
+        return replace(spec, prop=replace(_KEYTAR, angle=10 + 3 * wave(p * 2), at=(5.5, 5.0 - 0.35 * bob)),
+                       **_gripping())
     if anim == "jump":
-        return replace(spec, prop=replace(_KEYTAR, angle=20 + 3 * i, at=(3.0, 6.0 + i * 0.5)),
-                       near_hand=Grip("near"), far_hand=Grip("far"))
+        return replace(spec, prop=replace(_KEYTAR, angle=14 + 3 * i, at=(5.0, 6.0 + i * 0.5)), **_gripping())
     if anim == "fall":
-        return replace(spec, prop=replace(_KEYTAR, angle=10 + (i % 2), at=(3.0, 8.0)),
-                       near_hand=Grip("near"), far_hand=Grip("far"))
+        return replace(spec, prop=replace(_KEYTAR, angle=6 + (i % 2), at=(5.0, 8.0)), **_gripping())
     if anim == "hurt":
-        return replace(spec, prop=replace(_KEYTAR, angle=26 - 3 * i, at=(4.0, 7.5 - 0.4 * i)),
-                       near_hand=Grip("near"), far_hand=Grip("far"))
+        return replace(spec, prop=replace(_KEYTAR, angle=22 - 3 * i, at=(5.5, 7.5 - 0.4 * i)), **_gripping())
     return spec
 
 
 def hackerman_attack() -> List[FrameSpec]:
-    """Typing flurry: fingers hammer the keys, a lit key per strike, bolts leave the front end.
-
-    Four frames at 20 fps (0.2 s) fit the 0.22 s fire rate, so holding attack loops the flurry.
-    """
+    """Typing flurry: hands alternate on the keys, the struck keys flash green, a bolt
+    leaves the front end on frame 0. Four frames at 20 fps (0.2 s) fit the 0.22 s fire
+    rate, so holding attack loops the flurry seamlessly."""
     out = []
-    base = planted(Pose(lean=4.0, chest_lean=4.0, hip_yaw=30.0, chest_yaw=50.0, neck=4.0, y=-0.8),
-                   near=(4.0, 0.8), far=(-3.0, -0.6))
-    hits = [(-1.5, "lit:1+4"), (0.0, ""), (-1.5, "lit:3+6"), (-0.5, "lit:5")]
-    for i, (dip, lit) in enumerate(hits):
-        spec = FrameSpec(
-            base.but(y=-0.8 + (0.3 if i % 2 == 0 else 0.0)),
-            face="focus",
-            glint=i == 0,
-            prop=replace(_KEYTAR, angle=13.0 - (1.5 if i == 0 else 0.0), at=(4.0, 5.2), variant=lit),
-            near_hand=Grip("keys", (-2 + 3 * (i % 2), dip)),
-            far_hand=Grip("keys_right", (2.0, -1.0 + (0.0 if i % 2 else -1.0))),
-            anchors={"muzzle": "muzzle"},
-            extra={"swing": 0.1 * (-1) ** i},
-        )
-        out.append(spec)
-    return out
-
-
-def hackerman_skill() -> List[FrameSpec]:
-    """EXECUTE: the near hand winds up high and smashes Enter; the keyboard bucks forward and
-    he holds it out like a launcher while the code goes (full-stack beam, agent summon)."""
-    keys = [
-        # (lean, y, near hand target offset (grip, dx, dy), keyboard angle, at, face, hair, smear)
-        (-4.0, -1.5, ("keys", -1.0, -9.0), 18.0, (2.0, 4.5), "focus", "rest", False),
-        (-8.0, -1.0, ("keys", -3.0, -15.0), 20.0, (1.5, 4.5), "focus", "lift", False),
-        (10.0, -2.0, ("muzzle", -4.0, -1.0), 8.0, (5.0, 4.5), "cheer", "squash", True),
-        (14.0, -2.5, ("muzzle", -4.0, 0.0), 4.0, (7.0, 6.0), "cheer", "sweep", False),
-        (12.0, -2.0, ("muzzle", -4.0, 0.0), 5.0, (7.0, 6.0), "cheer", "sweep", False),
-        (10.0, -1.5, ("muzzle", -4.0, 0.0), 6.0, (6.5, 6.0), "focus", "rest", False),
-        (6.0, -1.0, ("keys", 0.0, -1.0), 9.0, (5.5, 5.5), "focus", "rest", False),
-        (3.0, -0.6, ("keys_left", 0.0, 0.0), 13.0, (4.0, 5.0), "smile", "rest", False),
-    ]
-    out = []
-    for i, (lean, y, (grip, dx, dy), angle, at, face, hair, smeared) in enumerate(keys):
-        base = planted(Pose(lean=lean, chest_lean=2.0, y=y, hip_yaw=30.0, chest_yaw=50.0),
-                       near=(5.0, 0.8), far=(-4.0, -0.6))
-        lit = "lit:0+1+2+3+4+5+6+7,glow:1" if 2 <= i <= 4 else "glow:0"
+    lit = ["lit:1+4", "lit:3", "lit:6+0", "lit:5"]
+    for i in range(4):
+        base = planted(Pose(lean=6.0, chest_lean=6.0, hip_yaw=30.0, chest_yaw=50.0, neck=6.0,
+                            y=-1.2 + (0.3 if i % 2 else 0.0)), near=(5.0, 1.0), far=(-3.6, -0.8))
         out.append(FrameSpec(
-            base, face=face, hair=hair, glint=i == 3,
-            prop=PropPose(angle=angle, at=at, depth=6.5, variant=lit),
-            near_hand=Grip(grip, (dx, dy), depth=2.0),
-            far_hand=Grip("far"),
-            anchors={"hand": "muzzle"},
-            smear=("near",) if smeared else (),
-            extra={"swing": -0.6 if 2 <= i <= 4 else 0.2},
+            base, face="focus", glint=i == 0,
+            prop=replace(_KEYTAR, angle=10.0 - (1.0 if i == 0 else 0.0), variant=lit[i] + ",glow:%d" % (i % 2)),
+            anchors={"muzzle": "muzzle"},
+            extra={"swing": 0.12 * (-1) ** i},
+            **_typing(near_down=i % 2 == 0),
         ))
     return out
 
 
+def hackerman_skill() -> List[FrameSpec]:
+    """EXECUTE: the near hand winds up high and smashes Enter; every key lights, the
+    keyboard bucks forward and he holds it out like a launcher while the code goes
+    (FULL-STACK ATTACK's beam, AGENT SUMMON's drone). `hand` is the keyboard's front end."""
+    keys = [
+        # (lean, y, near arm or None (typing), keyboard angle, at, face, hair, smear, lit)
+        (-4.0, -1.6, HandAt(19.0, 17.0, depth=4.0), 12.0, (5.5, 4.0), "focus", "rest", False, ""),
+        (-9.0, -0.8, HandAt(17.0, 6.0, depth=3.0), 13.0, (5.0, 4.5), "focus", "lift", False, ""),
+        (14.0, -2.8, None, 4.0, (8.5, 4.5), "cheer", "squash", True, "lit:0+1+2+3+4+5+6+7,glow:1"),
+        (18.0, -3.2, None, -4.0, (11.0, 7.0), "cheer", "sweep", False, "lit:0+1+2+3+4+5+6+7,glow:1"),
+        (16.0, -3.0, None, -3.0, (11.0, 7.0), "cheer", "sweep", False, "lit:0+2+4+6,glow:1"),
+        (12.0, -2.2, None, 0.0, (9.5, 6.0), "focus", "rest", False, "lit:1+3+5,glow:0"),
+        (7.0, -1.4, None, 7.0, (7.5, 5.0), "focus", "rest", False, "lit:2"),
+        (4.0, -1.0, None, 10.0, (6.5, 4.5), "smile", "rest", False, ""),
+    ]
+    out = []
+    for i, (lean, y, arm, angle, at, face, hair, smeared, lit) in enumerate(keys):
+        base = planted(Pose(lean=lean, chest_lean=2.0, y=y, hip_yaw=30.0, chest_yaw=50.0),
+                       near=(5.5, 1.0), far=(-4.2, -0.8))
+        if arm is not None:
+            spec = FrameSpec(base, face=face, hair=hair, near_hand=arm,
+                             prop=PropPose(angle=angle, at=at, depth=6.5, variant=lit),
+                             far_hand=Grip("far", (0.0, -1.0), depth=1.5),
+                             hide_hands=("near",), items=(HandItem("near", hands.FIST, hands.PIVOTS["fist"], dz=3.0),),
+                             anchors={"hand": "muzzle"}, extra={"swing": 0.3})
+        else:
+            typing = _typing(near_down=True, lift=0.0)
+            if i == 2:  # the smash lands on Enter, at the keyboard's right end
+                typing["near_hand"] = Grip("keys_right", (3.0, -3.0), depth=2.5)
+            spec = FrameSpec(base, face=face, hair=hair, glint=i == 3,
+                             prop=PropPose(angle=angle, at=at, depth=6.5, variant=lit),
+                             anchors={"hand": "muzzle"}, smear=("near",) if smeared else (),
+                             extra={"swing": -0.6 if 2 <= i <= 4 else 0.1}, **typing)
+        out.append(spec)
+    return out
+
+
 def hackerman_victory() -> List[FrameSpec]:
-    """Keyboard hoisted overhead, a happy bounce, the underglow cycling through RGB."""
+    """The hype pump: he hoists the keyboard to his chest twice a loop with a hop, every key
+    lit at the top, the underglow cycling through RGB."""
     out = []
     for i in range(VICTORY_FRAMES):
         t = i / VICTORY_FRAMES
-        bounce = abs(math.sin(2 * math.pi * t))  # two hops per loop
-        base = planted(Pose(lean=-4.0, chest_lean=-4.0, y=-1.5 + 1.8 * bounce, hip_yaw=32.0, chest_yaw=54.0,
-                            neck=-4.0), near=(3.5, 0.8), far=(-3.0, -0.6))
+        pump = max(0.0, math.sin(4 * math.pi * t))
+        base = planted(Pose(lean=-3.0, chest_lean=-3.0, y=-1.2 + 1.6 * pump, hip_yaw=32.0, chest_yaw=54.0,
+                            neck=-3.0), near=(4.5, 1.0), far=(-3.6, -0.8), near_lift=1.2 * pump, far_lift=1.2 * pump)
+        lit = "lit:0+1+2+3+4+5+6+7," if pump > 0.7 else ""
         out.append(FrameSpec(
-            base, face="cheer" if bounce > 0.5 else "smile", hair="lift" if 0.3 < (t * 2) % 1 < 0.6 else "rest",
-            glint=i in (2, 8),
-            prop=PropPose(angle=-4.0 + 4.0 * math.sin(4 * math.pi * t), at=(1.0, 21.0 + 1.8 * bounce), depth=4.0,
-                          from_chest=False, variant=f"glow:{i % 5}"),
-            near_hand=Grip("near", (3.0, 2.0), depth=1.0, pole=(-0.2, -1.0, 0.6)),
-            far_hand=Grip("far", (-2.0, 2.0), depth=1.0, pole=(-0.2, -1.0, -0.6)),
-            extra={"swing": 0.3 * math.sin(4 * math.pi * t)},
+            base, face="cheer" if pump > 0.3 else "smile", hair="lift" if 0.2 < pump < 0.8 and i % 6 < 3 else "rest",
+            glint=i in (3, 9),
+            prop=PropPose(angle=6.0 - 6.0 * pump, at=(6.5, 4.5 + 5.5 * pump), depth=6.5, variant=f"{lit}glow:{i % 3}"),
+            near_hand=Grip("near", (1.0, -1.0), depth=1.5), far_hand=Grip("far", (0.0, -1.0), depth=1.5),
+            extra={"swing": 0.35 * math.sin(4 * math.pi * t + 1.0)},
         ))
     return out
 
@@ -410,53 +428,60 @@ def artsy_attack() -> List[FrameSpec]:
 
 
 def artsy_skill() -> List[FrameSpec]:
-    """The windmill: the picking arm swings back and all the way over, crashes down on the
-    strings (the POWER CHORD shockwave / the potion moment), then the rock-star hold with
-    the neck raised. `hand` follows the picking hand; `guitar` marks the strum point."""
+    """The windmill: the picking arm swings back, up past his shoulder and over the top,
+    crashes down across the strings (POWER CHORD's shockwave, frame 3 at `guitar`), follows
+    through, and flings up into the rock-star hold with the neck raised. `hand` follows the
+    picking hand (UX ELIXIR's potion), `mouth` is his lips, `guitar` the strum point."""
     keys = [
-        # (lean, guitar angle, near arm (swing, spread, bend) or None for a strum grip, face, hair, smear)
-        (-6.0, 26.0, (-60.0, 20.0, 20.0), "focus", "rest", False),
-        (-10.0, 28.0, (-150.0, 20.0, 10.0), "focus", "lift", True),
-        (-6.0, 30.0, (150.0, 16.0, 10.0), "cheer", "lift", True),
-        (14.0, 22.0, None, "cheer", "squash", True),
-        (10.0, 34.0, (-110.0, 24.0, 10.0), "cheer", "sweep", True),
-        (-8.0, 44.0, (-150.0, 30.0, 14.0), "cheer", "lift", False),
-        (-8.0, 46.0, (-152.0, 30.0, 14.0), "cheer", "rest", False),
-        (-2.0, 32.0, (-40.0, 20.0, 40.0), "smile", "rest", False),
+        # (near hand: HandAt or None = on the strings, lean, guitar angle, face, hair, smear, ring)
+        (HandAt(19.0, 40.0, 5.0), -6.0, 26.0, "focus", "rest", False, -1),
+        (HandAt(15.0, 15.0, 4.0), -11.0, 28.0, "focus", "lift", True, -1),
+        (HandAt(31.0, 3.0, 3.0), -8.0, 30.0, "cheer", "lift", True, -1),
+        (None, 14.0, 22.0, "cheer", "squash", True, 0),
+        (HandAt(36.0, 47.0, 6.0), 11.0, 26.0, "cheer", "sweep", True, 1),
+        (HandAt(16.0, 13.0, 3.0), -9.0, 44.0, "cheer", "lift", True, 2),
+        (HandAt(16.0, 12.0, 3.0), -9.0, 46.0, "cheer", "rest", False, 3),
+        (HandAt(22.0, 30.0, 5.0), -3.0, 32.0, "smile", "rest", False, -1),
     ]
     out = []
-    for i, (lean, angle, arm, face, hair, smeared) in enumerate(keys):
-        base = planted(Pose(lean=lean, chest_lean=-2.0, hip_yaw=30.0, chest_yaw=54.0, y=-1.2),
-                       near=(5.0, 0.8), far=(-4.5, -0.6))
-        spec = FrameSpec(
-            base if arm is None else base.but(near_arm=Limb(swing=arm[0], spread=arm[1], bend=arm[2])),
-            face=face, hair=hair, glint=i == 6,
-            prop=replace(_SLUNG, angle=angle, at=(0.0, 4.0 if i < 5 else 5.5), variant="ring:%d" % i if i >= 3 else ""),
-            near_hand=Grip("strum", (1.0, 3.0), depth=2.0) if arm is None else None,
+    for i, (hand, lean, angle, face, hair, smeared, ring) in enumerate(keys):
+        base = planted(Pose(lean=lean, chest_lean=-2.0, hip_yaw=30.0, chest_yaw=54.0, y=-1.4),
+                       near=(5.5, 1.0), far=(-4.8, -0.8))
+        near = hand if hand is not None else Grip("strum", (1.0, 3.0), depth=2.5)
+        out.append(FrameSpec(
+            base, face=face, hair=hair, glint=i == 6,
+            prop=replace(_SLUNG, angle=angle, at=(0.0, 4.0 if i < 5 else 5.5), variant=f"ring:{ring}" if ring >= 0 else ""),
+            near_hand=near,
             far_hand=Grip("neck", (2.0 if i >= 5 else 0.0, 0.0)),
             anchors={"hand": "near_hand", "guitar": "strum", "mouth": "mouth"},
             smear=("near",) if smeared else (),
-        )
-        out.append(spec)
+        ))
     return out
 
 
 def artsy_victory() -> List[FrameSpec]:
-    """Rock star: neck pointed at the sky, head-banging, the picking hand windmilling."""
+    """Rock star in a wide stance: neck aimed at the sky, two huge strums per loop with a
+    head-bang on each, the picking fist thrown up between them, strings ringing."""
+    # (near hand, lean, neck/head nod, face, hair, smear, ring)
+    beats = [
+        (None, 8.0, 4.0, "cheer", "squash", True, 0),
+        (HandAt(34.0, 47.0, 6.0), 9.0, 6.0, "cheer", "rest", True, 1),
+        (HandAt(25.0, 32.0, 5.0), 2.0, 0.0, "smile", "rest", False, 2),
+        (HandAt(17.0, 14.0, 3.0), -7.0, -5.0, "cheer", "lift", True, 3),
+        (HandAt(17.0, 13.0, 3.0), -8.0, -6.0, "cheer", "lift", False, 4),
+        (HandAt(19.0, 18.0, 3.0), -6.0, -3.0, "smile", "rest", False, -1),
+    ]
     out = []
     for i in range(VICTORY_FRAMES):
-        t = i / VICTORY_FRAMES
-        bang = math.sin(4 * math.pi * t)
-        base = planted(Pose(lean=-6.0 + 5.0 * bang, chest_lean=-2.0, y=-1.5 + 0.8 * bang, hip_yaw=32.0,
-                            chest_yaw=56.0, neck=6.0 * bang), near=(5.0, 0.8), far=(-4.5, -0.6))
-        arm_angle = -170.0 + 360.0 * t
+        hand, lean, nod, face, hair, smeared, ring = beats[i % len(beats)]
+        base = planted(Pose(lean=lean, chest_lean=-2.0, y=-2.2, hip_yaw=32.0, chest_yaw=56.0, neck=nod),
+                       near=(6.5, 1.2), far=(-5.5, -0.8))
+        near = hand if hand is not None else Grip("strum", (1.0, 3.0), depth=2.5)
         out.append(FrameSpec(
-            base.but(near_arm=Limb(swing=arm_angle, spread=26, bend=12)),
-            face="cheer" if bang > -0.2 else "smile", hair="lift" if bang < -0.4 else ("squash" if bang > 0.6 else "rest"),
-            glint=i == 4,
-            prop=replace(_SLUNG, angle=50.0 + 4.0 * bang, at=(0.5, 5.5), variant=f"ring:{i}"),
-            far_hand=Grip("neck", (2.0, 0.0)),
-            smear=("near",),
+            base, face=face, hair=hair, glint=i in (4, 10),
+            prop=replace(_SLUNG, angle=48.0 + (4.0 if lean > 0 else 0.0), at=(0.5, 5.0), variant=f"ring:{ring}" if ring >= 0 else ""),
+            near_hand=near, far_hand=Grip("neck", (3.0, 0.0)),
+            smear=("near",) if smeared else (),
         ))
     return out
 
@@ -466,10 +491,10 @@ def artsy_victory() -> List[FrameSpec]:
 
 NOTE = Sprite.parse("""
 OOOO
-OyyO
+OffO
 OyYO
 OOOO
-""", {"O": "#3a2808", "y": "#ffe14d", "Y": "#e0a82a"})
+""", {"O": "#c08a10", "y": "#ffe14d", "Y": "#e0a82a", "f": "#fff6c0"})
 
 _PAD = HandItem("far", PAD.sprite, (2, 2))
 
@@ -488,72 +513,89 @@ def strategy_carry(anim: str, i: int, spec: FrameSpec) -> FrameSpec:
         )
     if anim == "run":
         return replace(spec, items=(_PAD,))
+    if anim == "jump":
+        # Near arm swings up and back for lift, the pad hand stays out front.
+        near = [HandAt(21.0, 30.0, 4.0), HandAt(19.0, 24.0, 4.0), HandAt(18.0, 21.0, 4.0), HandAt(18.0, 20.0, 4.0)][i]
+        far = [HandAt(41.0, 34.0, 1.0), HandAt(43.0, 31.0, 1.0), HandAt(44.0, 29.0, 1.0), HandAt(44.0, 28.0, 1.0)][i]
+        return replace(spec, near_hand=near, far_hand=far, items=(_PAD,))
+    if anim == "fall":
+        flutter = (-1) ** i
+        return replace(spec, near_hand=HandAt(17.0, 19.0 + flutter, 4.0), far_hand=HandAt(45.0, 22.0 - flutter, 1.0),
+                       items=(_PAD,))
     return replace(spec, items=(_PAD,))
 
 
+_PAD_NEAR = HandItem("near", PAD.sprite, (2, 2), dz=1.0)
+
+
 def strategy_attack() -> List[FrameSpec]:
-    """Shuriken flick: release on frame 0 (arm whipped forward, smear behind it), follow
-    through, pluck the next note off the pad, cock it by the ear."""
+    """Shuriken flick. Frame 0 is the release (the note spawns now): the arm whipped out
+    forward, a smear behind it. Then follow-through across the body, pluck the next note
+    off the pad, and cock it back by the ear: the anticipation for the next throw."""
     keys = [
-        # (near arm swing, spread, bend, lean, face, item on near hand, smear)
-        (95.0, 14.0, 6.0, 8.0, "focus", False, True),
-        (70.0, 30.0, 40.0, 9.0, "smile", False, False),
-        (40.0, 20.0, 100.0, 5.0, "smile", True, False),
-        (10.0, 30.0, 140.0, 2.0, "focus", True, False),
+        # (hand target, lean, chest yaw, face, note in hand, smear)
+        (HandAt(49.0, 25.0, 3.0), 9.0, 40.0, "focus", False, True),
+        (HandAt(44.0, 33.0, 4.0), 10.0, 44.0, "smile", False, False),
+        (HandAt(39.0, 29.0, 6.0), 6.0, 50.0, "smile", True, False),
+        (HandAt(23.0, 21.0, 3.0), 2.0, 58.0, "focus", True, False),
     ]
     out = []
-    for i, (swing, spread, bend, lean, face, has_note, smeared) in enumerate(keys):
-        base = planted(Pose(lean=lean, chest_lean=3.0, hip_yaw=28.0, chest_yaw=52.0 + (8.0 if i == 0 else 0.0), y=-0.8),
-                       near=(4.5, 0.8), far=(-3.5, -0.6))
-        pose = base.but(near_arm=Limb(swing=swing, spread=spread, bend=bend),
-                        far_arm=Limb(swing=40.0, spread=6.0, bend=95.0))
-        items = (_PAD,) + ((HandItem("near", NOTE, (1, 2)),) if has_note else ())
-        out.append(FrameSpec(pose, face=face, glint=i == 1, items=items, anchors={"muzzle": "near_hand"},
-                             smear=("near",) if smeared else ()))
+    for i, (hand, lean, chest_yaw, face, has_note, smeared) in enumerate(keys):
+        base = planted(Pose(lean=lean, chest_lean=3.0, hip_yaw=28.0, chest_yaw=chest_yaw, y=-0.9),
+                       near=(5.5, 1.0), far=(-4.0, -0.8))
+        items = (_PAD,) + ((HandItem("near", NOTE, (1, 2), dz=1.5),) if has_note else ())
+        out.append(FrameSpec(base, face=face, glint=i == 1, near_hand=hand, far_hand=HandAt(38.0, 31.0, 1.5),
+                             items=items, anchors={"muzzle": "near_hand"}, smear=("near",) if smeared else ()))
     return out
 
 
 def strategy_skill() -> List[FrameSpec]:
-    """North Star / Churn Shield: gather, then thrust the open hand up and out to the sky
-    and hold the visionary pose; `hand` is the raised hand."""
+    """NORTH STAR / CHURN SHIELD: gather in, then fling the open far hand up and out to the
+    sky and hold the visionary pose while the star launches; `hand` is that raised hand."""
     keys = [
-        (-10.0, 30.0, 120.0, 4.0, -1.5, "focus", "rest", False),
-        (-20.0, 24.0, 130.0, 6.0, -2.0, "focus", "rest", False),
-        (150.0, 20.0, 10.0, -8.0, -0.5, "cheer", "squash", True),
-        (160.0, 18.0, 4.0, -10.0, 0.0, "cheer", "lift", False),
-        (158.0, 18.0, 6.0, -9.0, 0.0, "cheer", "rest", False),
-        (156.0, 18.0, 8.0, -8.0, 0.0, "smile", "rest", False),
-        (130.0, 20.0, 30.0, -5.0, -0.5, "smile", "rest", False),
-        (60.0, 24.0, 70.0, -2.0, -0.8, "smile", "rest", False),
+        # (far hand target, lean, y, face, hair, open hand, smear)
+        (HandAt(40.0, 34.0, 2.0), 6.0, -1.8, "focus", "rest", False, False),
+        (HandAt(37.0, 37.0, 3.0), 8.0, -2.4, "focus", "rest", False, False),
+        (HandAt(48.0, 8.0, 1.0), -6.0, -0.4, "cheer", "squash", True, True),
+        (HandAt(49.0, 6.0, 1.0), -8.0, 0.0, "cheer", "lift", True, False),
+        (HandAt(49.0, 7.0, 1.0), -7.0, 0.0, "cheer", "rest", True, False),
+        (HandAt(48.0, 8.0, 1.0), -6.0, -0.2, "smile", "rest", True, False),
+        (HandAt(46.0, 14.0, 1.0), -4.0, -0.6, "smile", "rest", True, False),
+        (HandAt(42.0, 26.0, 1.0), -2.0, -0.9, "smile", "rest", False, False),
     ]
     out = []
-    for i, (swing, spread, bend, lean, y, face, hair, smeared) in enumerate(keys):
-        base = planted(Pose(lean=lean, chest_lean=-3.0, hip_yaw=30.0, chest_yaw=54.0, y=y, neck=-4.0 if i >= 2 else 0.0),
-                       near=(5.0, 0.8), far=(-4.0, -0.6))
-        pose = base.but(near_arm=Limb(swing=swing, spread=spread, bend=bend),
-                        far_arm=Limb(swing=30.0, spread=8.0, bend=95.0))
-        out.append(FrameSpec(pose, face=face, hair=hair, glint=i in (3, 4), items=(_PAD,),
-                             anchors={"hand": "near_hand"}, smear=("near",) if smeared else ()))
+    for i, (hand, lean, y, face, hair, open_hand, smeared) in enumerate(keys):
+        base = planted(Pose(lean=lean, chest_lean=-3.0, hip_yaw=30.0, chest_yaw=52.0, y=y, neck=-6.0 if i >= 2 else 0.0),
+                       near=(5.5, 1.0), far=(-4.2, -0.8))
+        items = [_PAD_NEAR]
+        hide = ()
+        if open_hand:
+            items.append(HandItem("far", hands.OPEN_UP, hands.PIVOTS["open_up"], dz=1.5))
+            hide = ("far",)
+        out.append(FrameSpec(base, face=face, hair=hair, glint=i in (3, 4), near_hand=HandAt(30.0, 32.0, 6.0),
+                             far_hand=hand, items=tuple(items), hide_hands=hide, anchors={"hand": "far_hand"},
+                             smear=("far",) if smeared else ()))
     return out
 
 
 def strategy_victory() -> List[FrameSpec]:
-    """Two fist pumps, then a confident thumbs-up hold with a glint."""
-    pumps = [140.0, 160.0, 120.0, 160.0, 120.0, 160.0]
+    """Two fist pumps up and out ("yes!"), then a confident thumbs-up held out with a glint."""
+    pumps = [(46.0, 10.0), (44.0, 20.0), (46.0, 9.0), (44.0, 20.0), (46.0, 9.0), (44.0, 18.0)]
     out = []
     for i in range(VICTORY_FRAMES):
-        t = i / VICTORY_FRAMES
         if i < 6:
-            swing, bend = pumps[i], 20.0 if pumps[i] > 150 else 60.0
-            face = "cheer"
+            hx, hy = pumps[i]
+            sprite, pivot, face = hands.FIST, hands.PIVOTS["fist"], "cheer"
+            hop = 1.6 if hy < 12 else 0.0
         else:
-            swing, bend = 70.0, 100.0
-            face = "smile"
-        hop = 1.6 * abs(math.sin(math.pi * (i / 3))) if i < 6 else 0.0
-        base = planted(Pose(lean=-3.0, chest_lean=-2.0, y=-1.0 + hop, hip_yaw=32.0, chest_yaw=56.0),
-                       near=(4.0, 0.8), far=(-3.0, -0.6))
-        pose = base.but(near_arm=Limb(swing=swing, spread=20.0, bend=bend), far_arm=Limb(swing=40.0, spread=6.0, bend=95.0))
-        out.append(FrameSpec(pose, face=face, hair="lift" if hop > 1.0 else "rest", glint=i in (8, 9), items=(_PAD,)))
+            hx, hy = 45.0, 25.0 - (1.0 if i in (8, 9) else 0.0)
+            sprite, pivot, face = hands.THUMBS_UP, hands.PIVOTS["thumbs_up"], "smile"
+            hop = 0.0
+        base = planted(Pose(lean=-3.0, chest_lean=-2.0, y=-1.0 + hop, hip_yaw=32.0, chest_yaw=54.0),
+                       near=(4.5, 1.0), far=(-3.6, -0.8), near_lift=hop, far_lift=hop)
+        out.append(FrameSpec(base, face=face, hair="lift" if hop else "rest", glint=i in (8, 9),
+                             near_hand=HandAt(30.0, 33.0, 6.0), far_hand=HandAt(hx, hy, 1.0),
+                             hide_hands=("far",), items=(_PAD_NEAR, HandItem("far", sprite, pivot, dz=1.5))))
     return out
 
 

@@ -35,6 +35,17 @@ class Grip:
 
 
 @dataclass(frozen=True)
+class HandAt:
+    """Send a hand to a point in frame pixels (x right, y down), `depth` towards the viewer
+    from the chest, with an optional IK pole in body terms (forward, up, side)."""
+
+    x: float
+    y: float
+    depth: float = 3.0
+    pole: Optional[Tuple[float, float, float]] = None
+
+
+@dataclass(frozen=True)
 class PropPose:
     """Where the prop is: pivot relative to the pelvis (x, y) in frame units, angle, depth."""
 
@@ -78,8 +89,8 @@ class FrameSpec:
     head_dx: int = 0
     head_dy: int = 0
     prop: Optional[PropPose] = None
-    near_hand: Optional[Grip] = None
-    far_hand: Optional[Grip] = None
+    near_hand: Optional[object] = None  # Grip (on the prop) or HandAt (in frame pixels)
+    far_hand: Optional[object] = None
     overlays: Tuple[Overlay, ...] = ()
     #: Extra per-frame values for the hero's own extras (string swing, ...).
     extra: Dict[str, float] = field(default_factory=dict)
@@ -136,20 +147,26 @@ def to_pixel(p: Vec) -> Tuple[int, int]:
     return (int(p[0] + ORIGIN[0]), int(ORIGIN[1] - p[1]))
 
 
+def _hand_at(limb: Limb, at: HandAt, sk: Skeleton) -> Limb:
+    target = (at.x - ORIGIN[0], ORIGIN[1] - at.y, sk.chest[2] + at.depth)
+    return replace(limb, target=target, pole=at.pole or limb.pole)
+
+
 def render_frame(character: Character, spec: FrameSpec) -> Rendered:
     pose = spec.pose
     sk = solve(pose, character.build)
     placed: Optional[Placed] = None
     if character.prop is not None and not spec.hide_prop:
         placed = _place(sk, spec, character.prop)
-        changes = {}
-        if spec.near_hand:
-            changes["near_arm"] = _hand_limb(pose.near_arm, spec.near_hand, placed)
-        if spec.far_hand:
-            changes["far_arm"] = _hand_limb(pose.far_arm, spec.far_hand, placed)
-        if changes:
-            pose = replace(pose, **changes)
-            sk = solve(pose, character.build)
+    changes = {}
+    for side, ref, limb in (("near_arm", spec.near_hand, pose.near_arm), ("far_arm", spec.far_hand, pose.far_arm)):
+        if isinstance(ref, HandAt):
+            changes[side] = _hand_at(limb, ref, sk)
+        elif isinstance(ref, Grip) and placed is not None:
+            changes[side] = _hand_limb(limb, ref, placed)
+    if changes:
+        pose = replace(pose, **changes)
+        sk = solve(pose, character.build)
     prims: List[Prim] = build_body(sk, character.outfit,
                                    hands=("near" not in spec.hide_hands, "far" not in spec.hide_hands))
     for extra in character.extras:
@@ -188,7 +205,9 @@ def render_frame(character: Character, spec: FrameSpec) -> Rendered:
     return Rendered(canvas, anchors, sk)
 
 
-SmearFn = Callable[[str, Tuple[int, int], Tuple[int, int]], Optional[Overlay]]
+#: (hand, (elbow, hand) before, (elbow, hand) now) in frame pixels -> an overlay or None.
+SmearFn = Callable[[str, Tuple[Tuple[int, int], Tuple[int, int]], Tuple[Tuple[int, int], Tuple[int, int]]],
+                   Optional[Overlay]]
 
 
 def render_sequence(character: Character, specs: Sequence[FrameSpec], smear_fn: Optional[SmearFn] = None,
@@ -211,7 +230,8 @@ def render_sequence(character: Character, specs: Sequence[FrameSpec], smear_fn: 
         for hand in spec.smear:
             chain_prev = prev.skeleton.near_arm if hand == "near" else prev.skeleton.far_arm
             chain_now = rendered.skeleton.near_arm if hand == "near" else rendered.skeleton.far_arm
-            overlay = smear_fn(hand, to_pixel(chain_prev.end), to_pixel(chain_now.end))
+            overlay = smear_fn(hand, (to_pixel(chain_prev.mid), to_pixel(chain_prev.end)),
+                               (to_pixel(chain_now.mid), to_pixel(chain_now.end)))
             if overlay is not None:
                 overlays.append(overlay)
         out.append(render_frame(character, replace(spec, overlays=tuple(overlays))))

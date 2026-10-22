@@ -21,7 +21,7 @@ sys.path.insert(0, str(HERE))
 
 from hibit import customer, effects  # noqa: E402
 from hibit.compose import Rendered, render_sequence  # noqa: E402
-from hibit.heroes import ANIMATIONS, FPS, HEROES, LOOP, arm_smear, frames_for  # noqa: E402
+from hibit.heroes import ANIMATIONS, FPS, HEROES, LOOP, SMEAR_WRAP, arm_smear, frames_for  # noqa: E402
 from hibit.sheet import MAX_COLOURS, Animation, Sheet, colours, unify_palette, write  # noqa: E402
 
 REPO = HERE.parents[3]
@@ -33,7 +33,7 @@ def render_hero(hero_id: str) -> Dict[str, List[Rendered]]:
     out: Dict[str, List[Rendered]] = {}
     for anim in ANIMATIONS:
         specs = frames_for(hero, anim)
-        out[anim] = render_sequence(hero.character, specs, arm_smear(hero.sleeve), loop=LOOP[anim])
+        out[anim] = render_sequence(hero.character, specs, arm_smear(hero.sleeve), loop=anim in SMEAR_WRAP)
     return out
 
 

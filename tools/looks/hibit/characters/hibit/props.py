@@ -231,12 +231,13 @@ def _ring(sprite: Sprite, arg: str) -> Sprite:
     return Sprite(sprite.width, sprite.height, pixels)
 
 
-PAD_PALETTE: Dict[str, str] = {"O": "#3e1e14", "y": "#ffe14d", "Y": "#e0a82a", "f": "#fff6c0", "l": "#e0a82a"}
+#: A pad of sticky notes: yellow through and through (a dark outline would read as a box).
+PAD_PALETTE: Dict[str, str] = {"O": "#c08a10", "y": "#ffe14d", "Y": "#e0a82a", "f": "#fff6c0", "l": "#e0a82a"}
 _PAD = """
 OOOOO
-OfyyO
-OyllO
-OyyYO
+OfffO
+OyyyO
+OylyO
 OOOOO
 """
 
