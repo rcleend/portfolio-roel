@@ -3,7 +3,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { InputSnapshot } from '@/engine/input/InputSnapshot';
 import { mod } from '@/engine/math/scalar';
-import type { Sprites } from '../../../art';
+import type { Looks } from '../../../art/looks/Looks';
 import type { TextStyles } from '../../../fonts';
 import type { Action } from '../../../input/bindings';
 import { palette } from '../../../palette';
@@ -11,6 +11,7 @@ import { Button } from '../../../ui/Button';
 import { drawKeyCap } from '../../../ui/hud/KeyCap';
 import { keyCapFor } from '../../../ui/hud/keyLabels';
 import type { LevelTextStyles } from '../../../ui/hud/styles';
+import { drawIconSlot, iconSlotSize } from '../../../ui/iconSlot';
 import { windowThemes } from '../../../ui/theme';
 import { drawWindow } from '../../../ui/Window';
 import { dimScreen } from './screen';
@@ -26,11 +27,13 @@ const OPTIONS: readonly { readonly choice: PauseChoice; readonly label: string }
 const FRAME = { x: 16, y: 22, w: 288, h: 200 } as const;
 const BUTTON = { x: 30, y: 84, w: 108, h: 22, gap: 8 } as const;
 const COLUMN = { x: 152, w: 140 } as const;
+/** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
+const SLOT_SIZE = 22;
 
 export interface PauseMenuKit {
   readonly text: TextStyles;
   readonly levelText: LevelTextStyles;
-  readonly sprites: Sprites;
+  readonly looks: Looks;
   readonly cursor: SpriteSheet<'point'>;
   readonly device: 'keyboard' | 'gamepad';
 }
@@ -102,26 +105,30 @@ export class PauseMenu {
 
   /** The character's attack and skills with their keys and rules, from the content. */
   #renderMoves(gfx: Gfx): void {
-    const { text, sprites, device } = this.#kit;
+    const { text, looks, device } = this.#kit;
     const character = getCharacter(this.#characterId);
     const rules = { ...text.body, fill: palette.lilac };
     let y = FRAME.y + 42;
     const keyWidth = drawKeyCap(gfx, COLUMN.x, y, keyCapFor('attack', device), text.label);
     gfx.text(character.attack.toUpperCase(), COLUMN.x + keyWidth + 4, y + 2, text.label);
     y += 17;
+    const size = iconSlotSize(
+      SLOT_SIZE,
+      character.skills.map((skillId) => looks.skills[skillId].icon),
+    );
     character.skills.forEach((skillId, index) => {
       const skill = skills[skillId];
-      drawWindow(gfx, { x: COLUMN.x, y, w: 22, h: 22 }, windowThemes.steel);
-      gfx.sprite(sprites.skillIcons[skillId], 'idle', 0, COLUMN.x + 3, y + 3);
-      gfx.text(skill.name, COLUMN.x + 26, y + 1, text.label);
+      drawIconSlot(gfx, looks.skills[skillId].icon, 0, { x: COLUMN.x, y, size, theme: windowThemes.steel });
+      const textX = COLUMN.x + size + 4;
+      gfx.text(skill.name, textX, y + 1, text.label);
       const key = keyCapFor(index === 0 ? 'skill1' : 'skill2', device);
-      const capWidth = drawKeyCap(gfx, COLUMN.x + 26, y + 11, key, text.label);
-      gfx.text(`${skill.cooldownSeconds}s cooldown`, COLUMN.x + 30 + capWidth, y + 12, {
+      const capWidth = drawKeyCap(gfx, textX, y + 11, key, text.label);
+      gfx.text(`${skill.cooldownSeconds}s cooldown`, textX + 4 + capWidth, y + 12, {
         ...rules,
         fill: palette.steel,
       });
-      const block = gfx.text(skill.effect, COLUMN.x, y + 26, rules, { maxWidth: COLUMN.w });
-      y += 26 + block.height + 8;
+      const block = gfx.text(skill.effect, COLUMN.x, y + size + 4, rules, { maxWidth: COLUMN.w });
+      y += size + 4 + block.height + 8;
     });
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { containsPoint, intersection, intersects, rect } from './Rect';
+import { containsPoint, intersection, intersects, rect, union } from './Rect';
 
 describe('Rect', () => {
   it('treats touching edges as not intersecting', () => {
@@ -16,5 +16,10 @@ describe('Rect', () => {
   it('computes the overlap', () => {
     expect(intersection(rect(0, 0, 10, 10), rect(5, 5, 10, 10))).toEqual(rect(5, 5, 5, 5));
     expect(intersection(rect(0, 0, 1, 1), rect(2, 2, 1, 1))).toBeNull();
+  });
+
+  it('covers both rectangles with their union, even apart', () => {
+    expect(union(rect(0, 0, 10, 10), rect(5, 5, 10, 10))).toEqual(rect(0, 0, 15, 15));
+    expect(union(rect(4, 2, 1, 1), rect(-3, 8, 2, 2))).toEqual(rect(-3, 2, 8, 8));
   });
 });

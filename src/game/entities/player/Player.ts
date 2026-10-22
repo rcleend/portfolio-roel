@@ -2,11 +2,11 @@ import type { CharacterId } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
-import type { CharacterAnimation } from '../../art';
+import type { CharacterAnimation } from '../../art/looks/contracts';
 import { type Body, type CollisionWorld, moveBody, type Surface } from '../../world/collision';
 import type { RenderKit } from '../RenderKit';
 import { type MoveIntent, type MoveScale, NORMAL_SCALE, PlatformerMotor } from './movement';
-import { PLAYER_SIZE } from './size';
+import { HAND, PLAYER_SIZE } from './size';
 
 /** What the player asks for during one step, independent of devices. */
 export interface PlayerIntent extends MoveIntent {
@@ -102,7 +102,7 @@ export class Player {
 
   /** Where shots leave from: chest height, just in front of the body. */
   get hand(): { readonly x: number; readonly y: number } {
-    return { x: this.centerX + this.facing * 10, y: this.feet - 17 };
+    return { x: this.centerX + this.facing * HAND.reach, y: this.feet - HAND.height };
   }
 
   isInvulnerable(time: number): boolean {
@@ -195,11 +195,16 @@ export class Player {
     this.#action = { pose, since: time, until: time + seconds };
   }
 
+  /** The animation on show and how far into it, at `time`. */
+  pose(time: number): { readonly animation: CharacterAnimation; readonly time: number } {
+    return { animation: this.#animation, time: time - this.#animationSince };
+  }
+
   render(gfx: Gfx, kit: RenderKit): void {
     const invulnerable = this.isInvulnerable(kit.time) && !this.isLocked(kit.time);
     if (invulnerable && !blink(kit.time, 3 / 60, 3 / 60)) return;
-    const sheet = kit.sprites.characters[this.characterId];
-    gfx.sprite(sheet, this.#animation, kit.time - this.#animationSince, this.centerX, this.feet, {
+    const { animation, time } = this.pose(kit.time);
+    gfx.sprite(kit.looks.characters[this.characterId].sheet, animation, time, this.centerX, this.feet, {
       flipX: this.facing < 0,
     });
   }

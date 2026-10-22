@@ -12,7 +12,7 @@ export const levels: readonly LevelInfo[] = [
     briefing:
       'A tiny AI startup is reinventing cold outbound and the inboxes are in revolt. Join the founding team, ' +
       'ship an AI agent and keep customers happy all the way to the acquisition.',
-    hazards: ['Cable cars', 'Spam-folder pits', 'Rate-limit gates'],
+    target: 'FIND PRODUCT-MARKET FIT',
     complaints: ['MY EMAILS BOUNCED!', 'WHY AM I IN SPAM?', 'HOW DO I ADD INBOXES?', 'I NEED AN ASSISTANT!'],
   },
   {
@@ -24,7 +24,7 @@ export const levels: readonly LevelInfo[] = [
     briefing:
       'Berlin, the city that is never finished building. Founding product engineer at an AI startup: grow teams, ' +
       'fix onboarding, ship an app and turn every complaint into a renewal.',
-    hazards: ['U-Bahn trains', 'Baustelle pits', 'Scope creep'],
+    target: 'FIND PRODUCT-MARKET FIT',
     complaints: ['MY POST GOT 3 LIKES!', "WHERE'S THE TEAM PLAN?", 'ONBOARDING IS CONFUSING!', 'IS THERE AN APP?!'],
   },
 ];

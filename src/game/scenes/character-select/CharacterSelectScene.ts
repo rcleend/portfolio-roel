@@ -6,9 +6,11 @@ import { IDLE_POINTER, type PointerSnapshot } from '@/engine/input/InputSnapshot
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
+import { skillIcons } from '../../art/looks/Looks';
 import type { GameServices } from '../../services';
-import { Button } from '../../ui/Button';
 import { handCursorSheet } from '../../ui/cursor';
+import { iconSlotSize } from '../../ui/iconSlot';
+import { KeyHints } from '../../ui/KeyHints';
 import { Tooltip } from '../../ui/Tooltip';
 import { windowThemes } from '../../ui/theme';
 import type { GameScene, GameStep } from '../params';
@@ -19,7 +21,17 @@ import { cardFlashAlpha, LEAVE_AT, nameOffset, stampJolt, stampOpening, switchOf
 import { DetailsPanel } from './DetailsPanel';
 import { drawHints } from './hints';
 import { readSelectEvents } from './intents';
-import { CARD, CARD_INNER, cursorAnchor, type HitTarget, hitTest, SELECT_BUTTON, SKILL_ROWS, STAGE } from './layout';
+import {
+  CARD,
+  CARD_INNER,
+  HINTS_Y,
+  type HitTarget,
+  KEY_HINTS,
+  type SelectLayout,
+  SKILL_SLOT_SIZE,
+  STAGE,
+  selectLayout,
+} from './layout';
 import { lazy } from './lazy';
 import { drawReadyStamp } from './readyStamp';
 import {
@@ -44,20 +56,22 @@ interface SwitchBeat {
 /**
  * Character select (docs/ART-DIRECTION.md › Character select): a starfield
  * card on the left with the character idling on a glowing pedestal, details
- * and skills on the right, a SELECT button bottom-right. Left/right switches
- * character, up/down moves focus between the card, both skills and SELECT;
- * a focused or hovered skill opens its tooltip. Choosing plays the victory
- * pose, flashes the card, stamps READY! and moves on to the mission select.
+ * and skills on the right, and a control legend along the bottom whose
+ * CONFIRM and BACK keys can be clicked. Left/right switches character,
+ * up/down moves focus between the heading and both skills; a focused or
+ * hovered skill opens its tooltip. Choosing plays the victory pose, flashes
+ * the card, stamps READY! and moves on to the mission select.
  *
  * Decisions live in the pure `selectMachine`; this class turns its effects
  * into sound and animation beats and draws the result.
  */
 export class CharacterSelectScene implements GameScene {
   readonly #services: GameServices;
+  readonly #layout: SelectLayout;
   readonly #card: CardView;
   readonly #details: DetailsPanel;
   readonly #tooltip: Tooltip;
-  readonly #select: Button;
+  readonly #keys: KeyHints;
   readonly #cursor = lazy(() => SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor'));
   #state: SelectState;
   #time = 0;
@@ -71,15 +85,11 @@ export class CharacterSelectScene implements GameScene {
 
   constructor(services: GameServices) {
     this.#services = services;
-    this.#card = new CardView(services.sprites.characters, services.rng.fork());
-    this.#details = new DetailsPanel(services.text, services.sprites.skillIcons);
+    this.#layout = selectLayout(iconSlotSize(SKILL_SLOT_SIZE, skillIcons(services.looks)));
+    this.#card = new CardView(services.looks, services.rng.fork());
+    this.#details = new DetailsPanel(services.text, services.looks, this.#layout);
     this.#tooltip = new Tooltip({ maxWidth: TOOLTIP_WIDTH, theme: windowThemes.cream, style: services.text.tooltip });
-    this.#select = new Button({
-      label: 'SELECT',
-      bounds: SELECT_BUTTON,
-      theme: windowThemes.indigo,
-      style: services.text.label,
-    });
+    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
     this.#state = initialSelectState(characters.length);
   }
 
@@ -96,8 +106,10 @@ export class CharacterSelectScene implements GameScene {
     this.#time += step.dt;
     const { input } = step;
 
+    const { hitTest } = this.#layout;
     const events = readSelectEvents(input, this.#pointer, hitTest);
-    if (this.#select.update(input, this.#state.focus === 'select', step.dt)) events.push({ type: 'activate' });
+    const clicked = this.#keys.update(input);
+    if (clicked) events.push({ type: clicked });
     const result = reduceSelectAll(this.#state, events);
     this.#state = result.state;
     for (const effect of result.effects) this.#apply(effect);
@@ -135,8 +147,8 @@ export class CharacterSelectScene implements GameScene {
       nameOffset: this.#switch ? nameOffset(sinceSwitch, this.#switch.delta) : 0,
       litSkill: focusedSkillSlot(this.#state.focus),
     });
-    this.#select.render(gfx);
-    drawHints(gfx, CARD.x, CARD.y + CARD.h + 10, text.label);
+    drawHints(gfx, CARD.x, HINTS_Y, text.label);
+    this.#keys.render(gfx);
 
     this.#renderCursor(gfx);
     if (chosenFor !== null) {
@@ -182,9 +194,11 @@ export class CharacterSelectScene implements GameScene {
 
   #depart(): void {
     this.#departed = true;
+    // The iris closes on the middle of the hero, however tall the look draws them.
+    const hero = this.#services.looks.characters[this.#character.id].sheet;
     const transition = this.#services.settings.reducedMotion
       ? fade()
-      : iris({ x: STAGE.x, y: STAGE.y - 20, duration: 0.6 });
+      : iris({ x: STAGE.x, y: STAGE.y - Math.round(hero.height / 2), duration: 0.6 });
     this.#services.director.goTo('levelSelect', {}, transition);
   }
 
@@ -219,7 +233,7 @@ export class CharacterSelectScene implements GameScene {
     const chosen = this.#chosenAt !== null;
     // Solid right after it moves so the eye can follow it, then the classic on/off blink.
     if (!chosen && !blink(this.#time - this.#focusedAt, frames(30), frames(10))) return;
-    const anchor = cursorAnchor(this.#state.focus);
+    const anchor = this.#layout.cursorAnchor(this.#state.focus);
     gfx.sprite(this.#cursor(), 'point', chosen ? 0 : this.#time, anchor.x, anchor.y);
   }
 
@@ -244,7 +258,7 @@ export class CharacterSelectScene implements GameScene {
     const followPointer = this.#state.focusSource !== 'nav' && this.#pointer.over;
     const anchor: Rect = followPointer
       ? { x: this.#pointer.x - 6, y: this.#pointer.y, w: 1, h: POINTER_BOX }
-      : SKILL_ROWS[slot];
+      : this.#layout.skillRows[slot];
     const position = placeTooltip(anchor, this.#tooltip.size, { x: 0, y: 0, w: gfx.width, h: gfx.height });
     this.#tooltip.render(gfx, position.x, position.y);
   }

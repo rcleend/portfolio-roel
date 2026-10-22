@@ -1,7 +1,7 @@
 import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { Director } from '@/engine/core/Director';
 import type { Rng } from '@/engine/math/Rng';
-import type { Sprites } from './art';
+import type { Looks } from './art/looks/Looks';
 import type { GameAudio } from './audio/ids';
 import type { GameFonts, TextStyles } from './fonts';
 import type { Action } from './input/bindings';
@@ -24,7 +24,8 @@ export interface GameServices {
   readonly audio: GameAudio;
   readonly fonts: GameFonts;
   readonly text: TextStyles;
-  readonly sprites: Sprites;
+  /** The art every scene draws heroes, the customer and skills with: one look per piece, loaded at startup. */
+  readonly looks: Looks;
   readonly assets: AssetStore;
   /** Parallax planes, tiles and props for every stage, preloaded at startup. */
   readonly levelArt: LevelArtLibrary;
