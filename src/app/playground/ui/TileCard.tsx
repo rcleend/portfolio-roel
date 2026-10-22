@@ -14,12 +14,12 @@ interface TileCardProps {
 
 /** One variant, live, with its name and line from the registry; anywhere on it opens focus mode. */
 export function TileCard({ tile, shortcut, zoom, crt, reducedMotion, onOpen }: TileCardProps) {
-  const { subject } = tile.board;
-  const spec = useMemo(() => subject.preview(tile.picks), [subject, tile.picks]);
+  const { subject } = tile.row;
+  const show = useMemo(() => subject.show(tile.picks), [subject, tile.picks]);
   const description = useId();
   return (
-    <li className="tile" data-tile={tile.choice.id} data-current={tile.current || undefined}>
-      <LiveScreen spec={spec} zoom={zoom} crt={crt} reducedMotion={reducedMotion} layer="board" />
+    <li className="tile" data-tile={tile.key} data-current={tile.current || undefined}>
+      <LiveScreen show={show} zoom={zoom} crt={crt} reducedMotion={reducedMotion} layer="board" />
       <div className="tile__caption">
         <h3 className="tile__name">
           <button

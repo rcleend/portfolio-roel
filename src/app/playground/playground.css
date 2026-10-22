@@ -28,7 +28,10 @@
 
 html,
 body {
+  height: 100%;
   margin: 0;
+  /* Only the boards scroll, so the bar and its transport stay put; `clip`, unlike `hidden`, cannot be scrolled by a link. */
+  overflow: clip;
   background: var(--bg);
 }
 
@@ -445,6 +448,28 @@ body {
 .board__summary {
   margin: 0;
   color: var(--muted);
+}
+
+.board__rows {
+  display: grid;
+  gap: 32px;
+}
+
+/* A group of rows, e.g. the hero whose skills follow. */
+.board__group {
+  margin: 8px 0 10px;
+  color: var(--gold);
+  font: 8px / 1 var(--pixel);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.board__row-title {
+  margin: 0 0 14px;
+  color: var(--text);
+  font: 700 16px / 1 var(--pixel);
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .board__grid {

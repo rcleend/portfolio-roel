@@ -1,5 +1,5 @@
 import { createContext, use } from 'react';
-import type { Looks } from '@/game/art/looks/Looks';
+import type { LookLibrary } from '@/game/art/looks/load';
 import type { GameAudio } from '@/game/audio/ids';
 import type { GameResources } from '@/game/resources';
 import type { PreviewLoop } from './PreviewLoop';
@@ -8,8 +8,8 @@ import type { PreviewLoop } from './PreviewLoop';
 export interface PreviewRuntime {
   /** Fonts and level art, loaded once for every preview. */
   readonly resources: GameResources;
-  /** The art every preview draws heroes, the customer and skills with: the game's own looks, loaded once. */
-  readonly looks: Looks;
+  /** Every registered look of every piece, loaded once; each preview assembles its own selection from it. */
+  readonly library: LookLibrary;
   readonly loop: PreviewLoop;
   /** The game's synthesiser, only ever heard through the focused view. */
   readonly audio: GameAudio;
