@@ -97,6 +97,28 @@ Launch night: the product ships at dusk from a pad between Berlin and San Franci
 | 1.45 – 1.95 | A distant sonic-boom ring races across the top of the sky, gone before the first glint. |
 | settled     | The plume widens and shears into a lazy S, sunlit above the Earth's shadow; the smoke banks roll. At 5.6 s and 15.6 s, between glints, a little rocket goes up far away, from Berlin and then San Francisco: continuous delivery. |
 
+### Backdrop: Up and to the right (`growth`)
+
+Every product engineer's dream chart on a 1996 phosphor metrics terminal: a hockey stick that breaks through the top of its own chart as the words lock.
+
+- Palette: teal-navy glass from `#01070c` in the corners to a `#276076` haze behind the logo, grid lines a level or two up the same ramp, phosphor-green data ink (`#5cff8a` with a `#c8ffd8` core, white-hot while freshly drawn) and a cyan secondary series (`#3bc3cf`). Nothing warm, so the orange logo is the one hot thing on screen. The haze climbs to a mid value across the logo's band so its dark-red extrusion and near-black outline still read; every other row sits a level lower, a raster texture that lines up with the CRT's scanlines.
+- Layout: the chart wraps the classic lockup. Its flat start runs between the logo and the prompt, its blade climbs past the logo's right edge, and it breaks the ceiling at the top right, so the whole hockey stick stays in view. Bars stand between the prompt and the copyright and a ticker runs under the copyright; nothing moves in the prompt and copyright rows.
+- Beat sheet, in frames at 60 fps:
+
+| Frames (s)          | What happens |
+| ------------------- | ------------ |
+| 0 (0.00)            | Impact frame: the whole tube overdrives for one frame, and a spike of light hits the impact point (white core, flat rings of green glow, stepped rays). |
+| 1–17 (0.02–0.28)    | The spike retracts in steps while the raster opens from its horizontal ray with a hot leading edge and the grid strips flicker on, outward from the impact row; from frame 12 the beam spot flies to the y axis, leading the eye to where the line starts. |
+| 18–51 (0.30–0.85)   | The line draws itself, easing into the trough of sorrow, the last three frames' worth cooling from white-hot to rest. Bars spring up with an overshoot as the head passes them; the scale counts up to 100 %. |
+| 52–53 (0.87–0.88)   | The head holds at the turn while the last bars surge: the anticipation pose. |
+| 54–71 (0.90–1.18)   | While the words slide, the head rockets up the blade, accelerating as they decelerate. |
+| 72 (1.20)           | As the words lock the head breaks the ceiling, tears it open and overshoots before settling just above; a smaller spike lights the breach; data-point confetti (squares, plus signs, triangles, splinters of the ceiling and dimmer, slower specks behind for depth) skids out over the logo; the tube overloads. |
+| 87–95 (1.45–1.58)   | After the flash the overload cools a level every three frames into the settled screen, while the confetti flutters down and cools out. |
+| From 87 (settled)   | The 25 s idle loop: the head blinks as a cursor in step with the prompt; the tape scrolls at 30 px/s, exactly one tape per loop; the bars ripple to new values halfway between the logo's glints; twice a loop the live bar tops its record and "▲ NEW HIGH" pops beside the cursor. |
+
+- Reduced motion: no impact frame, rays, flare or overload; the glass brightens in steps, the grid lights without stuttering, the rocket eases instead of accelerating, a few pieces drift down without spinning, the cursor and the live dot hold steady and the tape scrolls at half speed.
+- Wit: the curve is the startup curve (wiggles of false hope, the trough of sorrow, then the hockey stick), the line goes through the 100 % ceiling, the readout says "LEENDERS CORP · Q4 1996" like the copyright, and the ticker quotes the CV's real metrics straight from the content, with what went down (churn, unhappy customers) in cool cyan.
+
 ## Character select
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
