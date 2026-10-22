@@ -218,6 +218,7 @@ game/
   resources.ts         loadGameResources: fonts, text styles, sprites and level art, loaded once per page
   composeServices.ts   ties services and scenes together, for createGame and scene previews alike
   services.ts          GameServices: director, audio, fonts, text, sprites, assets, levelArt, session, rng, settings
+  preview/             scenes shown in isolation for the playground: createPreviewServices, ScenePreview
   palette.ts           shared UI colours
   session.ts           persisted progress (localStorage, versioned schema)
   input/bindings.ts    Action union + default bindings
