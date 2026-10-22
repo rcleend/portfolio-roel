@@ -1,3 +1,4 @@
+import { blueprintBackdrop } from './blueprint';
 import { classicBackdrop } from './classic';
 
 /**
@@ -5,7 +6,7 @@ import { classicBackdrop } from './classic';
  * backdrop is a folder beside `classic/` plus one entry here; its id then
  * becomes a `TitleBackdropId`, a valid `backdrop` scene param.
  */
-export const TITLE_BACKDROPS = [classicBackdrop] as const;
+export const TITLE_BACKDROPS = [classicBackdrop, blueprintBackdrop] as const;
 
 export type TitleBackdropId = (typeof TITLE_BACKDROPS)[number]['id'];
 

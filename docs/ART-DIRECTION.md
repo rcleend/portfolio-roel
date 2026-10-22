@@ -64,6 +64,19 @@ Three more lockups take Metal Slug's own arrangement: the P is raised the way th
   - `heavy-metal`: a bold cut, 22 px caps with 5 px stems around 3 px counters, stamped like plate (banded cream, a lit top edge, a darker foot), beside the broadest P (×1.65 across, ×1.62 up).
 - Each line is centred on screen, so ENGINEER sits indented under the wider PRODUCT, as SLUG does under METAL.
 
+### Blueprint backdrop (`blueprint`)
+
+The product, drafted: the title card is the engineering drawing of what the engineer builds. The fireball becomes a plotter-pen strike, the crater becomes measured construction geometry, and the orange logo sits on its complementary blue.
+
+- Palette: one 17-step ramp from unexposed navy (`#050f28`) through Prussian (`#0a1f4a`), cobalt (`#113572`) and blueprint blue (`#1f53a0`) up to the line inks: mid cyan (`#7fb2e8`), pale (`#b0d4f4`), near-white (`#d8eeff`) and the white-hot pen tip. Everything is drawn as a step of it, so the light table switching on, ink cooling and erasing are palette steps, never alpha.
+- Sheet: banded paper with Bayer-dithered band edges and sparse grain, darker towards the top corners and lifted by a broad light-table glow behind the logo, so the logo's near-black outline and dark-red extrusion keep about 3:1 against it. Grid lines one step above the paper every 8 px, two steps every 32 px. A drafting frame with zone references 1–8 and A–F in the margin, and a title block, "DWG RL-1996 · SCALE 1:1 · REV A · SHT 1", in 3 × 5 drafting lettering.
+- 0.00 – 0.30 s: the strike. A white-hot plot point with a thick cross flare that retracts into it; nine compass rings snap outwards every two frames, fast then slowing, each cooling a ramp step every two frames. The light table switches on behind the newest ring, its grid glowing at the leading edge, so the drawing boots outwards from the impact.
+- 0.30 – 0.90 s: measuring. A registration mark lands (9 → 6 px); dimension arrows shoot from the strike to the frame one after another, overshoot a pixel or two and settle, their numbers ticking up to 152, 152, 92 and 132; dashed construction boxes blink in over the lockup's two lines, from its settled bounds, and hold still for the last third of a second.
+- 0.90 – 1.20 s: nothing moves but the words; a dash-dot datum line marks the row they meet on.
+- 1.20 – 1.45 s: the lock satisfies the construction, which flares white for the two shake frames and is gone under the flash; a 1 px ripple runs out through the grid from the middle of the lockup and is still spreading when the white clears.
+- Settled (25 s): a pen plotter drafts one wireframe at a time in the corners beside the prompt and copyright: a phone dimensioned 375, IDEA → ? → SHIP with its NO loop, an eight-tooth gear marked Ø31, and a hockey stick. A small ring echoes the strike as the pen touches down, fresh ink cools behind its crosshair, whose shadow drops as it lifts between strokes. Each drawing holds, then steps back into the paper. Every finished drawing bumps the title block's revision, A → E, between two glints of the logo; once a loop the light table's scan line passes down the sheet. The loop starts and ends on a clean sheet.
+- Reduced motion: no flare or rings (the light table warms up in four steps behind a still plot point), the arms draw together without overshoot, the boxes never blink, the measurements step down at the lock, the ripple is slow and faint, and there is no scan line or white-hot stamp.
+
 ## Character select
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
