@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 16, "h": 16 },
+  "origin": { "x": 8, "y": 8 },
+  "animations": [
+    { "name": "heart", "fps": 6, "loop": true, "frames": 4 },
+    { "name": "wave", "fps": 8, "loop": true, "frames": 4 },
+    { "name": "sparkle", "fps": 15, "loop": false, "frames": 5 }
+  ]
+}

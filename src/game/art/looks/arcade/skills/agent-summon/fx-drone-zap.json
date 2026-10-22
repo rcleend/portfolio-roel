@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 32, "h": 32 },
+  "origin": { "x": 16, "y": 16 },
+  "animations": [
+    { "name": "hit", "fps": 30, "loop": false, "frames": 6 },
+    { "name": "hit-calm", "fps": 30, "loop": false, "frames": 6 }
+  ]
+}

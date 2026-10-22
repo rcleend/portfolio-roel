@@ -1,0 +1,11 @@
+{
+  "frame": { "w": 88, "h": 88 },
+  "origin": { "x": 44, "y": 44 },
+  "animations": [
+    { "name": "form", "fps": 30, "loop": false, "frames": 6 },
+    { "name": "hold", "fps": 12, "loop": true, "frames": 8 },
+    { "name": "wobble", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "pop", "fps": 30, "loop": false, "frames": 7 },
+    { "name": "pop-calm", "fps": 30, "loop": false, "frames": 7 }
+  ]
+}

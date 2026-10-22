@@ -1,0 +1,12 @@
+{
+  "frame": { "w": 28, "h": 28 },
+  "origin": { "x": 14, "y": 14 },
+  "animations": [
+    { "name": "appear", "fps": 30, "loop": false, "frames": 3 },
+    { "name": "appear-calm", "fps": 30, "loop": false, "frames": 3 },
+    { "name": "hold", "fps": 8, "loop": true, "frames": 2 },
+    { "name": "drink", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "pop", "fps": 20, "loop": false, "frames": 5 },
+    { "name": "pop-calm", "fps": 20, "loop": false, "frames": 5 }
+  ]
+}

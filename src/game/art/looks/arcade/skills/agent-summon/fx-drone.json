@@ -1,0 +1,19 @@
+{
+  "frame": { "w": 32, "h": 32 },
+  "origin": { "x": 16, "y": 16 },
+  "animations": [
+    { "name": "summon", "fps": 20, "loop": false, "frames": 8 },
+    { "name": "summon-calm", "fps": 20, "loop": false, "frames": 8 },
+    { "name": "hover", "fps": 12, "loop": true, "frames": 12 },
+    { "name": "expiring", "fps": 12, "loop": true, "frames": 4 },
+    {
+      "name": "fire",
+      "fps": 24,
+      "loop": false,
+      "frames": 4,
+      "anchors": { "muzzle": [[22, 16], [21, 16], [21, 16], [22, 16]] }
+    },
+    { "name": "dismiss", "fps": 20, "loop": false, "frames": 7 },
+    { "name": "dismiss-calm", "fps": 20, "loop": false, "frames": 7 }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 24, "h": 24 },
+  "origin": { "x": 0, "y": 11 },
+  "animations": [{ "name": "head", "fps": 30, "loop": true, "frames": 3 }]
+}
