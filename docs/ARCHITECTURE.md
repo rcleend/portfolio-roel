@@ -215,6 +215,8 @@ The game's audio lives in `game/audio/`: `ids.ts` (`MUSIC_IDS` / `SFX_IDS`), `in
 ```
 game/
   createGame.ts        composition: builds services, registers scenes, returns Game + GameSurface
+  resources.ts         loadGameResources: fonts, text styles, sprites and level art, loaded once per page
+  composeServices.ts   ties services and scenes together, for createGame and scene previews alike
   services.ts          GameServices: director, audio, fonts, text, sprites, assets, levelArt, session, rng, settings
   palette.ts           shared UI colours
   session.ts           persisted progress (localStorage, versioned schema)

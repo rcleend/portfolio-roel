@@ -1,4 +1,3 @@
-import { AssetStore } from '@/engine/assets/AssetStore';
 import { Director } from '@/engine/core/Director';
 import { Game } from '@/engine/core/Game';
 import type { GameSurface } from '@/engine/core/GameSurface';
@@ -6,13 +5,11 @@ import { createCanvas } from '@/engine/gfx/canvas';
 import { GamepadSource } from '@/engine/input/GamepadSource';
 import { InputManager } from '@/engine/input/InputManager';
 import { Rng } from '@/engine/math/Rng';
-import { compileSprites } from './art';
 import { createGameAudio } from './audio/createGameAudio';
 import type { GameAudio } from './audio/ids';
-import { loadFonts } from './fonts';
+import { composeServices } from './composeServices';
 import { type Action, bindings } from './input/bindings';
-import { loadLevelArt } from './levels/art/LevelArt';
-import { createSceneFactories } from './scenes';
+import { loadGameResources } from './resources';
 import type { GameSceneMap } from './scenes/params';
 import type { GameServices } from './services';
 import { type SessionStorage, SessionStore } from './session';
@@ -49,36 +46,20 @@ export interface CreatedGame {
  * the caller chooses the first scene and calls `game.start()`.
  */
 export async function createGame(options: CreateGameOptions = {}): Promise<CreatedGame> {
-  const assets = new AssetStore();
-  const [{ fonts, styles }, levelArt] = await Promise.all([loadFonts(assets), loadLevelArt(assets)]);
-
+  const resources = await loadGameResources();
   const session = new SessionStore(options.storage === undefined ? defaultStorage() : options.storage);
-  const audio = options.audio ?? defaultAudio(session);
-
-  let services: GameServices | null = null;
-  const director = new Director<GameSceneMap, Action>(
-    createSceneFactories(() => {
-      if (!services) throw new Error('Scenes cannot be created before services are ready');
-      return services;
-    }),
-  );
-  services = {
-    director,
-    audio,
-    fonts,
-    text: styles,
-    sprites: compileSprites(),
-    assets,
-    levelArt,
+  const services = composeServices((scenes) => new Director<GameSceneMap, Action>(scenes), {
+    ...resources,
+    audio: options.audio ?? defaultAudio(session),
     session,
     rng: new Rng(options.seed ?? Date.now()),
     settings: { reducedMotion: options.reducedMotion ?? prefersReducedMotion() },
     openLink: options.openLink ?? defaultOpenLink,
-  };
+  });
 
   const canvas = createCanvas(SCREEN_WIDTH, SCREEN_HEIGHT);
   const input = new InputManager<Action>(bindings, { gamepad: new GamepadSource() });
-  const game = new Game<Action>({ canvas, input, root: director });
+  const game = new Game<Action>({ canvas, input, root: services.director });
   return { game, surface: game, services };
 }
 
