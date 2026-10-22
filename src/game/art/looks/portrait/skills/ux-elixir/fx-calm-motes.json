@@ -1,0 +1,30 @@
+{
+  "frame": {
+    "w": 7,
+    "h": 7
+  },
+  "origin": {
+    "x": 3,
+    "y": 3
+  },
+  "animations": [
+    {
+      "name": "heart",
+      "fps": 6,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "spark",
+      "fps": 6,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "bubble",
+      "fps": 6,
+      "loop": false,
+      "frames": 3
+    }
+  ]
+}

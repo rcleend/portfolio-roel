@@ -1,0 +1,18 @@
+{
+  "frame": {
+    "w": 9,
+    "h": 9
+  },
+  "origin": {
+    "x": 4,
+    "y": 7
+  },
+  "animations": [
+    {
+      "name": "pop",
+      "fps": 10,
+      "loop": false,
+      "frames": 5
+    }
+  ]
+}
