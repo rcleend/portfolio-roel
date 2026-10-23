@@ -11,7 +11,7 @@ export interface PcSlotProps {
   readonly display: PcDisplay | null;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
-  /** True once the TV is powering on: idle prefetch may begin. */
+  /** True once the TV's picture is up: idle prefetch may begin (never while the TV turns on). */
   readonly powered: boolean;
   /** Leave the computer for the room view (close button, Escape in the screen, after the 200 ms beat). */
   readonly onLeave: () => void;

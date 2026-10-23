@@ -40,11 +40,16 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
   const status = useRoom(stageRef, screensRef, gated, events.onProgress);
   const room = status.state === 'ready' ? status.room : null;
   const [view, setView] = useState<RoomView>('tv');
+  // The computer's prefetch waits for the picture: nothing may compete with the TV turning on.
+  const [tvOn, setTvOn] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
 
   const ready = useEffectEvent(() => events.onReady('room'));
-  const poweredOn = useEffectEvent(() => events.onPoweredOn());
+  const poweredOn = useEffectEvent(() => {
+    setTvOn(true);
+    events.onPoweredOn();
+  });
   const viewChanged = useEffectEvent((next: RoomView) => {
     setView(next);
     events.onViewChange(next);
@@ -139,7 +144,7 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
       <PcSlot
         display={room?.pc ?? null}
         view={view}
-        powered={powered}
+        powered={tvOn}
         onLeave={() => room?.showRoom()}
         onFocusStage={focusStage}
       />
