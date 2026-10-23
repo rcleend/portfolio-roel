@@ -108,7 +108,8 @@ def layer(name: str, top: int, art: str, cloth: bool = False) -> Layer:
 
 # ── Body: shared by every hero ───────────────────────────────────────────────────────────────
 #                    01234567890123456789012345678901
-# The far hand: a sliver of shaded skin past the torso's front edge, as Terraria draws it.
+# The far hand, behind the body: a sliver of shaded skin where every torso's front edge steps in at the
+# hip, as Terraria draws it.
 FAR_HAND = layer('far hand', 28, '''
                      .....................SK.........
                      .....................SK.........
@@ -224,7 +225,7 @@ SLEEVE = layer('sleeve', 22, '''
 
 # Hood down: bunched behind the neck, its lit rim over a dark fold of lining, then wrapped forward
 # under the chin as a lit roll the drawstrings hang from. The pouch pocket sits low, over a ribbed hem
-# a row longer than a shirt's.
+# that hangs a row over the jeans.
 HOODIE = layer('hoodie', 18, '''
                      ........##......................
                      ......##+*#.....................
@@ -314,7 +315,7 @@ def outfit(
     *, torso: Sequence[Part], sleeve: Part, legs: str, shoes: str,
     hair: Layer = HAIR, headgear: Sequence[Part] = (),
 ) -> Tuple[Part, ...]:
-    """One hero, back to front, in the order Terraria draws a player."""
+    """One hero, back to front, in the order Terraria draws a player; `sleeve` is the near arm's."""
     return (
         Part(FAR_HAND), Part(LEGS, legs), Part(SHOES, shoes), *torso,
         Part(HEAD), Part(hair), Part(EAR), Part(EYE), Part(GLASSES), *headgear,
