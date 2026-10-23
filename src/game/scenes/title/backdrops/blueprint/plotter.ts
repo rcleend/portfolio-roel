@@ -23,8 +23,8 @@ const TOUCH_DOWN: readonly (readonly [radius: number, ink: number])[] = [
   [4, INK.mid],
 ];
 
-/** The carriage's shadow on the paper falls further as the pen lifts. */
-const SHADOW = { ink: INK.shadow, down: 1, up: 2 } as const;
+/** The carriage's shadow on the paper, a deep navy, falls further as the pen lifts. */
+const SHADOW = { ink: 2, down: 1, up: 2 } as const;
 
 export interface PenPose {
   /** Pixels inked so far, in pen order. */
