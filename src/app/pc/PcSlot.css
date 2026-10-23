@@ -1,0 +1,22 @@
+/* Shown only when the screen's chunk fails to load: a small message box on the desktop's blue. */
+.pc-unavailable {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #245edb;
+  font:
+    12px Tahoma,
+    Verdana,
+    sans-serif;
+}
+
+.pc-unavailable p {
+  margin: 0 15%;
+  padding: 14px 16px;
+  border-top: 22px solid #0058ee;
+  border-radius: 6px 6px 0 0;
+  color: #000;
+  background: #ece9d8;
+  color-scheme: light;
+}

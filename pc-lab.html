@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PC lab</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #15131c; color: #cfd6e6; font: 12px/1.4 ui-monospace, monospace; }
+      #backdrop { position: fixed; inset: 0; padding: 0; border: 0; outline: none; cursor: zoom-out; background: radial-gradient(ellipse at 50% 35%, #2a2533, #0d0b12 70%); }
+      /* A CSS monitor around the picture: tube border, then a beige plastic bezel. */
+      #bezel { position: fixed; left: calc(var(--lab-left) - 7%); top: calc(var(--lab-top) - 6%); width: calc(var(--lab-width) + 14%); height: calc(var(--lab-height) + 15%);
+        box-sizing: border-box; border-radius: 22px; background: linear-gradient(#cfc8b4, #a9a18b); box-shadow: 0 30px 80px #000, inset 0 2px #e9e3d0; pointer-events: none; }
+      #bezel::before { content: ""; position: absolute; inset: 4.5% 5.5% 7.5%; border-radius: 14px; background: #070a09; box-shadow: inset 0 0 18px #000; }
+      #still { position: fixed; border-radius: 6px; pointer-events: none; }
+      #screens { position: fixed; inset: 0; pointer-events: none; }
+      #glass { position: fixed; left: var(--lab-left); top: var(--lab-top); width: var(--lab-width); height: var(--lab-height); border-radius: 6px; pointer-events: none;
+        background: radial-gradient(ellipse at 22% 16%, rgb(255 245 230 / 0.06), transparent 45%), radial-gradient(ellipse at 50% 50%, transparent 62%, rgb(0 0 0 / 0.16)); }
+      #panel { position: fixed; left: 8px; top: 8px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      #panel button { font: inherit; background: #1b2030; color: inherit; border: 1px solid #39425c; padding: 4px 8px; cursor: pointer; }
+      #status { padding: 4px 8px; background: #0d1018cc; }
+      .lab-screen__slot { position: absolute; inset: 0; }
+      body.no-glass #glass, body.clean #panel { display: none; }
+      /* Under the room's own fade, if it is still running: compare the still with the live screen. */
+      body.hide-screen #screens { opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <button id="backdrop" type="button" aria-label="Look around the room (lab)"></button>
+    <div id="bezel"></div>
+    <canvas id="still"></canvas>
+    <div id="screens"></div>
+    <div id="glass"></div>
+    <div id="panel">
+      <button type="button" data-action="land">land</button>
+      <button type="button" data-action="leave">leave</button>
+      <button type="button" data-action="screen">toggle screen</button>
+      <button type="button" data-action="glass">toggle glass</button>
+      <span id="status">loading…</span>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/app/pc/lab/main.tsx"></script>
+  </body>
+</html>
