@@ -1,5 +1,6 @@
-import { type Camera, type Intersection, Raycaster, Vector2 } from 'three';
+import { type Camera, type Intersection, type Mesh, Raycaster, Vector2 } from 'three';
 import type { Interactable, InteractionHit } from './Interactable';
+import { pickedMesh, pickMeshes } from './pickMeshes';
 
 export interface RoomInteractionOptions {
   readonly canvas: HTMLCanvasElement;
@@ -22,7 +23,8 @@ const CLICK_SLOP = 6;
  * hover cursors, clicks/taps, and full gestures for interactables that want them.
  */
 export class RoomInteraction {
-  private readonly interactables = new Map<string, Interactable>();
+  /** Each interactable with the meshes its rays test (large ones cut into chunks once, here). */
+  private readonly interactables = new Map<string, { readonly interactable: Interactable; readonly meshes: Mesh[] }>();
   private readonly raycaster = new Raycaster();
   private readonly ndc = new Vector2();
   private hovered: Interactable | null = null;
@@ -40,7 +42,7 @@ export class RoomInteraction {
   register(interactable: Interactable): () => void {
     if (this.interactables.has(interactable.id))
       throw new Error(`Interactable "${interactable.id}" is already registered`);
-    this.interactables.set(interactable.id, interactable);
+    this.interactables.set(interactable.id, { interactable, meshes: pickMeshes(interactable.object) });
     return () => {
       if (this.hovered === interactable) this.hovered = null;
       this.interactables.delete(interactable.id);
@@ -139,8 +141,8 @@ export class RoomInteraction {
   private pick(): { interactable: Interactable; hit: InteractionHit } | null {
     this.raycaster.setFromCamera(this.ndc, this.options.camera);
     let best: { interactable: Interactable; hit: InteractionHit; distance: number } | null = null;
-    for (const interactable of this.interactables.values()) {
-      const intersection = this.raycaster.intersectObject(interactable.object, true)[0];
+    for (const { interactable, meshes } of this.interactables.values()) {
+      const intersection = this.raycaster.intersectObjects(meshes, false)[0];
       if (intersection && (!best || intersection.distance < best.distance)) {
         best = { interactable, hit: toHit(intersection), distance: intersection.distance };
       }
@@ -150,12 +152,16 @@ export class RoomInteraction {
 
   private hitOn(interactable: Interactable): InteractionHit | null {
     this.raycaster.setFromCamera(this.ndc, this.options.camera);
-    const target = interactable.gestureSurface ?? interactable.object;
-    const intersection = this.raycaster.intersectObject(target, true)[0];
+    const surface = interactable.gestureSurface;
+    const intersection = (
+      surface
+        ? this.raycaster.intersectObject(surface, true)
+        : this.raycaster.intersectObjects(this.interactables.get(interactable.id)?.meshes ?? [], false)
+    )[0];
     return intersection ? toHit(intersection) : null;
   }
 }
 
 function toHit(intersection: Intersection): InteractionHit {
-  return { object: intersection.object, point: intersection.point, uv: intersection.uv ?? null };
+  return { object: pickedMesh(intersection.object), point: intersection.point, uv: intersection.uv ?? null };
 }

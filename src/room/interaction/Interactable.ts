@@ -16,7 +16,7 @@ export interface InteractionHit {
  */
 export interface Interactable {
   readonly id: string;
-  /** Ray-cast target; descendants count as part of it. */
+  /** Ray-cast target; its descendants as they are when it is registered count as part of it. */
   readonly object: Object3D;
   /**
    * While this interactable owns a gesture, moves are ray-cast against this object instead
