@@ -148,7 +148,10 @@ export class FakeDisplay implements PcDisplay {
     context.beginPath();
     context.rect(0, 0, canvas.width, canvas.height);
     context.clip();
+    // Measured like the room's prepare-before-flight: the first paint also generates the wallpaper.
+    const start = performance.now();
     this.#painter(context, { width: canvas.width, height: canvas.height, placement: this.#placement });
+    performance.measure('pc-still-paint', { start, end: performance.now() });
     context.restore();
     this.#stale = false;
     this.log({ type: 'paint' });

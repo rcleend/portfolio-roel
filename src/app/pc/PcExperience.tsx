@@ -160,7 +160,8 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   const documentPane = (
     <DocumentPane
       blocks={BLOCKS}
-      pages={pages}
+      // Typeset only once the pane's width (and so the zoom) is known: never lay the résumé out twice.
+      pages={popOut || paneWidth > 0 ? pages : null}
       zoom={zoom}
       pageShown={state.page}
       screenScale={popOut ? 1 : size.scale}

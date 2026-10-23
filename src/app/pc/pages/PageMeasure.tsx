@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { startTransition, useLayoutEffect, useRef } from 'react';
 import { keepsWithNext, type ResumeBlock } from '../../resume/outline';
 import { PAGE_HEIGHT } from '../reader/zoom';
 import { paginate } from './paginate';
@@ -27,12 +27,12 @@ export function PageMeasure({ blocks, onPaginated }: PageMeasureProps) {
     // Exact sub-pixel heights (offsetHeight rounds), undoing whatever scale the screen is shown at.
     const scale = element.getBoundingClientRect().width / element.offsetWidth || 1;
     const heights = Array.from(element.children, (child) => child.getBoundingClientRect().height / scale);
-    onPaginated(
-      paginate(
-        blocks.map((block, index) => ({ height: heights[index] ?? 0, keepWithNext: keepsWithNext(block) })),
-        PAGE_CONTENT_HEIGHT,
-      ),
+    const pages = paginate(
+      blocks.map((block, index) => ({ height: heights[index] ?? 0, keepWithNext: keepsWithNext(block) })),
+      PAGE_CONTENT_HEIGHT,
     );
+    // The pages render in a later, interruptible pass, not in this commit's task.
+    startTransition(() => onPaginated(pages));
   }, [blocks, onPaginated]);
   return (
     <div className="pc-doc pc-doc--a4 pc-measure" aria-hidden="true" inert>

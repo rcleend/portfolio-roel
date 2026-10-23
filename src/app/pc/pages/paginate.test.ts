@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { keepsWithNext, resumeOutline } from '../../resume/outline';
+import { PAGE_CONTENT_HEIGHT } from './PageMeasure';
 import { paginate } from './paginate';
 
 const block = (height: number, keepWithNext = false) => ({ height, keepWithNext });
@@ -39,5 +41,24 @@ describe('paginate', () => {
     const blocks = Array.from({ length: 40 }, (_, index) => block(37 + ((index * 53) % 211), index % 7 === 0));
     expect(paginate(blocks, 995)).toEqual(paginate(blocks, 995));
     expect(paginate(blocks, 995).flat()).toEqual(blocks.map((_, index) => index));
+  });
+});
+
+describe('paginate today’s résumé', () => {
+  // Block heights measured in Chromium on macOS (Georgia and Arial) at 100 %, in outline order.
+  const MEASURED = [82, 86, 41.2, 240.4, 175.4, 152.4, 108.4, 41.2, 88.7, 46.7, 67.7, 41.2, 48];
+
+  it('puts the header, summary and all four jobs on page 1, education and publications on page 2', () => {
+    const blocks = resumeOutline();
+    expect(blocks).toHaveLength(MEASURED.length);
+    const pages = paginate(
+      blocks.map((block, index) => ({ height: MEASURED[index] ?? 0, keepWithNext: keepsWithNext(block) })),
+      PAGE_CONTENT_HEIGHT,
+    );
+    const kinds = pages.map((page) => page.map((index) => blocks[index]?.kind));
+    expect(kinds).toEqual([
+      ['header', 'summary', 'heading', 'job', 'job', 'job', 'job'],
+      ['heading', 'education', 'education', 'education', 'heading', 'publication'],
+    ]);
   });
 });

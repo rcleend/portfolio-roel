@@ -1,7 +1,10 @@
-import { type CSSProperties, type Ref, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, type Ref, useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { ResumeBlock } from '../../resume/outline';
 import { ResumePages } from '../pages/ResumePages';
-import { PAGE_WIDTH, type ResolvedZoom } from './zoom';
+import { PAGE_HEIGHT, PAGE_WIDTH, type ResolvedZoom } from './zoom';
+
+/** The grey gap between pages, and above a page scrolled to the top. */
+const PAGE_GAP = 12;
 
 export interface DocumentPaneProps {
   readonly blocks: readonly ResumeBlock[];
@@ -42,10 +45,10 @@ export function DocumentPane({
   const reportWidth = useEffectEvent(onWidth);
   const reportPage = useEffectEvent(onPageInView);
 
-  useLayoutEffect(() => {
+  // A ResizeObserver reports the first size too, after layout: no forced layout while the reader mounts.
+  useEffect(() => {
     const element = pane.current;
     if (!element) return;
-    reportWidth(element.clientWidth);
     const observer = new ResizeObserver(() => reportWidth(element.clientWidth));
     observer.observe(element);
     return () => observer.disconnect();
@@ -105,11 +108,11 @@ function ScaledPages({
   readonly scale: number;
 }) {
   const sheets = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState(0);
-  useLayoutEffect(() => {
+  // A4 pages are exactly this tall unless a platform's fonts make one grow; the observer catches that.
+  const [height, setHeight] = useState(pages.length * (PAGE_HEIGHT + PAGE_GAP) - PAGE_GAP);
+  useEffect(() => {
     const element = sheets.current;
     if (!element) return;
-    setHeight(element.offsetHeight);
     const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
     observer.observe(element);
     return () => observer.disconnect();
@@ -127,9 +130,6 @@ function ScaledPages({
     </div>
   );
 }
-
-/** The grey gap kept above a page scrolled to the top, as between pages. */
-const PAGE_GAP = 12;
 
 /** Scrolls `pane` so page `index` (0-based) starts at its top, whatever transforms the screen is under. */
 export function scrollToPage(pane: HTMLElement, index: number): void {
