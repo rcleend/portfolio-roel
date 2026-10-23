@@ -49,7 +49,7 @@ export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlot
     if (!display || !powered) return;
     // Even with Save-Data: a few kB that keep the monitor from showing a dead tube.
     return whenIdle(() => {
-      import('./still/pcStill').then(({ paintDesktop }) => display.setStill(paintDesktop), warn);
+      import('./still/pcStill').then((still) => display.setStill(still.paintDesktop), warn);
     });
   }, [display, powered]);
 
