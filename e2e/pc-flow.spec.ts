@@ -58,7 +58,8 @@ async function lookAround(page: Page, go: () => Promise<void> = () => page.mouse
   await expect(stage(page)).toHaveAttribute('data-view', 'room');
   await expect(page.locator('.pc-screen')).toBeAttached();
   await expect.poll(async () => (await stats(page))?.pcTexturePixels ?? 0).toBeGreaterThan(0);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  // A second ahead, so a busy machine cannot make the pause land in the page's past.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await advance(page, SETTLE_MS);
 }
 
