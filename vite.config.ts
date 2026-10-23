@@ -10,8 +10,6 @@ export default defineConfig({
   build: {
     // Pixel fonts and sprite data are tiny; inlining them only bloats the JS bundle.
     assetsInlineLimit: 0,
-    // dist/.vite/manifest.json maps entries to chunks, for scripts/bundle-report.mjs.
-    manifest: true,
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],

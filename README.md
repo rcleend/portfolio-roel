@@ -14,7 +14,7 @@ pnpm dev            # http://localhost:5173
 pnpm check          # type-check, lint (Biome), unit tests (Vitest) incl. the architecture boundary test
 pnpm e2e            # Playwright smoke tests (Chromium)
 pnpm build          # production bundle in dist/
-pnpm report:bundle  # after a build: gzip sizes against bundle-budgets.json
+pnpm report:bundle  # a production build with its manifest: gzip sizes against bundle-budgets.json
 ```
 
 ## Screenshots

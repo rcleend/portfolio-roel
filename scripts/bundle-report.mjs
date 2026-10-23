@@ -1,8 +1,9 @@
 // Bundle budgets (docs/PC.md › Budgets): gzips every chunk of the production
 // build listed in dist/.vite/manifest.json and compares with bundle-budgets.json.
 //
-//   pnpm build && pnpm report:bundle
+//   pnpm report:bundle    (builds with the manifest first: `vite build --manifest`)
 //
+// The manifest is only made for this report, so the site's own build never publishes it.
 // Measured, in kB (1000 bytes) of gzip at the default level, like Vite's own report:
 // - entry JS / entry CSS: the closure of index.html's static imports (what first load downloads);
 // - room: the three.js chunk the room host lazy-loads;
@@ -73,7 +74,7 @@ async function loadManifest() {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
   } catch {
-    console.error(`No ${path}: run pnpm build first.`);
+    console.error(`No ${path}: run pnpm report:bundle, which builds with the manifest.`);
     process.exit(1);
   }
 }

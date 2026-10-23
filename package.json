@@ -22,7 +22,7 @@
     "shot:room": "node scripts/room-shots.mjs",
     "build:room": "node tools/room/build.mjs",
     "verify:room": "node tools/room/verify.mjs",
-    "report:bundle": "node scripts/bundle-report.mjs"
+    "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
   },
   "dependencies": {
     "@fontsource/silkscreen": "^5.3.0",
