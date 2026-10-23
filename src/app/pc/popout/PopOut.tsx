@@ -48,6 +48,8 @@ export function PopOut({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        // A click on the title bar or the toolbar keeps focus in the dialog, where Escape still closes it.
+        tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key === 'Tab' && trapTab(event.currentTarget, event.shiftKey)) event.preventDefault();
           else onKeyDown(event);

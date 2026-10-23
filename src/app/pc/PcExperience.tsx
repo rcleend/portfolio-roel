@@ -6,8 +6,10 @@ import {
   useEffect,
   useEffectEvent,
   useId,
+  useLayoutEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -78,6 +80,14 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   const wantsReader = isMounted(state);
   const mountReader = useDeferredValue(wantsReader) && wantsReader;
   const popOut = mode === 'pop-out';
+  // A width measured for one pane says nothing about the next: a new visit, or the pane moving
+  // between the glass and the pop-out, waits for its own (and so typesets the résumé once).
+  const [measuredFor, setMeasuredFor] = useState<PresentationMode | null>(null);
+  const paneFor = mountReader ? mode : null;
+  if (measuredFor !== paneFor) {
+    setMeasuredFor(paneFor);
+    setPaneWidth(0);
+  }
   const zoomSetting = popOut ? REFLOW : (chosenZoom ?? defaultZoom(paneWidth, mode));
   const zoom = resolveZoom(zoomSetting, paneWidth);
   const scrollLayout = layoutKey(zoom, mode);
@@ -118,6 +128,8 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   // Ready once the document is typeset at its zoom: put the visitor back where they were, then report.
   const documentReady = mountReader && pages !== null && (popOut || paneWidth > 0);
   const onDocumentReady = useEffectEvent(() => {
+    // Once per visit: a pane that moves mid-visit carries its own position over (below).
+    if (state.ready) return;
     const pane = elements.pane.current;
     if (pane) pane.scrollTop = restoredScrollTop(readerMemory.scroll, scrollLayout, scrollRange(pane));
     if (performance.getEntriesByName(MOUNT_MARK, 'mark').length > 0) {
@@ -129,6 +141,41 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   useEffect(() => {
     if (documentReady) onDocumentReady();
   }, [documentReady]);
+
+  // A resize or a rotation can move the open document between the glass and the pop-out, where
+  // its pane is mounted anew. The room tells placement listeners before React renders the change,
+  // while the old pane is still there: note how far down it is, then carry that and the keyboard
+  // focus over once the new pane is typeset.
+  const paneMode = useRef(mode);
+  const beforeMove = useRef<{ readonly mode: PresentationMode; readonly share: number } | null>(null);
+  useLayoutEffect(() => {
+    paneMode.current = mode;
+  });
+  useEffect(
+    () =>
+      display.onPlacementChange(() => {
+        const pane = elements.pane.current;
+        if (!pane) return;
+        const range = scrollRange(pane);
+        beforeMove.current = { mode: paneMode.current, share: range > 0 ? pane.scrollTop / range : 0 };
+      }),
+    [display, elements],
+  );
+  const carryOver = useEffectEvent((typeset: boolean, shownIn: PresentationMode) => {
+    const move = beforeMove.current;
+    const pane = elements.pane.current;
+    if (!typeset) {
+      if (!mountReader) beforeMove.current = null;
+      return;
+    }
+    if (!move || move.mode === shownIn || !pane) return;
+    beforeMove.current = null;
+    pane.scrollTop = move.share * scrollRange(pane);
+    // Focus was in the pane that went, or in the window that is now the pop-out's ghost.
+    const dialog = shownIn === 'pop-out' ? elements.popOutWindow.current : elements.glassWindow.current;
+    if (isWindowShown(state) && !dialog?.contains(document.activeElement)) pane.focus({ preventScroll: true });
+  });
+  useLayoutEffect(() => carryOver(documentReady, mode), [documentReady, mode]);
 
   /** A zoom change keeps the same share of the document in view. */
   const changeZoom = (setting: ZoomSetting): void => {
