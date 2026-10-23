@@ -3,15 +3,22 @@ import { INITIAL_VIEW_STATE, type RoomView, reduceView, type ViewEffect, type Vi
 
 export interface ViewControllerOptions {
   readonly surface: GameSurface;
-  /** Starts the camera towards `view`; must call `arrived()` once it is there. */
-  readonly moveCamera: (view: RoomView, arrived: () => void) => void;
+  /**
+   * Starts the camera from `from` (the view it was at or flying to) towards `to`; must call
+   * `arrived()` once it is there.
+   */
+  readonly moveCamera: (from: RoomView, to: RoomView, arrived: () => void) => void;
   /** Lets go of any pointer gesture on the game, e.g. before pausing it. */
   readonly releasePointer: () => void;
+  /** The camera landed on the computer: show its live screen. */
+  readonly revealScreen: () => void;
+  /** The camera is about to leave the computer: hide its live screen. */
+  readonly concealScreen: () => void;
 }
 
 /**
  * Applies the view policy from viewState.ts to the real world: pauses and resumes the game,
- * gates its input, moves the camera and tells listeners.
+ * gates its input, shows and hides the computer's screen, moves the camera and tells listeners.
  */
 export class ViewController {
   private state: ViewState = INITIAL_VIEW_STATE;
@@ -53,11 +60,12 @@ export class ViewController {
   };
 
   private apply(transition: { state: ViewState; effects: readonly ViewEffect[] }): void {
+    const from = this.state.view;
     this.state = transition.state;
-    for (const effect of transition.effects) this.run(effect);
+    for (const effect of transition.effects) this.run(effect, from);
   }
 
-  private run(effect: ViewEffect): void {
+  private run(effect: ViewEffect, from: RoomView): void {
     const { surface } = this.options;
     switch (effect) {
       case 'pauseGame':
@@ -79,10 +87,16 @@ export class ViewController {
         surface.setInputEnabled(false);
         return;
       case 'moveCamera':
-        this.options.moveCamera(this.state.view, this.arrived);
+        this.options.moveCamera(from, this.state.view, this.arrived);
         return;
       case 'notify':
         for (const listener of this.listeners) listener(this.state.view);
+        return;
+      case 'revealScreen':
+        this.options.revealScreen();
+        return;
+      case 'concealScreen':
+        this.options.concealScreen();
         return;
     }
   }

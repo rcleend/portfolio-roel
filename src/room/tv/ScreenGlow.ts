@@ -12,10 +12,11 @@ import {
 } from 'three';
 
 /**
- * Light the CRT spills into the room. The room is baked and unlit, so the spill is painted
- * on with additive quads lying on the surfaces around the TV. Their colour is the screen's
+ * Light a screen spills into the room. The room is baked and unlit, so the spill is painted
+ * on with additive quads lying on the surfaces around the screen. Their colour is the screen's
  * average colour, read on the GPU from the picture texture's smallest mip level: no pixel
- * readback, and the glow follows every game frame for free.
+ * readback, and the glow follows every game frame for free. Every screen shares this shader,
+ * so a second screen's spill costs draw calls, never another program.
  */
 export interface GlowPatch {
   /** Centre of the quad, slightly off the surface it lies on. */
@@ -80,13 +81,16 @@ void main() {
 
 export class ScreenGlow {
   private readonly meshes: Mesh<PlaneGeometry, ShaderMaterial>[] = [];
+  /** One uniform shared by every patch, so they all follow the same picture. */
+  private readonly picture: { value: Texture };
   private lit = 0;
 
   constructor(parent: Object3D, picture: Texture, patches: readonly GlowPatch[]) {
+    this.picture = { value: picture };
     for (const patch of patches) {
       const material = new ShaderMaterial({
         uniforms: {
-          uPicture: { value: picture },
+          uPicture: this.picture,
           uSize: { value: patch.size.clone() },
           uEmitterCentre: { value: patch.emitterCentre.clone() },
           uEmitterHalfSize: { value: patch.emitterHalfSize.clone() },
@@ -115,6 +119,18 @@ export class ScreenGlow {
       parent.add(mesh);
       this.meshes.push(mesh);
     }
+  }
+
+  /** The texture whose mean colour (its 1 × 1 mip) tints the light, e.g. a 1 × 1 override colour. */
+  setPicture(picture: Texture): void {
+    this.picture.value = picture;
+  }
+
+  /** Moves patch `index`'s light source, in the quad's local metres, e.g. after the viewpoint changed. */
+  setEmitter(index: number, centre: Vector2, halfSize: Vector2): void {
+    const uniforms = this.meshes[index]?.material.uniforms;
+    uniforms?.uEmitterCentre?.value.copy(centre);
+    uniforms?.uEmitterHalfSize?.value.copy(halfSize);
   }
 
   /** 0–1 light output of the tube (power state × brightness). */

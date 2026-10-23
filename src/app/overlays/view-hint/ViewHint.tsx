@@ -21,11 +21,12 @@ export interface ViewHintProps {
 /** Let the boot logo have the stage before suggesting the visitor look away from it. */
 const FIRST_HINT_DELAY_MS = 4500;
 /** After a camera flight, wait for it to land. */
-const RETURN_HINT_DELAY_MS = 1200;
+const LANDED_HINT_DELAY_MS = 1200;
 
 /**
- * An unobtrusive caption teaching the two room gestures. Each line retires
- * for good once the visitor has done what it says.
+ * An unobtrusive caption teaching the room's gestures: looking around, looking
+ * closer and getting up from the computer. Each line retires for good once the
+ * visitor has done what it says.
  */
 export function ViewHint({ view, active, touch }: ViewHintProps) {
   const [storage] = useState(browserStorage);
@@ -43,7 +44,7 @@ export function ViewHint({ view, active, touch }: ViewHintProps) {
     });
   }, [active, view, storage]);
 
-  const wanted = active ? hintFor(progress, view) : null;
+  const wanted = active ? hintFor(progress, view, touch) : null;
   useEffect(() => {
     setShown(null);
     if (!wanted) return;
@@ -52,7 +53,7 @@ export function ViewHint({ view, active, touch }: ViewHintProps) {
         setShown(wanted);
         setLastKind(wanted);
       },
-      wanted === 'look-around' ? FIRST_HINT_DELAY_MS : RETURN_HINT_DELAY_MS,
+      wanted === 'look-around' ? FIRST_HINT_DELAY_MS : LANDED_HINT_DELAY_MS,
     );
     return () => window.clearTimeout(timer);
   }, [wanted]);

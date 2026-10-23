@@ -1,4 +1,5 @@
-import { Box3, type BufferGeometry, Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
+import { averageNormal, meshesOf } from '../assets/modelQueries';
 import type { UvRect } from './screenMapping';
 
 /**
@@ -35,10 +36,7 @@ export interface TvModel {
 
 export function locateTv(root: Object3D): TvModel {
   root.updateMatrixWorld(true);
-  const meshes: Mesh[] = [];
-  root.traverse((object) => {
-    if (object instanceof Mesh) meshes.push(object);
-  });
+  const meshes = meshesOf(root);
   const screen = meshes.find(
     (mesh) => mesh.userData.replaceable_screen && mesh.userData.interaction_id === TV_SCREEN_INTERACTION_ID,
   );
@@ -53,12 +51,4 @@ export function locateTv(root: Object3D): TvModel {
   const screenAspect = Math.abs(size.dot(right)) / Math.abs(size.dot(up));
 
   return { root, screen, facing, bounds: new Box3().setFromObject(root), screenAspect, frontButtons };
-}
-
-function averageNormal(geometry: BufferGeometry): Vector3 {
-  const normals = geometry.getAttribute('normal');
-  const sum = new Vector3();
-  const n = new Vector3();
-  for (let i = 0; i < normals.count; i++) sum.add(n.fromBufferAttribute(normals, i));
-  return sum.normalize();
 }

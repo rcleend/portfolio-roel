@@ -10,13 +10,6 @@ Browser captures from the room lab, with the same camera and test picture:
 | --- | --- |
 | ![Original room](room/before.webp) | ![Restyled room](room/after.webp) |
 
-The desk and radio cabinet are now clickable, with responsive close-ups and eased
-transitions back to the room. Keyboard and touch navigation reach the same views.
-
-| Desk close-up | Radio and lava-lamp close-up |
-| --- | --- |
-| ![White desk and rebuilt retro computer](room/desk.webp) | ![Radio cabinet and warm lava glow](room/radio.webp) |
-
 | Rebuilt desktop peripherals | Original basket with supported papers |
 | --- | --- |
 | ![Beige CRT, full-size keyboard and wheel mouse](room/desktop-detail.webp) | ![Basket clear of the desk, with papers reaching its base](room/basket.webp) |
@@ -108,9 +101,7 @@ shadow maps or a postprocessing stack for that appearance.
 
 This adopts the reference's material discipline and baked-light approach; it does not
 copy its furniture, isometric camera or interactive day/night blending. Roel's layout,
-original room/TV viewpoints and arcade behavior remain unchanged. The desk and the
-radio/lava-lamp cabinet now have their own clickable close-up views, using the same
-camera transition style as the TV.
+original room/TV viewpoints and arcade behavior remain unchanged.
 
 Static reflections are baked, so they do not move when the camera moves. That is a
 deliberate compromise for consistent appearance and economical rendering. Moving a

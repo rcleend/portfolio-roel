@@ -28,14 +28,21 @@ function fakeSurface() {
 function setup() {
   const surface = fakeSurface();
   const arrivals: (() => void)[] = [];
+  /** Every camera move and screen change, in order, as the controller performed them. */
+  const log: string[] = [];
   const releasePointer = vi.fn();
   const views = new ViewController({
     surface,
-    moveCamera: (_view: RoomView, arrived) => arrivals.push(arrived),
+    moveCamera: (from: RoomView, to: RoomView, arrived) => {
+      log.push(`move ${from}→${to}`);
+      arrivals.push(arrived);
+    },
     releasePointer,
+    revealScreen: () => log.push('reveal'),
+    concealScreen: () => log.push('conceal'),
   });
   const land = () => arrivals.shift()?.();
-  return { surface, views, land, releasePointer };
+  return { surface, views, land, releasePointer, log };
 }
 
 describe('ViewController', () => {
@@ -79,9 +86,9 @@ describe('ViewController', () => {
     expect(surface.paused).toBe(true);
   });
 
-  it('retains ownership of the pause through desk and cabinet visits', () => {
+  it('retains ownership of the pause through visits to the computer', () => {
     const { surface, views, land } = setup();
-    for (const view of ['room', 'desk', 'drawer', 'room'] satisfies RoomView[]) {
+    for (const view of ['room', 'pc', 'room'] satisfies RoomView[]) {
       views.request(view);
       land();
       expect(surface.paused).toBe(true);
@@ -92,5 +99,51 @@ describe('ViewController', () => {
     expect(surface.resume).not.toHaveBeenCalled();
     land();
     expect(surface.resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('never resumes a game the app paused, however often the visitor uses the computer', () => {
+    const { surface, views, land } = setup();
+    surface.pause();
+    for (const view of ['room', 'pc', 'room', 'pc', 'room', 'tv'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+    }
+    expect(surface.resume).not.toHaveBeenCalled();
+    expect(surface.paused).toBe(true);
+    // The room's pause ownership is reset: a game resumed by the app is paused afresh next time.
+    surface.resume();
+    views.request('room');
+    expect(surface.paused).toBe(true);
+    views.request('tv');
+    land();
+    expect(surface.paused).toBe(false);
+  });
+
+  it('shows the screen on landing at the computer and hides it before the camera leaves', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('pc');
+    expect(log).toEqual(['move tv→room', 'move room→pc']);
+    land();
+    expect(log.at(-1)).toBe('reveal');
+    views.request('room');
+    expect(log.slice(-2)).toEqual(['conceal', 'move pc→room']);
+    land();
+    views.request('pc');
+    land();
+    views.request('tv');
+    expect(log.slice(-2)).toEqual(['conceal', 'move pc→tv']);
+  });
+
+  it('hides the screen and never shows it when leaving during the flight in', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('pc');
+    views.request('room');
+    land();
+    land();
+    expect(log).toEqual(['move tv→room', 'move room→pc', 'conceal', 'move pc→room']);
   });
 });

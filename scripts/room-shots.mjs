@@ -8,6 +8,7 @@ import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import sharp from 'sharp';
 import { createServer } from 'vite';
 
 const args = process.argv.slice(2);
@@ -70,27 +71,83 @@ async function poweredStill(page, frame = 120) {
   await sleep(150);
 }
 
-async function sectionShot(section, viewport, name) {
-  const page = await openLab(viewport, '&autopower=0');
-  await poweredStill(page);
-  await page.evaluate((target) => window.__roomLab.room.focusSection(target), section);
-  await sleep(1600);
-  await shot(page, name);
-  await page.close();
+/** Flies to the computer with the lab's test card on its still and live screen, and waits for the landing. */
+async function atComputer(page) {
+  await page.evaluate(() => window.__roomLab.room.focusPc());
+  await page.waitForFunction(() => window.__roomLab.room.pc.live);
+  // Past the live screen's 160 ms fade.
+  await sleep(400);
+}
+
+async function pcState(page) {
+  return page.evaluate(() => {
+    const { room } = window.__roomLab;
+    const { programs, pcTexturePixels, pixelRatio } = room.stats;
+    return { placement: room.pc.placement, live: room.pc.live, programs, pcTexturePixels, pixelRatio };
+  });
+}
+
+/** Mean absolute difference (0–255, all channels) of two same-sized PNG screenshots. */
+async function meanDifference(a, b) {
+  const [left, right] = await Promise.all([a, b].map((png) => sharp(png).removeAlpha().raw().toBuffer()));
+  let sum = 0;
+  for (let i = 0; i < left.length; i++) sum += Math.abs(left[i] - right[i]);
+  return sum / left.length;
 }
 
 const scenarios = {
-  async 'desk-desktop'() {
-    await sectionShot('desk', { width: 1440, height: 900 }, 'desk-desktop');
+  async 'pc-desktop'() {
+    const page = await openLab({ width: 1440, height: 900 }, '&autopower=0&mockpc=1');
+    await poweredStill(page);
+    await atComputer(page);
+    await shot(page, 'pc-desktop');
+    console.log('pc-desktop:', JSON.stringify(await pcState(page)));
+    await page.close();
   },
-  async 'drawer-desktop'() {
-    await sectionShot('drawer', { width: 1440, height: 900 }, 'drawer-desktop');
+  async 'pc-phone'() {
+    const page = await openLab({ width: 390, height: 844, dpr: 3 }, '&autopower=0&mockpc=1');
+    await poweredStill(page);
+    await atComputer(page);
+    await shot(page, 'pc-phone');
+    console.log('pc-phone:', JSON.stringify(await pcState(page)));
+    await page.close();
   },
-  async 'desk-phone'() {
-    await sectionShot('desk', { width: 390, height: 844, dpr: 3 }, 'desk-phone');
+  async 'pc-flight'() {
+    const page = await openLab({ width: 1440, height: 900 }, '&autopower=0&mockpc=1');
+    await poweredStill(page);
+    await page.evaluate(() => window.__roomLab.room.showRoom());
+    await sleep(1600);
+    // Frame-exact moments of the crane onto the desk, as in power-on.
+    await page.clock.install();
+    await page.clock.pauseAt(Date.now() + 1000);
+    await page.evaluate(() => window.__roomLab.room.focusPc());
+    let elapsed = 0;
+    for (const ms of [300, 600, 900, 1050]) {
+      await page.clock.runFor(ms - elapsed);
+      elapsed = ms;
+      await shot(page, `pc-flight-${String(ms).padStart(4, '0')}`);
+    }
+    await page.close();
   },
-  async 'drawer-phone'() {
-    await sectionShot('drawer', { width: 390, height: 844, dpr: 3 }, 'drawer-phone');
+  async 'pc-handoff'() {
+    const page = await openLab({ width: 1440, height: 900, dpr: 2 }, '&autopower=0&mockpc=1');
+    await poweredStill(page);
+    await atComputer(page);
+    const { left, top, width, height } = await page.evaluate(() => window.__roomLab.room.pc.placement);
+    // A few pixels inside the picture: the rounded corners and the anti-aliased rim are not content.
+    const clip = { x: left + 4, y: top + 4, width: width - 8, height: height - 8 };
+    const shown = await page.screenshot({ clip });
+    await page.evaluate(() => {
+      document.querySelector('[data-pc-screen]').style.visibility = 'hidden';
+    });
+    await sleep(100);
+    const still = await page.screenshot({ clip });
+    await sharp(still).toFile(join(outDir, 'pc-handoff-still.png'));
+    await sharp(shown).toFile(join(outDir, 'pc-handoff-live.png'));
+    console.log(
+      `pc hand-off: mean |Δ| ${(await meanDifference(still, shown)).toFixed(2)}/255 over ${width} × ${height} CSS px`,
+    );
+    await page.close();
   },
   async 'tv-desktop'() {
     const page = await openLab({ width: 1440, height: 900 }, '&autopower=0');
@@ -201,7 +258,7 @@ const scenarios = {
     await page.close();
   },
   async perf() {
-    const page = await openLab({ width: 1440, height: 900 });
+    const page = await openLab({ width: 1440, height: 900 }, '&mockpc=1');
     await page.waitForFunction(() => !window.__roomLab.surface.paused);
     const framesPerSecond = () =>
       page.evaluate(async () => {
@@ -210,14 +267,40 @@ const scenarios = {
         await new Promise((r) => setTimeout(r, 1000));
         return room.stats.framesRendered - start;
       });
+    /** Frame rate over the first second of a flight (each lasts 1.1 s), then waits for the landing. */
+    const flight = async (action) => {
+      const rate = await page.evaluate(async (name) => {
+        const { room } = window.__roomLab;
+        const start = room.stats.framesRendered;
+        const began = performance.now();
+        room[name]();
+        await new Promise((r) => setTimeout(r, 1000));
+        return (room.stats.framesRendered - start) / ((performance.now() - began) / 1000);
+      }, action);
+      await sleep(600);
+      return rate.toFixed(1);
+    };
     console.log('tv view, game running:', await framesPerSecond(), 'frames/s');
     await page.evaluate(() => window.__roomLab.surface.pause());
     await sleep(200);
     console.log('tv view, game paused:', await framesPerSecond(), 'frames/s');
-    await page.evaluate(() => window.__roomLab.room.showRoom());
-    await sleep(1600);
+    console.log('flight tv → room (first leave, paints the still):', await flight('showRoom'), 'frames/s');
     console.log('room view (lava visible):', await framesPerSecond(), 'frames/s');
     console.log('stats:', JSON.stringify(await page.evaluate(() => window.__roomLab.room.stats)));
+    const legs = { tv: [], pc: [] };
+    for (let round = 0; round < 2; round++) {
+      legs.tv.push(await flight('focusTv'), await flight('showRoom'));
+      legs.pc.push(await flight('focusPc'), await flight('showRoom'));
+    }
+    console.log('flights room ↔ tv:', legs.tv.join(', '), 'frames/s');
+    console.log('flights room ↔ pc:', legs.pc.join(', '), 'frames/s');
+    await page.evaluate(() => window.__roomLab.room.focusPc());
+    await page.waitForFunction(() => window.__roomLab.room.pc.live);
+    await sleep(400);
+    console.log('pc view, settled:', await framesPerSecond(), 'frames/s');
+    console.log('stats at pc:', JSON.stringify(await page.evaluate(() => window.__roomLab.room.stats)));
+    await page.evaluate(() => window.__roomLab.room.showRoom());
+    await sleep(1600);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await sleep(200);
     console.log('room view, reduced motion:', await framesPerSecond(), 'frames/s');

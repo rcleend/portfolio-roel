@@ -136,6 +136,7 @@ export async function verifyRoomAssets(directory, manifest) {
       }
     }
     assert.ok(max[0] - min[0] > 0.95 && max[1] - min[1] > 0.95, `${filename}: screen UV range collapsed`);
+    if (id === 'pc-screen') verifyFlatRegisteredScreen(screen, primitive);
     if (id === 'tv-screen') {
       const bounds = getBounds(screen);
       // The camera, glow and pointer mapping depend on the original curved aperture.
@@ -163,7 +164,7 @@ export async function verifyRoomAssets(directory, manifest) {
       `Missing desktop part: ${name}`,
     );
   }
-  // The CRT name also registers the complete device as a clickable desk target.
+  // The CRT name also identifies the complete device as the computer's click target.
   // Keep this reconstruction economical compared with the high-detail reference.
   let pcTriangles = 0;
   for (const mesh of pc.listMeshes()) {
@@ -173,6 +174,47 @@ export async function verifyRoomAssets(directory, manifest) {
   }
   assert.ok(pcTriangles < 15_000, 'Rebuilt desktop exceeds its geometry budget');
   return { totalBytes, triangles, texturePixels, files: FILES.length, validationErrors: 0, validationWarnings: 0 };
+}
+
+/**
+ * The live DOM screen is a flat 2D rectangle laid over the PC glass, and the still's projector
+ * UVs assume the asset's planar UVs: both need the glass to face +Z with u, v a planar
+ * projection of x, y (v = 0 at the top).
+ */
+function verifyFlatRegisteredScreen(screen, primitive) {
+  const matrix = screen.getWorldMatrix();
+  const positions = primitive.getAttribute('POSITION');
+  const normals = primitive.getAttribute('NORMAL');
+  const uvs = primitive.getAttribute('TEXCOORD_0');
+  assert.ok(normals, 'pc-base.glb: the screen lost its normals');
+  const world = [];
+  const normal = [0, 0, 0];
+  const point = [];
+  for (let i = 0; i < positions.getCount(); i++) {
+    positions.getElement(i, point);
+    world.push(
+      [0, 1, 2].map((r) => matrix[r] * point[0] + matrix[4 + r] * point[1] + matrix[8 + r] * point[2] + matrix[12 + r]),
+    );
+    normals.getElement(i, point);
+    for (let r = 0; r < 3; r++) normal[r] += matrix[r] * point[0] + matrix[4 + r] * point[1] + matrix[8 + r] * point[2];
+  }
+  const length = Math.hypot(...normal);
+  const degrees = (Math.acos(normal[2] / length) * 180) / Math.PI;
+  assert.ok(degrees <= 0.5, `pc-base.glb: the screen faces ${degrees.toFixed(2)}° away from +Z`);
+  const xs = world.map((p) => p[0]);
+  const ys = world.map((p) => p[1]);
+  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  let deviation = 0;
+  const uv = [];
+  world.forEach(([x, y], i) => {
+    uvs.getElement(i, uv);
+    deviation = Math.max(
+      deviation,
+      Math.abs(uv[0] - (x - minX) / (maxX - minX)),
+      Math.abs(uv[1] - (maxY - y) / (maxY - minY)),
+    );
+  });
+  assert.ok(deviation <= 0.002, `pc-base.glb: screen UVs are ${deviation.toFixed(4)} off a planar projection`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

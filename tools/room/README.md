@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 ROOM_SOURCE=/absolute/path/to/attic-room.blend pnpm build:room
 pnpm verify:room
 pnpm shot:room --only room-view,tv-desktop,room-phone --out .context/room-review
-pnpm shot:room --only desk-desktop,drawer-desktop,desk-phone,drawer-phone --out .context/room-review
+pnpm shot:room --only pc-desktop,pc-phone,pc-flight,pc-handoff --out .context/room-review
 ```
 
 `BLENDER_BIN` overrides the Blender executable. `ROOM_BUILD_DIR` overrides the default
@@ -82,13 +82,14 @@ It intentionally rejects the old machine-specific revision-5 export.
 errors/warnings, static unlit materials, texture/geometry/transfer budgets, room groups,
 the square rotated rug, desktop node names and geometry budget, seven animated wax
 meshes and the 48-second clip. It also checks
-both replaceable screens, the TV buttons, screen UV coverage, removal of the pillow/wall
-posters/ceiling beams and the unchanged TV aperture
-position. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
+both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z
+with planar UVs (the computer's flat live screen and projector UVs depend on it), removal of
+the pillow/wall posters/ceiling beams and the unchanged TV aperture position. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
 
-Use `pnpm e2e room.spec.ts touch.spec.ts no-webgl.spec.ts` to exercise room/TV navigation,
-power-on, keyboard/touch input and fallback behavior. `pnpm shot:room --only perf` checks
-render-on-demand and reduced-motion behavior. Validate the build with `pnpm check` and
+Use `pnpm e2e room.spec.ts touch.spec.ts pc-monitor.spec.ts no-webgl.spec.ts` to exercise
+room/TV/computer navigation, power-on, keyboard/touch input, the computer's live screen and
+fallback behavior. `pnpm shot:room --only perf` checks render-on-demand and reduced-motion
+behavior and compares the computer's flights with the TV's. Validate the build with `pnpm check` and
 `pnpm build` before publishing a new asset revision.
 
 See [the art direction study](../../docs/ROOM-ART-DIRECTION.md) for the reference findings

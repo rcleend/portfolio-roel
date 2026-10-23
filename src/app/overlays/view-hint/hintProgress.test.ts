@@ -9,7 +9,7 @@ import {
   type ViewHintProgress,
 } from './hintProgress';
 
-const fresh: ViewHintProgress = { lookedAround: false, returned: false };
+const fresh: ViewHintProgress = { lookedAround: false, returned: false, visitedComputer: false, leftComputer: false };
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -22,36 +22,62 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 describe('view hints', () => {
   it('teaches looking around first, then coming back, then retires', () => {
-    expect(hintFor(fresh, 'tv')).toBe('look-around');
+    expect(hintFor(fresh, 'tv', false)).toBe('look-around');
     const lookedAround = recordView(fresh, 'room');
-    expect(hintFor(lookedAround, 'room')).toBe('return');
-    expect(hintFor(lookedAround, 'tv')).toBeNull();
+    expect(hintFor(lookedAround, 'room', false)).toBe('return');
+    expect(hintFor(lookedAround, 'tv', false)).toBeNull();
     const returned = recordView(lookedAround, 'tv');
-    expect(returned).toEqual({ lookedAround: true, returned: true });
-    expect(hintFor(returned, 'room')).toBeNull();
+    expect(returned).toEqual({ ...fresh, lookedAround: true, returned: true });
+    expect(hintFor(returned, 'room', false)).toBeNull();
   });
 
   it('does not count the opening TV view as having come back', () => {
     expect(recordView(fresh, 'tv')).toBe(fresh);
   });
 
+  it('teaches getting up from the computer until the visitor has done it once', () => {
+    const seated = recordView(recordView(fresh, 'room'), 'pc');
+    expect(seated).toMatchObject({ lookedAround: true, visitedComputer: true, leftComputer: false });
+    expect(hintFor(seated, 'pc', false)).toBe('leave-computer');
+    const up = recordView(seated, 'room');
+    expect(up.leftComputer).toBe(true);
+    expect(hintFor(up, 'pc', false)).toBeNull();
+    // Still learning the way back to the TV.
+    expect(hintFor(up, 'room', false)).toBe('return');
+  });
+
+  it('never shows the computer hint on touch screens', () => {
+    expect(hintFor(recordView(fresh, 'pc'), 'pc', true)).toBeNull();
+  });
+
+  it('learns everything a single move teaches at once', () => {
+    expect(recordView(fresh, 'pc')).toEqual({ ...fresh, lookedAround: true, visitedComputer: true });
+    const seated = recordView(recordView(fresh, 'room'), 'pc');
+    expect(recordView(seated, 'tv')).toEqual({
+      lookedAround: true,
+      returned: true,
+      visitedComputer: true,
+      leftComputer: true,
+    });
+  });
+
   it('persists progress and tolerates garbage', () => {
     const storage = memoryStorage({ [VIEW_HINT_STORAGE_KEY]: '{"lookedAround":"yes"' });
     expect(loadViewHintProgress(storage)).toEqual(fresh);
-    saveViewHintProgress(storage, { lookedAround: true, returned: false });
-    expect(loadViewHintProgress(storage)).toEqual({ lookedAround: true, returned: false });
+    saveViewHintProgress(storage, { ...fresh, lookedAround: true, leftComputer: true });
+    expect(loadViewHintProgress(storage)).toEqual({ ...fresh, lookedAround: true, leftComputer: true });
     expect(loadViewHintProgress(null)).toEqual(fresh);
+  });
+
+  it('loads a record saved before the computer existed', () => {
+    const storage = memoryStorage({ [VIEW_HINT_STORAGE_KEY]: '{"lookedAround":true,"returned":true}' });
+    expect(loadViewHintProgress(storage)).toEqual({ ...fresh, lookedAround: true, returned: true });
   });
 
   it('speaks the right verb for the device', () => {
     expect(hintText('look-around', false)).toBe('Click outside the TV to look around');
-    expect(hintText('return', true)).toBe('Tap the desk, radio or TV to look closer');
-    expect(hintText('zoom-out', true)).toBe('Tap outside to look around');
-  });
-
-  it('explains the way out of a section even after the introductory hints retire', () => {
-    const experienced = { lookedAround: true, returned: true };
-    expect(hintFor(experienced, 'desk')).toBe('zoom-out');
-    expect(hintFor(experienced, 'drawer')).toBe('zoom-out');
+    expect(hintText('return', false)).toBe('Click the computer or the TV to look closer');
+    expect(hintText('return', true)).toBe('Tap the computer or the TV to look closer');
+    expect(hintText('leave-computer', false)).toBe('Click outside the computer to look around');
   });
 });

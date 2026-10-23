@@ -54,10 +54,6 @@
     line-height: 1.4;
   }
 
-  .view-hint:not(.view-hint--top):not([data-view="tv"]) {
-    bottom: max(82px, calc(env(safe-area-inset-bottom) + 66px));
-  }
-
   .view-hint.view-hint--top {
     max-width: calc(100% - 120px);
   }

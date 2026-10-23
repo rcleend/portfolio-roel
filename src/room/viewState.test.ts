@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_VIEW_STATE, type RoomView, reduceView, type ViewState } from './viewState';
 
+const settled = (view: RoomView): ViewState => ({ view, moving: false });
+const moving = (view: RoomView): ViewState => ({ view, moving: true });
+
 describe('reduceView', () => {
   it('starts settled on the TV', () => {
     expect(INITIAL_VIEW_STATE).toEqual({ view: 'tv', moving: false });
@@ -13,8 +16,7 @@ describe('reduceView', () => {
   });
 
   it('resumes the game only after arriving back at the TV', () => {
-    const room: ViewState = { view: 'room', moving: false };
-    const leaving = reduceView(room, { type: 'request', view: 'tv' });
+    const leaving = reduceView(settled('room'), { type: 'request', view: 'tv' });
     expect(leaving.effects).toEqual(['moveCamera', 'notify']);
     const arrived = reduceView(leaving.state, { type: 'arrived' });
     expect(arrived.state).toEqual({ view: 'tv', moving: false });
@@ -22,13 +24,18 @@ describe('reduceView', () => {
   });
 
   it('does nothing on arrival in the room', () => {
-    const moving: ViewState = { view: 'room', moving: true };
-    expect(reduceView(moving, { type: 'arrived' })).toEqual({ state: { view: 'room', moving: false }, effects: [] });
+    expect(reduceView(moving('room'), { type: 'arrived' })).toEqual({ state: settled('room'), effects: [] });
   });
 
-  it('ignores requests for the current view and stray arrivals', () => {
-    expect(reduceView(INITIAL_VIEW_STATE, { type: 'request', view: 'tv' }).effects).toEqual([]);
-    expect(reduceView(INITIAL_VIEW_STATE, { type: 'arrived' }).effects).toEqual([]);
+  it.each([settled('tv'), settled('room'), settled('pc'), moving('tv'), moving('room'), moving('pc')])(
+    'ignores a request for the view it is at or flying to (%o)',
+    (state) => {
+      expect(reduceView(state, { type: 'request', view: state.view })).toEqual({ state, effects: [] });
+    },
+  );
+
+  it.each(['tv', 'room', 'pc'] as const)('ignores a stray arrival while settled at %s', (view) => {
+    expect(reduceView(settled(view), { type: 'arrived' })).toEqual({ state: settled(view), effects: [] });
   });
 
   it('reverses mid-flight without resuming early', () => {
@@ -38,18 +45,50 @@ describe('reduceView', () => {
     expect(back.effects).not.toContain('resumeGame');
   });
 
-  it.each(['desk', 'drawer'] as const)('keeps the game and its input off while exploring %s', (view) => {
-    const leaving = reduceView(INITIAL_VIEW_STATE, { type: 'request', view });
-    expect(leaving.effects).toContain('pauseGame');
-    expect(leaving.effects).toContain('disableInput');
-    const arrived = reduceView(leaving.state, { type: 'arrived' });
-    expect(arrived.state).toEqual({ view, moving: false });
-    expect(arrived.effects).toEqual([]);
+  it.each([settled('tv'), settled('room'), moving('tv'), moving('room')])(
+    'flies to the computer from %o with the game paused and its input off',
+    (state) => {
+      const { state: next, effects } = reduceView(state, { type: 'request', view: 'pc' });
+      expect(next).toEqual(moving('pc'));
+      expect(effects).toEqual(['disableInput', 'pauseGame', 'moveCamera', 'notify']);
+    },
+  );
+
+  it('shows the live screen only once the camera has landed on the computer', () => {
+    expect(reduceView(moving('pc'), { type: 'arrived' })).toEqual({
+      state: settled('pc'),
+      effects: ['revealScreen'],
+    });
   });
 
-  it('only resumes at the TV after visiting several sections', () => {
+  it.each([settled('pc'), moving('pc')])('hides the screen before pulling back to the room from %o', (state) => {
+    const { state: next, effects } = reduceView(state, { type: 'request', view: 'room' });
+    expect(next).toEqual(moving('room'));
+    expect(effects).toEqual(['concealScreen', 'disableInput', 'pauseGame', 'moveCamera', 'notify']);
+  });
+
+  it.each([settled('pc'), moving('pc')])('hides the screen before flying to the TV from %o', (state) => {
+    const { state: next, effects } = reduceView(state, { type: 'request', view: 'tv' });
+    expect(next).toEqual(moving('tv'));
+    expect(effects).toEqual(['concealScreen', 'moveCamera', 'notify']);
+  });
+
+  it('hides the screen before the camera moves', () => {
+    const { effects } = reduceView(settled('pc'), { type: 'request', view: 'room' });
+    expect(effects.indexOf('concealScreen')).toBeLessThan(effects.indexOf('moveCamera'));
+  });
+
+  it('never reveals the screen after a landing on the computer was interrupted', () => {
+    let state = reduceView(settled('room'), { type: 'request', view: 'pc' }).state;
+    const interrupted = reduceView(state, { type: 'request', view: 'room' });
+    expect(interrupted.effects).toContain('concealScreen');
+    state = interrupted.state;
+    expect(reduceView(state, { type: 'arrived' }).effects).not.toContain('revealScreen');
+  });
+
+  it('only resumes at the TV after several visits to the computer', () => {
     let state = INITIAL_VIEW_STATE;
-    for (const view of ['room', 'desk', 'drawer', 'room'] satisfies RoomView[]) {
+    for (const view of ['room', 'pc', 'room', 'pc', 'room'] satisfies RoomView[]) {
       state = reduceView(state, { type: 'request', view }).state;
       const arrival = reduceView(state, { type: 'arrived' });
       expect(arrival.effects).not.toContain('enableInput');

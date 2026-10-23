@@ -31,14 +31,14 @@ describe('room target picking', () => {
     });
     const geometry = new BoxGeometry(1, 1, 1);
     const material = new MeshBasicMaterial();
-    const desk = new Mesh(geometry, material);
+    const pc = new Mesh(geometry, material);
     const tv = new Mesh(geometry, material);
     tv.position.z = 2;
     tv.updateMatrixWorld();
-    desk.updateMatrixWorld();
-    const deskClick = vi.fn();
+    pc.updateMatrixWorld();
+    const pcClick = vi.fn();
     const tvClick = vi.fn();
-    interaction.register({ id: 'desk', object: desk, cursor: () => 'zoom-in', activate: deskClick });
+    interaction.register({ id: 'pc', object: pc, cursor: () => 'zoom-in', activate: pcClick });
     const removeTv = interaction.register({ id: 'tv', object: tv, cursor: () => 'default', activate: tvClick });
     const click = (x: number) => {
       for (const type of ['pointerdown', 'pointerup']) {
@@ -49,13 +49,13 @@ describe('room target picking', () => {
     };
     click(100);
     expect(tvClick).toHaveBeenCalledTimes(1);
-    expect(deskClick).not.toHaveBeenCalled();
+    expect(pcClick).not.toHaveBeenCalled();
     removeTv();
     click(100);
-    expect(deskClick).toHaveBeenCalledTimes(1);
+    expect(pcClick).toHaveBeenCalledTimes(1);
     enabled = false;
     click(100);
-    expect(deskClick).toHaveBeenCalledTimes(1);
+    expect(pcClick).toHaveBeenCalledTimes(1);
     enabled = true;
     click(10);
     expect(onMiss).toHaveBeenCalledTimes(1);
