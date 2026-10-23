@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseHex, type Rgba } from '@/engine/gfx/color';
+import { Gfx } from '@/engine/gfx/Gfx';
+import { RasterCanvas, rasterContext } from '@/engine/gfx/testing';
+import { MENU_FIELD } from '../../../character-select/backdrop';
 import { TITLE_LAYOUT } from '../../layout';
-import { INK, RAMP_RGBA } from './inks';
-import { LETTER_HEIGHT } from './lettering';
-import { exposeSheet, FRAME, insideFrame, sheetSteps, TITLE_BLOCK } from './sheet';
+import { GRID_FLOOR, INK, RAMP_RGBA } from './inks';
+import { exposeSheet, FRAME, insideFrame, lightLevel, sheetSteps } from './sheet';
 
 const { width, height } = TITLE_LAYOUT.screen;
 const { impact } = TITLE_LAYOUT;
@@ -40,31 +42,56 @@ describe('blueprint sheet', () => {
     expect(exposeSheet(lined, -2).data).toEqual(exposeSheet(sheetSteps(true), -2).data);
   });
 
-  it('lifts the paper behind the logo, so its near-black outline and dark-red extrusion stay readable', () => {
+  it('lights the paper behind the logo, so its near-black outline and dark-red extrusion stay crisp', () => {
     // Where every lockup's two lines settle, around the impact point, and the logo paint's darkest edges.
     const behindLogo = paperLuminance(impact.x - 140, impact.y - 62, impact.x + 140, impact.y + 36);
     const outline = luminance(parseHex('#1c0703'));
     const extrusion = luminance(parseHex('#300a03'));
     const face = luminance(parseHex('#ffaa2a'));
-    expect(contrast(behindLogo, outline)).toBeGreaterThan(2.8);
-    expect(contrast(behindLogo, extrusion)).toBeGreaterThan(2.6);
-    expect(contrast(behindLogo, face)).toBeGreaterThan(3);
+    // The bare menu navy would leave the outline and the extrusion's far edge at barely 1:1.
+    expect(contrast(paperLuminance(0, height - 30, 40, height), outline)).toBeLessThan(1.1);
+    expect(contrast(behindLogo, outline)).toBeGreaterThan(1.65);
+    expect(contrast(behindLogo, extrusion)).toBeGreaterThan(1.5);
+    expect(contrast(behindLogo, face)).toBeGreaterThan(4.5);
   });
 
-  it('runs darker towards the top corners, Prussian navy round a lit middle', () => {
-    const corner = paperLuminance(0, 0, 40, 30);
-    expect(corner).toBeLessThan(paperLuminance(impact.x - 40, impact.y - 20, impact.x + 40, impact.y + 20) / 2);
-    expect(corner).toBeLessThan(paperLuminance(0, height - 30, 40, height));
+  describe('beyond the glow', () => {
+    beforeAll(() => vi.stubGlobal('document', { createElement: () => new RasterCanvas() }));
+    afterAll(() => vi.unstubAllGlobals());
+
+    it("is character select's field, pixel for pixel, and never darker than it inside", () => {
+      const ctx = rasterContext(width, height);
+      new Gfx(ctx as unknown as CanvasRenderingContext2D, width, height).fillRect(0, 0, width, height, MENU_FIELD);
+      const sheet = exposeSheet(paper, 0);
+      const stepOf = (data: Uint8ClampedArray, i: number): number =>
+        RAMP_RGBA.findIndex(({ r, g, b }) => data[i] === r && data[i + 1] === g && data[i + 2] === b);
+      let unlit = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+          const field = stepOf(ctx.data, i);
+          expect(field, `${x},${y}`).toBeGreaterThan(0);
+          if (lightLevel(x, y) > 0) expect(stepOf(sheet.data, i), `${x},${y}`).toBeGreaterThanOrEqual(field);
+          else {
+            expect(stepOf(sheet.data, i), `${x},${y}`).toBe(field);
+            unlit++;
+          }
+        }
+      }
+      // The bottom of the screen and the corners, around the prompt, the copyright and the drawings.
+      expect(unlit / (width * height)).toBeGreaterThan(0.25);
+    });
   });
 
-  it('prints the grid a step or two above the paper it crosses', () => {
-    const { box } = TITLE_BLOCK;
+  it("prints the grid in the menus' line navies on the field, and a step or two above the glow", () => {
     for (let y = FRAME.y + 1; y < FRAME.y + FRAME.h - 1; y++) {
       for (let x = FRAME.x + 1; x < FRAME.x + FRAME.w - 1; x++) {
-        if (x >= box.x && y >= box.y) continue;
-        const lift = (lined[y * width + x] as number) - (paper[y * width + x] as number);
+        const under = paper[y * width + x] as number;
+        const step = lined[y * width + x] as number;
         const onGrid = x % 8 === 0 || y % 8 === 0;
-        expect(onGrid ? [1, 2] : [0], `${x},${y}`).toContain(lift);
+        if (!onGrid) expect(step, `${x},${y}`).toBe(under);
+        else if (under < GRID_FLOOR.minor) expect([GRID_FLOOR.minor, GRID_FLOOR.major], `${x},${y}`).toContain(step);
+        else expect([under + 1, under + 2], `${x},${y}`).toContain(step);
       }
     }
   });
@@ -73,13 +100,6 @@ describe('blueprint sheet', () => {
     expect(insideFrame(FRAME.x, FRAME.y + 20)).toBe(false);
     expect(lined[(FRAME.y + 20) * width + FRAME.x]).toBe(INK.mid);
     expect(paper[(FRAME.y + 20) * width + FRAME.x]).toBeLessThan(INK.ghost);
-  });
-
-  it('leaves the revision cell blank for the letter the backdrop climbs through', () => {
-    const { x, y } = TITLE_BLOCK.revision;
-    for (let row = y; row < y + LETTER_HEIGHT; row++) {
-      for (let col = x; col < x + 3; col++) expect(lined[row * width + col]).toBeLessThan(INK.ghost);
-    }
   });
 
   it('relights every pixel by whole ramp steps', () => {

@@ -72,6 +72,15 @@ describe('painted logo', () => {
     expect(top.height).toBeGreaterThan(bottom.height);
   });
 
+  it('bounds each line by what it paints, inside the margin its image leaves for wobble and extrusion', () => {
+    const { top, bottom } = buildTitleLogo('Product Engineer');
+    for (const line of [top, bottom]) {
+      expect(line.ink).toEqual(line.image.bounds());
+      expect(line.ink.x).toBeGreaterThan(0);
+      expect(line.ink.x + line.ink.w).toBeLessThan(line.image.width);
+    }
+  });
+
   it('draws an outlined trademark', () => {
     const tm = paintTrademark('#ffffff', '#000000');
     expect(tm.get(0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 255 });

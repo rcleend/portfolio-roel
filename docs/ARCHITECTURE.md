@@ -171,7 +171,7 @@ Fonts are self-hosted (`@fontsource/*`, OFL) and loaded before the first frame.
 Named styles (`services.text`): `body`, `label`, `prompt` (white → lavender, navy outline and shadow: the INSERT COIN look), `title` (orange bands, dark-red shadow), `hud` (outlined), `tooltip` (navy on cream).
 Draw with `gfx.text(text, x, y, style, { align, maxWidth })`, where (x, y) is the top-left of the first glyph cell and `align` anchors each line on `x`; it returns the laid-out block.
 Derive variants inline (`{ ...text.label, fill: palette.gold }`): styled atlases are cached by value.
-`gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing, and `textBounds` gives the box drawn text covers, outline and shadow included; `?scene=specimen` shows every font, style, sprite and widget.
+`gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing, `textBounds` gives the box drawn text covers, outline and shadow included, and `textInk` the box of pixels it actually paints, for lining text up by its ink; `?scene=specimen` shows every font, style, sprite and widget.
 
 ### Audio
 
@@ -250,7 +250,7 @@ UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, 
 
 ### Title variants
 
-The title's look is a **lockup** on a **backdrop**, picked by the `title` params, so variants can be compared side by side; the default pair, `classic`, is the Metal Slug homage in docs/ART-DIRECTION.md › Title.
+The title's look is a **lockup** on a **backdrop**, picked by the `title` params, so variants can be compared side by side; the default pair is the `classic` lockup on the `blueprint` backdrop (docs/ART-DIRECTION.md › Title).
 `TitleScene` keeps the choreography both play to: `TITLE_TIMES`, the slide and its ease, the lock shake, the white flash, the glint's timing, the prompt and copyright, input, audio and the attract loop.
 
 - A lockup (`scenes/title/lockups/TitleLockup.ts`) is the logo lines, the name and the trademark. Its `prepare()` paints it once and returns a `LockupArt`: `draw(gfx, travel)` at any point of the slide (`travel` runs from `SLIDE_DISTANCE` down to 0, settled), the settled `bounds` and the `glint` targets.

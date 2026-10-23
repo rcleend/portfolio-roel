@@ -1,10 +1,11 @@
 import { ditherOn } from '@/engine/gfx/dither';
+import { bandAt } from '@/engine/gfx/Gfx';
 import { type Rect, rect } from '@/engine/math/Rect';
 import { Bitmap } from '../../../../art/logos/raster/Bitmap';
-import { hash2, valueNoise } from '../../../../art/logos/raster/noise';
 import { rampAt } from '../../../../art/logos/raster/ramp';
+import { MENU_FIELD } from '../../../character-select/backdrop';
 import { TITLE_LAYOUT } from '../../layout';
-import { INK, RAMP_RGBA } from './inks';
+import { GLOW_STEP, GRID_FLOOR, INK, PAPER_STEPS, RAMP_RGBA } from './inks';
 import { glyphPixels, LETTER_HEIGHT, letteredWidth } from './lettering';
 
 const { width: WIDTH, height: HEIGHT } = TITLE_LAYOUT.screen;
@@ -17,39 +18,42 @@ export const GRID = { cell: 8, major: 32 } as const;
 export const MAJOR_OFFSET = { x: (WIDTH / 2) % GRID.major, y: (HEIGHT / 2) % GRID.major } as const;
 
 /**
- * The paper's value field, in ramp steps: Prussian navy at the top settling
- * towards blueprint blue at the bottom, lifted by the light table in a broad
- * ellipse behind the logo. That lift is what keeps the logo's near-black
- * outline and dark-red extrusion readable on a dark sheet.
+ * The light table's glow behind the lockup: a broad plateau lit to the
+ * indigo window's dark violet, falling off in dithered rings until the field
+ * shows through, the way the character card's spotlight is laid over its
+ * backdrop. It is what keeps the logo's near-black outline and dark-red
+ * extrusion crisp on the dark menu navy.
  */
-const PAPER = {
-  top: 1.1,
-  bottom: 4.1,
-  /** A broad plateau behind the lockup that falls off towards the corners. */
-  light: { x: TITLE_LAYOUT.impact.x, y: 88, rx: 220, ry: 126, plateau: 1.6, lift: 5.4 },
-  /** Low, broad unevenness in the wash, like a cyanotype exposed by hand. */
-  mottle: { amount: 0.7, cellW: 44, cellH: 30 },
-  /** How far below a band edge, in steps, the ordered dither starts mixing in the next band. */
+const LIGHT = {
+  /** Behind the middle of the lockup. */
+  x: TITLE_LAYOUT.impact.x,
+  y: 80,
+  rx: 200,
+  ry: 96,
+  /** How much of the ellipse is lit fully: the larger, the wider the flat middle. */
+  plateau: 1.6,
+  /** How far below a ring's edge, in steps, the ordered dither starts mixing in the next ring. */
   ditherWidth: 0.35,
-  /** Share of pixels that are a step lighter or darker grain. */
-  grain: 0.018,
 } as const;
 
 /** How many ramp steps above the paper the grid is printed. */
 const LINE_LIFT = { minor: 1, major: 2 } as const;
-const SEED = 0xb1e9;
 
 /**
  * The static blueprint sheet as ramp steps per pixel (docs/ART-DIRECTION.md
- * › Title › Blueprint): banded cyanotype paper with sparse grain and, with
- * `lines`, the drafting grid, the frame with its zone margin and the title
- * block. Keeping steps rather than colours lets one sheet be lit at any
- * exposure by `exposeSheet`, the way a palette fade relights a whole screen.
+ * › Title › Blueprint): the menus' banded navy field, lit behind the logo by
+ * the light table, and, with `lines`, the drafting grid and the frame with
+ * its zone margin. Keeping steps rather than colours lets one sheet be lit
+ * at any exposure by `exposeSheet`, the way a palette fade relights a whole
+ * screen.
  */
 export function sheetSteps(lines: boolean): Int8Array {
   const steps = new Int8Array(WIDTH * HEIGHT);
   for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) steps[y * WIDTH + x] = paperStep(x, y) + (lines ? gridLift(x, y) : 0);
+    for (let x = 0; x < WIDTH; x++) {
+      const paper = paperStep(x, y);
+      steps[y * WIDTH + x] = lines ? gridStep(x, y, paper) : paper;
+    }
   }
   if (lines) paintMarkings(steps);
   return steps;
@@ -64,27 +68,29 @@ export function exposeSheet(steps: Int8Array, exposure: number): Bitmap {
   return bitmap;
 }
 
-/** The paper's ramp step at (x, y): banded, joined by ordered dither, with grain. */
+/** The paper's ramp step at (x, y): the field, or the light table's glow where that is brighter. */
 export function paperStep(x: number, y: number): number {
-  const shade = paperShade(x, y);
-  const band = Math.floor(shade);
-  const into = (shade - band - (1 - PAPER.ditherWidth)) / PAPER.ditherWidth;
-  const dithered = into > 0 && ditherOn('bayer4', x, y, into) ? band + 1 : band;
-  const grain = hash2(x, y, SEED);
-  if (grain < PAPER.grain / 2) return dithered + 1;
-  if (grain > 1 - PAPER.grain / 2) return dithered - 1;
-  return dithered;
+  return Math.max(fieldStep(x, y), lightStep(x, y));
 }
 
-/** Fractional ramp step of the paper before banding. */
-export function paperShade(x: number, y: number): number {
-  const { top, bottom, light, mottle } = PAPER;
-  const vertical = top + ((bottom - top) * y) / (HEIGHT - 1);
-  const dx = (x + 0.5 - light.x) / light.rx;
-  const dy = (y + 0.5 - light.y) / light.ry;
-  const lit = Math.min(1, Math.max(0, 1 - dx * dx - dy * dy) * light.plateau) * light.lift;
-  const wash = (valueNoise(x, y, mottle.cellW, mottle.cellH, SEED + 1) - 0.5) * mottle.amount;
-  return vertical + lit + wash;
+/** The ramp step of the menus' field at (x, y): character select's bands and Bayer rows, pixel for pixel. */
+export function fieldStep(x: number, y: number): number {
+  return PAPER_STEPS.first + PAPER_STEPS.count - 1 - bandAt(MENU_FIELD, WIDTH, HEIGHT, x, y);
+}
+
+/** The ramp step the light table lights (x, y) to, its rings joined by ordered dither. */
+function lightStep(x: number, y: number): number {
+  const level = lightLevel(x, y);
+  const step = Math.floor(level);
+  const into = (level - step - (1 - LIGHT.ditherWidth)) / LIGHT.ditherWidth;
+  return into > 0 && ditherOn('bayer4', x, y, into) ? step + 1 : step;
+}
+
+/** The light table's glow at (x, y) as a fractional ramp step, before it is quantised into rings. */
+export function lightLevel(x: number, y: number): number {
+  const dx = (x + 0.5 - LIGHT.x) / LIGHT.rx;
+  const dy = (y + 0.5 - LIGHT.y) / LIGHT.ry;
+  return Math.min(1, Math.max(0, 1 - dx * dx - dy * dy) * LIGHT.plateau) * GLOW_STEP;
 }
 
 /** Whether (x, y) is inside the frame, off its border line. */
@@ -100,15 +106,19 @@ export function isMajorRow(y: number): boolean {
   return y % GRID.major === MAJOR_OFFSET.y;
 }
 
-/** Ramp steps the grid adds at (x, y), inside the frame only. */
-function gridLift(x: number, y: number): number {
-  if (!insideFrame(x, y)) return 0;
-  if (isMajorColumn(x) || isMajorRow(y)) return LINE_LIFT.major;
-  if (x % GRID.cell === 0 || y % GRID.cell === 0) return LINE_LIFT.minor;
-  return 0;
+/**
+ * The ramp step of the sheet at (x, y) with the grid printed over `paper`,
+ * inside the frame only: a step or two above the paper, and never fainter
+ * than the menus' own lines on the dark field.
+ */
+function gridStep(x: number, y: number, paper: number): number {
+  if (!insideFrame(x, y)) return paper;
+  if (isMajorColumn(x) || isMajorRow(y)) return Math.max(paper + LINE_LIFT.major, GRID_FLOOR.major);
+  if (x % GRID.cell === 0 || y % GRID.cell === 0) return Math.max(paper + LINE_LIFT.minor, GRID_FLOOR.minor);
+  return paper;
 }
 
-/** The frame, the zone margin and the title block, in absolute inks. */
+/** The frame and its zone margin, in absolute inks. */
 function paintMarkings(steps: Int8Array): void {
   const set = (x: number, y: number, step: number): void => {
     if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) steps[y * WIDTH + x] = step;
@@ -123,7 +133,6 @@ function paintMarkings(steps: Int8Array): void {
     set(x + w - 1, j, INK.mid);
   }
   paintZones(set);
-  paintTitleBlock(set);
 }
 
 type StepSetter = (x: number, y: number, step: number) => void;
@@ -163,52 +172,5 @@ function paintZones(set: StepSetter): void {
       set(x - t, top, ink);
       set(x + w - 1 + t, top, ink);
     }
-  }
-}
-
-/**
- * The title block in the bottom-right corner of the frame, as on every
- * engineering drawing: drawing number, scale, sheet and revision. The
- * revision letter is left out for the backdrop to letter every frame,
- * because it climbs as the plotter finishes drawings.
- */
-const BLOCK = { w: 76, h: 21, rightCell: 28, padding: 3 } as const;
-const BLOCK_BOX = rect(FRAME.x + FRAME.w - BLOCK.w, FRAME.y + FRAME.h - BLOCK.h, BLOCK.w, BLOCK.h);
-/** The x where the right-hand cells' text starts. */
-const RIGHT_TEXT = BLOCK_BOX.x + BLOCK_BOX.w - BLOCK.rightCell + BLOCK.padding;
-
-export const TITLE_BLOCK = {
-  box: BLOCK_BOX,
-  /** Where the revision letter goes: the top-left of its glyph cell, after "REV ". */
-  revision: { x: RIGHT_TEXT + letteredWidth('REV '), y: BLOCK_BOX.y + BLOCK.padding },
-} as const;
-
-function paintTitleBlock(set: StepSetter): void {
-  const { x, y, w, h } = TITLE_BLOCK.box;
-  const middle = y + Math.floor(h / 2);
-  const split = x + w - BLOCK.rightCell;
-  // A step darker inside, with no grid: a label pasted on rather than more graph paper.
-  for (let j = y + 1; j < y + h - 1; j++) {
-    for (let i = x + 1; i < x + w - 1; i++) set(i, j, Math.max(0, paperStep(i, j) - 1));
-  }
-  for (let i = x; i < x + w; i++) {
-    set(i, y, INK.mid);
-    set(i, middle, INK.mid);
-  }
-  for (let j = y; j < y + h; j++) {
-    set(x, j, INK.mid);
-    set(split, j, INK.mid);
-  }
-  const rows = [y + BLOCK.padding, middle + BLOCK.padding];
-  const cells = [
-    { caption: 'DWG', value: 'RL-1996', x: x + BLOCK.padding, row: 0 },
-    { caption: 'SCALE', value: '1:1', x: x + BLOCK.padding, row: 1 },
-    { caption: 'REV', value: '', x: RIGHT_TEXT, row: 0 },
-    { caption: 'SHT', value: '1', x: RIGHT_TEXT, row: 1 },
-  ];
-  for (const cell of cells) {
-    const top = rows[cell.row] as number;
-    letterSteps(set, cell.caption, cell.x, top, INK.ghost + 1);
-    letterSteps(set, cell.value, cell.x + letteredWidth(`${cell.caption} `), top, INK.white);
   }
 }

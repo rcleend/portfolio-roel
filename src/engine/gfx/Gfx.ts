@@ -241,6 +241,37 @@ export function snap(value: number): number {
   return Math.round(value);
 }
 
+/**
+ * Which band of `gradient` a w × h fill paints at (x, y), its dither rows
+ * included: 0 for the first stop's band. Art that builds on the same
+ * banding pixel by pixel, rather than drawing it with `fillRect`, starts
+ * from this so the two always agree.
+ */
+export function bandAt(gradient: BandedGradient, w: number, h: number, x: number, y: number): number {
+  const vertical = (gradient.direction ?? 'vertical') === 'vertical';
+  const length = vertical ? h : w;
+  const along = vertical ? y : x;
+  const bands = Math.max(1, Math.min(gradient.bands, length));
+  const edge = (i: number): number => Math.round((i * length) / bands);
+  let band = 0;
+  while (band < bands - 1 && along >= edge(band + 1)) band++;
+  if (!gradient.dither || band === bands - 1) return band;
+  const boundary = edge(band + 1);
+  const rows = ditherRows(gradient.dither, boundary - edge(band));
+  const coverage = rows[along - (boundary - rows.length)];
+  return coverage !== undefined && ditherOn(gradient.dither, x, y, coverage) ? band + 1 : band;
+}
+
+/**
+ * The coverage of the next band's colour in each of the last rows of a band
+ * `bandSize` rows deep: a short dithered ramp leaking across every band edge,
+ * cut short in bands too thin to hold it and its own flat row.
+ */
+function ditherRows(pattern: DitherPattern, bandSize: number): readonly number[] {
+  const ramp = pattern === 'bayer2' ? [0.5] : [0.25, 0.5, 0.75];
+  return ramp.slice(-Math.max(0, Math.min(ramp.length, bandSize - 1)));
+}
+
 function renderBandedGradient(w: number, h: number, gradient: BandedGradient): HTMLCanvasElement {
   const vertical = (gradient.direction ?? 'vertical') === 'vertical';
   const length = vertical ? h : w;
@@ -260,12 +291,9 @@ function renderBandedGradient(w: number, h: number, gradient: BandedGradient): H
 
   if (gradient.dither) {
     const pattern = gradient.dither;
-    // Each band edge gets a short dithered ramp of the next band's colour leaking into the current one.
-    const rampRows = pattern === 'bayer2' ? [0.5] : [0.25, 0.5, 0.75];
     for (let i = 0; i < bands - 1; i++) {
       const boundary = edge(i + 1);
-      const bandSize = boundary - edge(i);
-      const rows = rampRows.slice(-Math.max(0, Math.min(rampRows.length, bandSize - 1)));
+      const rows = ditherRows(pattern, boundary - edge(i));
       ctx.fillStyle = colors[i + 1] as string;
       rows.forEach((coverage, r) => {
         const along = boundary - rows.length + r;

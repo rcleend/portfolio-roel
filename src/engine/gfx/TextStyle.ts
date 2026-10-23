@@ -1,4 +1,4 @@
-import { type Rect, rect } from '../math/Rect';
+import { type Rect, rect, union } from '../math/Rect';
 import type { BitmapFont, Glyph } from './BitmapFont';
 import { context2d, createCanvas } from './canvas';
 import { bandColors, parseHex, type Rgba } from './color';
@@ -59,6 +59,42 @@ export function textBounds(style: TextStyle, text: string, x: number, y: number,
   const reach = decorationReach(style);
   const left = alignedX(x, block.width, options.align ?? 'left');
   return rect(left - reach, y - reach, block.width + reach * 2, block.height + reach * 2);
+}
+
+/**
+ * The box of pixels `drawText` paints when given the same arguments: the
+ * glyphs' ink, grown by the outline and joined by its shadow, or `null` for
+ * text that paints nothing. Unlike `textBounds` it leaves out empty glyph
+ * columns and the side the shadow never reaches, so text can be lined up
+ * by what it draws.
+ */
+export function textInk(style: TextStyle, text: string, x: number, y: number, options: TextOptions = {}): Rect | null {
+  const { font, outline, shadow } = style;
+  const block = layoutText(style, text, options);
+  let [left, top, right, bottom] = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, -1, -1];
+  block.lines.forEach((line, index) => {
+    let penX = alignedX(x, font.measure(line), options.align ?? 'left');
+    const penY = y + index * block.lineHeight;
+    for (const char of line) {
+      const glyph = font.glyph(char);
+      for (let row = 0; row < font.cellHeight; row++) {
+        for (let col = 0; col < glyph.width; col++) {
+          if (!ink(glyph, col, row)) continue;
+          left = Math.min(left, penX + col);
+          right = Math.max(right, penX + col);
+          top = Math.min(top, penY + row);
+          bottom = Math.max(bottom, penY + row);
+        }
+      }
+      penX += glyph.advance;
+    }
+  });
+  if (right < left) return null;
+  const grow = outline ? 1 : 0;
+  const silhouette = rect(left - grow, top - grow, right - left + 1 + grow * 2, bottom - top + 1 + grow * 2);
+  return shadow
+    ? union(silhouette, rect(silhouette.x + shadow.x, silhouette.y + shadow.y, silhouette.w, silhouette.h))
+    : silhouette;
 }
 
 /** How far the outline and the shadow can reach past a glyph's cell, in pixels. */

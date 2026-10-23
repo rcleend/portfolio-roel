@@ -6,8 +6,8 @@ import { INK, shadeOf } from './inks';
 import { exposeSheet, FRAME, sheetSteps } from './sheet';
 import { BOOT_FRAMES, framesSince, litRadius, scanProgress, WARM_UP, warmUpExposure } from './timeline';
 
-/** How far below fully lit the sheet sits before the light table comes on: near-black navy, lines unseen. */
-const UNLIT_EXPOSURE = -7;
+/** How far below fully lit the sheet sits before the light table comes on: black, the glow a breath of navy. */
+const UNLIT_EXPOSURE = -9;
 /** The boot's leading edge: grid lines this far inside the newest compass ring glow. */
 const BOOT_EDGE = 16;
 /** The scan line: its leading row three steps brighter, then a trail stepping back down to the paper. */
