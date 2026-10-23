@@ -19,7 +19,7 @@ import {
 
 /** The elements the storyboard moves. Refs, because they mount and unmount with the session. */
 export interface StoryboardElements {
-  readonly root: RefObject<HTMLDivElement | null>;
+  readonly root: RefObject<HTMLElement | null>;
   readonly cursor: RefObject<CursorDirector | null>;
   readonly splash: RefObject<HTMLDivElement | null>;
   /** The open document's pane and the layer its page fades in on (in the glass, or in the pop-out). */
@@ -35,7 +35,7 @@ export interface StoryboardElements {
 /** One stable set of refs for the screen's lifetime. */
 export function useStoryboardElements(): StoryboardElements {
   const [elements] = useState(() => ({
-    root: createRef<HTMLDivElement>(),
+    root: createRef<HTMLElement>(),
     cursor: createRef<CursorDirector>(),
     splash: createRef<HTMLDivElement>(),
     pane: createRef<HTMLDivElement>(),
@@ -214,6 +214,8 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
 
   const onReading = useEffectEvent(() => {
     readerMemory.opened = true;
+    // Said once; the document is open now and its dialog speaks for itself.
+    options.announce('');
     light(true);
     const cursor = elements.cursor.current;
     cursor?.setBusy(false);

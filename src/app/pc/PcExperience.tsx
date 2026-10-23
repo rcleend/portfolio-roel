@@ -222,9 +222,11 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
 
   return (
     <>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: the screen's root catches Escape and the skip keys from anything inside it. */}
-      <div
+      {/* The screen's root catches Escape and the skip keys from anything inside it. */}
+      <section
         ref={elements.root}
+        // Focused from the landing until the document opens: named, so a screen reader says where it is.
+        aria-label="Computer screen"
         className="pc-screen"
         data-pc-state={state.phase}
         data-pc-mode={mode}
@@ -269,7 +271,7 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
           {announcement}
         </p>
         {mountReader && !pages ? <PageMeasure blocks={BLOCKS} onPaginated={onPaginated} /> : null}
-      </div>
+      </section>
       {mountReader && popOut ? (
         <PopOut
           shown={state.breakout && windowShown}
