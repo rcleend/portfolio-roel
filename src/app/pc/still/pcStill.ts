@@ -1,9 +1,9 @@
 import { formatClock } from '../desktop/clock';
 import { desktopLayout } from '../desktop/desktopLayout';
+import { desktopLayoutSize } from '../desktop/desktopScale';
 import { paintIcons, paintTaskbar } from '../desktop/paintChrome';
 import { wallpaperCanvas } from '../desktop/wallpaper';
 import type { StillPainter } from '../display';
-import { desktopLayoutSize } from '../presentation';
 
 /**
  * What the monitor shows whenever the live screen does not: the resting

@@ -62,22 +62,18 @@ function deviceMemory(): number | undefined {
   return (navigator as Navigator & { readonly deviceMemory?: number }).deviceMemory;
 }
 
-interface CloudCluster {
-  /** Centre, as fractions of the wallpaper's width and height. */
-  readonly u: number;
-  readonly v: number;
-  /** Half-extent of the cluster, as fractions of the width. */
-  readonly spreadX: number;
-  readonly spreadY: number;
-  /** Typical puff radius, as a fraction of the width. */
-  readonly puff: number;
-}
+/**
+ * A cumulus cluster: its centre (u, v as fractions of the wallpaper's width
+ * and height), its half-extent and its typical puff radius (fractions of the
+ * width).
+ */
+type CloudCluster = readonly [u: number, v: number, spreadX: number, spreadY: number, puff: number];
 
 const CLOUDS: readonly CloudCluster[] = [
-  { u: 0.24, v: 0.17, spreadX: 0.13, spreadY: 0.03, puff: 0.04 },
-  { u: 0.6, v: 0.1, spreadX: 0.16, spreadY: 0.028, puff: 0.046 },
-  { u: 0.87, v: 0.3, spreadX: 0.1, spreadY: 0.026, puff: 0.036 },
-  { u: 0.44, v: 0.39, spreadX: 0.09, spreadY: 0.018, puff: 0.026 },
+  [0.24, 0.17, 0.13, 0.03, 0.04],
+  [0.6, 0.1, 0.16, 0.028, 0.046],
+  [0.87, 0.3, 0.1, 0.026, 0.036],
+  [0.44, 0.39, 0.09, 0.018, 0.026],
 ];
 const PUFFS_PER_CLOUD = 26;
 /** Puffs are ellipses: cumulus are wider than tall. */
@@ -105,7 +101,7 @@ function paintSky(context: CanvasRenderingContext2D, width: number, height: numb
 function paintCloud(
   context: CanvasRenderingContext2D,
   rng: Rng,
-  cloud: CloudCluster,
+  [u, v, spreadX, spreadY, puffRadius]: CloudCluster,
   width: number,
   height: number,
 ): void {
@@ -116,10 +112,10 @@ function paintCloud(
   for (let index = 0; index < PUFFS_PER_CLOUD; index++) {
     const angle = rng.range(0, Math.PI * 2);
     const reach = Math.sqrt(rng.next());
-    const x = (cloud.u + Math.cos(angle) * reach * cloud.spreadX) * width;
-    const y = cloud.v * height + Math.sin(angle) * reach * cloud.spreadY * width;
+    const x = (u + Math.cos(angle) * reach * spreadX) * width;
+    const y = v * height + Math.sin(angle) * reach * spreadY * width;
     // Puffs in the middle of the cluster are the biggest, so the cloud reads as one billowing mass.
-    const radius = cloud.puff * width * rng.range(0.55, 1.15) * (1.15 - 0.5 * reach);
+    const radius = puffRadius * width * rng.range(0.55, 1.15) * (1.15 - 0.5 * reach);
     const alpha = rng.range(0.18, 0.4);
     puff(context, underside, x, y + radius * 0.28, radius * 0.95, alpha * 0.3);
     puff(context, body, x, y, radius, alpha);
@@ -161,13 +157,11 @@ function farHillPath(context: CanvasRenderingContext2D, width: number, height: n
 function paintFarHill(context: CanvasRenderingContext2D, width: number, height: number): void {
   farHillPath(context, width, height);
   const fill = context.createLinearGradient(0.74 * width, 0.58 * height, 0.86 * width, 0.92 * height);
-  fill.addColorStop(0, '#b8e58a');
-  fill.addColorStop(0.45, '#7cbf58');
-  fill.addColorStop(1, '#4b9442');
+  // Aerial perspective: these greens carry a 22 % veil of the horizon's sky blue, which pushes the hill back.
+  fill.addColorStop(0, '#b8e2a1');
+  fill.addColorStop(0.45, '#89c57a');
+  fill.addColorStop(1, '#63a369');
   context.fillStyle = fill;
-  context.fill();
-  // Aerial perspective: a veil of the horizon's sky colour pushes the far hill back.
-  context.fillStyle = 'rgba(185, 216, 244, 0.22)';
   context.fill();
 }
 
@@ -198,52 +192,44 @@ function paintNearHill(context: CanvasRenderingContext2D, rng: Rng, width: numbe
   context.restore();
 }
 
-/** Short seeded blades, bigger and bolder towards the viewer, batched into one path per tone and depth band. */
+/** Short seeded blades of a lighter and a darker green, longer towards the viewer. */
 function paintGrass(context: CanvasRenderingContext2D, rng: Rng, width: number, height: number): void {
-  const bands = 3;
-  const unit = Math.max(1, width / 900);
-  const tones = ['rgba(214, 246, 136, 0.16)', 'rgba(30, 92, 20, 0.13)'];
-  const paths = Array.from({ length: bands * tones.length }, () => [] as number[]);
+  const light: number[] = [];
+  const dark: number[] = [];
   for (let index = 0; index < GRASS_STROKES; index++) {
     const depth = rng.next();
     const x = rng.range(0, width);
     const y = (0.55 + 0.45 * depth) * height;
     const length = (0.006 + 0.012 * rng.next()) * height * (0.4 + depth);
-    const lean = rng.range(-0.35, 0.35) * length;
-    const tone = rng.chance(0.55) ? 0 : 1;
-    const band = Math.min(bands - 1, Math.floor(depth * bands));
-    paths[band * tones.length + tone]?.push(x, y, x + lean, y - length);
+    (rng.chance(0.55) ? light : dark).push(x, y, x + rng.range(-0.35, 0.35) * length, y - length);
   }
   context.lineCap = 'round';
-  paths.forEach((points, index) => {
-    const band = Math.floor(index / tones.length);
-    context.strokeStyle = tones[index % tones.length] as string;
-    context.lineWidth = unit * (0.6 + 0.5 * band);
-    context.beginPath();
-    for (let point = 0; point < points.length; point += 4) {
-      context.moveTo(points[point] as number, points[point + 1] as number);
-      context.lineTo(points[point + 2] as number, points[point + 3] as number);
-    }
-    context.stroke();
-  });
+  context.lineWidth = Math.max(1, width / 900);
+  strokeBlades(context, light, 'rgba(214, 246, 136, 0.16)');
+  strokeBlades(context, dark, 'rgba(30, 92, 20, 0.13)');
+}
+
+/** One path per tone, so hundreds of blades cost two strokes. `points` holds x1, y1, x2, y2 per blade. */
+function strokeBlades(context: CanvasRenderingContext2D, points: readonly number[], color: string): void {
+  context.strokeStyle = color;
+  context.beginPath();
+  for (let point = 0; point < points.length; point += 4) {
+    context.moveTo(points[point] as number, points[point + 1] as number);
+    context.lineTo(points[point + 2] as number, points[point + 3] as number);
+  }
+  context.stroke();
 }
 
 /** A warm rim of light along the crest; the hill's clip keeps only its inner half. */
 function paintCrestLight(context: CanvasRenderingContext2D, width: number, height: number): void {
-  const warm = context.createLinearGradient(0, 0, width, 0);
-  warm.addColorStop(0, 'rgba(255, 236, 150, 0.2)');
+  const warm = context.createLinearGradient(0, 0, 0.8 * width, 0);
   warm.addColorStop(0.3, 'rgba(255, 238, 160, 0.55)');
-  warm.addColorStop(0.8, 'rgba(255, 238, 160, 0)');
+  warm.addColorStop(1, 'rgba(255, 238, 160, 0)');
   context.strokeStyle = warm;
-  for (const [lineWidth, alpha] of [
-    [0.05, 0.16],
-    [0.016, 0.7],
-  ] as const) {
-    context.globalAlpha = alpha;
-    context.lineWidth = lineWidth * height;
-    context.beginPath();
-    nearCrest(context, width, height);
-    context.stroke();
-  }
+  context.globalAlpha = 0.7;
+  context.lineWidth = 0.02 * height;
+  context.beginPath();
+  nearCrest(context, width, height);
+  context.stroke();
   context.globalAlpha = 1;
 }

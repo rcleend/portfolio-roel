@@ -1,46 +1,18 @@
-/* Shown only when the screen's chunk fails to load: a period message box over the desktop's blue. */
+/* Shown only when the screen's chunk fails to load: a period message box on the desktop's blue. */
 .pc-unavailable {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
-  background: #245edb;
+  place-content: center;
+  justify-items: center;
+  color: #fff;
   font:
-    12px Tahoma,
+    13px Tahoma,
     Verdana,
     sans-serif;
+  background: #245edb;
 }
 
-.pc-unavailable__box {
-  width: min(280px, 90%);
-  padding: 0 0 14px;
-  border: 1px solid #0831d9;
-  border-radius: 7px 7px 0 0;
-  color: #000;
-  text-align: center;
-  background: #ece9d8;
-}
-
-.pc-unavailable__box {
-  outline: none;
-}
-
-.pc-unavailable__box p {
-  margin: 12px;
-}
-
-.pc-unavailable__box .pc-unavailable__title {
-  margin: 0;
-  padding: 5px 8px;
-  border-radius: 6px 6px 0 0;
+.pc-unavailable a {
   color: #fff;
-  font-weight: bold;
-  text-align: left;
-  background: linear-gradient(#0997ff, #0053ee 30%, #0066ff);
-}
-
-@media print {
-  .pc-unavailable {
-    display: none;
-  }
 }

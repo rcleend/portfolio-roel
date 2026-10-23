@@ -1,6 +1,6 @@
 import { createRef, type Dispatch, type RefObject, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { centreOf, type DesktopLayout } from '../desktop/desktopLayout';
+import type { DesktopLayout } from '../desktop/desktopLayout';
 import type { PcDisplay } from '../display';
 import { flipTransform } from '../popout/flip';
 import type { PresentationMode } from '../presentation';
@@ -105,7 +105,8 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
   const runCue = useEffectEvent((cue: Cue) => {
     const cursor = elements.cursor.current;
     const cv = layout.icons[0];
-    const icon = cv ? centreOf(cv.art) : { x: 0, y: 0 };
+    // The cursor's tip aims at the middle of the CV's art.
+    const icon = cv ? { x: cv.art.x + cv.art.width / 2, y: cv.art.y + cv.art.height / 2 } : { x: 0, y: 0 };
     switch (cue.kind) {
       case 'cursor':
         cursor?.show(

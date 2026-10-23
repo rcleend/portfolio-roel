@@ -35,8 +35,9 @@ describe('wrapLabel', () => {
     for (const line of lines) expect(measure(line)).toBeLessThanOrEqual(70);
   });
 
-  it('breaks a word wider than the line by characters', () => {
-    expect(wrapLabel('Wastebasketeers', 60, 2, measure)).toEqual(['Wastebaske', 'teers']);
+  it('cuts a word wider than the line with an ellipsis', () => {
+    expect(wrapLabel('Wastebasketeers', 60, 2, measure)).toEqual(['Wastebask…']);
+    expect(wrapLabel('Wastebasketeers too', 60, 2, measure)).toEqual(['Wastebask…', 'too']);
   });
 
   it('returns nothing for an empty label', () => {

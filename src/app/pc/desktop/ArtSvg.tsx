@@ -1,5 +1,5 @@
-import { type CSSProperties, useId } from 'react';
-import type { Art, Paint } from './art';
+import { type CSSProperties, Fragment, useId } from 'react';
+import { ART_SHADOW, type Art, type Paint } from './art';
 
 export interface ArtSvgProps {
   readonly art: Art;
@@ -38,25 +38,30 @@ export function ArtSvg({ art, size, className, style }: ArtSvgProps) {
               x2={paint.x2}
               y2={paint.y2}
             >
-              {paint.stops.map((stop) => (
-                <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} />
+              {paint.stops.map((stop, index) => (
+                // Hard-edged bands repeat an offset; a stop's place in the list is its identity.
+                // biome-ignore lint/suspicious/noArrayIndexKey: see above.
+                <stop key={index} offset={stop.offset} stopColor={stop.color} />
               ))}
             </linearGradient>
           ))}
         </defs>
       ) : null}
       {art.parts.map((part, index) => (
-        <path
-          // Parts are static art; their order is their identity.
-          // biome-ignore lint/suspicious/noArrayIndexKey: see above.
-          key={index}
-          d={part.d}
-          fill={fillOf(part.fill, `${id}-${index}`)}
-          fillRule={part.evenOdd ? 'evenodd' : undefined}
-          stroke={part.stroke}
-          strokeWidth={part.stroke ? (part.width ?? 1) : undefined}
-          opacity={part.opacity}
-        />
+        // Parts are static art; their order is their identity.
+        // biome-ignore lint/suspicious/noArrayIndexKey: see above.
+        <Fragment key={index}>
+          {part.shadow ? (
+            <path d={part.d} fill={ART_SHADOW.color} transform={`translate(${ART_SHADOW.x} ${ART_SHADOW.y})`} />
+          ) : null}
+          <path
+            d={part.d}
+            fill={fillOf(part.fill, `${id}-${index}`)}
+            fillRule={part.evenOdd ? 'evenodd' : undefined}
+            stroke={part.stroke}
+            strokeWidth={part.stroke ? (part.width ?? 1) : undefined}
+          />
+        </Fragment>
       ))}
     </svg>
   );

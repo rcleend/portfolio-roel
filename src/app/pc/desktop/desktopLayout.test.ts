@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centreOf, DESKTOP_ICONS, desktopLayout, type Rect } from './desktopLayout';
+import { DESKTOP_ICONS, desktopLayout, type Rect } from './desktopLayout';
 
 const SIZES = [
   { width: 874, height: 687 },
@@ -66,10 +66,5 @@ describe('desktopLayout', () => {
   it('shortens the task button on narrow layouts instead of running under the tray', () => {
     const layout = desktopLayout(320, 240);
     expect(layout.taskButton.x + layout.taskButton.width).toBeLessThan(layout.tray.x);
-  });
-
-  it('aims the scripted cursor at the centre of the CV art', () => {
-    const cv = desktopLayout(874, 687).icons[0];
-    expect(cv && centreOf(cv.art)).toEqual({ x: 45, y: 30 });
   });
 });

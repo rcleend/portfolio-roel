@@ -17,8 +17,8 @@ const ELLIPSIS = '…';
 
 /**
  * Breaks `text` into at most `maxLines` lines no wider than `maxWidth`, the
- * way an icon label wraps: at spaces, a word wider than a line broken by
- * characters, and an ellipsis on the last line when the text does not fit.
+ * way an icon label wraps: at spaces, with an ellipsis on a word wider than a
+ * line and on the last line when the text does not fit.
  * `measure` returns the advance width of a string in the label's font.
  */
 export function wrapLabel(
@@ -42,16 +42,9 @@ export function wrapLabel(
       line = candidate;
       count++;
     }
-    if (count === 0) {
-      // A single word wider than the line breaks by characters.
-      const word = words[0] as string;
-      const head = longestFittingPrefix(word, maxWidth, measure);
-      lines.push(head);
-      words = [word.slice(head.length), ...words.slice(1)];
-    } else {
-      lines.push(line);
-      words = words.slice(count);
-    }
+    // A single word wider than the line keeps a line of its own, cut with an ellipsis.
+    lines.push(count === 0 ? ellipsize(words[0] as string, maxWidth, measure) : line);
+    words = words.slice(Math.max(1, count));
   }
   return lines;
 }
@@ -61,10 +54,4 @@ function ellipsize(text: string, maxWidth: number, measure: (text: string) => nu
   let end = text.length;
   while (end > 0 && measure(`${text.slice(0, end).trimEnd()}${ELLIPSIS}`) > maxWidth) end--;
   return `${text.slice(0, end).trimEnd()}${ELLIPSIS}`;
-}
-
-function longestFittingPrefix(word: string, maxWidth: number, measure: (text: string) => number): string {
-  let end = word.length;
-  while (end > 1 && measure(word.slice(0, end)) > maxWidth) end--;
-  return word.slice(0, end);
 }

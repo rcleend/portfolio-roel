@@ -48,8 +48,6 @@ export const DESKTOP_ICONS: readonly { readonly id: DesktopIconId; readonly labe
   { id: 'wastebasket', label: 'Wastebasket' },
 ];
 
-export const CV_FILE_NAME = 'Roel Leenders CV.pdf';
-
 const START_WIDTH = 100;
 const TASK_BUTTONS_X = 106;
 const TASK_BUTTON_WIDTH = 160;
@@ -119,9 +117,4 @@ export function desktopLayout(width: number, height: number): DesktopLayout {
       };
     }),
   };
-}
-
-/** The centre of a rectangle: where the scripted cursor aims to open the CV. */
-export function centreOf(rect: Rect): { readonly x: number; readonly y: number } {
-  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }

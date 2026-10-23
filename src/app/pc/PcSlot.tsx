@@ -1,4 +1,4 @@
-import { type ComponentType, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ComponentType, type ReactNode, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { PcDisplay, PcView } from './display';
 import type { PcExperienceProps } from './PcExperience';
@@ -19,10 +19,6 @@ export interface PcSlotProps {
 }
 
 type Experience = ComponentType<PcExperienceProps>;
-type Loaded =
-  | { readonly state: 'idle' }
-  | { readonly state: 'loaded'; readonly Experience: Experience }
-  | { readonly state: 'failed' };
 
 let experience: Promise<Experience> | null = null;
 
@@ -46,95 +42,61 @@ function loadExperience(): Promise<Experience> {
  * download. Renders portals only.
  */
 export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlotProps): ReactNode {
-  const [loaded, setLoaded] = useState<Loaded>({ state: 'idle' });
+  const [Screen, setScreen] = useState<Experience | 'failed' | null>(null);
 
   useEffect(() => {
     if (!display || !powered) return;
-    let cancelled = false;
     // Even with Save-Data: a few kB that keep the monitor from showing a dead tube.
-    const cancel = whenIdle(() => {
-      import('./still/pcStill').then(
-        ({ paintDesktop }) => {
-          if (!cancelled) display.setStill(paintDesktop);
-        },
-        (error: unknown) => console.warn('The computer’s desktop failed to load', error),
-      );
+    return whenIdle(() => {
+      import('./still/pcStill').then(({ paintDesktop }) => display.setStill(paintDesktop), warn);
     });
-    return () => {
-      cancelled = true;
-      cancel();
-    };
   }, [display, powered]);
 
-  const state = loaded.state;
+  const loaded = typeof Screen === 'function';
+  const wanted = view === 'pc' || (view === 'room' && !saveData());
   useEffect(() => {
-    if (!display || state === 'loaded' || view === 'tv' || (view === 'room' && saveData())) return;
-    let cancelled = false;
+    if (!display || loaded || !wanted) return;
+    let current = true;
     const load = (): void => {
       loadExperience().then(
-        (Experience) => {
-          if (!cancelled) setLoaded({ state: 'loaded', Experience });
-        },
+        (component) => current && setScreen(() => component),
         (error: unknown) => {
-          console.warn('The computer’s screen failed to load', error);
-          if (!cancelled) setLoaded({ state: 'failed' });
+          warn(error);
+          if (current) setScreen('failed');
         },
       );
     };
-    if (view === 'pc') {
-      load();
-      return () => {
-        cancelled = true;
-      };
-    }
-    const cancel = whenIdle(load);
+    // On the way to the computer: now, hidden by the flight. Looking around the room: when the page is idle.
+    const cancel = view === 'pc' ? null : whenIdle(load);
+    if (!cancel) load();
     return () => {
-      cancelled = true;
-      cancel();
+      current = false;
+      cancel?.();
     };
-  }, [display, view, state]);
+  }, [display, loaded, wanted, view]);
 
-  if (!display) return null;
-  if (loaded.state === 'loaded') {
-    return createPortal(
-      <loaded.Experience display={display} onLeave={onLeave} onFocusStage={onFocusStage} />,
-      display.screen,
-    );
-  }
-  return loaded.state === 'failed'
-    ? createPortal(<Unavailable display={display} onLeave={onLeave} />, display.screen)
-    : null;
+  if (!display || !Screen) return null;
+  return createPortal(
+    Screen === 'failed' ? <Unavailable /> : <Screen display={display} onLeave={onLeave} onFocusStage={onFocusStage} />,
+    display.screen,
+  );
 }
 
-/** The screen could not load: say so in the screen's own idiom, and point to the résumé on the page. */
-function Unavailable({ display, onLeave }: { readonly display: PcDisplay; readonly onLeave: () => void }) {
-  const root = useRef<HTMLDivElement>(null);
-  const messageId = useId();
-  useEffect(() => display.onLiveChange((live) => live && root.current?.focus({ preventScroll: true })), [display]);
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    onLeave();
-  };
+/**
+ * The screen could not load: say so in the screen's own idiom and point to the résumé on the page. Escape and
+ * clicks outside the computer still leave (the room handles both).
+ */
+function Unavailable() {
   return (
-    <div className="pc-unavailable">
-      <div
-        ref={root}
-        className="pc-unavailable__box"
-        role="alertdialog"
-        aria-label="Document Reader"
-        aria-describedby={messageId}
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-      >
-        <p className="pc-unavailable__title" aria-hidden="true">
-          Document Reader
-        </p>
-        <p id={messageId}>The document could not be opened.</p>
-        <a href="#resume">Read the résumé</a>
-      </div>
+    <div className="pc-unavailable" role="alert">
+      <p>The document could not be opened.</p>
+      <a href="#resume">Read the résumé</a>
     </div>
   );
+}
+
+function warn(error: unknown): void {
+  console.warn('The computer’s screen failed to load', error);
 }
 
 function saveData(): boolean {

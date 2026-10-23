@@ -1,7 +1,8 @@
 /**
  * The desktop's visual tokens, an original take on the 2001 "Luna" look.
  * The still painter draws its gradients from these stop arrays and the DOM
- * desktop applies the very same arrays inline, so the two can only agree.
+ * desktop applies the very same arrays inline (`cssGradient`), so the two
+ * can only agree.
  */
 
 /** One colour stop; `offset` runs 0–1 along the gradient line. */
@@ -14,10 +15,11 @@ export interface GradientStop {
 export const UI_FONT_FAMILY = 'Tahoma, Verdana, "Segoe UI", "DejaVu Sans", sans-serif';
 export const TITLE_FONT_FAMILY = '"Trebuchet MS", Tahoma, sans-serif';
 
-/** Canvas `font` strings; the CSS spells the same shorthand. */
-export const LABEL_FONT = `11px ${UI_FONT_FAMILY}`;
-export const CLOCK_FONT = `11px ${UI_FONT_FAMILY}`;
-export const START_FONT = `italic bold 18px ${TITLE_FONT_FAMILY}`;
+/** Text sizes in layout px, and the canvas `font` strings built from them; the CSS spells the same shorthand. */
+export const LABEL_SIZE = 11;
+export const START_SIZE = 18;
+export const LABEL_FONT = `${LABEL_SIZE}px ${UI_FONT_FAMILY}`;
+export const START_FONT = `italic bold ${START_SIZE}px ${TITLE_FONT_FAMILY}`;
 
 export const TASKBAR_HEIGHT = 30;
 
@@ -51,20 +53,8 @@ export const TRAY_STOPS: readonly GradientStop[] = [
 export const TRAY_EDGE_DARK = '#0a4fb0';
 export const TRAY_EDGE_LIGHT = '#39a6f2';
 
-export const TASK_BUTTON = '#3c81f3';
-export const TASK_BUTTON_PRESSED = '#1e52b7';
-
 export const SELECTION = '#316ac5';
 export const DESKTOP_TEXT = '#ffffff';
 /** Label shadows are drawn as a second, offset copy of the text, which canvas shadows (device-space offsets) cannot match. */
 export const LABEL_SHADOW = 'rgba(0, 0, 0, 0.75)';
 export const START_SHADOW = 'rgba(0, 0, 0, 0.45)';
-
-/** `linear-gradient(<direction>, <stops>)` for inline styles. */
-export function cssGradient(direction: string, stops: readonly GradientStop[]): string {
-  return `linear-gradient(${direction}, ${stops.map((stop) => `${stop.color} ${round(stop.offset * 100)}%`).join(', ')})`;
-}
-
-function round(percent: number): number {
-  return Math.round(percent * 1000) / 1000;
-}

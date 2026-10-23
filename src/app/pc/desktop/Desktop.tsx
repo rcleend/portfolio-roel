@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { READER_MARK } from '../reader/marks';
 import { ArtSvg } from './ArtSvg';
 import type { Art } from './art';
+import { cssGradient } from './cssGradient';
 import {
   type DesktopIconSlot,
   type DesktopLayout,
@@ -12,7 +13,6 @@ import {
 } from './desktopLayout';
 import { DESKTOP_ICON_ART, START_MARK } from './icons';
 import {
-  cssGradient,
   LABEL_FONT,
   SELECTION,
   START_STOPS,

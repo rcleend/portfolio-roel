@@ -1,4 +1,4 @@
-import type { Art, Paint } from './art';
+import { ART_SHADOW, type Art, type LinearPaint, type Paint } from './art';
 import {
   type DesktopLayout,
   ICON_LABEL_LINE_HEIGHT,
@@ -8,14 +8,15 @@ import {
 } from './desktopLayout';
 import { DESKTOP_ICON_ART, START_MARK } from './icons';
 import {
-  CLOCK_FONT,
   DESKTOP_TEXT,
   type GradientStop,
   LABEL_FONT,
   LABEL_SHADOW,
+  LABEL_SIZE,
   START_FONT,
   START_RADIUS,
   START_SHADOW,
+  START_SIZE,
   START_STOPS,
   TASKBAR_STOPS,
   TRAY_EDGE_DARK,
@@ -38,59 +39,63 @@ export function paintIcons(context: CanvasRenderingContext2D, layout: DesktopLay
     paintArt(context, DESKTOP_ICON_ART[icon.id], icon.art);
     const lines = wrapLabel(icon.label, ICON_LABEL_WIDTH, ICON_LABEL_MAX_LINES, measure);
     lines.forEach((line, index) => {
-      const top = icon.labelBox.y + index * ICON_LABEL_LINE_HEIGHT;
-      fillShadowedText(context, line, icon.labelBox.x + icon.labelBox.width / 2, top, ICON_LABEL_LINE_HEIGHT, {
-        align: 'center',
-        shadow: LABEL_SHADOW,
-      });
+      const box = { y: icon.labelBox.y + index * ICON_LABEL_LINE_HEIGHT, height: ICON_LABEL_LINE_HEIGHT };
+      fillShadowedText(
+        context,
+        line,
+        icon.labelBox.x + icon.labelBox.width / 2,
+        box,
+        LABEL_SIZE,
+        'center',
+        LABEL_SHADOW,
+      );
     });
   }
 }
 
 export function paintTaskbar(context: CanvasRenderingContext2D, layout: DesktopLayout, clock: string): void {
   const { taskbar, start, tray } = layout;
-  fillVertical(context, taskbar, TASKBAR_STOPS);
-
-  context.save();
-  startButtonPath(context, start);
-  context.fillStyle = verticalGradient(context, start, START_STOPS);
-  context.fill();
-  context.restore();
+  context.fillStyle = paintStyle(context, verticalPaint(taskbar, TASKBAR_STOPS));
+  context.fillRect(taskbar.x, taskbar.y, taskbar.width, taskbar.height);
+  context.fillStyle = paintStyle(context, verticalPaint(start, START_STOPS));
+  context.fill(startButton(start));
   paintArt(context, START_MARK, layout.startMark);
   context.font = START_FONT;
-  fillShadowedText(context, 'start', layout.startTextX, start.y, start.height, { align: 'left', shadow: START_SHADOW });
+  fillShadowedText(context, 'start', layout.startTextX, start, START_SIZE, 'left', START_SHADOW);
 
-  fillVertical(context, tray, TRAY_STOPS);
+  context.fillStyle = paintStyle(context, verticalPaint(tray, TRAY_STOPS));
+  context.fillRect(tray.x, tray.y, tray.width, tray.height);
   context.fillStyle = TRAY_EDGE_DARK;
   context.fillRect(tray.x, tray.y, 1, tray.height);
   context.fillStyle = TRAY_EDGE_LIGHT;
   context.fillRect(tray.x + 1, tray.y, 1, tray.height);
-  context.font = CLOCK_FONT;
-  fillShadowedText(context, clock, tray.x + tray.width / 2, tray.y, tray.height, { align: 'center', shadow: null });
+  context.font = LABEL_FONT;
+  fillShadowedText(context, clock, tray.x + tray.width / 2, tray, LABEL_SIZE, 'center', null);
 }
 
-/** The start button: square on the left, a 14 px round end on the right (CSS `border-radius: 0 14px 14px 0`). */
-function startButtonPath(context: CanvasRenderingContext2D, rect: Rect): void {
-  const right = rect.x + rect.width;
-  const bottom = rect.y + rect.height;
-  context.beginPath();
-  context.moveTo(rect.x, rect.y);
-  context.lineTo(right - START_RADIUS, rect.y);
-  context.arcTo(right, rect.y, right, rect.y + START_RADIUS, START_RADIUS);
-  context.lineTo(right, bottom - START_RADIUS);
-  context.arcTo(right, bottom, right - START_RADIUS, bottom, START_RADIUS);
-  context.lineTo(rect.x, bottom);
-  context.closePath();
+/** The start button: square on the left, a round end on the right (CSS `border-radius: 0 14px 14px 0`). */
+function startButton({ x, y, width, height }: Rect): Path2D {
+  const r = START_RADIUS;
+  return new Path2D(
+    `M${x} ${y}h${width - r}a${r} ${r} 0 0 1 ${r} ${r}v${height - 2 * r}a${r} ${r} 0 0 1-${r} ${r}H${x}z`,
+  );
 }
 
-/** Draws `art` scaled into `rect`. Paths are parsed once and reused for every repaint. */
+/** Draws `art` scaled into `rect`. */
 export function paintArt(context: CanvasRenderingContext2D, art: Art, rect: Rect): void {
   context.save();
   context.translate(rect.x, rect.y);
   context.scale(rect.width / art.size, rect.height / art.size);
   for (const part of art.parts) {
-    const path = pathFor(part.d);
-    context.globalAlpha = part.opacity ?? 1;
+    // Parsing a few dozen short paths is cheap next to a repaint that happens a handful of times per visit.
+    const path = new Path2D(part.d);
+    if (part.shadow) {
+      context.save();
+      context.translate(ART_SHADOW.x, ART_SHADOW.y);
+      context.fillStyle = ART_SHADOW.color;
+      context.fill(path);
+      context.restore();
+    }
     if (part.fill) {
       context.fillStyle = paintStyle(context, part.fill);
       context.fill(path, part.evenOdd ? 'evenodd' : 'nonzero');
@@ -104,15 +109,9 @@ export function paintArt(context: CanvasRenderingContext2D, art: Art, rect: Rect
   context.restore();
 }
 
-const paths = new Map<string, Path2D>();
-
-function pathFor(d: string): Path2D {
-  let path = paths.get(d);
-  if (!path) {
-    path = new Path2D(d);
-    paths.set(d, path);
-  }
-  return path;
+/** A token's stop array as a vertical gradient over `rect`. */
+function verticalPaint(rect: Rect, stops: readonly GradientStop[]): LinearPaint {
+  return { x1: 0, y1: rect.y, x2: 0, y2: rect.y + rect.height, stops };
 }
 
 function paintStyle(context: CanvasRenderingContext2D, paint: Paint): string | CanvasGradient {
@@ -122,36 +121,26 @@ function paintStyle(context: CanvasRenderingContext2D, paint: Paint): string | C
   return gradient;
 }
 
-function verticalGradient(context: CanvasRenderingContext2D, rect: Rect, stops: readonly GradientStop[]) {
-  const gradient = context.createLinearGradient(0, rect.y, 0, rect.y + rect.height);
-  for (const stop of stops) gradient.addColorStop(stop.offset, stop.color);
-  return gradient;
-}
-
-function fillVertical(context: CanvasRenderingContext2D, rect: Rect, stops: readonly GradientStop[]): void {
-  context.fillStyle = verticalGradient(context, rect, stops);
-  context.fillRect(rect.x, rect.y, rect.width, rect.height);
-}
-
 /**
- * White text on the CSS half-leading baseline of a `lineHeight` line box
- * starting at `lineTop`, with an optional hard 1 px shadow drawn as an offset
- * copy (canvas shadow offsets ignore the transform, CSS text-shadow does not).
+ * White text of `size` px on the CSS half-leading baseline of the line box
+ * `line` (its top and height), with an optional hard 1 px shadow drawn as an
+ * offset copy (canvas shadow offsets ignore the transform; CSS text-shadow
+ * does not).
  */
 function fillShadowedText(
   context: CanvasRenderingContext2D,
   text: string,
   x: number,
-  lineTop: number,
-  lineHeight: number,
-  { align, shadow }: { readonly align: CanvasTextAlign; readonly shadow: string | null },
+  line: { readonly y: number; readonly height: number },
+  size: number,
+  align: CanvasTextAlign,
+  shadow: string | null,
 ): void {
   const metrics = context.measureText(text);
-  const size = Number.parseFloat(/(\d+(?:\.\d+)?)px/.exec(context.font)?.[1] ?? '11');
-  // Older engines lack the font box metrics; these fallbacks are typical sans-serif proportions.
-  const ascent = metrics.fontBoundingBoxAscent ?? size * 0.9;
+  // Engines without the font box metrics (Firefox before 116) get a sans-serif's usual proportions.
+  const ascent = metrics.fontBoundingBoxAscent ?? size;
   const descent = metrics.fontBoundingBoxDescent ?? size * 0.22;
-  const baseline = lineTop + baselineInLineBox(lineHeight, ascent, descent);
+  const baseline = line.y + baselineInLineBox(line.height, ascent, descent);
   context.textAlign = align;
   context.textBaseline = 'alphabetic';
   if (shadow) {
