@@ -55,8 +55,8 @@ export function isSceneId(value: unknown): value is SceneId {
 
 /**
  * Downloads art a development scene draws that the game itself never loads,
- * so the scene can read it synchronously: whoever opens such a scene (the
- * harness, the playground) awaits this first.
+ * so the scene can read it synchronously: the harness awaits this before
+ * opening the scene it is asked for.
  */
 export async function preloadSceneArt(id: SceneId, assets: AssetStore): Promise<void> {
   if (id === 'lineup') await loadTerrariaDesigns(assets);
