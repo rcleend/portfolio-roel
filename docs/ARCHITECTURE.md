@@ -314,14 +314,17 @@ interface SessionState {
 
 ## Room (`src/room`)
 
-A vanilla three.js stage that loads the attic room exported from Blender (`public/room/`), shows a `GameSurface` on the TV through a CRT `ShaderMaterial`, and owns the camera rig:
+A vanilla three.js stage that loads the attic room exported from Blender (`public/room/`), shows a `GameSurface` on the TV through a CRT `ShaderMaterial`, owns the computer's monitor as a device, and owns the camera rig:
 
 - `tv` viewpoint: straight-on, framing the whole TV (bezel, controls, power button) plus a margin of lit surroundings; computed from the TV's bounding box and the viewport aspect.
 - `room` viewpoint: the whole room.
-- Clicking outside the TV while focused moves to `room` and pauses; clicking the TV moves to `tv` and resumes.
-- Other props register as `Interactable`s with a hit test and an `activate()` hook, so future interactions (PC, radio, PlayStation, guitar, posters) plug in without touching the TV logic.
+- `pc` viewpoint: dead straight in front of the monitor (zero pitch and yaw), the glass and its bezel filling the viewport, reached on a crane path over the chair.
+- Clicking outside the TV while focused moves to `room` and pauses; clicking the TV moves to `tv` and resumes; clicking the computer or its desk moves to `pc` with the game still paused, and clicking outside the computer pulls back to `room`.
+- The monitor's glass shows a still the app paints (`room.pc.setStill`), composited once into its texture with a glass finish and lit spill on the bezel, desk and keyboard; no extra shader program, nothing per frame. Once the camera has landed, a room-owned DOM element (`room.pc.screen`, in the app's overlay container outside `role="application"`) lies exactly over the picture and shows the app's live screen; the glass's UVs are re-projected from the settled eye so the still and the DOM register to the pixel.
+- `room.anchors` tells the app where the TV and the computer sit in the room view, so it can pin keyboard hotspots on them and an edge chip when the computer is cropped out.
+- Other props register as `Interactable`s with a hit test and an `activate()` hook, so future interactions (a CD player, PlayStation, guitar, posters) plug in without touching the TV logic.
 
-Rendering is on demand: 60 fps while the TV is focused and the game runs, otherwise only on camera motion, lava-lamp animation (24 fps, only when visible) or resize.
+Rendering is on demand: 60 fps while the TV is focused and the game runs, otherwise only on camera motion, lava-lamp animation (24 fps, only when visible), resize, or a single frame when the monitor's still or light changes; nothing at all while the visitor sits at the computer. See [docs/ROOM.md](ROOM.md).
 
 ## App (`src/app`)
 
