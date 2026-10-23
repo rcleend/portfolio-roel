@@ -67,7 +67,7 @@ Three more lockups take Metal Slug's own arrangement: the P is raised the way th
 
 ### Blueprint backdrop (`blueprint`)
 
-The product, drafted: the title card is the engineering drawing of what the engineer builds. The fireball becomes a plotter-pen strike, the crater becomes measured construction geometry, and the orange logo sits on its complementary blue.
+The product, drafted: the title card is the engineering drawing of what the engineer builds. The fireball becomes a plotter-pen strike, the crater becomes measured construction geometry, and the orange logo sits on its complementary blue. The select screens are printed on the same paper, so the title flows into them.
 
 - Palette: one 17-step ramp from unexposed navy (`#050f28`) through Prussian (`#0a1f4a`), cobalt (`#113572`) and blueprint blue (`#1f53a0`) up to the line inks: mid cyan (`#7fb2e8`), pale (`#b0d4f4`), near-white (`#d8eeff`) and the white-hot pen tip. Everything is drawn as a step of it, so the light table switching on, ink cooling and erasing are palette steps, never alpha.
 - Sheet: banded paper with Bayer-dithered band edges and sparse grain, darker towards the top corners and lifted by a broad light-table glow behind the logo, so the logo's near-black outline and dark-red extrusion keep about 3:1 against it. Grid lines one step above the paper every 8 px, two steps every 32 px. A drafting frame with zone references 1–8 and A–F in the margin, in 3 × 5 drafting lettering.
@@ -124,16 +124,18 @@ Every product engineer's dream chart on a 1996 phosphor metrics terminal: a hock
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:
 
+- Background: the blueprint title's paper, pixel for pixel and lit the same, with faint diagonal pinstripes every 6 px printed a ramp step above it, as the title prints its fine grid.
 - Left: a tall card with a bevelled pixel frame (light lavender rim, darker inner rim), deep indigo starfield background with twinkling stars and drifting class-themed particles (green code glyphs, paint flecks, sticky notes), the character idling on a pixel pedestal with a pulsing glow. Chunky triangular arrows either side bob towards the edge and flash on press; switching characters slides the card content with a quick horizontal wipe.
-- Right, top to bottom: a small lavender "PICK YOUR ROEL" call to action in the label face whose underscore cursor blinks slowly; the class name ("ENGINEER", "DESIGNER", "STRATEGIST") in the large arcade face, banded from a light tint of the class colour (green, pink, yellow) down to the colour itself, with the prompts' navy outline and shadow; the bio in the small face; a gold "SKILLS" header over two skills, each a 16 × 16 icon in a bevelled slot plus its name.
+- Right, top to bottom: a small lilac "PICK YOUR ROEL" call to action in the label face whose underscore cursor blinks slowly; the class name ("ENGINEER", "DESIGNER", "STRATEGIST") in the large arcade face, banded from a light tint of the class colour (green, pink, yellow) down to the colour itself, with the prompts' navy outline and shadow; the bio in the small face; a gold "SKILLS" header over two skills, each a 16 × 16 icon in a bevelled slot plus its name.
 - A blinking hand cursor marks what has focus: the class heading (the character itself) or a skill. Hovering (pointer) or highlighting (keys/pad) a skill opens a pixel tooltip window with the skill's tooltip text; it pops in over 4 frames with a 1 px overshoot.
-- One control legend runs along the bottom in lavender keys and slate labels: "◀▶ CHANGE ▲▼ SKILLS" under the card, "⏎ CONFIRM ⌫ BACK" flush with the details column's right edge. The drawn keys are 7–8 px tall and centred on the label capitals. CONFIRM and BACK are buttons: pointing lights them, pressing sinks the key one pixel and releasing on it clicks; holding the real key sinks its picture too. BACK returns to the title.
+- One control legend runs along the bottom in lavender keys and steel labels: "◀▶ CHANGE ▲▼ SKILLS" under the card, "⏎ CONFIRM ⌫ BACK" flush with the details column's right edge. The drawn keys are 7–8 px tall and centred on the label capitals. CONFIRM and BACK are buttons: pointing lights them, pressing sinks the key one pixel and releasing on it clicks; holding the real key sinks its picture too. BACK returns to the title.
 - Confirming plays the character's victory pose, a white flash on the card and a "READY!" stamp before transitioning.
 
 ## Mission select
 
 A tongue-in-cheek mission briefing screen: missions are employers, the location is the stage.
 
+- Background: a tactical map on the same blueprint paper as the title and the character select, its faint survey grid every 16 px a ramp step above the paper.
 - Each mission is a postcard-like window previewing its parallax stage (live, slowly panning), stamped with its company number ("COMPANY 1"), company, city and years.
 - The selected mission shows a briefing panel: role, company context, the briefing copy across the panel's full width and a green "TARGET" with the mission's objective ("FIND PRODUCT-MARKET FIT").
 - A locked third slot reads "COMPANY 3 — YOUR TEAM?" with a "contact" call to action instead of a stage.

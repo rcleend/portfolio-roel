@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseHex, type Rgba } from '@/engine/gfx/color';
+import { rampAt } from '../../../../art/logos/raster/ramp';
 import { TITLE_LAYOUT } from '../../layout';
 import { INK, RAMP_RGBA } from './inks';
-import { exposeSheet, FRAME, insideFrame, sheetSteps } from './sheet';
+import { exposeSheet, FRAME, insideFrame, printOnPaper, sheetSteps } from './sheet';
 
 const { width, height } = TITLE_LAYOUT.screen;
 const { impact } = TITLE_LAYOUT;
@@ -70,6 +71,17 @@ describe('blueprint sheet', () => {
     expect(insideFrame(FRAME.x, FRAME.y + 20)).toBe(false);
     expect(lined[(FRAME.y + 20) * width + FRAME.x]).toBe(INK.mid);
     expect(paper[(FRAME.y + 20) * width + FRAME.x]).toBeLessThan(INK.ghost);
+  });
+
+  it("prints a screen's own lines a fine grid line's step above the paper, the paper as the title lights it", () => {
+    const pattern = (x: number, y: number): boolean => x === impact.x || (x + y) % 5 === 0;
+    const printed = printOnPaper(pattern);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const step = (paper[y * width + x] as number) + (pattern(x, y) ? 1 : 0);
+        expect(printed.get(x, y), `${x},${y}`).toEqual(rampAt(RAMP_RGBA, step));
+      }
+    }
   });
 
   it('relights every pixel by whole ramp steps', () => {

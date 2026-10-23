@@ -16,7 +16,7 @@ import { arenaStage } from '../showcase/arena';
 import { standsFor, standX } from './cast';
 import { resolveLineup } from './params';
 
-/** Feet on the stages' ground line; the select screen's navy gets a floor line there to compare heights. */
+/** Feet on the stages' ground line; the select screen's paper gets a floor line there to compare heights. */
 const FEET_Y = GROUND_Y;
 const LABEL_GAP = 6;
 const CAPTION_GAP = 16;
@@ -37,7 +37,7 @@ interface Figure {
 /**
  * Development-only lineup (`?scene=lineup`): characters standing still side
  * by side at native size, each labelled under its feet, on the select
- * screen's navy or on a stage. `{"cast":"terraria"}` (the default) stands the
+ * screen's blueprint paper or on a stage. `{"cast":"terraria"}` (the default) stands the
  * Terraria designs (art/looks/terraria/designs.ts) beside the game's ENGINEER
  * for scale; `{"cast":"game"}` the three heroes as the game draws them. The
  * designs load with whoever opens the scene (`preloadSceneArt`). Static: it
@@ -45,7 +45,7 @@ interface Figure {
  */
 export class LineupScene implements GameScene<LineupParams | undefined> {
   readonly #services: GameServices;
-  /** `null` stands them on the select screen's navy. */
+  /** `null` stands them on the select screen's paper. */
   #stage: Stage | null = null;
   #figures: readonly Figure[] = [];
 

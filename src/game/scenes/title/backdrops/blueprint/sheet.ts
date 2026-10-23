@@ -55,6 +55,23 @@ export function sheetSteps(lines: boolean): Int8Array {
   return steps;
 }
 
+/** Whether a backdrop prints one of its own lines at (x, y). */
+export type LinePattern = (x: number, y: number) => boolean;
+
+/**
+ * The paper as the title lights it, with `pattern` printed on it a fine
+ * grid line's step above: how the select screens print their own textures
+ * on the blueprint (docs/ART-DIRECTION.md › Title › Blueprint), so they
+ * stand on the title's paper pixel for pixel and only their lines differ.
+ */
+export function printOnPaper(pattern: LinePattern): Bitmap {
+  const steps = new Int8Array(WIDTH * HEIGHT);
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) steps[y * WIDTH + x] = paperStep(x, y) + (pattern(x, y) ? LINE_LIFT.minor : 0);
+  }
+  return exposeSheet(steps, 0);
+}
+
 /** The sheet `exposure` ramp steps brighter (or darker, when negative) than fully lit. */
 export function exposeSheet(steps: Int8Array, exposure: number): Bitmap {
   const bitmap = new Bitmap(WIDTH, HEIGHT);
