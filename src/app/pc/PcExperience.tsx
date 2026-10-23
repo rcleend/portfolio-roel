@@ -66,7 +66,7 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   const size = desktopLayoutSize(placement);
   const layout = useMemo(() => desktopLayout(size.width, size.height), [size.width, size.height]);
   const [state, dispatch] = useReducer(sessionReducer, AWAY);
-  const clock = useClock(() => display.invalidateStill());
+  const clock = useClock(display);
   const [pages, setPages] = useState(paginated);
   const [chosenZoom, setChosenZoom] = useState(readerMemory.zoom);
   const [paneWidth, setPaneWidth] = useState(0);
