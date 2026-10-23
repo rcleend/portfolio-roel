@@ -117,6 +117,11 @@
   cursor: pointer;
 }
 
+/* A link wraps as a whole, never mid-address. */
+.pc-doc__links a {
+  white-space: nowrap;
+}
+
 .pc-doc a:focus-visible {
   outline: 2px solid #316ac5;
   outline-offset: 1px;
