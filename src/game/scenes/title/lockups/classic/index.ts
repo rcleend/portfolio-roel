@@ -29,14 +29,14 @@ const LAYOUT = {
 /**
  * Metal Slug's lockup (docs/ART-DIRECTION.md › Title): the headline in two
  * rough, rust-banded lines, "PRODUCT" over "ENGINEER", under a row in the
- * "SUPER VEHICLE-001" kicker's face with the name flush left and the site
- * flush right, and a small trademark after the bottom word.
+ * "SUPER VEHICLE-001" kicker's face with the name over PRODUCT's P and the
+ * site flush right, and a small trademark after the bottom word.
  */
 export const classicLockup: TitleLockup<'classic'> = {
   id: 'classic',
   name: 'Classic',
   description:
-    'PRODUCT over ENGINEER in rusted slab letters, under a row with the name flush left and PORTFOLIO right.',
+    'PRODUCT over ENGINEER in rusted slab letters, under a row with the name over the P and PORTFOLIO right.',
   prepare: lazy(paintClassicLockup),
 };
 
@@ -61,8 +61,10 @@ function paintClassicLockup(): LockupArt {
     rect(LAYOUT.bottomLineShift + bottom.width + LAYOUT.trademarkGap, trademarkTop, trademark.width, trademark.height),
   ].reduce(union);
   const settledTopX = Math.floor((TITLE_LAYOUT.screen.width - header.w) / 2) - header.x;
-  // The name row spans the header's ink: the name flush with its left edge, the site with its right.
-  const nameShift = header.x - inkOf(nameStyle, name).x;
+  // The name's cream starts where the bright face of PRODUCT's P does in its top rows, the ones nearest the
+  // name (the letters slant, so lower rows start further left); the site's ink ends flush with the header's.
+  const nameFill = inkOf({ font: nameStyle.font, fill: nameStyle.fill }, name);
+  const nameShift = top.faceStart - top.origin.x - nameFill.x;
   const siteInk = inkOf(nameStyle, site);
   const siteShift = header.x + header.w - (siteInk.x + siteInk.w);
 
@@ -103,7 +105,7 @@ function paintClassicLockup(): LockupArt {
   };
 }
 
-/** What `text` inks in `style`, outline and shadow included, set with its first glyph cell at x = 0. */
+/** What `text` inks in `style`, outline and shadow included if it has them, set with its first glyph cell at x = 0. */
 function inkOf(style: TextStyle, text: string): Rect {
   const ink = textInk(style, text, 0, 0);
   if (!ink) throw new Error(`Classic lockup: "${text}" inks nothing`);

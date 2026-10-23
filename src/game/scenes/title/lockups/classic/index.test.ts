@@ -10,10 +10,7 @@ import { classicLockup } from '.';
 
 const { width, height } = TITLE_LAYOUT.screen;
 /** The colours of the name row's lettering, which the logo lines never use. */
-const ROW_COLOURS = [palette.cream, LOCKUP_INK].map((hex) => {
-  const { r, g, b } = parseHex(hex);
-  return (r << 16) | (g << 8) | b;
-});
+const ROW_COLOURS = [palette.cream, LOCKUP_INK].map(rgb);
 
 /** The columns a set of pixels spans, inclusive; grown pixel by pixel as they are found. */
 interface Span {
@@ -37,6 +34,12 @@ function render(travel = 0): RasterContext {
   const ctx = rasterContext(width, height);
   art.draw(new Gfx(ctx as unknown as CanvasRenderingContext2D, width, height), travel);
   return ctx;
+}
+
+/** `hex` as 0xrrggbb, the way `colourAt` reports colours. */
+function rgb(hex: string): number {
+  const { r, g, b } = parseHex(hex);
+  return (r << 16) | (g << 8) | b;
 }
 
 /** The colour painted at (px, py) as 0xrrggbb, or `null` where nothing is. */
@@ -70,6 +73,39 @@ function inkSpans(ctx: RasterContext): { row: Span; header: Span } {
   return { row, header };
 }
 
+/**
+ * The screen column where PRODUCT's P starts its bright face at the top:
+ * its leftmost face pixel in its top three rows. The P is found in the top
+ * word's shine image (its letter faces alone) as the face holding the
+ * word's leftmost pixel, the P's foot, which the slant leaves furthest left.
+ */
+function faceStartOfP(): number {
+  const [target] = art.glint.targets;
+  if (!target) throw new Error('the lockup has no glint targets');
+  const shine = target.shine as unknown as RasterCanvas;
+  const { data } = shine.getContext();
+  const isFace = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < shine.width && y < shine.height && (data[(y * shine.width + x) * 4 + 3] as number) > 0;
+  let foot: [number, number] | null = null;
+  for (let x = 0; x < shine.width && !foot; x++) {
+    for (let y = 0; y < shine.height && !foot; y++) if (isFace(x, y)) foot = [x, y];
+  }
+  if (!foot) throw new Error('the top word has no face');
+  // Flood the P's face from its foot.
+  const letter: [number, number][] = [];
+  const seen = new Set<number>();
+  const queue: [number, number][] = [foot];
+  for (let next = queue.pop(); next; next = queue.pop()) {
+    const [x, y] = next;
+    if (!isFace(x, y) || seen.has(y * shine.width + x)) continue;
+    seen.add(y * shine.width + x);
+    letter.push(next);
+    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  const top = Math.min(...letter.map(([, y]) => y));
+  return target.left + Math.min(...letter.filter(([, y]) => y < top + 3).map(([x]) => x));
+}
+
 describe('classic lockup', () => {
   it('settles with its ink centred on screen, to the pixel', () => {
     const ink = render().paintedBounds();
@@ -80,9 +116,22 @@ describe('classic lockup', () => {
     expect(right - left).toBe(ink.w % 2);
   });
 
-  it('sets the name flush with the header ink on the left and the site flush with it on the right', () => {
+  it("starts the name's cream on the column where PRODUCT's P starts its bright face, at the top", () => {
+    const ctx = render();
+    // The name's letters are its cream; PORTFOLIO's, further right, never come first.
+    let nameStart = Number.POSITIVE_INFINITY;
+    for (let py = 0; py < height; py++) {
+      for (let px = 0; px < width; px++) {
+        if (inNameRow(ctx, px, py) && colourAt(ctx, px, py) === rgb(palette.cream)) nameStart = Math.min(nameStart, px);
+      }
+    }
+    expect(nameStart).toBe(faceStartOfP());
+  });
+
+  it('sets the site flush with the header ink on the right, inside the header on the left', () => {
     const { row, header } = inkSpans(render());
-    expect(row).toEqual(header);
+    expect(row.right).toBe(header.right);
+    expect(row.left).toBeGreaterThan(header.left);
   });
 
   it('keeps the name and the site apart, the middle of the row open', () => {
