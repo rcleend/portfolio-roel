@@ -1,5 +1,6 @@
 import type { Board } from './board';
 import { characterBoard, customerBoard, skillBoard } from './looks';
+import { roelsBoard } from './roels';
 import type { Subject } from './subject';
 import { backdropBoard, lockupBoard } from './title';
 
@@ -8,6 +9,7 @@ export const PLAYGROUND_BOARDS: readonly Board[] = [
   lockupBoard,
   backdropBoard,
   characterBoard,
+  roelsBoard,
   skillBoard,
   customerBoard,
 ];

@@ -60,10 +60,18 @@ export interface ShowcaseParams {
   readonly levelId?: LevelId;
 }
 
-/** Development scenes, reachable through the harness (`?scene=specimen`, `?scene=showcase`). */
+export interface LineupParams {
+  /** Who stands in line: the Terraria designs (default), or the heroes as the game draws them. */
+  readonly cast?: 'terraria' | 'game';
+  /** What they stand on: the select screen's navy (default) or a stage. */
+  readonly backdrop?: 'menu' | LevelId;
+}
+
+/** Development scenes, reachable through the harness (`?scene=specimen`, `?scene=showcase`, `?scene=lineup`). */
 export interface DevSceneParamsMap {
   specimen: SpecimenParams | undefined;
   showcase: ShowcaseParams | undefined;
+  lineup: LineupParams | undefined;
 }
 
 export type GameSceneMap = SceneParamsMap & DevSceneParamsMap;
