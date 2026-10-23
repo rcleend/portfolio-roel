@@ -4,11 +4,12 @@
     python3 tools/looks/terraria/generate.py           # write src/game/art/looks/terraria/designs/
     python3 tools/looks/terraria/generate.py --check   # fail if the committed files differ from what this writes
 
-A design is a stack of layers composed back to front the way Terraria composes a player: back arm,
-legs, shoes, torso, head, hair, eye, glasses, headgear, front arm and hand. Every hero shares the
-same head, hair, eye and glasses, so they are one man in three outfits; the DESIGNER's cap swaps the
-hair for the shorter mass that sticks out under it. The layers stay separate so the animation phase
-can pose the same parts frame by frame.
+A design is a stack of layers composed back to front the way Terraria composes a player: back
+sleeve and hand, legs, shoes, torso, head, hair, ear, eye, glasses, headgear, front sleeve and hand.
+Every hero shares the same body, head, hair, eye and glasses, so they are one man in three outfits;
+the DESIGNER's cap swaps the hair for the shorter mass that sticks out under it. The proportions are
+Terraria's player at 4/3 of its art-pixel size, which stands the heroes as tall as the classic ones.
+The layers stay separate so the animation phase can pose the same parts frame by frame.
 
 Each layer is text art over the whole 32 x 40 frame, starting at a given row, one character per pixel.
 Body characters name a tone of a fixed material (K is the skin's outline, w the white of the eye);
@@ -52,18 +53,21 @@ BODY_TONES: Dict[str, Tuple[str, int]] = {
     'w': ('eye', 0), 'i': ('eye', 1),
     'G': ('glasses', 0), 'g': ('glasses', 1),
 }
-# Cloth tones, outline first; a ramp needs as many colours as the highest tone its layers use.
+# Cloth tones: outline, shade, base, light, highlight, accent. A layer may give a tone its own meaning
+# (the shoes' shade is the sole, the hoodie's accent its drawstrings, the cap's its glossy spot, the
+# belt's highlight its buckle); a ramp needs as many colours as the highest tone its layers use.
 CLOTH_TONES = {'#': 0, 'x': 1, 'o': 2, '+': 3, '*': 4, '~': 5}
 
 CLOTH_RAMPS: Dict[str, Tuple[str, ...]] = {
-    # Outline, shade, base, light, highlight, then the drawstrings: a cloth green, not neon.
+    # A cloth green after Terraria's green hooded cloak and the ENGINEER's class colour, not neon.
     'hoodie': ('#0b2619', '#1a4c32', '#266d44', '#368f5a', '#55b277', '#cde6d4'),
     'jeans': ('#111827', '#1d2a44', '#2a3d60', '#3d5682'),
     'sneakers-dark': ('#111115', '#bfc0c6', '#30313a', '#4c4e59'),
-    # The black and grey tie-dye knit from the cap photo: dark base, pale blotches.
+    # The black and grey tie-dye knit from the cap photo, lifted to a mid grey so it reads on menu navy.
     'knit': ('#141518', '#2c2e33', '#4a4d53', '#7c8085', '#a9acaf'),
     'trousers-brown': ('#20130a', '#382215', '#4f321f', '#6a472c'),
     'sneakers-light': ('#3a3530', '#9c9588', '#ddd7cb', '#f4f1ea'),
+    # Terraria's Green Cap recoloured: the DESIGNER's class pink as a muted fabric, and Roel's washed charcoal.
     'cap-berry': ('#3b0f27', '#6d1f4b', '#a1386f', '#cc5a92', '#ea8fbb', '#fbe6f0'),
     'cap-charcoal': ('#18191c', '#2e3135', '#43464c', '#5b5f66', '#7f848b', '#c9cdd2'),
     'shirt': ('#5b6272', '#b7bdca', '#e9ecf2', '#ffffff'),
@@ -220,10 +224,28 @@ HOODIE = layer('hoodie', 20, '''
                      ...........#xo~o~oo+#...........
                      ...........#xoooooo+#...........
                      ...........#xo#####+#...........
-                     ...........#xo#xxx#+#...........
-                     ...........#xoooooo+#...........
-                     ...........#x+x+x+x+#...........
-                     ...........#########............
+                     ..........##xo#xxx#+#...........
+                     ..........#xoooooooo#...........
+                     ..........#xx+x+x+x+#...........
+                     ..........##########............
+''', cloth=True)
+
+KNIT_SLEEVE_BACK = layer('knit back sleeve', 22, '''
+                     ........###.....................
+                     .......#xo+#....................
+                     .......#x+o#....................
+                     .......#xo*#....................
+                     .......#x+o#....................
+                     .......#x#x#....................
+''', cloth=True)
+
+KNIT_SLEEVE_FRONT = layer('knit front sleeve', 22, '''
+                     ..................####..........
+                     .................#o+*+#.........
+                     .................#+oo+#.........
+                     .................#xo*o#.........
+                     .................#x+oo#.........
+                     .................#x#x##.........
 ''', cloth=True)
 
 KNIT = layer('knit sweater', 22, '''
@@ -267,45 +289,46 @@ CAP = layer('cap', 11, '''
 
 
 class Part(NamedTuple):
+    """A layer as one design wears it: cloth layers name the ramp they are dyed in."""
     layer: Layer
     ramp: Optional[str] = None
 
 
-class Design(NamedTuple):
-    hero: str
-    parts: Tuple[Part, ...]
-
-
 def outfit(
-    *, back_sleeve: str, torso: Sequence[Part], front_sleeve: str, legs: str, shoes: str,
+    *, back_sleeve: Part, torso: Sequence[Part], front_sleeve: Part, legs: str, shoes: str,
     hair: Layer = HAIR, headgear: Sequence[Part] = (),
 ) -> Tuple[Part, ...]:
     """One hero, back to front, in the order Terraria draws a player."""
     return (
-        Part(SLEEVE_BACK, back_sleeve), Part(BACK_HAND), Part(LEGS, legs), Part(SHOES, shoes), *torso,
+        back_sleeve, Part(BACK_HAND), Part(LEGS, legs), Part(SHOES, shoes), *torso,
         Part(HEAD), Part(hair), Part(EAR), Part(EYE), Part(GLASSES), *headgear,
-        Part(SLEEVE_FRONT, front_sleeve), Part(HAND),
+        front_sleeve, Part(HAND),
     )
 
 
-def designer(cap: str) -> Design:
-    return Design('artsy', outfit(
-        back_sleeve='knit', torso=(Part(KNIT, 'knit'),), front_sleeve='knit',
+def designer(cap: str) -> Tuple[Part, ...]:
+    """The DESIGNER in the knit, the cap dyed in `cap`."""
+    return outfit(
+        back_sleeve=Part(KNIT_SLEEVE_BACK, 'knit'), torso=(Part(KNIT, 'knit'),),
+        front_sleeve=Part(KNIT_SLEEVE_FRONT, 'knit'),
         legs='trousers-brown', shoes='sneakers-light', hair=CAPPED_HAIR, headgear=(Part(CAP, cap),),
-    ))
+    )
 
 
-DESIGNS: Dict[str, Design] = {
-    'hackerman': Design('hackerman', outfit(
-        back_sleeve='hoodie', torso=(Part(HOODIE, 'hoodie'),), front_sleeve='hoodie',
+# By the ids src/game/art/looks/terraria/designs.ts lists them under: hero id, then the colourway.
+DESIGNS: Dict[str, Tuple[Part, ...]] = {
+    'hackerman': outfit(
+        back_sleeve=Part(SLEEVE_BACK, 'hoodie'), torso=(Part(HOODIE, 'hoodie'),),
+        front_sleeve=Part(SLEEVE_FRONT, 'hoodie'),
         legs='jeans', shoes='sneakers-dark',
-    )),
+    ),
     'artsy-berry': designer('cap-berry'),
     'artsy-charcoal': designer('cap-charcoal'),
-    'strategy': Design('strategy', outfit(
-        back_sleeve='shirt', torso=(Part(SHIRT_FULL, 'shirt'), Part(BELT, 'leather'), Part(NECK)),
-        front_sleeve='shirt', legs='trousers-dark', shoes='leather',
-    )),
+    # A white shirt rather than a blazer: a dark jacket sinks into menu navy and into the DESIGNER's knit.
+    'strategy': outfit(
+        back_sleeve=Part(SLEEVE_BACK, 'shirt'), torso=(Part(SHIRT_FULL, 'shirt'), Part(BELT, 'leather'), Part(NECK)),
+        front_sleeve=Part(SLEEVE_FRONT, 'shirt'), legs='trousers-dark', shoes='leather',
+    ),
 }
 
 
@@ -316,7 +339,7 @@ def rgba(value: str) -> Tuple[int, int, int, int]:
 def compose(design_id: str) -> Image.Image:
     """The design's one frame: every part painted over the ones behind it."""
     image = Image.new('RGBA', FRAME, (0, 0, 0, 0))
-    for part in DESIGNS[design_id].parts:
+    for part in DESIGNS[design_id]:
         for x, y, char in part.layer.pixels:
             if part.layer.cloth:
                 if part.ramp is None:
@@ -326,7 +349,7 @@ def compose(design_id: str) -> Image.Image:
                 material, tone = BODY_TONES[char]
                 ramp = BODY_RAMPS[material]
             if tone >= len(ramp):
-                raise ValueError(f'{design_id}: {part.layer.name} uses tone {tone} of {part.ramp}')
+                raise ValueError(f'{design_id}: {part.layer.name} needs tone {tone}, but its ramp has {len(ramp)}')
             image.putpixel((x, y), rgba(ramp[tone]))
     return image
 
