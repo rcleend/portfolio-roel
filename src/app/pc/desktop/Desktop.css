@@ -65,9 +65,27 @@
   text-shadow: 1px 1px 0 rgb(0 0 0 / 0.75);
 }
 
-.pc-icon[data-selected="true"] .pc-icon__text {
+/* Hugs the label's widest line: the selection fills it and its focus rectangle runs round it. */
+.pc-icon__plate {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/*
+ * Selected: white on the selection blue, no shadow, inside the dotted focus rectangle the desktop
+ * draws round a selection. On this deep blue sky the plate alone hardly shows; the dots do.
+ */
+.pc-icon[data-selected="true"] .pc-icon__plate {
   background: #316ac5;
   box-shadow: 0 0 0 1px #316ac5;
+  outline: 1px dotted rgb(255 255 255 / 0.9);
+  outline-offset: 1px;
+}
+
+.pc-icon[data-selected="true"] .pc-icon__text {
+  text-shadow: none;
 }
 
 .pc-start {

@@ -88,11 +88,13 @@ function DesktopIcon({ icon, selected }: { readonly icon: DesktopIconSlot; reado
         {selected ? <ArtSvg className="pc-icon__tint" art={tinted(art)} size={32} /> : null}
       </div>
       <div className="pc-icon__label" style={box(icon.labelBox, icon.cell)}>
-        {lines.map((line) => (
-          <span key={line} className="pc-icon__line" style={{ height: ICON_LABEL_LINE_HEIGHT }}>
-            <span className="pc-icon__text">{line}</span>
-          </span>
-        ))}
+        <span className="pc-icon__plate">
+          {lines.map((line) => (
+            <span key={line} className="pc-icon__line" style={{ height: ICON_LABEL_LINE_HEIGHT }}>
+              <span className="pc-icon__text">{line}</span>
+            </span>
+          ))}
+        </span>
       </div>
     </div>
   );
