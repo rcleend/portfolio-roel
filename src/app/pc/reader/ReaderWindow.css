@@ -280,8 +280,8 @@
   background: #808080;
   scrollbar-color: #c3d3fd #f4f3ee;
   overscroll-behavior: contain;
-  /* Pinch zoom stays the reader's own (the zoom field); both pans scroll a zoomed page. */
-  touch-action: pan-x pan-y;
+  /* Both pans scroll a zoomed page; pinch zoom stays the browser's, for whoever needs larger text. */
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .pc-pane:focus-visible {

@@ -135,7 +135,8 @@
 .pc-pane--popout {
   overflow-x: hidden;
   overflow-y: auto;
-  touch-action: pan-y;
+  /* Scrolls, and leaves pinch zoom to the browser: whoever needs larger text can have it. */
+  touch-action: pan-y pinch-zoom;
 }
 
 .pc-pane--popout .pc-pane__layer {
