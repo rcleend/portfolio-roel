@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 import { READER_MARK } from '../reader/marks';
 import { ArtSvg } from './ArtSvg';
 import type { Art } from './art';
@@ -40,8 +40,12 @@ export interface DesktopProps {
  * The live desktop: the DOM twin of the still painter (`paintChrome.ts`),
  * positioned from the same `desktopLayout` and coloured from the same tokens,
  * over the very same wallpaper canvas. Decorative; the reader is the content.
+ * Memoised: the screen re-renders with every view change of the room host, in
+ * the same task as the click that starts a flight, and the desktop's art is
+ * most of that work while its props only change with the layout, the scripted
+ * selection, the open window and the minute.
  */
-export function Desktop({ layout, selected, taskTitle, clock, pixelsPerLayoutPx }: DesktopProps) {
+export const Desktop = memo(function Desktop({ layout, selected, taskTitle, clock, pixelsPerLayoutPx }: DesktopProps) {
   const { taskbar, start, tray } = layout;
   return (
     <div className="pc-desktop" aria-hidden="true">
@@ -68,7 +72,7 @@ export function Desktop({ layout, selected, taskTitle, clock, pixelsPerLayoutPx 
       </div>
     </div>
   );
-}
+});
 
 /** The tray's bevelled left edge (dark, then light) over its gradient, like the painter's two 1 px lines. */
 const trayBackground = `linear-gradient(to right, ${TRAY_EDGE_DARK} 0 1px, ${TRAY_EDGE_LIGHT} 1px 2px, transparent 2px), ${cssGradient('to bottom', TRAY_STOPS)}`;
