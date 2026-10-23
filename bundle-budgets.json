@@ -1,10 +1,10 @@
 {
-  "$comment": "kB (1000 bytes) of gzip as scripts/bundle-report.mjs measures it (Node's zlib, default level). Baseline: the same measurement of the build at 2494ded; Vite's own report shows those files as 209.28 / 4.82 / 179.19 kB because Rolldown's compressor differs. The room's budget is the spec's +5 kB plus 0.6 kB for cutting large meshes into chunks for pointer picking (src/room/interaction/pickMeshes.ts), which keeps every click and hover free of long tasks on slow CPUs. See docs/PC.md › Budgets.",
+  "$comment": "kB (1000 bytes) of gzip as scripts/bundle-report.mjs measures it (Node's zlib, default level). Baseline: the same measurement of the build at 2494ded; Vite's own report shows those files as 209.28 / 4.82 / 179.19 kB because Rolldown's compressor differs. The room's budget is the spec's +5 kB plus 0.6 kB for cutting large meshes into chunks for pointer picking (src/room/interaction/pickMeshes.ts), which keeps every click and hover free of long tasks on slow CPUs, plus 1.1 kB for doing the room's work ahead of need on idle time (src/room/stage/IdleWork.ts: the pick chunks off the first frame, every texture uploaded before a flight can show it, the monitor's still painted off the click) and for framing room around the computer to click. See docs/PC.md › Budgets.",
   "baseline": { "entryJs": 208.79, "entryCss": 4.81, "room": 177.03 },
   "budgets": {
     "entryJs": 209.79,
     "entryCss": 5.31,
-    "room": 182.63,
+    "room": 183.73,
     "pcStill": 5,
     "PcExperience": 25
   }
