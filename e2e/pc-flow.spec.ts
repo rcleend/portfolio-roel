@@ -85,7 +85,58 @@ async function sitDown(page: Page): Promise<void> {
   await advanceUntil(page, () => live(page));
 }
 
+/**
+ * Records every texture upload the page makes from an image (the room's atlases are ImageBitmaps),
+ * with its size and time, into `window.__uploads`.
+ */
+async function recordUploads(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const uploads: { at: number; pixels: number }[] = [];
+    for (const context of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype]) {
+      for (const name of ['texImage2D', 'texSubImage2D'] as const) {
+        const upload = context[name] as (...args: unknown[]) => void;
+        Object.defineProperty(context, name, {
+          value(this: WebGLRenderingContext, ...args: unknown[]) {
+            const source = args.at(-1) as { width?: unknown; height?: unknown } | null;
+            const pixels = typeof source?.width === 'number' ? source.width * Number(source.height) : 0;
+            uploads.push({ at: performance.now(), pixels });
+            return upload.apply(this, args);
+          },
+        });
+      }
+    }
+    (window as unknown as { __uploads: typeof uploads }).__uploads = uploads;
+  });
+}
+
+/** Large images (1024² and up) uploaded since `since`, on the page's own clock. */
+const largeUploadsSince = (page: Page, since: number) =>
+  page.evaluate(
+    (after) =>
+      (window as unknown as { __uploads: { at: number; pixels: number }[] }).__uploads.filter(
+        (upload) => upload.at > after && upload.pixels >= 1024 * 1024,
+      ).length,
+    since,
+  );
+
+/** Waits, at the TV, until the room has nothing left to do ahead of need and the monitor's still is painted. */
+async function untilPrepared(page: Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      const current = await stats(page);
+      return current !== undefined && !current.backgroundPending && current.pcTexturePixels > 0;
+    })
+    .toBe(true);
+}
+
 const untilReader = (page: Page) => advanceUntil(page, async () => (await pcState(page)) === 'reader');
+const mode = (page: Page) =>
+  page.evaluate(() => document.querySelector('[data-pc-mode]')?.getAttribute('data-pc-mode'));
+const canvasCursor = (page: Page) =>
+  page.evaluate(() => document.querySelector<HTMLCanvasElement>('[data-host] canvas')?.style.cursor);
+/** How far down the résumé the pane is scrolled, 0–1. */
+const readingShare = (page: Page) =>
+  pane(page).evaluate((element) => element.scrollTop / (element.scrollHeight - element.clientHeight));
 
 test('sits down at the computer, reads the résumé and gets up again', async ({ page }) => {
   const errors = trackErrors(page);
@@ -174,6 +225,112 @@ test('a click on the splash skips straight to the reader', async ({ page }) => {
   await page.mouse.click(placement.left + placement.width / 2, placement.top + placement.height / 2);
   expect(await advanceUntil(page, async () => (await pcState(page)) === 'reader')).toBeLessThanOrEqual(200);
   await expect(reader(page)).toBeVisible();
+});
+
+test('a click on the monitor itself keeps the reader open and the keys in the document', async ({ page }) => {
+  await openRoom(page);
+  await lookAround(page);
+  await sitDown(page);
+  await untilReader(page);
+  await expect(pane(page)).toBeFocused();
+  const placement = await page.evaluate(() => window.__room?.pc.placement);
+  if (!placement) throw new Error('No placement');
+  // The tube border beside the picture: part of the computer, which the visitor is using.
+  const bezel = { x: placement.left - 12, y: placement.top + placement.height / 2 };
+  await page.mouse.move(bezel.x, bezel.y);
+  expect(await canvasCursor(page)).toBe('default');
+  await page.mouse.click(bezel.x, bezel.y);
+  await advance(page, 300);
+  expect(await view(page)).toBe('pc');
+  await expect(reader(page)).toBeVisible();
+  await expect(pane(page)).toBeFocused();
+  const top = await pane(page).evaluate((element) => element.scrollTop);
+  await page.keyboard.press('PageDown');
+  await expect.poll(() => pane(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(top);
+});
+
+test.describe('in a 4:3 window', () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test('leaves room beside the monitor, where a click gets up', async ({ page }) => {
+    await openRoom(page);
+    await lookAround(page);
+    await sitDown(page);
+    await untilReader(page);
+    expect(await mode(page)).toBe('in-glass');
+    for (const x of [3, 1020]) {
+      await page.mouse.move(x, 384);
+      expect(await canvasCursor(page)).toBe('zoom-out');
+    }
+    await page.mouse.click(3, 384);
+    expect(await view(page)).toBe('room');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('keeps the place and the keys when a resize moves the reader out of the glass and back', async ({ page }) => {
+    await openRoom(page);
+    await lookAround(page);
+    await sitDown(page);
+    await untilReader(page);
+    await pane(page).evaluate((element) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) / 2;
+    });
+    // Snapped to half a screen: the picture becomes too small to read in.
+    await page.setViewportSize({ width: 600, height: 900 });
+    await advanceUntil(page, async () => (await mode(page)) === 'pop-out');
+    await advance(page, 100);
+    await expect(pane(page)).toBeFocused();
+    expect(await readingShare(page)).toBeCloseTo(0.5, 1);
+    // A click in the pop-out's own chrome keeps the keys in its dialog.
+    await page.locator('.pc-popout__toolbar').click();
+    await expect(reader(page)).toBeFocused();
+    // Back to a big window: into the glass again.
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await advanceUntil(page, async () => (await mode(page)) === 'in-glass');
+    await advance(page, 100);
+    await expect(pane(page)).toBeFocused();
+    expect(await readingShare(page)).toBeCloseTo(0.5, 1);
+    await page.keyboard.press('Escape');
+    expect(await advanceUntil(page, async () => (await view(page)) === 'room')).toBeLessThanOrEqual(1500);
+    await expect(stage(page)).toBeFocused();
+  });
+});
+
+test.describe('in a short window', () => {
+  test.use({ viewport: { width: 1024, height: 600 } });
+
+  test('pops the reader out and drops the hint to click outside, which is not there', async ({ page }) => {
+    await openRoom(page);
+    await lookAround(page);
+    await sitDown(page);
+    await untilReader(page);
+    expect(await mode(page)).toBe('pop-out');
+    // Past the hint's own delay.
+    await advance(page, 1500);
+    await expect(page.locator('.view-hint')).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: /outside the computer/ })).toHaveCount(0);
+  });
+});
+
+test('says so when the screen fails to load, and still gets up again', async ({ page }) => {
+  await page.route(/PcExperience/, (route) => route.abort());
+  const warnings: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'warning') warnings.push(message.text());
+  });
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await page.mouse.click(WALL.x, WALL.y);
+  await expect.poll(() => warnings.some((text) => text.includes('PC screen failed to load'))).toBe(true);
+  await page.waitForTimeout(SETTLE_MS);
+  const pc = await anchor(page, 'pc');
+  await page.mouse.click(pc.x, pc.y);
+  const message = page.getByRole('alert');
+  await expect(message).toContainText('The document could not be opened.');
+  await expect(message.getByRole('link', { name: 'Read the résumé' })).toHaveAttribute('href', '#resume');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => view(page)).toBe('room');
+  await expect(message).toBeHidden();
 });
 
 test.describe('with reduced motion', () => {
@@ -310,6 +467,21 @@ test.describe('performance', () => {
     for (const chunk of chunks) expect(chunk.startTime).toBeGreaterThan(runningAt);
   });
 
+  test('uploads every texture and paints the still before the visitor first leaves the TV', async ({ page }) => {
+    await recordUploads(page);
+    await page.goto('/?seed=1');
+    await waitForRunning(page);
+    await untilPrepared(page);
+    expect(await view(page)).toBe('tv');
+    const since = await page.evaluate(() => performance.now());
+    await page.mouse.click(WALL.x, WALL.y);
+    await page.waitForTimeout(SETTLE_MS);
+    const pc = await anchor(page, 'pc');
+    await page.mouse.click(pc.x, pc.y);
+    await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
+    expect(await largeUploadsSince(page, since)).toBe(0);
+  });
+
   test('renders nothing while the visitor reads or scrolls, and adds no shader program', async ({ page }) => {
     await page.goto('/?seed=1');
     await waitForRunning(page);
@@ -422,6 +594,19 @@ test.describe('on a phone', () => {
     await advance(page, SETTLE_MS);
     expect(await view(page)).toBe('tv');
     await expect(pad).toHaveAttribute('data-visible', 'true');
+  });
+
+  test('flies to the computer without uploading a texture on the way', async ({ page }) => {
+    await recordUploads(page);
+    await page.goto('/?seed=1');
+    await waitForRunning(page);
+    await untilPrepared(page);
+    const since = await page.evaluate(() => performance.now());
+    await page.touchscreen.tap(195, 30);
+    await page.waitForTimeout(SETTLE_MS);
+    await page.getByRole('button', { name: 'Use the computer' }).tap();
+    await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
+    expect(await largeUploadsSince(page, since)).toBe(0);
   });
 
   test.describe('held sideways', () => {
