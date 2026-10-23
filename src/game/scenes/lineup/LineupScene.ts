@@ -56,8 +56,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
   enter(params: LineupParams | undefined): void {
     const { cast, backdrop } = resolveLineup(params);
     const { assets, looks, levelArt } = this.#services;
-    this.#stage =
-      backdrop === 'menu' ? null : { art: levelArt.get(backdrop), layout: arenaStage(backdrop, []).layout };
+    this.#stage = backdrop === 'menu' ? null : { art: levelArt.get(backdrop), layout: arenaStage(backdrop, []).layout };
     this.#figures = standsFor(cast).map((stand): Figure => {
       const hero = getCharacter(stand.hero);
       const accent = classThemes[stand.hero].accent;

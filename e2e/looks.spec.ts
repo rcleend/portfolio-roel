@@ -3,6 +3,7 @@ import type * as AssetsModule from '../src/engine/assets/AssetStore';
 import type { SpriteSheet } from '../src/engine/gfx/SpriteSheet';
 import type * as LoadModule from '../src/game/art/looks/load';
 import type * as SelectionModule from '../src/game/art/looks/selection';
+import type * as DesignsModule from '../src/game/art/looks/terraria/designs';
 import type { ShowcaseParams } from '../src/game/scenes/params';
 import { trackErrors } from './helpers';
 
@@ -109,5 +110,64 @@ test('loads every registered look and draws every sheet crisply', async ({ page 
   });
   expect(report.problems).toEqual([]);
   expect(report.drawn).toBeGreaterThan(50);
+  expect(errors).toEqual([]);
+});
+
+/**
+ * The Terraria designs are no look yet, so the test above never sees them:
+ * draw each one as the lineup does, crisp, and no taller than the classic
+ * heroes, whose height the captain asked them not to outgrow.
+ */
+test('opens the Terraria lineup and draws every design crisply, no taller than the classic heroes', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  // The harness must fetch the designs before the lineup's first frame, or the scene throws.
+  await open(page, { scene: 'lineup' });
+  const report = await page.evaluate(async () => {
+    const designsPath = '/src/game/art/looks/terraria/designs.ts';
+    const loadPath = '/src/game/art/looks/load.ts';
+    const selectionPath = '/src/game/art/looks/selection.ts';
+    const storePath = '/src/engine/assets/AssetStore.ts';
+    const { TERRARIA_DESIGNS, loadTerrariaDesigns, terrariaDesignSheet } = (await import(
+      designsPath
+    )) as typeof DesignsModule;
+    const { loadLooks } = (await import(loadPath)) as typeof LoadModule;
+    const { DEFAULT_LOOKS } = (await import(selectionPath)) as typeof SelectionModule;
+    const { AssetStore } = (await import(storePath)) as typeof AssetsModule;
+    const assets = new AssetStore();
+    const [, looks] = await Promise.all([loadTerrariaDesigns(assets), loadLooks(DEFAULT_LOOKS, assets)]);
+
+    /** The standing frame's drawn rows and whether any pixel is half see-through. */
+    const measure = (sheet: SpriteSheet) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = sheet.width;
+      canvas.height = sheet.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      sheet.drawFrame(ctx, 'idle', 0, sheet.origin.x, sheet.origin.y);
+      const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data.filter((_, i) => i % 4 === 3);
+      const rows = [...Array(canvas.height).keys()].filter((y) =>
+        alpha.subarray(y * canvas.width, (y + 1) * canvas.width).some((value) => value > 0),
+      );
+      return {
+        height: rows.length === 0 ? 0 : (rows.at(-1) ?? 0) - (rows[0] ?? 0) + 1,
+        soft: alpha.some((value) => value !== 0 && value !== 255),
+      };
+    };
+    const classic = Object.values(looks.characters).map((look) => measure(look.sheet).height);
+    const designs = TERRARIA_DESIGNS.map((design) => ({
+      id: design.id,
+      ...measure(terrariaDesignSheet(assets, design)),
+    }));
+    return { classic: Math.min(...classic), designs };
+  });
+  expect(report.designs).toHaveLength(4);
+  for (const design of report.designs) {
+    expect(design.height, design.id).toBeGreaterThan(0);
+    expect(design.height, design.id).toBeLessThanOrEqual(report.classic);
+    expect(design.soft, design.id).toBe(false);
+  }
+  expect(await page.evaluate(() => window.__arcade?.state().scene)).toBe('lineup');
   expect(errors).toEqual([]);
 });

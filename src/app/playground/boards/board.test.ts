@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { characters, type SkillId, skills } from '@/content';
+import { characters, levels, type SkillId, skills } from '@/content';
 import { lookRegistry } from '@/game/art/looks/registry';
 import { TITLE_BACKDROPS } from '@/game/scenes/title/backdrops';
 import { TITLE_LOCKUPS } from '@/game/scenes/title/lockups';
@@ -7,6 +7,7 @@ import { TITLE_DEFAULTS } from '@/game/scenes/title/variants';
 import { boardRows, boardTiles, pickerOf, sharedPickers } from './board';
 import { PLAYGROUND_BOARDS, subjectsOf } from './catalog';
 import { characterBoard, customerBoard, skillBoard } from './looks';
+import { roelsBoard } from './roels';
 import { chosen, currentPicks } from './subject';
 import { heroSubject, lookBoard, testChoice } from './testing';
 import { backdropBoard, lockupBoard, titleSubject } from './title';
@@ -98,11 +99,40 @@ describe('the looks boards', () => {
     expect(ids(customerBoard)).toEqual(offer.customer);
   });
 
-  it('are on the page after the title boards, each subject focusable once', () => {
-    expect(PLAYGROUND_BOARDS).toEqual([lockupBoard, backdropBoard, characterBoard, skillBoard, customerBoard]);
+  it('are on the page after the title boards, the Terraria Roels after the characters, each subject focusable once', () => {
+    expect(PLAYGROUND_BOARDS).toEqual([
+      lockupBoard,
+      backdropBoard,
+      characterBoard,
+      roelsBoard,
+      skillBoard,
+      customerBoard,
+    ]);
     const subjects = subjectsOf(PLAYGROUND_BOARDS);
     expect(subjects[0]).toBe(titleSubject);
     expect(new Set(subjects.map((subject) => subject.id)).size).toBe(subjects.length);
-    expect(subjects).toHaveLength(1 + characters.length + Object.keys(skills).length + 1);
+    expect(subjects).toHaveLength(1 + characters.length + 1 + levels.length + Object.keys(skills).length + 1);
+  });
+});
+
+describe('the Terraria Roels board', () => {
+  it('stands the classic cast, marked current, beside the Terraria designs on the select screen and every stage', () => {
+    const rows = boardRows(roelsBoard, {});
+    expect(rows.map(({ row }) => row.title)).toEqual(['MENU NAVY', ...levels.map((level) => level.city)]);
+    for (const { tiles } of rows) {
+      expect(tiles.map((tile) => [tile.choice.id, tile.current])).toEqual([
+        ['game', true],
+        ['terraria', false],
+      ]);
+    }
+    const [menu, stage] = rows;
+    expect(menu?.tiles[1]?.row.subject.show(menu.tiles[1].picks)).toEqual({
+      spec: { scene: 'lineup', params: { cast: 'terraria', backdrop: 'menu' } },
+      looks: {},
+    });
+    expect(stage?.tiles[0]?.row.subject.show(stage.tiles[0].picks)).toEqual({
+      spec: { scene: 'lineup', params: { cast: 'game', backdrop: levels[0]?.id } },
+      looks: {},
+    });
   });
 });
