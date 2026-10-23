@@ -20,6 +20,8 @@ sys.path.insert(0, str(TOOL_DIR))
 from desk_finishes import apply_desk_finishes
 from rug import replace_rug
 from room_finishes import apply_room_finishes
+from basket_placement import settle_basket_papers
+from desktop import apply_desktop
 
 
 def linear(hex_color):
@@ -319,9 +321,14 @@ def main():
     principled(bpy.data.materials['lambert2'], '384651', 0.59)
     fabric(bpy.data.materials['Upholstery | petrol weave'], '527a83')
     for m in bpy.data.materials:
+        # Preserve the TV's original colour, normal and roughness/metallic maps.
+        # It still receives the shared night bake, without the restyle's matte
+        # surface overrides or reduced normal-map strength.
+        if m.name in ('TVfront', 'TVback'):
+            continue
         if m.users and m.name not in palette and m.name not in ('lambert2', 'lambert3', 'None', 'Scene_-_Root', 'Walnut | shared grain'):
-            if m.name.startswith(('MAT_', 'M_PS2_', 'TVfront', 'TVback', 'main', 'secondary', 'pxrusd', 'Poster', 'Kilim')):
-                soften_textured(m, 0.61 if m.name in ('TVfront', 'TVback') else 0.64)
+            if m.name.startswith(('MAT_', 'M_PS2_', 'main', 'secondary', 'pxrusd', 'Poster', 'Kilim')):
+                soften_textured(m, 0.64)
     # Weld UV-split vertices before subdivision; otherwise the imported triangle
     # islands shrink independently and open cracks in the chair's silhouette.
     for name in ('PC_Imported_Mouse', 'Imported_chair_00_Mesh_lambert3_0'):
@@ -357,6 +364,8 @@ def main():
     apply_desk_finishes()
     apply_room_finishes()
     replace_rug(TOOL_DIR / 'assets/rug-geometric.png')
+    settle_basket_papers()
+    apply_desktop()
     lighting(scene)
     scene['art_direction'] = 'After hours / crafted miniature / revision 6'
     scene['reference'] = 'https://github.com/brunosimon/my-room-in-3d (visual and lighting study only)'

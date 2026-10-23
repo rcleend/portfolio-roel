@@ -10,6 +10,7 @@ import json
 import math
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import bpy
@@ -22,6 +23,42 @@ def select(objects):
     for obj in objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = objects[0]
+
+
+@contextmanager
+def shared_bake_target(objects):
+    """Extend atlas gutters once across every island in the shared lightmap.
+
+    Baking several objects separately into one image lets a later object's
+    margin overwrite an earlier object's small UV islands. A temporary joined
+    copy keeps the existing UV layout, while retaining semantic export nodes.
+    """
+    if len(objects) == 1:
+        yield objects
+        return
+    hidden = {obj: obj.hide_render for obj in objects}
+    copies = []
+    for obj in objects:
+        duplicate = obj.copy()
+        duplicate.data = obj.data.copy()
+        duplicate.parent = None
+        duplicate.matrix_world = obj.matrix_world.copy()
+        duplicate.hide_render = False
+        bpy.context.scene.collection.objects.link(duplicate)
+        copies.append(duplicate)
+        obj.hide_render = True
+    select(copies)
+    bpy.ops.object.join()
+    target = bpy.context.object
+    target.name = 'Temporary shared atlas bake'
+    try:
+        yield [target]
+    finally:
+        data = target.data
+        bpy.data.objects.remove(target, do_unlink=True)
+        bpy.data.meshes.remove(data)
+        for obj, was_hidden in hidden.items():
+            obj.hide_render = was_hidden
 
 
 def unlit(name, image=None, color=(1, 1, 1, 1), uv='UVMap'):
@@ -225,7 +262,9 @@ def main():
             batches.append(('device_tv_front', front, 2048, False))
             batches.append(('device_tv_rear', [obj for obj in surfaces if obj not in front], 1024, False))
         else:
-            batches.append(('device_' + key, surfaces, 1024, False))
+            # The desk close-up needs enough texels for sculpted keys and the
+            # mouse's curved surface; one shared 2K atlas still keeps draw calls flat.
+            batches.append(('device_' + key, surfaces, 2048 if key == 'pc' else 1024, False))
     for name, objects, size, preserve in batches:
         unwrap(objects, size, preserve)
         print('UV_READY', name, size, len(objects), flush=True)
@@ -243,9 +282,10 @@ def main():
             node.name = 'BAKE_TARGET'
             node.image = target
             material.node_tree.nodes.active = node
-        select(objects)
         print('BAKE_START', name, flush=True)
-        bpy.ops.object.bake(type='COMBINED')
+        with shared_bake_target(objects) as targets:
+            select(targets)
+            bpy.ops.object.bake(type='COMBINED')
         pixels = np.empty(len(target.pixels), dtype=np.float32)
         target.pixels.foreach_get(pixels)
         rgb = pixels.reshape(-1, 4)[:, :3]

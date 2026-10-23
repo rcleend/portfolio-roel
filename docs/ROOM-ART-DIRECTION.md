@@ -15,7 +15,11 @@ transitions back to the room. Keyboard and touch navigation reach the same views
 
 | Desk close-up | Radio and lava-lamp close-up |
 | --- | --- |
-| ![White desk and original computer](room/desk.webp) | ![Radio cabinet and warm lava glow](room/radio.webp) |
+| ![White desk and rebuilt retro computer](room/desk.webp) | ![Radio cabinet and warm lava glow](room/radio.webp) |
+
+| Rebuilt desktop peripherals | Original basket with supported papers |
+| --- | --- |
+| ![Beige CRT, full-size keyboard and wheel mouse](room/desktop-detail.webp) | ![Basket clear of the desk, with papers reaching its base](room/basket.webp) |
 
 ## Reference study
 
@@ -40,11 +44,11 @@ shadow maps or a postprocessing stack for that appearance.
 | --- | --- | --- |
 | Material language | Worn scans, noisy paint, glossy electronics and flat props | Cream enamel, oak/walnut, muted teal cloth, slate ABS and restrained brushed metal |
 | Surface detail | Strong scan grain and small wear marks competing with the silhouettes | Restrained furniture grain, natural floor fibers, quiet paint and readable original labels |
-| Geometry | Sharp furniture, a flat photographed floor and faceted chair | Metre-scale edge radii, shallow bevelled floorboards, welded and smoothed upholstery and mouse |
+| Geometry | Sharp furniture, a flat photographed floor and faceted chair | Metre-scale edge radii, shallow bevelled floorboards, welded and smoothed upholstery and a rebuilt retro desktop |
 | Lighting consistency | Baked furniture with independently lit PBR devices | One Cycles lighting setup baked across furniture **and all four devices** |
 | Night atmosphere | Dark blue shadows with warm pools from the lamps | Original night colors and local practical lights, with much dimmer broad fills and world illumination |
 | Contact and depth | Device lighting did not match its baked contact shadow | Device shading, soft contact shadows and surrounding bounce share a light source |
-| Texture fidelity | Different texture densities and multiple PBR channels per device | Dedicated 2K TV-front atlas, 1K TV-rear/PC/radio/PS2 atlases, density allocated to visible details |
+| Texture fidelity | Different texture densities and multiple PBR channels per device | Dedicated 2K TV-front/PC atlases, 1K TV-rear/radio/PS2 atlases, density allocated to visible details |
 | Runtime cost | Environment capture and multiple live lights for imported devices | Unlit static assets; one hemisphere for moving lava/glass; existing CRT glow |
 
 ## Specific treatments
@@ -72,10 +76,26 @@ shadow maps or a postprocessing stack for that appearance.
 - **Chair:** petrol upholstery uses a fine, low-amplitude weave. Welding its UV-split
   vertices before subdivision avoids cracks between imported triangles; its original
   silhouette remains recognizable. The floor pillow is removed from the exported scene.
-- **Electronics:** the CRT, PC, radio, PS2 and controllers keep their source models,
-  controls, labels and logos. Roughness and normal-map amplitude are restrained, then
-  their static surfaces are baked in the room. The TV front has its own 2K atlas for
-  the opening close-up; the rear uses 1K. Screens remain separate and replaceable.
+- **Electronics:** the TV, radio, PS2 and controllers keep their source models,
+  controls, labels and logos. The TV's original pre-overhaul color, roughness, metallic
+  and normal maps are restored without the matte/normal-strength overrides. The other
+  devices keep their restrained finishes. All static surfaces are baked in the room.
+  The TV front has its own 2K atlas for the opening close-up; the rear uses 1K.
+  Screens remain separate and replaceable.
+- **Desktop:** a new beige CRT monitor, two-tone full-size keyboard and wheel mouse
+  are modelled from public views of FaceTheEdge's
+  [90s PC desktop style 002](https://sketchfab.com/3d-models/90s-pc-desktop-style-002-ec97f236db9342d0802a3ab75cf4da4b).
+  The reference is not downloadable; this is an original lightweight reconstruction,
+  with no extracted geometry or texture maps. Broad bevels, a deep tapered shell,
+  recessed controls and a low swivel foot define the monitor. The existing tower
+  under the desk remains; no second system unit is added. Desktop cables and floppy
+  disks are removed. The existing screen mapping and desk interaction are preserved.
+  One shared 2K PC atlas preserves keycap and curved-mouse detail in the close-up.
+- **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
+  The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
+  settle under gravity into a supported pile reaching the bottom; three original
+  papers remain on the floor. Settling runs only during authoring, and the export
+  retains the original geometry, materials and desk atlas without runtime physics.
 - **Game case:** the original SSX3 case and printed insert remain. Its separate
   translucent overwrap is removed for the matte finish, so an opaque lightmap cannot
   obscure the original cover. The remaining case geometry and placement are preserved.
@@ -104,12 +124,12 @@ extend each island's own color to limit dark seams when textures are filtered.
 
 | Runtime asset cost | Revision 5 | Revision 6 |
 | --- | ---: | ---: |
-| Five GLBs and credits | 7.87 MB | 6.65 MB |
-| Decoded texture pixels | 47.72 million | 41.69 million |
-| Total asset triangles | 245,893 | 328,951 |
+| Five GLBs and credits | 7.87 MB | 6.97 MB |
+| Decoded texture pixels | 47.72 million | 44.84 million |
+| Total asset triangles | 245,893 | 336,666 |
 | Room-view draw calls | 55 | 57 |
 
-The texture allocation decreases despite the sharper front-facing atlases, because
+Texture allocation stays below revision 5 despite the sharper front-facing atlases, because
 static devices no longer ship separate normal/roughness maps. More geometry goes to
 silhouettes and bevels. The room still idles at zero renders with reduced motion;
 visible lava schedules 24 frames per second. These are local Chromium measurements,
@@ -117,5 +137,5 @@ not a guarantee of a particular frame rate on every device.
 
 The rebuild recipe, source requirements and verification commands are documented in
 [tools/room/README.md](../tools/room/README.md). The generated rug texture, its prompt
-and the supplied model's attribution are documented in
-[the rug authoring inputs](../tools/room/assets/README.md).
+and the supplied rug's attribution are documented in
+[the room authoring inputs](../tools/room/assets/README.md).

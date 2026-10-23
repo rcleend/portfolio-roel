@@ -156,6 +156,22 @@ export async function verifyRoomAssets(directory, manifest) {
       );
     }
   }
+  const pc = documents.get('pc-base.glb').getRoot();
+  for (const name of ['PC_Imported_CRT_base', 'PC_Imported_Keyboard_base', 'PC_Imported_Mouse_base']) {
+    assert.ok(
+      pc.listNodes().some((node) => node.getName() === name && node.getMesh()),
+      `Missing desktop part: ${name}`,
+    );
+  }
+  // The CRT name also registers the complete device as a clickable desk target.
+  // Keep this reconstruction economical compared with the high-detail reference.
+  let pcTriangles = 0;
+  for (const mesh of pc.listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      pcTriangles += (primitive.getIndices()?.getCount() ?? primitive.getAttribute('POSITION').getCount()) / 3;
+    }
+  }
+  assert.ok(pcTriangles < 15_000, 'Rebuilt desktop exceeds its geometry budget');
   return { totalBytes, triangles, texturePixels, files: FILES.length, validationErrors: 0, validationWarnings: 0 };
 }
 
