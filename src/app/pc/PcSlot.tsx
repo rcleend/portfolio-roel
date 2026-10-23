@@ -23,14 +23,12 @@ type Experience = ComponentType<PcExperienceProps>;
 
 let experience: Promise<Experience> | null = null;
 
+/**
+ * Loads the screen once per page load. A failed load stays failed: browsers keep a dynamic
+ * import's failure in their module map, so asking again would fail without even a request.
+ */
 function loadExperience(): Promise<Experience> {
-  experience ??= import('./PcExperience').then(
-    (module) => module.PcExperience,
-    (error: unknown) => {
-      experience = null; // The next visit to the computer tries again.
-      throw error;
-    },
-  );
+  experience ??= import('./PcExperience').then((module) => module.PcExperience);
   return experience;
 }
 
