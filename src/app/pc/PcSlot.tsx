@@ -56,23 +56,19 @@ export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlot
   const wanted = view === 'pc' || (view === 'room' && !saveData());
   useEffect(() => {
     if (!display || loaded || !wanted) return;
-    let current = true;
+    // A load finishing after this effect is gone still lands: the screen stays mounted once loaded.
     const load = (): void => {
       loadExperience().then(
-        (component) => current && setScreen(() => component),
+        (component) => setScreen(() => component),
         (error: unknown) => {
           warn(error);
-          if (current) setScreen('failed');
+          setScreen('failed');
         },
       );
     };
     // On the way to the computer: now, hidden by the flight. Looking around the room: when the page is idle.
-    const cancel = view === 'pc' ? null : whenIdle(load);
-    if (!cancel) load();
-    return () => {
-      current = false;
-      cancel?.();
-    };
+    if (view !== 'pc') return whenIdle(load);
+    load();
   }, [display, loaded, wanted, view]);
 
   if (!display || !Screen) return null;
@@ -89,14 +85,15 @@ export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlot
 function Unavailable() {
   return (
     <div className="pc-unavailable" role="alert">
-      <p>The document could not be opened.</p>
-      <a href="#resume">Read the résumé</a>
+      <p>
+        The document could not be opened. <a href="#resume">Read the résumé</a>
+      </p>
     </div>
   );
 }
 
 function warn(error: unknown): void {
-  console.warn('The computer’s screen failed to load', error);
+  console.warn('The PC screen failed to load', error);
 }
 
 function saveData(): boolean {

@@ -263,3 +263,13 @@ test('the live desktop lands over the still without a visible change', async ({ 
   for (let index = 0; index < a.length; index++) total += Math.abs((a[index] ?? 0) - (b[index] ?? 0));
   expect(total / a.length).toBeLessThanOrEqual(4);
 });
+
+test('a screen that fails to load says so and points to the résumé', async ({ page }) => {
+  await page.route('**/src/app/pc/PcExperience.tsx*', (route) => route.abort());
+  await page.goto('/pc-lab.html?clean&w=874&h=687');
+  await page.waitForFunction(() => window.__pcLab?.display.painted);
+  await page.evaluate(() => window.__pcLab?.land());
+  const message = page.getByRole('alert');
+  await expect(message).toContainText('The document could not be opened.');
+  await expect(message.getByRole('link', { name: 'Read the résumé' })).toHaveAttribute('href', '#resume');
+});

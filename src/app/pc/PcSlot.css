@@ -1,18 +1,22 @@
-/* Shown only when the screen's chunk fails to load: a period message box on the desktop's blue. */
+/* Shown only when the screen's chunk fails to load: a small message box on the desktop's blue. */
 .pc-unavailable {
   position: absolute;
   inset: 0;
   display: grid;
-  place-content: center;
-  justify-items: center;
-  color: #fff;
+  place-items: center;
+  background: #245edb;
   font:
-    13px Tahoma,
+    12px Tahoma,
     Verdana,
     sans-serif;
-  background: #245edb;
 }
 
-.pc-unavailable a {
-  color: #fff;
+.pc-unavailable p {
+  margin: 0 15%;
+  padding: 14px 16px;
+  border-top: 22px solid #0058ee;
+  border-radius: 6px 6px 0 0;
+  color: #000;
+  background: #ece9d8;
+  color-scheme: light;
 }
