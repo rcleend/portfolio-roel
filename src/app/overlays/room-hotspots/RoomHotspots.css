@@ -101,6 +101,22 @@
   bottom: max(12px, env(safe-area-inset-bottom));
 }
 
+/*
+ * The chip shows once the camera has landed in the room view (a flight takes 1.1 s): during the
+ * flight away from the computer it would hang over the very monitor it points to.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .room-hotspots__chip {
+    animation: room-hotspots-landed 160ms ease-out 1100ms backwards;
+  }
+}
+
+@keyframes room-hotspots-landed {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .room-hotspots__chip:hover {
     background: rgb(61 47 143 / 0.9);
