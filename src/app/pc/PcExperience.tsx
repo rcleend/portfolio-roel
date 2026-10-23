@@ -186,11 +186,11 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
     if (pane) pane.scrollTop = share * scrollRange(pane);
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key === 'Escape') {
       event.preventDefault();
       controls.close();
-    } else if (isStarting(state) && isSkipKey(event.key)) {
+    } else if (isStarting(state) && isSkipKey(event)) {
       event.preventDefault();
       controls.skip();
     }
