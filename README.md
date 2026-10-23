@@ -14,6 +14,7 @@ pnpm dev            # http://localhost:5173
 pnpm check          # type-check, lint (Biome), unit tests (Vitest) incl. the architecture boundary test
 pnpm e2e            # Playwright smoke tests (Chromium)
 pnpm build          # production bundle in dist/
+pnpm report:bundle  # after a build: gzip sizes against bundle-budgets.json
 ```
 
 ## Screenshots
@@ -29,6 +30,7 @@ pnpm shot --host flat --page                                 # full page, includ
 
 The audio lab, `/audio-lab.html` on the dev server, plays every track and effect and measures offline renders; `pnpm exec tsx scripts/audio-report.ts` prints the same level table in the terminal.
 The playground, `/playground` on the dev server, shows every registered title lockup and backdrop live and side by side, with a shared transport and a focus mode for any combination.
+The room lab, `/room-lab.html`, shows the attic with a test card on the TV (and, with `?mockpc=1`, on the computer); the PC lab, `/pc-lab.html`, shows the computer's screen on a stand-in monitor (docs/ROOM.md, docs/PC.md).
 
 In development (or with `?debug` in production) the URL accepts `host`, `scene`, `params`, `seed` and `frames`, and `window.__arcade` lets you `goTo`, `step`, `press` and inspect `state()` from the console.
 
@@ -36,6 +38,7 @@ In development (or with `?debug` in production) the URL accepts `host`, `scene`,
 
 - `docs/ARCHITECTURE.md` — module layout, contracts and the development harness. Start here.
 - `docs/ART-DIRECTION.md` — the visual and motion spec.
+- `docs/ROOM.md` — the three.js room and its contract; `docs/PC.md` — the computer's screen and résumé reader.
 - `docs/ROOM-ART-DIRECTION.md` — the 3D asset style and reference study; `tools/room/README.md` — the Blender rebuild pipeline.
 - `src/content` — the portfolio itself, as typed data.
 - `src/engine` — a small, generic 16-bit engine; `src/game` — the portfolio game; `src/app` — the React shell and hosts.

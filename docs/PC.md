@@ -27,8 +27,10 @@ It composes transforms only (`save`/`scale`/`translate`/`restore`) and never rea
 `PcSlot` (`PcSlot.tsx`) is the only module the room host imports:
 
 ```tsx
-<PcSlot display={room?.pc ?? null} view={view} powered={powered} onLeave={() => room.showRoom()} onFocusStage={focusStage} />
+<PcSlot display={room?.pc ?? null} view={view} powered={tvOn} onLeave={() => room?.showRoom()} onFocusStage={focusStage} />
 ```
+
+`powered` turns true once `room.powerOn()` has resolved and the game runs, never while the TV turns on: nothing for the computer may compete with the CRT turn-on and the boot's first frame (`e2e/pc-flow.spec.ts` checks every PC request starts after `#game` runs).
 
 It renders portals only and is a sibling of the stage, outside `role="application"`, so React events from the screen never reach the stage's handlers.
 The room host owns Escape on the stage element; the screen handles Escape only from its own roots (the screen's content root and the pop-out's dialog).
@@ -38,7 +40,7 @@ The room host owns Escape on the stage element; the screen handles Escape only f
 | Chunk | Contents | Loaded |
 | --- | --- | --- |
 | main bundle | `PcSlot.tsx`, `whenIdle.ts`, `display.ts` types | first load |
-| `pcStill-*` (`still/pcStill.ts`) | desktop layout, tokens, icon art, wallpaper, chrome painter | `whenIdle` once the room is ready and the TV is powered (also with Save-Data: it keeps the monitor from showing a dead tube) |
+| `pcStill-*` (`still/pcStill.ts`) | desktop layout, tokens, icon art, wallpaper, chrome painter | `whenIdle` once the room is ready and the TV's picture is up (also with Save-Data: it keeps the monitor from showing a dead tube) |
 | `PcExperience-*` (`PcExperience.tsx` + CSS) | live desktop, storyboard, cursors, splash, reader, pages, pop-out | `whenIdle` the first time the view becomes `room` (skipped with Save-Data); at once when the view becomes `pc`, hidden by the 1.1 s flight |
 
 `whenIdle` is `requestIdleCallback` with a 2 s timeout (a 200 ms timeout where it does not exist).
@@ -147,14 +149,25 @@ Clicking outside the monitor leaves, like the room. `window.__pcLab` lands, leav
 
 ## Budgets and measurements
 
-`pnpm build && pnpm report:bundle` (`scripts/bundle-report.mjs`) gzips the build's chunks from Vite's manifest and checks `bundle-budgets.json`; until the room host imports `PcSlot`, it weighs the PC's chunks in a probe build with `PcSlot` as an extra entry.
+`pnpm build && pnpm report:bundle` (`scripts/bundle-report.mjs`) gzips the build's chunks from Vite's manifest and checks `bundle-budgets.json` (kB of gzip by Node's zlib; the baseline is the same measurement of the build before the computer).
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS / CSS | baseline + 1.0 / + 0.5 kB | unchanged on this branch |
-| `PcSlot` glue (growth of the entry) | 0.8 kB | 0.78 kB |
-| `pcStill` closure | 5 kB | 4.97 kB |
+| Entry JS (with `PcSlot`, the hotspots, without the old navigation bar) | baseline + 1.0 kB | + 0.99 kB |
+| Entry CSS | baseline + 0.5 kB | + 0.23 kB |
+| Room chunk (the monitor, and chunked pointer picking: docs/ROOM.md) | baseline + 5.6 kB | + 5.55 kB |
+| `pcStill` closure | 5 kB | 4.96 kB |
 | `PcExperience` closure, JS + CSS | 25 kB, no three.js | 18.8 kB |
+
+Measured in the app (production build, Chromium on an M-series Mac; readable times on a paused clock, `e2e/pc-flow.spec.ts`):
+
+| | 1× CPU | 6× CPU |
+| --- | ---: | ---: |
+| Readable after landing: first visit / warm / reduced motion | 1.87 s / 0.59 s / 0.42 s | |
+| Reader mount, first visit / warm | 15 ms / 4 ms | 79 ms / 14 ms |
+| Long tasks over 50 ms from the click on the computer until it is left again | none | none |
+| WebGL frames from the landing to the open reader / while reading or scrolling | 1 / 0 | |
+| Hand-off, still vs live desktop on the landing frame (1440 × 900, 1280 × 720, 390 × 844, all at DPR 2) | mean \|Δ\| 0.66–0.80 / 255, only at edges (the still's texture is coarser than the page) | |
 
 Measured in the production lab (Chromium, M-series Mac):
 

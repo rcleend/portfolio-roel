@@ -24,6 +24,7 @@ try {
 
 room.pc.setStill(paintDesktop); // usable before `ready`: what the monitor shows when the live screen does not
 // render the computer's DOM into room.pc.screen; it is visible only while room.pc.live
+// (the app does both in app/pc/PcSlot.tsx, see docs/PC.md)
 
 await room.ready;          // assets loaded and the first frame drawn (TV dark, camera on the TV)
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
@@ -108,7 +109,7 @@ interface PropAnchor {                     // RoomTarget = 'tv' | 'pc'
 
 interface Interactable {                   // registered: the TV, the computer and its desk; extensible to other props
   readonly id: string;
-  readonly object: Object3D;               // ray-cast target, descendants included
+  readonly object: Object3D;               // ray-cast target with its descendants as registered
   readonly gestureSurface?: Object3D;      // ray target while it owns a drag
   cursor(hit: InteractionHit): string;
   activate(hit: InteractionHit): void;     // click / tap
@@ -175,6 +176,7 @@ room/
   interaction/
     Interactable.ts     the props contract
     RoomInteraction.ts  DOM pointer events → ray hits → hover cursor, click, gestures
+    pickMeshes.ts       what a pointer ray tests: large meshes cut once into compact chunks
   motion/easing.ts      easing curves (the room may not import engine runtime code)
   lab/                  dev lab: MockGameSurface, MockPcScreen + main.ts (served by room-lab.html)
 ```
@@ -221,6 +223,9 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 
 - **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
   Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, **0** while seated at the computer (the lava lamp is out of shot; the live screen is DOM).
+  In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles once, at registration, into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms); cutting the desk costs about 9 ms (51 ms) once while the room assembles.
+- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the first click into a flight answers within 10–16 ms. The first leave from the TV also paints the monitor's still: 36 ms of work before the first flight frame (the app's painter 21 ms, the upload 4 ms; the glass finish is made earlier, when the app hands over its painter) and 57 ms to that frame. A visitor's first gesture also creates the page's `AudioContext`, about 75 ms in headless Chromium.
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
 - **Cost.** Revision 6 uses 57 draw calls and ~337 k triangles in the room view, plus 3 for the monitor's light spill once it shows a still; the TV view culls most of the room. The five runtime GLBs and credits total 6.97 MB, with 44.84 million decoded texture pixels. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
@@ -267,5 +272,5 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 - `TV_SCREEN_APERTURE` is a measured constant; re-run `scripts/inspect-tv-screen.mjs` after a TV asset change.
 - `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
 - Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
-- Under software GL the room is fill-bound everywhere (flights 5–13 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up.
+- Under software GL the room is fill-bound everywhere (flights 6–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. On a main thread that slow, the screen's idle prefetch can land during the flight to the computer when the visitor clicks it within about 2.5 s of looking around (a 145 ms task at 1× under SwiftShader).
 - Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
