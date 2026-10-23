@@ -19,11 +19,7 @@ const CAST: Picker = {
   label: 'Cast',
   choices: [
     { id: 'game', name: 'Classic', description: 'The three heroes as the game draws them today.' },
-    {
-      id: 'terraria',
-      name: 'Terraria',
-      description: 'The default designs, both cap colourways, a classic hero beside them for scale.',
-    },
+    { id: 'terraria', name: 'Terraria', description: 'The default designs, a classic hero beside them for scale.' },
   ],
   current: 'game',
 };

@@ -157,16 +157,16 @@ test('opens the Terraria lineup and draws every design crisply, no taller than t
     };
     const classic = Object.values(looks.characters).map((look) => measure(look.sheet).height);
     const designs = TERRARIA_DESIGNS.map((design) => ({
-      id: design.id,
+      hero: design.hero,
       ...measure(terrariaDesignSheet(assets, design)),
     }));
     return { classic: Math.min(...classic), designs };
   });
   expect(report.designs).not.toHaveLength(0);
   for (const design of report.designs) {
-    expect(design.height, design.id).toBeGreaterThan(0);
-    expect(design.height, design.id).toBeLessThanOrEqual(report.classic);
-    expect(design.soft, design.id).toBe(false);
+    expect(design.height, design.hero).toBeGreaterThan(0);
+    expect(design.height, design.hero).toBeLessThanOrEqual(report.classic);
+    expect(design.soft, design.hero).toBe(false);
   }
   expect(await page.evaluate(() => window.__arcade?.state().scene)).toBe('lineup');
   expect(errors).toEqual([]);
