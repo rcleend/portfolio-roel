@@ -42,8 +42,8 @@ const SEED = 0xb1e9;
 /**
  * The static blueprint sheet as ramp steps per pixel (docs/ART-DIRECTION.md
  * › Title › Blueprint): banded cyanotype paper with sparse grain and, with
- * `lines`, the drafting grid, the frame with its zone margin and the title
- * block. Keeping steps rather than colours lets one sheet be lit at any
+ * `lines`, the drafting grid and the frame with its zone margin. Keeping
+ * steps rather than colours lets one sheet be lit at any
  * exposure by `exposeSheet`, the way a palette fade relights a whole screen.
  */
 export function sheetSteps(lines: boolean): Int8Array {
@@ -108,7 +108,7 @@ function gridLift(x: number, y: number): number {
   return 0;
 }
 
-/** The frame, the zone margin and the title block, in absolute inks. */
+/** The frame and its zone margin, in absolute inks. */
 function paintMarkings(steps: Int8Array): void {
   const set = (x: number, y: number, step: number): void => {
     if (x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT) steps[y * WIDTH + x] = step;
@@ -123,7 +123,6 @@ function paintMarkings(steps: Int8Array): void {
     set(x + w - 1, j, INK.mid);
   }
   paintZones(set);
-  paintTitleBlock(set);
 }
 
 type StepSetter = (x: number, y: number, step: number) => void;
@@ -163,52 +162,5 @@ function paintZones(set: StepSetter): void {
       set(x - t, top, ink);
       set(x + w - 1 + t, top, ink);
     }
-  }
-}
-
-/**
- * The title block in the bottom-right corner of the frame, as on every
- * engineering drawing: drawing number, scale, sheet and revision. The
- * revision letter is left out for the backdrop to letter every frame,
- * because it climbs as the plotter finishes drawings.
- */
-const BLOCK = { w: 76, h: 21, rightCell: 28, padding: 3 } as const;
-const BLOCK_BOX = rect(FRAME.x + FRAME.w - BLOCK.w, FRAME.y + FRAME.h - BLOCK.h, BLOCK.w, BLOCK.h);
-/** The x where the right-hand cells' text starts. */
-const RIGHT_TEXT = BLOCK_BOX.x + BLOCK_BOX.w - BLOCK.rightCell + BLOCK.padding;
-
-export const TITLE_BLOCK = {
-  box: BLOCK_BOX,
-  /** Where the revision letter goes: the top-left of its glyph cell, after "REV ". */
-  revision: { x: RIGHT_TEXT + letteredWidth('REV '), y: BLOCK_BOX.y + BLOCK.padding },
-} as const;
-
-function paintTitleBlock(set: StepSetter): void {
-  const { x, y, w, h } = TITLE_BLOCK.box;
-  const middle = y + Math.floor(h / 2);
-  const split = x + w - BLOCK.rightCell;
-  // A step darker inside, with no grid: a label pasted on rather than more graph paper.
-  for (let j = y + 1; j < y + h - 1; j++) {
-    for (let i = x + 1; i < x + w - 1; i++) set(i, j, Math.max(0, paperStep(i, j) - 1));
-  }
-  for (let i = x; i < x + w; i++) {
-    set(i, y, INK.mid);
-    set(i, middle, INK.mid);
-  }
-  for (let j = y; j < y + h; j++) {
-    set(x, j, INK.mid);
-    set(split, j, INK.mid);
-  }
-  const rows = [y + BLOCK.padding, middle + BLOCK.padding];
-  const cells = [
-    { caption: 'DWG', value: 'RL-1996', x: x + BLOCK.padding, row: 0 },
-    { caption: 'SCALE', value: '1:1', x: x + BLOCK.padding, row: 1 },
-    { caption: 'REV', value: '', x: RIGHT_TEXT, row: 0 },
-    { caption: 'SHT', value: '1', x: RIGHT_TEXT, row: 1 },
-  ];
-  for (const cell of cells) {
-    const top = rows[cell.row] as number;
-    letterSteps(set, cell.caption, cell.x, top, INK.ghost + 1);
-    letterSteps(set, cell.value, cell.x + letteredWidth(`${cell.caption} `), top, INK.white);
   }
 }

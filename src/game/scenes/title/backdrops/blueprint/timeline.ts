@@ -214,9 +214,9 @@ export const SETTLED_FRAMES = ATTRACT_AFTER_SECONDS * 60;
 
 /**
  * When the plotter draws each wireframe, in frames since the title settled.
- * Each finishes (and the revision climbs) between two of the logo's glints,
- * so the corner and the logo take turns; erasing ends before the next one
- * starts, and the last is gone before the intro replays.
+ * Each finishes between two of the logo's glints, so the corner and the
+ * logo take turns; erasing ends before the next one starts, and the last
+ * is gone before the intro replays.
  */
 export const PLOTS = [
   { plot: 60, done: 273, erase: 420 },
@@ -261,26 +261,6 @@ export function plotterAt(settled: number): PlotterState | null {
 /** The ink of a drawing `at` frames into being erased. */
 export function eraseInk(at: number): number {
   return ERASE_STEPS[Math.floor(at / ERASE_STEP_FRAMES)] ?? (ERASE_STEPS.at(-1) as number);
-}
-
-export interface Revision {
-  /** Drawings finished so far this loop: revision A plus this many. */
-  readonly count: number;
-  /** Frames since the last one finished, or null before the first. */
-  readonly since: number | null;
-}
-
-/** The title block's revision: it climbs a letter whenever the plotter finishes a drawing. */
-export function revisionAt(settled: number): Revision {
-  const frame = mod(settled, SETTLED_FRAMES);
-  let count = 0;
-  let since: number | null = null;
-  for (const { done } of PLOTS) {
-    if (frame < done) break;
-    count++;
-    since = frame - done;
-  }
-  return { count, since };
 }
 
 /** One slow pass of the light table's scan line per loop, while the plotter rests between drawings. */

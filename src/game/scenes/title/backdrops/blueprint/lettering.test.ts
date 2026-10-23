@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { draftingType, glyphPixels, LETTER_HEIGHT, letteredWidth } from './lettering';
 
-/** Everything the blueprint letters: the title block, the dimensions, the drawings' labels and the zone margin. */
-const LETTERED = 'DWG RL-1996 SCALE 1:1 REV SHT IDEA ? SHIP NO 375 Ø31 0123456789 ABCDEF';
+/** Everything the blueprint letters: the dimensions, the drawings' labels and the zone margin. */
+const LETTERED = 'IDEA ? SHIP NO 375 Ø31 0123456789 ABCDEF';
 
 describe('drafting lettering', () => {
   it('has a glyph for every character the blueprint letters', () => {
@@ -10,7 +10,7 @@ describe('drafting lettering', () => {
     for (const char of LETTERED) expect(font.has(char), char).toBe(true);
   });
 
-  it('stands 5 px tall, so it fits the title block cells and the 8 px margin', () => {
+  it('stands 5 px tall, so it fits the 8 px margin', () => {
     expect(LETTER_HEIGHT).toBe(5);
     for (const [, y] of glyphPixels(LETTERED, 0, 0)) expect(y >= 0 && y < LETTER_HEIGHT).toBe(true);
   });

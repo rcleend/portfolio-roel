@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { containsPoint } from '@/engine/math/Rect';
 import { lightGrid } from './gridWave';
 import type { PenCanvas } from './pen';
-import { insideFrame, isMajorColumn, isMajorRow, TITLE_BLOCK } from './sheet';
+import { FRAME, insideFrame, isMajorColumn, isMajorRow } from './sheet';
 
 function pixelCanvas(): PenCanvas & { readonly pixels: Map<string, string> } {
   const pixels = new Map<string, string>();
@@ -51,15 +50,14 @@ describe('grid wave', () => {
     }
   });
 
-  it('leaves the title block alone, where the sheet prints no grid', () => {
+  it('runs the grid right into the corners, up to the frame', () => {
     const canvas = pixelCanvas();
-    const { box } = TITLE_BLOCK;
-    lightGrid(canvas, box.x + 10, box.y, 0, 40, 'minor', 'major');
-    expect(canvas.pixels.size).toBeGreaterThan(0);
-    for (const key of canvas.pixels.keys()) {
-      const [x, y] = key.split(',').map(Number) as [number, number];
-      expect(containsPoint(box, x, y), key).toBe(false);
-    }
+    // The last pixels inside the frame, and the last grid lines before it.
+    const [right, bottom] = [FRAME.x + FRAME.w - 2, FRAME.y + FRAME.h - 2];
+    const [lastColumn, lastRow] = [right - (right % 8), bottom - (bottom % 8)];
+    lightGrid(canvas, right - 20, bottom - 20, 0, 40, 'minor', 'major');
+    expect(canvas.pixels.has(`${lastColumn},${bottom}`)).toBe(true);
+    expect(canvas.pixels.has(`${right},${lastRow}`)).toBe(true);
   });
 
   it('lights nothing before the ring has any size', () => {
