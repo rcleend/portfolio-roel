@@ -18,7 +18,7 @@ describe('glassLayerPixel', () => {
           expect(channel).toBeGreaterThanOrEqual(0);
           expect(channel).toBeLessThanOrEqual(1);
         }
-        expect(glassLayerPixel(u, v)[3]).toBeLessThanOrEqual(1 - (1 - 0.18) * (1 - 0.05) + 1e-9);
+        expect(glassLayerPixel(u, v)[3]).toBeLessThanOrEqual(1 - (1 - 0.234) * (1 - 0.065) + 1e-9);
       }
     }
   });
@@ -50,14 +50,14 @@ describe('glassLayerPixel', () => {
       for (const v of grid(20).map((t) => 0.15 + 0.7 * t)) {
         const [r, g, b, a] = glassLayerPixel(u, v);
         expect(a).toBeGreaterThan(0);
-        expect(a).toBeLessThanOrEqual(0.05);
+        expect(a).toBeLessThanOrEqual(0.065);
         expect([r, g, b].map((c) => Number(c.toFixed(9)))).toEqual([1, 0.96, 0.9]);
       }
     }
   });
 
   it('puts the sheen towards the top left, where the desk lamp is', () => {
-    expect(glassLayerPixel(0.22, 0.16)[3]).toBeCloseTo(0.05, 9);
+    expect(glassLayerPixel(0.22, 0.16)[3]).toBeCloseTo(0.065, 9);
     expect(glassLayerPixel(0.22, 0.16)[3]).toBeGreaterThan(glassLayerPixel(0.78, 0.16)[3]);
   });
 });

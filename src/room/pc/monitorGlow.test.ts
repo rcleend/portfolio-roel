@@ -61,11 +61,12 @@ describe('monitorGlowPatches', () => {
 });
 
 describe('bezelEmitter', () => {
-  it('is the picture as the settled eye sees it on the bezel plane', () => {
-    const { centre, halfSize } = bezelEmitter(MODEL, EYE);
+  it('is the picture as the settled eye sees it on the bezel plane, rounded corners included', () => {
+    const { centre, halfSize, radius } = bezelEmitter(MODEL, EYE);
     const scale = (-1.651 - EYE.z) / (-1.679 - EYE.z);
     expect(halfSize.x).toBeCloseTo(0.168 * scale, 9);
     expect(halfSize.y).toBeCloseTo(0.132 * scale, 9);
+    expect(radius).toBeCloseTo(0.006 * scale, 9);
     // The eye looks at the glass from just below its middle (the chin is framed too).
     expect(centre.x).toBeCloseTo(0, 9);
     expect(centre.y).toBeCloseTo((EYE.y - 1.071) * (1 - scale), 9);

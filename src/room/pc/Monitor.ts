@@ -118,7 +118,7 @@ export class Monitor {
     this.projectedUv.copyArray(projectorUvs(this.worldPositions, eye, model.rim));
     this.projectedUv.needsUpdate = true;
     const emitter = bezelEmitter(model, eye);
-    this.glow.setEmitter(0, emitter.centre, emitter.halfSize);
+    this.glow.setEmitter(0, emitter.centre, emitter.halfSize, emitter.radius);
 
     const placement = screenPlacement(model.picture, PC_PICTURE_RADIUS, pose, viewport, window.devicePixelRatio || 1);
     if (import.meta.env.DEV && placement.skew > MAX_SKEW_PX && !this.warnedSkew) {

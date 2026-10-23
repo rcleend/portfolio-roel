@@ -1,6 +1,7 @@
 import { type Box3, Vector2, Vector3 } from 'three';
 import type { GlowPatch } from '../tv/ScreenGlow';
 import { type GlassPlane, planeCentre, planeHeight, planeWidth } from './glassPlane';
+import { PC_PICTURE_RADIUS } from './pcModel';
 
 /**
  * Where the monitor's light lands: its bezel lip, the desk in front of it and the keyboard.
@@ -59,6 +60,7 @@ export function monitorGlowPatches(model: MonitorGlowModel, eye: Vector3): GlowP
       size: new Vector2(halfWidth * 2 + BEZEL_MARGIN * 2, planeHeight(picture) + BEZEL_MARGIN * 2),
       emitterCentre: bezel.centre,
       emitterHalfSize: bezel.halfSize,
+      emitterRadius: bezel.radius,
       fillEmitter: false,
     },
     // The pool of light on the desk in front of the monitor. Local +Y points to the wall: the
@@ -85,8 +87,15 @@ export function monitorGlowPatches(model: MonitorGlowModel, eye: Vector3): GlowP
   ];
 }
 
-/** The bezel patch's emitter for `eye`, in the quad's local metres; changes only with the eye. */
-export function bezelEmitter(model: MonitorGlowModel, eye: Vector3): { centre: Vector2; halfSize: Vector2 } {
+/**
+ * The bezel patch's emitter for `eye`, in the quad's local metres; changes only with the eye. Its
+ * corners are rounded like the picture's, so the light reaches into them as it does along the
+ * edges instead of leaving dark wedges between the rounded picture and a square emitter.
+ */
+export function bezelEmitter(
+  model: MonitorGlowModel,
+  eye: Vector3,
+): { centre: Vector2; halfSize: Vector2; radius: number } {
   const { picture, shellFrontZ } = model;
   const centre = planeCentre(picture);
   // The picture lies on the rim plane; the bezel lip is in front of it, closer to the eye, so
@@ -95,5 +104,6 @@ export function bezelEmitter(model: MonitorGlowModel, eye: Vector3): { centre: V
   return {
     centre: new Vector2((eye.x - centre.x) * (1 - scale), (eye.y - centre.y) * (1 - scale)),
     halfSize: new Vector2((planeWidth(picture) / 2) * scale, (planeHeight(picture) / 2) * scale),
+    radius: PC_PICTURE_RADIUS * scale,
   };
 }

@@ -4,7 +4,8 @@
  * into a small canvas that both the monitor's still texture and the live DOM screen draw on top
  * of their picture, so the glass looks identical on both sides of the hand-off.
  *
- * Tuned by eye in the room lab within ±30 % of the design values below.
+ * Tuned by eye within ±30 % of the design values (6 % edge, 18 % corner, 5 % sheen): at the top of
+ * that range, so the settled screen reads as a tube's curved glass rather than a flat panel.
  */
 
 /** Non-premultiplied RGBA, each 0–1, as an ImageData pixel holds it (÷ 255). */
@@ -15,12 +16,12 @@ const CLEAR_HALF = 0.35;
 /** …and the width of the rim over which the shadow eases in. */
 const RAMP = 0.15;
 /** Edge shadow at the middle of an edge and in a corner (where both edges add up). */
-const EDGE_SHADOW = 0.06;
-const CORNER_SHADOW = 0.18;
+const EDGE_SHADOW = 0.078;
+const CORNER_SHADOW = 0.234;
 /** The lamp's reflection: warm white, centred towards the top left, faint. */
 const SHEEN_COLOR = [1, 0.96, 0.9] as const;
 const SHEEN_CENTRE = { u: 0.22, v: 0.16 } as const;
-const SHEEN_MAX = 0.05;
+const SHEEN_MAX = 0.065;
 /** Radii (UV units) at which the sheen has fallen to a quarter. */
 const SHEEN_RADIUS = { u: 0.22, v: 0.2 } as const;
 
