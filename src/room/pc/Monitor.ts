@@ -140,6 +140,9 @@ export class Monitor {
   }
 
   setStill(painter: StillPainter | null): void {
+    // Every composite needs the glass finish. The app hands its painter over while the page is idle,
+    // so making the finish now keeps it off the click that first leaves the TV (14 ms at 6x CPU).
+    if (painter) this.glassLayer();
     let changed = this.still.setPainter(painter);
     if (painter && this.options.isInView()) changed = this.still.paint() || changed;
     if (changed) this.sync();

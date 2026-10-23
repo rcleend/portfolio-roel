@@ -173,6 +173,18 @@ describe('Monitor', () => {
     expect(renderer.initTexture).toHaveBeenCalledTimes(2);
   });
 
+  it('makes the glass finish when the painter arrives, so the first leave from the TV only paints', () => {
+    const { monitor } = setup();
+    const created = vi.spyOn(document, 'createElement');
+    const canvases = () => created.mock.calls.filter(([tag]) => tag === 'canvas').length;
+    monitor.setStill(() => {});
+    expect(canvases()).toBe(1);
+    created.mockClear();
+    monitor.prepare('tv', 'room');
+    // The still's own canvas; the finish is reused.
+    expect(canvases()).toBe(1);
+  });
+
   it('paints a new still at once, in one frame, while the computer can be seen', () => {
     const { monitor, renderer, loop } = setup({ inView: true });
     monitor.setStill(() => {});
