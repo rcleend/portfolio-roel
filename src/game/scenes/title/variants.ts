@@ -37,9 +37,10 @@ export function resolveTitleVariants(params: unknown = {}): TitleVariants {
 
 /**
  * Paints the art of the title `params` show, the default one when left out,
- * so its first frame never stutters. That takes about 70 ms on a laptop:
- * call it while nothing on screen moves, as the boot does during its black
- * frames. Later calls are free.
+ * so its first frame never stutters. For the default that takes about 45 ms
+ * on a laptop, the logo and the blueprint about half each: call it while
+ * nothing on screen moves, as the boot does during its black frames. Later
+ * calls are free.
  */
 export function prepareTitle(params?: TitleParams): void {
   const { lockup, backdrop } = resolveTitleVariants(params);
