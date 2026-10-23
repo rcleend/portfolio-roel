@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_VIEW_STATE, reduceView, type ViewState } from './viewState';
+import { INITIAL_VIEW_STATE, type RoomView, reduceView, type ViewState } from './viewState';
 
 describe('reduceView', () => {
   it('starts settled on the TV', () => {
@@ -36,5 +36,27 @@ describe('reduceView', () => {
     const back = reduceView(toRoom, { type: 'request', view: 'tv' });
     expect(back.state).toEqual({ view: 'tv', moving: true });
     expect(back.effects).not.toContain('resumeGame');
+  });
+
+  it.each(['desk', 'drawer'] as const)('keeps the game and its input off while exploring %s', (view) => {
+    const leaving = reduceView(INITIAL_VIEW_STATE, { type: 'request', view });
+    expect(leaving.effects).toContain('pauseGame');
+    expect(leaving.effects).toContain('disableInput');
+    const arrived = reduceView(leaving.state, { type: 'arrived' });
+    expect(arrived.state).toEqual({ view, moving: false });
+    expect(arrived.effects).toEqual([]);
+  });
+
+  it('only resumes at the TV after visiting several sections', () => {
+    let state = INITIAL_VIEW_STATE;
+    for (const view of ['room', 'desk', 'drawer', 'room'] satisfies RoomView[]) {
+      state = reduceView(state, { type: 'request', view }).state;
+      const arrival = reduceView(state, { type: 'arrived' });
+      expect(arrival.effects).not.toContain('enableInput');
+      expect(arrival.effects).not.toContain('resumeGame');
+      state = arrival.state;
+    }
+    state = reduceView(state, { type: 'request', view: 'tv' }).state;
+    expect(reduceView(state, { type: 'arrived' }).effects).toEqual(['resumeGame', 'enableInput']);
   });
 });

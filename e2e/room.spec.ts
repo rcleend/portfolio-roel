@@ -6,6 +6,10 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, he
 
 /** Centre of the TV picture in the 1440 × 900 room view (see scripts/room-shots.mjs). */
 const TV_IN_ROOM_VIEW = { x: 1202, y: 529 };
+const DESK_IN_ROOM_VIEW = { x: 370, y: 445 };
+const RADIO_IN_ROOM_VIEW = { x: 800, y: 444 };
+const LAVA_IN_ROOM_VIEW = { x: 721, y: 423 };
+const DRAWER_IN_ROOM_VIEW = { x: 780, y: 550 };
 
 test('opens on the TV, powers it on and only then boots the game', async ({ page }) => {
   const errors = trackErrors(page);
@@ -56,6 +60,61 @@ test('Enter on the stage returns from the room view', async ({ page }) => {
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
 });
 
+test('desk and radio meshes zoom in and back out without waking the game', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const host = hostElement(page);
+  await page.mouse.click(40, 450);
+  await page.waitForTimeout(1300);
+
+  await page.mouse.click(DESK_IN_ROOM_VIEW.x, DESK_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'desk');
+  await expect.poll(() => paused(page)).toBe(true);
+  await page.waitForTimeout(1300);
+  await page.mouse.click(1400, 90);
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+
+  for (const target of [RADIO_IN_ROOM_VIEW, LAVA_IN_ROOM_VIEW, DRAWER_IN_ROOM_VIEW]) {
+    await page.mouse.click(target.x, target.y);
+    await expect(host).toHaveAttribute('data-view', 'drawer');
+    await page.waitForTimeout(1300);
+    expect(await paused(page)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(host).toHaveAttribute('data-view', 'room');
+    await page.waitForTimeout(1300);
+  }
+  await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
+  await expect.poll(() => paused(page), { timeout: 5000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('keyboard navigation visits both sections with reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await page.mouse.click(40, 450);
+  await page.waitForTimeout(450);
+  const host = hostElement(page);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Zoom in on desktop' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'desk');
+  await expect(host).toBeFocused();
+  await page.waitForTimeout(450);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Zoom in on radio and lava lamp' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'drawer');
+  expect(await paused(page)).toBe(true);
+  await page.getByRole('button', { name: 'Return to TV' }).click();
+  await expect.poll(() => paused(page), { timeout: 5000 }).toBe(false);
+});
+
 test('the game takes keys only while the TV has focus', async ({ page }) => {
   await page.goto('/?seed=1&scene=title&frames=60');
   await waitForRunning(page);
@@ -101,7 +160,7 @@ test('teaches the room gestures, then retires the hints', async ({ page }) => {
   await expect(hint).toHaveText(/Click outside the TV to look around/);
   await page.mouse.click(40, 450);
   await page.clock.runFor(2_000);
-  await expect(hint).toHaveText(/Click the TV to keep playing/);
+  await expect(hint).toHaveText(/Click the desk, radio or TV to look closer/);
   await expect(hint).toHaveAttribute('data-visible', 'true');
   await page.clock.runFor(200);
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);

@@ -60,6 +60,7 @@ export function ViewHint({ view, active, touch }: ViewHintProps) {
   return (
     <p
       className={touch ? 'view-hint view-hint--top' : 'view-hint'}
+      data-view={view}
       data-visible={shown ? 'true' : 'false'}
       aria-hidden={shown ? undefined : true}
       role="status"

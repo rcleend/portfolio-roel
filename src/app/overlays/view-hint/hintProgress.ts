@@ -26,20 +26,24 @@ export function saveViewHintProgress(storage: FlagStorage | null, progress: View
 
 /** Records a view change; returns the same object when nothing new was learnt. */
 export function recordView(progress: ViewHintProgress, view: RoomView): ViewHintProgress {
-  if (view === 'room' && !progress.lookedAround) return { ...progress, lookedAround: true };
+  if (view !== 'tv' && !progress.lookedAround) return { ...progress, lookedAround: true };
   if (view === 'tv' && progress.lookedAround && !progress.returned) return { ...progress, returned: true };
   return progress;
 }
 
-export type ViewHintKind = 'look-around' | 'return';
+export type ViewHintKind = 'look-around' | 'return' | 'zoom-out';
 
 /** The hint to show for the current view, or null once the visitor has outgrown it. */
 export function hintFor(progress: ViewHintProgress, view: RoomView): ViewHintKind | null {
+  if (view === 'desk' || view === 'drawer') return 'zoom-out';
   if (view === 'tv') return progress.lookedAround ? null : 'look-around';
   return progress.returned ? null : 'return';
 }
 
 export function hintText(kind: ViewHintKind, touch: boolean): string {
   const verb = touch ? 'Tap' : 'Click';
-  return kind === 'look-around' ? `${verb} outside the TV to look around` : `${verb} the TV to keep playing`;
+  if (kind === 'zoom-out') return `${verb} outside to look around`;
+  return kind === 'look-around'
+    ? `${verb} outside the TV to look around`
+    : `${verb} the desk, radio or TV to look closer`;
 }

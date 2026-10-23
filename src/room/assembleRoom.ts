@@ -5,6 +5,7 @@ import { CameraRig } from './camera/CameraRig';
 import { ScreenFade } from './camera/ScreenFade';
 import type { Interactable } from './interaction/Interactable';
 import { RoomInteraction } from './interaction/RoomInteraction';
+import { SectionInteractable } from './interaction/SectionInteractable';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
 import { addRoomLighting } from './stage/roomLighting';
@@ -64,21 +65,33 @@ export function assembleRoom({ stage, assets, surface, views, reducedMotion }: R
     surface,
     contentRect: television.contentRect,
     isPlayable: () => views.atTv && television.powerState === 'on',
-    isInRoomView: () => views.view === 'room',
+    isInRoomView: () => views.view !== 'tv',
     focusTv: () => views.request('tv'),
   });
   const interaction = new RoomInteraction({
     canvas: stage.canvas,
     camera,
     isEnabled: () => !views.moving,
-    // Clicking anything but the TV while watching it steps back into the room.
+    // The empty surroundings always pull back from a close-up.
     onMiss: () => {
-      if (views.view === 'tv') views.request('room');
+      if (views.view !== 'room') views.request('room');
     },
-    idleCursor: () => (views.atTv ? 'zoom-out' : 'default'),
+    idleCursor: () => (views.view === 'room' || views.moving ? 'default' : 'zoom-out'),
     onPointer: (ndc) => rig.setParallaxPointer(ndc),
   });
   const unregisterTv = interaction.register(tvInput);
+  const cabinet = assets.room.scene.getObjectByName('04_Drawer');
+  const sectionObjects = [
+    ['desk', assets.room.scene.getObjectByName('02_Desk')],
+    ['desk', assets.devices.find((device) => device.getObjectByName('PC_Imported_CRT_base'))],
+    ...(cabinet?.children ?? [])
+      .filter((object) => object.name !== '04_Drawer_guitar')
+      .map((object) => ['drawer', object] as const),
+    ['drawer', assets.devices.find((device) => device.getObjectByName('Radio_Imported_Part_00_base'))],
+  ] as const;
+  const unregisterSections = sectionObjects.flatMap(([section, object], index) =>
+    object ? [interaction.register(new SectionInteractable(`${section}-${index}`, object, section, views))] : [],
+  );
 
   const syncSize = (): void => {
     rig.resize(stage.size);
@@ -103,6 +116,7 @@ export function assembleRoom({ stage, assets, surface, views, reducedMotion }: R
       stopResize();
       stopRender();
       unregisterTv();
+      for (const unregister of unregisterSections) unregister();
       interaction.dispose();
       lava.dispose();
       television.dispose();

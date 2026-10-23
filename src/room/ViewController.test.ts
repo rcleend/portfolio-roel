@@ -78,4 +78,19 @@ describe('ViewController', () => {
     expect(surface.resume).not.toHaveBeenCalled();
     expect(surface.paused).toBe(true);
   });
+
+  it('retains ownership of the pause through desk and cabinet visits', () => {
+    const { surface, views, land } = setup();
+    for (const view of ['room', 'desk', 'drawer', 'room'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+      expect(surface.paused).toBe(true);
+      expect(surface.setInputEnabled).toHaveBeenLastCalledWith(false);
+    }
+    expect(surface.pause).toHaveBeenCalledTimes(1);
+    views.request('tv');
+    expect(surface.resume).not.toHaveBeenCalled();
+    land();
+    expect(surface.resume).toHaveBeenCalledTimes(1);
+  });
 });

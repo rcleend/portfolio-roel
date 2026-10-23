@@ -7,7 +7,7 @@ import type { Interactable } from './interaction/Interactable';
 import { RoomStage } from './stage/RoomStage';
 import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
-import type { RoomView } from './viewState';
+import type { RoomSection, RoomView } from './viewState';
 
 export interface CreateRoomOptions {
   /** Element the room's canvas fills; its size drives the framing. */
@@ -36,6 +36,8 @@ export interface Room {
   focusTv(): void;
   /** Pauses the game, disables its input and pulls back to show the whole room. */
   showRoom(): void;
+  /** Looks closer at the desktop or the radio/lava-lamp cabinet, keeping the game paused. */
+  focusSection(section: RoomSection): void;
   onViewChange(listener: (view: RoomView) => void): () => void;
   /** Keeps the TV framing clear of app overlays (CSS-pixel strips of the viewport). */
   setFramingInsets(insets: FramingInsets): void;
@@ -113,6 +115,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
     focusTv: () => views.request('tv'),
     showRoom: () => views.request('room'),
+    focusSection: (section) => views.request(section),
     onViewChange: (listener) => views.onChange(listener),
     setFramingInsets(insets) {
       framingInsets = insets;

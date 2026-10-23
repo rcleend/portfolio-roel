@@ -7,6 +7,7 @@ import type { RoomView } from '../viewState';
 import { cloneViewpoint, fovForAspect, interpolateViewpoint, type Viewpoint } from './cameraPath';
 import { boxCorners, FULL_VIEWPORT, frameSubject, type NdcRegion, regionFromInsets } from './framing';
 import type { ScreenFade } from './ScreenFade';
+import { sectionViewpoint } from './sectionFraming';
 
 /** CSS-pixel strips of the viewport covered by app overlays (e.g. a touch pad). */
 export interface FramingInsets {
@@ -50,12 +51,13 @@ const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
 
 /**
- * Owns where the camera is: the computed TV framing, the room overview, the flight between
- * them and a subtle pointer parallax in the room view.
+ * Owns the TV, room and prop close-ups, the flight between them and a subtle pointer
+ * parallax in the room view.
  */
 export class CameraRig {
   private readonly poses: Record<RoomView, Viewpoint>;
   private current: Viewpoint;
+  private settledView: RoomView = 'tv';
   private region: NdcRegion = FULL_VIEWPORT;
   private insets: FramingInsets = NO_INSETS;
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
@@ -72,7 +74,12 @@ export class CameraRig {
     private readonly reducedMotion: MediaQueryList,
     private readonly fade: ScreenFade,
   ) {
-    this.poses = { tv: this.computeTvPose(), room: this.computeRoomPose() };
+    this.poses = {
+      tv: this.computeTvPose(),
+      room: this.computeRoomPose(),
+      desk: sectionViewpoint('desk', 1),
+      drawer: sectionViewpoint('drawer', 1),
+    };
     this.current = cloneViewpoint(this.poses.tv);
     this.apply();
   }
@@ -96,6 +103,7 @@ export class CameraRig {
   jumpTo(view: RoomView): void {
     this.stopFlight?.();
     this.stopFlight = null;
+    this.settledView = view;
     this.current = cloneViewpoint(this.poses[view]);
     this.apply();
     this.loop.invalidate();
@@ -105,7 +113,7 @@ export class CameraRig {
   goTo(view: RoomView, onArrive: () => void): void {
     this.stopFlight?.();
     this.parallaxEnabled = false;
-    this.parallaxGoal.set(0, 0);
+    this.setParallaxPointer(null);
     const step = this.reducedMotion.matches ? this.cutStep(view, onArrive) : this.flightStep(view, onArrive);
     this.stopFlight = this.loop.animate(step);
   }
@@ -171,24 +179,21 @@ export class CameraRig {
 
   private arrive(view: RoomView, onArrive: () => void): void {
     this.stopFlight = null;
+    this.settledView = view;
     this.parallaxEnabled = view === 'room' && !this.reducedMotion.matches;
     onArrive();
   }
 
   private refreshPoses(): void {
-    const settledView = this.moving ? null : this.closestView();
     this.poses.tv = this.computeTvPose();
     this.poses.room = this.computeRoomPose();
-    if (settledView) {
-      this.current = cloneViewpoint(this.poses[settledView]);
+    const aspect = this.viewport.width / this.viewport.height;
+    this.poses.desk = sectionViewpoint('desk', aspect);
+    this.poses.drawer = sectionViewpoint('drawer', aspect);
+    if (!this.moving) {
+      this.current = cloneViewpoint(this.poses[this.settledView]);
       this.apply();
     }
-  }
-
-  private closestView(): RoomView {
-    const toTv = this.current.position.distanceToSquared(this.poses.tv.position);
-    const toRoom = this.current.position.distanceToSquared(this.poses.room.position);
-    return toTv <= toRoom ? 'tv' : 'room';
   }
 
   private computeTvPose(): Viewpoint {

@@ -1,4 +1,5 @@
 import { type KeyboardEvent, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import type { RoomView } from '@/room';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import type { HostProps } from './types';
@@ -22,13 +23,13 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
   const [gated] = useState(() => new FocusGatedSurface(surface));
   const status = useRoom(stageRef, gated, events.onProgress);
   const room = status.state === 'ready' ? status.room : null;
-  const [view, setView] = useState<'tv' | 'room'>('tv');
+  const [view, setView] = useState<RoomView>('tv');
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
 
   const ready = useEffectEvent(() => events.onReady('room'));
   const poweredOn = useEffectEvent(() => events.onPoweredOn());
-  const viewChanged = useEffectEvent((next: 'tv' | 'room') => {
+  const viewChanged = useEffectEvent((next: RoomView) => {
     setView(next);
     events.onViewChange(next);
   });
@@ -63,11 +64,28 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
     room?.setFramingInsets({ top, right, bottom, left });
   }, [room, top, right, bottom, left]);
 
-  // Keyboard path back to the TV from the room view (pointer users click the set).
+  const navigate = (next: RoomView): void => {
+    if (next === 'tv') room?.focusTv();
+    else if (next === 'room') room?.showRoom();
+    else room?.focusSection(next);
+    stageRef.current?.focus({ preventScroll: true });
+  };
+
+  // Escape belongs to the game at the TV; in a prop close-up it pulls back to the room.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (room?.view !== 'room' || (event.key !== 'Enter' && event.key !== ' ')) return;
-    event.preventDefault();
-    room.focusTv();
+    if (!room) return;
+    if (room.view === 'desk' || room.view === 'drawer') {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      navigate('room');
+    } else if (
+      event.target === event.currentTarget &&
+      room.view === 'room' &&
+      (event.key === 'Enter' || event.key === ' ')
+    ) {
+      event.preventDefault();
+      navigate('tv');
+    }
   };
 
   return (
@@ -83,11 +101,13 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
       aria-label={
         view === 'tv'
           ? "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks. The same content is in the résumé after this game."
-          : 'Paused, looking around the attic. Press Enter to return to the TV.'
+          : view === 'room'
+            ? 'Paused, looking around the attic. Click the desk, radio cabinet or TV to look closer. Tab to room navigation, or press Enter to return to the TV.'
+            : `Looking at the ${view === 'desk' ? 'desktop' : 'radio and lava-lamp cabinet'}. Press Escape or click outside to return to the room.`
       }
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the stage is the game's keyboard focus target.
       tabIndex={0}
-      onFocus={() => gated.setFocused(true)}
+      onFocus={(event) => gated.setFocused(event.target === event.currentTarget)}
       onBlur={() => {
         gated.setFocused(false);
         setKeyboardFocus(false);
@@ -98,6 +118,35 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
       }}
       onPointerDown={() => setKeyboardFocus(false)}
       onKeyDown={onKeyDown}
-    />
+    >
+      {room && view !== 'tv' ? (
+        <nav className="room-navigation" aria-label="Room views">
+          {view !== 'room' ? (
+            <button type="button" onClick={() => navigate('room')}>
+              <span aria-hidden="true">← </span>Room
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-label="Zoom in on desktop"
+            aria-pressed={view === 'desk'}
+            onClick={() => navigate(view === 'desk' ? 'room' : 'desk')}
+          >
+            Desk
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in on radio and lava lamp"
+            aria-pressed={view === 'drawer'}
+            onClick={() => navigate(view === 'drawer' ? 'room' : 'drawer')}
+          >
+            Radio
+          </button>
+          <button type="button" aria-label="Return to TV" onClick={() => navigate('tv')}>
+            TV
+          </button>
+        </nav>
+      ) : null}
+    </div>
   );
 }

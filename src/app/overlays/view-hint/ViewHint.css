@@ -44,6 +44,25 @@
   color: #ffc83d;
 }
 
+@media (max-width: 700px) {
+  .view-hint {
+    box-sizing: border-box;
+    max-width: calc(100% - 32px);
+    width: max-content;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .view-hint:not(.view-hint--top):not([data-view="tv"]) {
+    bottom: max(82px, calc(env(safe-area-inset-bottom) + 66px));
+  }
+
+  .view-hint.view-hint--top {
+    max-width: calc(100% - 120px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .view-hint {
     transition: none;

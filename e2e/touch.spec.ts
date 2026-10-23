@@ -27,6 +27,28 @@ test('hides the gamepad while looking around the room', async ({ page }) => {
   await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
 });
 
+test('portrait navigation reaches the desk and cabinet and returns to the TV', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await page.touchscreen.tap(195, 90);
+  await page.waitForTimeout(1300);
+  const host = hostElement(page);
+  const desk = page.getByRole('button', { name: 'Zoom in on desktop' });
+  await desk.tap();
+  await expect(host).toHaveAttribute('data-view', 'desk');
+  await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
+  await page.waitForTimeout(1300);
+  await page.getByRole('button', { name: 'Zoom in on radio and lava lamp' }).tap();
+  await expect(host).toHaveAttribute('data-view', 'drawer');
+  await page.waitForTimeout(1300);
+  await page.getByRole('button', { name: 'Room', exact: true }).tap();
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  await page.getByRole('button', { name: 'Return to TV' }).tap();
+  await expect(host).toHaveAttribute('data-view', 'tv');
+  await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'true');
+});
+
 test.describe('landscape', () => {
   test.use({ viewport: { width: 844, height: 390 } });
 

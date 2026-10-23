@@ -70,7 +70,28 @@ async function poweredStill(page, frame = 120) {
   await sleep(150);
 }
 
+async function sectionShot(section, viewport, name) {
+  const page = await openLab(viewport, '&autopower=0');
+  await poweredStill(page);
+  await page.evaluate((target) => window.__roomLab.room.focusSection(target), section);
+  await sleep(1600);
+  await shot(page, name);
+  await page.close();
+}
+
 const scenarios = {
+  async 'desk-desktop'() {
+    await sectionShot('desk', { width: 1440, height: 900 }, 'desk-desktop');
+  },
+  async 'drawer-desktop'() {
+    await sectionShot('drawer', { width: 1440, height: 900 }, 'drawer-desktop');
+  },
+  async 'desk-phone'() {
+    await sectionShot('desk', { width: 390, height: 844, dpr: 3 }, 'desk-phone');
+  },
+  async 'drawer-phone'() {
+    await sectionShot('drawer', { width: 390, height: 844, dpr: 3 }, 'drawer-phone');
+  },
   async 'tv-desktop'() {
     const page = await openLab({ width: 1440, height: 900 }, '&autopower=0');
     await poweredStill(page);

@@ -3,7 +3,8 @@
  * pure reducer. Keeping the policy here (instead of inside event handlers) makes the
  * pause/resume/input rules readable in one place and testable without WebGL.
  */
-export type RoomView = 'tv' | 'room';
+export type RoomSection = 'desk' | 'drawer';
+export type RoomView = 'tv' | 'room' | RoomSection;
 
 export interface ViewState {
   /** The view the camera is at or travelling to. */
@@ -34,7 +35,7 @@ export function reduceView(state: ViewState, event: ViewEvent): ViewTransition {
   }
   if (event.view === state.view) return { state, effects: [] };
   const next: ViewState = { view: event.view, moving: true };
-  return event.view === 'room'
+  return event.view !== 'tv'
     ? { state: next, effects: ['disableInput', 'pauseGame', 'moveCamera', 'notify'] }
     : { state: next, effects: ['moveCamera', 'notify'] };
 }

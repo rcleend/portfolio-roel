@@ -1,10 +1,11 @@
 import type { GameSurface } from '@/engine/core/GameSurface';
+import type { RoomView } from '@/room';
 import type { Insets } from '../overlays/touchpad/padGeometry';
 
 export type HostKind = 'flat' | 'room';
 
 /** Where the visitor is looking: at the TV (playing) or around the room (game paused). */
-export type HostView = 'tv' | 'room';
+export type HostView = RoomView;
 
 /** What a host tells the app while it loads and runs. */
 export interface HostEvents {

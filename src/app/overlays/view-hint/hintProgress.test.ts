@@ -45,6 +45,13 @@ describe('view hints', () => {
 
   it('speaks the right verb for the device', () => {
     expect(hintText('look-around', false)).toBe('Click outside the TV to look around');
-    expect(hintText('return', true)).toBe('Tap the TV to keep playing');
+    expect(hintText('return', true)).toBe('Tap the desk, radio or TV to look closer');
+    expect(hintText('zoom-out', true)).toBe('Tap outside to look around');
+  });
+
+  it('explains the way out of a section even after the introductory hints retire', () => {
+    const experienced = { lookedAround: true, returned: true };
+    expect(hintFor(experienced, 'desk')).toBe('zoom-out');
+    expect(hintFor(experienced, 'drawer')).toBe('zoom-out');
   });
 });

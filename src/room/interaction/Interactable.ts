@@ -10,8 +10,8 @@ export interface InteractionHit {
 }
 
 /**
- * Anything in the room the viewer can point at and click: the TV today, the PC, radio,
- * PlayStation, guitar or posters later. Register one with RoomInteraction and it gets hover
+ * Anything in the room the viewer can point at and click: the TV, desk or radio cabinet.
+ * Register one with RoomInteraction and it gets hover
  * cursors, clicks and (optionally) a full pointer gesture, without touching the TV logic.
  */
 export interface Interactable {
