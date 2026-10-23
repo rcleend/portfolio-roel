@@ -6,10 +6,10 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, he
 
 /** Centre of the TV picture in the 1440 × 900 room view (see scripts/room-shots.mjs). */
 const TV_IN_ROOM_VIEW = { x: 1202, y: 529 };
-const DESK_IN_ROOM_VIEW = { x: 370, y: 445 };
-const RADIO_IN_ROOM_VIEW = { x: 800, y: 444 };
-const LAVA_IN_ROOM_VIEW = { x: 721, y: 423 };
-const DRAWER_IN_ROOM_VIEW = { x: 780, y: 550 };
+/** Centre of the computer's picture in the 1440 × 900 room view: the lab's `room.anchors`. */
+const PC_IN_ROOM_VIEW = { x: 375, y: 455 };
+/** Bare wall beside the window, outside every prop in the room and at the computer. */
+const WALL = { x: 40, y: 450 };
 
 test('opens on the TV, powers it on and only then boots the game', async ({ page }) => {
   const errors = trackErrors(page);
@@ -34,7 +34,7 @@ test('looking around the room pauses the game and the TV resumes it', async ({ p
   await waitForRunning(page);
   const host = hostElement(page);
 
-  await page.mouse.click(40, 450);
+  await page.mouse.click(WALL.x, WALL.y);
   await expect(host).toHaveAttribute('data-view', 'room');
   await expect.poll(() => paused(page)).toBe(true);
   const frame = await page.evaluate(() => window.__arcade?.state().frame);
@@ -52,7 +52,7 @@ test('Enter on the stage returns from the room view', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  await page.mouse.click(40, 450);
+  await page.mouse.click(WALL.x, WALL.y);
   await expect(host).toHaveAttribute('data-view', 'room');
   await page.waitForTimeout(1300);
   await page.keyboard.press('Enter');
@@ -60,59 +60,90 @@ test('Enter on the stage returns from the room view', async ({ page }) => {
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
 });
 
-test('desk and radio meshes zoom in and back out without waking the game', async ({ page }) => {
+test('clicking the computer sits down at it and clicking the wall gets up again', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  await page.mouse.click(40, 450);
+  const screen = page.locator('[data-pc-screen]');
+  await page.mouse.click(WALL.x, WALL.y);
   await page.waitForTimeout(1300);
 
-  await page.mouse.click(DESK_IN_ROOM_VIEW.x, DESK_IN_ROOM_VIEW.y);
-  await expect(host).toHaveAttribute('data-view', 'desk');
+  await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'pc');
   await expect.poll(() => paused(page)).toBe(true);
-  await page.waitForTimeout(1300);
-  await page.mouse.click(1400, 90);
+  const frame = await page.evaluate(() => window.__arcade?.state().frame);
+  await expect(screen).toHaveAttribute('data-live', 'true', { timeout: 3_000 });
+  expect(await page.evaluate(() => window.__arcade?.state().frame)).toBe(frame);
+
+  await page.mouse.click(WALL.x, WALL.y);
+  // Hidden in the same task as the click, before any flight frame.
+  expect(await screen.getAttribute('data-live')).toBe('false');
   await expect(host).toHaveAttribute('data-view', 'room');
   await page.waitForTimeout(1300);
-
-  for (const target of [RADIO_IN_ROOM_VIEW, LAVA_IN_ROOM_VIEW, DRAWER_IN_ROOM_VIEW]) {
-    await page.mouse.click(target.x, target.y);
-    await expect(host).toHaveAttribute('data-view', 'drawer');
-    await page.waitForTimeout(1300);
-    expect(await paused(page)).toBe(true);
-    await page.keyboard.press('Escape');
-    await expect(host).toHaveAttribute('data-view', 'room');
-    await page.waitForTimeout(1300);
-  }
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
-  await expect.poll(() => paused(page), { timeout: 5000 }).toBe(false);
+  await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
   expect(errors).toEqual([]);
 });
 
-test('keyboard navigation visits both sections with reduced motion', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+test('Escape during the flight to the computer returns to the room without showing the screen', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  await page.mouse.click(40, 450);
-  await page.waitForTimeout(450);
+  const host = hostElement(page);
+  await page.mouse.click(WALL.x, WALL.y);
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    const screen = document.querySelector('[data-pc-screen]');
+    new MutationObserver(() => seen.push(screen?.getAttribute('data-live') ?? '')).observe(screen as Element, {
+      attributeFilter: ['data-live'],
+    });
+    (window as unknown as { __liveSeen: string[] }).__liveSeen = seen;
+  });
+  await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'pc');
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1800);
+  expect(await page.evaluate(() => (window as unknown as { __liveSeen: string[] }).__liveSeen)).not.toContain('true');
+  await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'false');
+});
+
+test('the keyboard reaches the computer and the TV without the mouse', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
   const host = hostElement(page);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Zoom in on desktop' })).toBeFocused();
+  const lookAround = page.getByRole('button', { name: 'Look around the room' });
+  await expect(lookAround).toBeFocused();
+  await expect(lookAround).toHaveCSS('clip-path', 'none');
   await page.keyboard.press('Enter');
-  await expect(host).toHaveAttribute('data-view', 'desk');
+  await expect(host).toHaveAttribute('data-view', 'room');
   await expect(host).toBeFocused();
-  await page.waitForTimeout(450);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(450);
+  await page.waitForTimeout(1300);
+
   await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Zoom in on radio and lava lamp' })).toBeFocused();
+  const computer = page.getByRole('button', { name: 'Use the computer' });
+  await expect(computer).toBeFocused();
+  await expect(computer).toBeVisible();
+  await expect(computer).toHaveCSS('clip-path', 'none');
   await page.keyboard.press('Enter');
-  await expect(host).toHaveAttribute('data-view', 'drawer');
-  expect(await paused(page)).toBe(true);
-  await page.getByRole('button', { name: 'Return to TV' }).click();
-  await expect.poll(() => paused(page), { timeout: 5000 }).toBe(false);
+  await expect(host).toHaveAttribute('data-view', 'pc');
+  await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true', { timeout: 3_000 });
+  await expect(page.getByRole('navigation', { name: 'Look closer' })).toHaveCount(0);
+
+  // Escape on the stage gets up again.
+  await host.focus();
+  await page.keyboard.press('Escape');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Watch the TV' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'tv');
+  await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
 });
 
 test('the game takes keys only while the TV has focus', async ({ page }) => {
@@ -138,6 +169,8 @@ test('the sound toggle is reachable by keyboard and remembers the choice', async
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const toggle = page.getByRole('button', { name: 'Mute sound' });
+  // Past the TV view's "Look around the room".
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(toggle).toBeFocused();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
@@ -158,11 +191,23 @@ test('teaches the room gestures, then retires the hints', async ({ page }) => {
   const hint = page.locator('.view-hint');
   await page.clock.runFor(5_000);
   await expect(hint).toHaveText(/Click outside the TV to look around/);
-  await page.mouse.click(40, 450);
+  await page.mouse.click(WALL.x, WALL.y);
   await page.clock.runFor(2_000);
-  await expect(hint).toHaveText(/Click the desk, radio or TV to look closer/);
+  await expect(hint).toHaveText(/Click the computer or the TV to look closer/);
   await expect(hint).toHaveAttribute('data-visible', 'true');
-  await page.clock.runFor(200);
+  await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
+  await page.clock.runFor(2_500);
+  await expect(hint).toHaveText(/Click outside the computer to look around/);
+  await expect(hint).toHaveAttribute('data-visible', 'true');
+  await page.mouse.click(WALL.x, WALL.y);
+  await page.clock.runFor(2_000);
+  await expect(hint).toHaveText(/Click the computer or the TV to look closer/);
+  await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
+  await page.clock.runFor(2_500);
+  // Got up from the computer once: that line has retired.
+  await expect(hint).toHaveAttribute('data-visible', 'false');
+  await page.mouse.click(WALL.x, WALL.y);
+  await page.clock.runFor(2_000);
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await page.clock.runFor(6_000);
   await expect(hint).toHaveAttribute('data-visible', 'false');

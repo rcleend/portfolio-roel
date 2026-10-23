@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, scene, waitForRunning } from './helpers';
 
@@ -27,26 +28,34 @@ test('hides the gamepad while looking around the room', async ({ page }) => {
   await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
 });
 
-test('portrait navigation reaches the desk and cabinet and returns to the TV', async ({ page }) => {
+test('a chip on the edge reaches the computer the portrait room view crops out', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
+  const host = hostElement(page);
+  const pad = page.locator('.touchpad');
   await page.touchscreen.tap(195, 90);
   await page.waitForTimeout(1300);
-  const host = hostElement(page);
-  const desk = page.getByRole('button', { name: 'Zoom in on desktop' });
-  await desk.tap();
-  await expect(host).toHaveAttribute('data-view', 'desk');
-  await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
-  await page.waitForTimeout(1300);
-  await page.getByRole('button', { name: 'Zoom in on radio and lava lamp' }).tap();
-  await expect(host).toHaveAttribute('data-view', 'drawer');
-  await page.waitForTimeout(1300);
-  await page.getByRole('button', { name: 'Room', exact: true }).tap();
+  const chip = page.getByRole('button', { name: 'Use the computer' });
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveText(/COMPUTER/i);
+  const box = await chip.boundingBox();
+  expect(box?.x).toBeLessThan(30);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+
+  await chip.tap();
+  await expect(host).toHaveAttribute('data-view', 'pc');
+  await expect(pad).toHaveAttribute('data-visible', 'false');
+  await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true', { timeout: 3_000 });
+
+  // The window above the monitor is outside the computer: up again.
+  await page.touchscreen.tap(195, 60);
   await expect(host).toHaveAttribute('data-view', 'room');
   await page.waitForTimeout(1300);
-  await page.getByRole('button', { name: 'Return to TV' }).tap();
+  const tv = await page.evaluate(() => window.__room?.anchors.find((anchor) => anchor.target === 'tv'));
+  if (!tv) throw new Error('No TV anchor');
+  await page.touchscreen.tap(tv.x, tv.y);
   await expect(host).toHaveAttribute('data-view', 'tv');
-  await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'true');
+  await expect(pad).toHaveAttribute('data-visible', 'true');
 });
 
 test.describe('landscape', () => {

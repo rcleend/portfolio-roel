@@ -46,9 +46,10 @@ export function screenPlacement(
   const right = snap((topRight.x + bottomRight.x) / 2);
   const top = snap((topLeft.y + topRight.y) / 2);
   const bottom = snap((bottomLeft.y + bottomRight.y) / 2);
-  const width = right - left;
+  // Edges on the device-pixel grid make whole device-pixel sizes; snapping again drops float noise.
+  const width = snap(right - left);
   return {
-    rect: { left, top, width, height: bottom - top },
+    rect: { left, top, width, height: snap(bottom - top) },
     radius: radius * (width / planeWidth(picture)),
     skew,
   };
