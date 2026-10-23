@@ -6,8 +6,9 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
-import { type GlassPlane, planeHeight, planeWidth } from './glassPlane';
-import type { RgbColor, ScreenRect, StillPainter, StillRequest } from './PcMonitor';
+import { type GlassPlane, planeWidth, regionInPixels } from './glassPlane';
+import type { RgbColor, ScreenRect, StillPainter } from './PcMonitor';
+import { NO_RECT, sameRect } from './screenPlacement';
 import type { TextureSize } from './textureTier';
 
 /** The one renderer call this needs: upload a texture now rather than on the next frame that uses it. */
@@ -30,8 +31,6 @@ export interface MonitorTextureOptions {
   readonly glassLayer: () => CanvasImageSource;
 }
 
-const NO_PLACEMENT: ScreenRect = { left: 0, top: 0, width: 0, height: 0 };
-
 /**
  * What a display's glass shows whenever its live screen does not: one canvas covering the glass's
  * UV square, composited from the tube border, the app's still and the glass finish, and uploaded
@@ -50,9 +49,8 @@ export class MonitorTexture {
   private showingStill = false;
   private stale = false;
   private size: TextureSize = { width: 0, height: 0 };
-  private placement: ScreenRect = NO_PLACEMENT;
-  private paintedSize: TextureSize | null = null;
-  private readonly warned = new WeakSet<StillPainter>();
+  private placement: ScreenRect = NO_RECT;
+  private warned = false;
 
   constructor(private readonly options: MonitorTextureOptions) {
     this.standby = solidTexture(parseHexColor(options.tubeColor));
@@ -105,7 +103,7 @@ export class MonitorTexture {
   prepareFlight(touchesDisplay: boolean): boolean {
     if (!this.painter) return false;
     if (this.paintedWith === this.painter) {
-      const resized = !this.paintedSize || !sameSize(this.paintedSize, this.size);
+      const resized = this.canvas?.width !== this.size.width || this.canvas.height !== this.size.height;
       if (!touchesDisplay || !(this.stale || resized)) return false;
     }
     return this.paint();
@@ -116,16 +114,14 @@ export class MonitorTexture {
     const painter = this.painter;
     if (!painter || this.size.width === 0) return false;
     const canvas = this.canvasOfSize(this.size);
-    const context = canvas.getContext('2d', { alpha: false });
-    if (!context) return this.fail(painter, new Error('2D canvas unavailable'));
     this.paintedWith = painter;
     this.stale = false;
     try {
-      this.composite(context, painter);
+      // A canvas that cannot give a 2D context fails like a throwing painter: standby.
+      this.composite(canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D, painter);
     } catch (error) {
-      return this.fail(painter, error);
+      return this.fail(error);
     }
-    this.paintedSize = this.size;
     this.still ??= stillTexture(canvas, this.options.anisotropy);
     this.still.needsUpdate = true;
     this.options.renderer.initTexture(this.still);
@@ -143,33 +139,25 @@ export class MonitorTexture {
   private composite(context: CanvasRenderingContext2D, painter: StillPainter): void {
     const { glass, picture, pictureRadius, tubeColor } = this.options;
     const { width, height } = this.size;
-    const toCanvasX = width / planeWidth(glass);
-    const toCanvasY = height / planeHeight(glass);
-    const x = (picture.minX - glass.minX) * toCanvasX;
-    const y = (glass.maxY - picture.maxY) * toCanvasY;
-    const request: StillRequest = {
-      width: planeWidth(picture) * toCanvasX,
-      height: planeHeight(picture) * toCanvasY,
-      placement: this.placement,
-    };
+    const { x, y, ...size } = regionInPixels(glass, picture, width, height);
     context.fillStyle = tubeColor;
     context.fillRect(0, 0, width, height);
     context.save();
     try {
-      roundedRect(context, x, y, request.width, request.height, pictureRadius * toCanvasX);
+      roundedRect(context, x, y, size.width, size.height, pictureRadius * (width / planeWidth(glass)));
       context.clip();
       context.translate(x, y);
-      painter(context, request);
+      painter(context, { ...size, placement: this.placement });
     } finally {
       context.restore();
     }
     context.drawImage(this.options.glassLayer(), 0, 0, width, height);
   }
 
-  private fail(painter: StillPainter, error: unknown): boolean {
-    if (!this.warned.has(painter)) {
-      this.warned.add(painter);
-      console.warn('The monitor still could not be painted; showing the standby tube.', error);
+  private fail(error: unknown): boolean {
+    if (!this.warned) {
+      this.warned = true;
+      console.warn('The monitor still failed to paint; showing the standby tube.', error);
     }
     const changed = this.showingStill;
     this.showingStill = false;
@@ -231,12 +219,4 @@ function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, w:
   context.arcTo(x, y + h, x, y, r);
   context.arcTo(x, y, x + w, y, r);
   context.closePath();
-}
-
-function sameSize(a: TextureSize, b: TextureSize): boolean {
-  return a.width === b.width && a.height === b.height;
-}
-
-function sameRect(a: ScreenRect, b: ScreenRect): boolean {
-  return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
 }

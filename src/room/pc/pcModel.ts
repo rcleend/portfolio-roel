@@ -1,4 +1,5 @@
-import { Box3, type BufferGeometry, Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, type Mesh, type Object3D, type Vector3 } from 'three';
+import { averageNormal, meshesOf } from '../assets/modelQueries';
 import { type GlassPlane, insetPlane } from './glassPlane';
 
 /**
@@ -29,7 +30,6 @@ export interface PcModel {
   readonly glass: Mesh;
   /** World-space unit vector the glass faces, i.e. towards the viewer. */
   readonly facing: Vector3;
-  readonly glassBounds: Box3;
   /** The plane the glass rim sits on (the glass's back-most z); the picture is registered to it. */
   readonly rim: GlassPlane;
   /** The picture: the rim inset by the tube border. */
@@ -41,14 +41,14 @@ export interface PcModel {
 
 export function locatePc(root: Object3D, desk: Object3D): PcModel {
   root.updateMatrixWorld(true);
-  const glass = findMesh(
-    root,
+  const glass = meshesOf(root).find(
     (mesh) => mesh.userData.replaceable_screen === true && mesh.userData.interaction_id === PC_SCREEN_INTERACTION_ID,
   );
-  if (!glass) throw new Error(`PC asset has no screen mesh with interaction_id "${PC_SCREEN_INTERACTION_ID}"`);
   const crt = root.getObjectByName(CRT_NAME);
   const keyboard = root.getObjectByName(KEYBOARD_NAME);
-  if (!crt || !keyboard) throw new Error(`PC asset is missing ${crt ? KEYBOARD_NAME : CRT_NAME}`);
+  if (!glass || !crt || !keyboard) {
+    throw new Error(`PC asset is missing its "${PC_SCREEN_INTERACTION_ID}" glass, CRT or keyboard`);
+  }
 
   const glassBounds = new Box3().setFromObject(glass);
   const rim: GlassPlane = {
@@ -63,26 +63,9 @@ export function locatePc(root: Object3D, desk: Object3D): PcModel {
     desk,
     glass,
     facing: averageNormal(glass.geometry).transformDirection(glass.matrixWorld),
-    glassBounds,
     rim,
     picture: insetPlane(rim, PC_PICTURE_BORDER),
     shellFrontZ: new Box3().setFromObject(crt).max.z,
     keyboardBounds: new Box3().setFromObject(keyboard),
   };
-}
-
-function findMesh(root: Object3D, test: (mesh: Mesh) => boolean): Mesh | null {
-  let found: Mesh | null = null;
-  root.traverse((object) => {
-    if (!found && object instanceof Mesh && test(object)) found = object;
-  });
-  return found;
-}
-
-function averageNormal(geometry: BufferGeometry): Vector3 {
-  const normals = geometry.getAttribute('normal');
-  const sum = new Vector3();
-  const n = new Vector3();
-  for (let i = 0; i < normals.count; i++) sum.add(n.fromBufferAttribute(normals, i));
-  return sum.normalize();
 }

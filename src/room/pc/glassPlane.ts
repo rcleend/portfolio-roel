@@ -49,3 +49,20 @@ export function planeCorners(plane: GlassPlane): [Vector3, Vector3, Vector3, Vec
 export function planeCentre(plane: GlassPlane): Vector3 {
   return new Vector3((plane.minX + plane.maxX) / 2, (plane.minY + plane.maxY) / 2, plane.z);
 }
+
+/** Where `inner` lies on a `width × height` pixel canvas that covers `outer` (v = 0 at the top). */
+export function regionInPixels(
+  outer: GlassPlane,
+  inner: GlassPlane,
+  width: number,
+  height: number,
+): { x: number; y: number; width: number; height: number } {
+  const toX = width / planeWidth(outer);
+  const toY = height / planeHeight(outer);
+  return {
+    x: (inner.minX - outer.minX) * toX,
+    y: (outer.maxY - inner.maxY) * toY,
+    width: planeWidth(inner) * toX,
+    height: planeHeight(inner) * toY,
+  };
+}

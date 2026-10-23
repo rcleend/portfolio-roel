@@ -8,24 +8,20 @@ export interface TextureSize {
   readonly height: number;
 }
 
-/** Texture widths by the glass's width on screen at the landing, in render pixels. */
-const TIERS = [
-  { upTo: 600, width: 512 },
-  { upTo: 900, width: 768 },
-] as const;
-const LARGEST = 1024;
-/** `navigator.deviceMemory` (GB, coarse) at or below which the texture is capped. */
+/** `navigator.deviceMemory` (GB, coarse) at or below which the texture is capped at 768 wide. */
 const LOW_MEMORY_GB = 2;
-const LOW_MEMORY_WIDTH = 768;
 
 /**
+ * Up to 600 render pixels of glass at the landing get a 512-wide texture, up to 900 a 768-wide
+ * one, anything larger 1024.
+ *
  * @param glassRenderWidth the glass's width at the landing in render pixels: CSS px × the room's
  *   pixel ratio, since that is the most the texture is ever magnified to.
  * @param glassAspect the glass's physical width / height (the texture covers its whole UV square).
  * @param deviceMemory `navigator.deviceMemory`, when the browser reports it.
  */
 export function textureTier(glassRenderWidth: number, glassAspect: number, deviceMemory?: number): TextureSize {
-  let width: number = TIERS.find((tier) => glassRenderWidth <= tier.upTo)?.width ?? LARGEST;
-  if (deviceMemory !== undefined && deviceMemory <= LOW_MEMORY_GB) width = Math.min(width, LOW_MEMORY_WIDTH);
+  let width = glassRenderWidth <= 600 ? 512 : glassRenderWidth <= 900 ? 768 : 1024;
+  if (deviceMemory !== undefined && deviceMemory <= LOW_MEMORY_GB) width = Math.min(width, 768);
   return { width, height: Math.round(width / glassAspect) };
 }

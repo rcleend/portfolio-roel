@@ -43,52 +43,43 @@ const LYING_FLAT = { right: new Vector3(1, 0, 0), up: new Vector3(0, 0, -1) };
  * the picture's edge on the page.
  */
 export function monitorGlowPatches(model: MonitorGlowModel, eye: Vector3): GlowPatch[] {
-  const { picture, shellFrontZ, keyboardBounds } = model;
+  const { picture, shellFrontZ, keyboardBounds: keys } = model;
   const centre = planeCentre(picture);
-  const bezelZ = shellFrontZ + BEZEL_LIFT;
+  const halfWidth = planeWidth(picture) / 2;
   const bezel = bezelEmitter(model, eye);
-  const deskCentreZ = shellFrontZ + DESK_REACH - DESK_PATCH.y / 2;
-  const keyboard = {
-    centreX: (keyboardBounds.min.x + keyboardBounds.max.x) / 2,
-    centreZ: (keyboardBounds.min.z + keyboardBounds.max.z) / 2,
-    width: keyboardBounds.max.x - keyboardBounds.min.x,
-    depth: keyboardBounds.max.z - keyboardBounds.min.z,
-  };
-  const pictureHalfWidth = planeWidth(picture) / 2;
-
+  const deskZ = shellFrontZ + DESK_REACH - DESK_PATCH.y / 2;
+  const keysCentre = keys.getCenter(new Vector3());
+  const keysSize = keys.getSize(new Vector3());
   return [
     // Halo over the bezel lip right around the picture.
     {
       ...UPRIGHT,
-      centre: new Vector3(centre.x, centre.y, bezelZ),
-      size: new Vector2(planeWidth(picture) + BEZEL_MARGIN * 2, planeHeight(picture) + BEZEL_MARGIN * 2),
+      ...BEZEL,
+      centre: new Vector3(centre.x, centre.y, shellFrontZ + BEZEL_LIFT),
+      size: new Vector2(halfWidth * 2 + BEZEL_MARGIN * 2, planeHeight(picture) + BEZEL_MARGIN * 2),
       emitterCentre: bezel.centre,
       emitterHalfSize: bezel.halfSize,
-      falloff: BEZEL.falloff,
-      strength: BEZEL.strength,
       fillEmitter: false,
     },
-    // The pool of light on the desk in front of the monitor.
+    // The pool of light on the desk in front of the monitor. Local +Y points to the wall: the
+    // monitor's foot is this far behind the patch's centre.
     {
       ...LYING_FLAT,
-      centre: new Vector3(centre.x, DESK_TOP_Y + 0.001, deskCentreZ),
+      ...DESK,
+      centre: new Vector3(centre.x, DESK_TOP_Y + 0.001, deskZ),
       size: DESK_PATCH.clone(),
-      // Local +Y points to the wall: the monitor's foot is this far behind the patch's centre.
-      emitterCentre: new Vector2(0, deskCentreZ - shellFrontZ),
-      emitterHalfSize: new Vector2(pictureHalfWidth, FOOT_HALF_DEPTH),
-      falloff: DESK.falloff,
-      strength: DESK.strength,
+      emitterCentre: new Vector2(0, deskZ - shellFrontZ),
+      emitterHalfSize: new Vector2(halfWidth, FOOT_HALF_DEPTH),
       fillEmitter: true,
     },
     // The keyboard deck, brightest along its back edge nearest the screen.
     {
       ...LYING_FLAT,
-      centre: new Vector3(keyboard.centreX, keyboardBounds.max.y + 0.001, keyboard.centreZ),
-      size: new Vector2(keyboard.width + KEYBOARD_MARGIN * 2, keyboard.depth + KEYBOARD_MARGIN * 2),
-      emitterCentre: new Vector2(centre.x - keyboard.centreX, keyboard.centreZ - keyboardBounds.min.z),
-      emitterHalfSize: new Vector2(pictureHalfWidth, KEYBOARD_STRIP_HALF_DEPTH),
-      falloff: KEYBOARD.falloff,
-      strength: KEYBOARD.strength,
+      ...KEYBOARD,
+      centre: new Vector3(keysCentre.x, keys.max.y + 0.001, keysCentre.z),
+      size: new Vector2(keysSize.x + KEYBOARD_MARGIN * 2, keysSize.z + KEYBOARD_MARGIN * 2),
+      emitterCentre: new Vector2(centre.x - keysCentre.x, keysCentre.z - keys.min.z),
+      emitterHalfSize: new Vector2(halfWidth, KEYBOARD_STRIP_HALF_DEPTH),
       fillEmitter: true,
     },
   ];
@@ -98,12 +89,11 @@ export function monitorGlowPatches(model: MonitorGlowModel, eye: Vector3): GlowP
 export function bezelEmitter(model: MonitorGlowModel, eye: Vector3): { centre: Vector2; halfSize: Vector2 } {
   const { picture, shellFrontZ } = model;
   const centre = planeCentre(picture);
-  // The picture lies on the rim plane; the bezel lip is in front of it, closer to the eye.
+  // The picture lies on the rim plane; the bezel lip is in front of it, closer to the eye, so
+  // the eye's rays through the picture meet it this much closer to the eye's axis.
   const scale = (shellFrontZ + BEZEL_LIFT - eye.z) / (picture.z - eye.z);
-  const towards = (from: number, at: number): number => from + (at - from) * scale;
-  const projected = { x: towards(eye.x, centre.x), y: towards(eye.y, centre.y) };
   return {
-    centre: new Vector2(projected.x - centre.x, projected.y - centre.y),
+    centre: new Vector2((eye.x - centre.x) * (1 - scale), (eye.y - centre.y) * (1 - scale)),
     halfSize: new Vector2((planeWidth(picture) / 2) * scale, (planeHeight(picture) / 2) * scale),
   };
 }

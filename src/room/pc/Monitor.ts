@@ -4,7 +4,7 @@ import {
   Float32BufferAttribute,
   type InterleavedBufferAttribute,
   type Material,
-  MeshBasicMaterial,
+  type MeshBasicMaterial,
   type Object3D,
   Vector3,
 } from 'three';
@@ -13,7 +13,7 @@ import type { ViewportSize } from '../stage/RoomStage';
 import { ScreenGlow } from '../tv/ScreenGlow';
 import type { RoomView } from '../viewState';
 import { paintGlassLayer } from './glassLayer';
-import { planeHeight, planeWidth } from './glassPlane';
+import { planeHeight, planeWidth, regionInPixels } from './glassPlane';
 import { MonitorTexture, setSolidColor, solidTexture, type TextureUploader } from './MonitorTexture';
 import { bezelEmitter, monitorGlowPatches } from './monitorGlow';
 import type { RgbColor, StillPainter } from './PcMonitor';
@@ -63,18 +63,19 @@ export class Monitor {
   private readonly lightTexture: DataTexture;
   private light: RgbColor | null = null;
   private layer: HTMLCanvasElement | null = null;
+  private readonly layerHeight: number;
   private warnedSkew = false;
 
   constructor(private readonly options: MonitorOptions) {
     const { model, overlay } = options;
     const { glass } = model;
-    if (!(glass.material instanceof MeshBasicMaterial)) {
-      throw new Error('The PC glass is expected to keep its baked unlit material');
-    }
-    this.originalMaterial = glass.material;
-    // A clone with the same parameters compiles to the same program as every baked surface.
-    this.material = glass.material.clone();
-    releaseBakedPicture(glass.material);
+    // KHR_materials_unlit, which `pnpm verify:room` asserts for every static surface, loads as a
+    // MeshBasicMaterial; a clone with the same parameters compiles to the same program as every
+    // baked surface in the room.
+    const baked = glass.material as MeshBasicMaterial;
+    this.originalMaterial = baked;
+    this.material = baked.clone();
+    releaseBakedPicture(baked);
 
     this.still = new MonitorTexture({
       glass: model.rim,
@@ -95,7 +96,11 @@ export class Monitor {
 
     this.lightTexture = solidTexture({ r: 0, g: 0, b: 0 });
     this.glow = new ScreenGlow(options.scene, this.still.texture, monitorGlowPatches(model, options.pose.position));
-    overlay.setFinish({ source: this.glassLayer, rect: this.pictureInGlassLayer() });
+    this.layerHeight = Math.ceil(GLASS_LAYER_WIDTH / (planeWidth(model.rim) / planeHeight(model.rim)));
+    overlay.setFinish({
+      canvas: this.glassLayer,
+      picture: regionInPixels(model.rim, model.picture, GLASS_LAYER_WIDTH, this.layerHeight),
+    });
   }
 
   /** Pixels of the still texture in use; 0 in standby. */
@@ -123,7 +128,9 @@ export class Monitor {
     overlay.setPlacement(placement.rect, placement.radius);
     const glassWidth = placement.rect.width * (planeWidth(model.rim) / planeWidth(model.picture));
     const aspect = planeWidth(model.rim) / planeHeight(model.rim);
-    this.still.setTarget(textureTier(glassWidth * viewport.pixelRatio, aspect, deviceMemory()), placement.rect);
+    // `navigator.deviceMemory`: GB, coarse, Chromium only.
+    const memory = (navigator as Navigator & { readonly deviceMemory?: number }).deviceMemory;
+    this.still.setTarget(textureTier(glassWidth * viewport.pixelRatio, aspect, memory), placement.rect);
     this.options.loop.invalidate();
   }
 
@@ -171,10 +178,9 @@ export class Monitor {
   /** The glass finish, painted the first time anything needs it and shared with the live screen. */
   private readonly glassLayer = (): HTMLCanvasElement => {
     if (this.layer) return this.layer;
-    const { rim } = this.options.model;
     const canvas = document.createElement('canvas');
     canvas.width = GLASS_LAYER_WIDTH;
-    canvas.height = Math.ceil(GLASS_LAYER_WIDTH / (planeWidth(rim) / planeHeight(rim)));
+    canvas.height = this.layerHeight;
     const context = canvas.getContext('2d');
     if (context) {
       const image = context.createImageData(canvas.width, canvas.height);
@@ -184,21 +190,6 @@ export class Monitor {
     this.layer = canvas;
     return canvas;
   };
-
-  /** The picture's rectangle in the glass layer's pixels, for the live screen's copy of the finish. */
-  private pictureInGlassLayer() {
-    const { rim, picture } = this.options.model;
-    const width = GLASS_LAYER_WIDTH;
-    const height = Math.ceil(GLASS_LAYER_WIDTH / (planeWidth(rim) / planeHeight(rim)));
-    const toX = width / planeWidth(rim);
-    const toY = height / planeHeight(rim);
-    return {
-      x: (picture.minX - rim.minX) * toX,
-      y: (rim.maxY - picture.maxY) * toY,
-      width: planeWidth(picture) * toX,
-      height: planeHeight(picture) * toY,
-    };
-  }
 }
 
 /**
@@ -207,10 +198,9 @@ export class Monitor {
  */
 function releaseBakedPicture(material: MeshBasicMaterial): void {
   const map = material.map;
-  if (!map) return;
-  const image: unknown = map.image;
-  if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) image.close();
-  map.dispose();
+  // An ImageBitmap (GLTFLoader's choice where available) holds its pixels until closed.
+  (map?.image as Partial<ImageBitmap> | null)?.close?.();
+  map?.dispose();
   material.map = null;
 }
 
@@ -227,11 +217,6 @@ function worldPositionsOf(model: PcModel): Float32Array {
       .toArray(world, i * 3);
   }
   return world;
-}
-
-/** `navigator.deviceMemory` (GB, coarse; Chromium only). */
-function deviceMemory(): number | undefined {
-  return (navigator as Navigator & { readonly deviceMemory?: number }).deviceMemory;
 }
 
 function sameColor(a: RgbColor | null, b: RgbColor | null): boolean {

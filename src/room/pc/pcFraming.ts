@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { Viewpoint } from '../camera/cameraPath';
 import { FULL_VIEWPORT, frameSubject } from '../camera/framing';
-import type { GlassPlane } from './glassPlane';
+import { type GlassPlane, planeCorners } from './glassPlane';
 
 /**
  * Where the camera rests in front of the computer: dead straight at the glass (zero pitch, yaw
@@ -38,13 +38,13 @@ export interface PcFramingModel {
  */
 export function pcViewpoint(model: PcFramingModel, aspect: number): Viewpoint {
   const { rim } = model;
-  const z = rim.z;
-  const points = [
-    new Vector3(rim.minX - BEZEL_SIDE, rim.maxY + BEZEL_TOP, z),
-    new Vector3(rim.maxX + BEZEL_SIDE, rim.maxY + BEZEL_TOP, z),
-    new Vector3(rim.minX - BEZEL_SIDE, rim.minY - BEZEL_CHIN, z),
-    new Vector3(rim.maxX + BEZEL_SIDE, rim.minY - BEZEL_CHIN, z),
-  ];
+  const points = planeCorners({
+    minX: rim.minX - BEZEL_SIDE,
+    maxX: rim.maxX + BEZEL_SIDE,
+    minY: rim.minY - BEZEL_CHIN,
+    maxY: rim.maxY + BEZEL_TOP,
+    z: rim.z,
+  });
   const direction = model.facing.clone().negate();
   const frame = (fovY: number) =>
     frameSubject({ points, direction, up: WORLD_UP, fovY, aspect, region: FULL_VIEWPORT, margin: MARGIN });

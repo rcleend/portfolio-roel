@@ -10,8 +10,10 @@
 /** Non-premultiplied RGBA, each 0–1, as an ImageData pixel holds it (÷ 255). */
 export type GlassPixel = readonly [number, number, number, number];
 
-/** Half of the glass's central part that stays clear of the edge shadow: the middle 70 %. */
+/** Half of the glass's central part that stays clear of the edge shadow (the middle 70 %)… */
 const CLEAR_HALF = 0.35;
+/** …and the width of the rim over which the shadow eases in. */
+const RAMP = 0.15;
 /** Edge shadow at the middle of an edge and in a corner (where both edges add up). */
 const EDGE_SHADOW = 0.06;
 const CORNER_SHADOW = 0.18;
@@ -61,7 +63,7 @@ function edgeShadow(u: number, v: number): number {
 
 /** 0 inside the clear middle, easing in to 1 at the edge. */
 function edgeRamp(t: number): number {
-  const d = Math.max(0, Math.abs(t - 0.5) - CLEAR_HALF) / (0.5 - CLEAR_HALF);
+  const d = Math.max(0, Math.abs(t - 0.5) - CLEAR_HALF) / RAMP;
   const clamped = Math.min(1, d);
   return clamped * clamped;
 }

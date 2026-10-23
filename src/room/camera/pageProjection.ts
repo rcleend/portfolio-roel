@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, type Vector3 } from 'three';
 import type { Viewpoint } from './cameraPath';
 
 /** A viewport in CSS pixels. */
@@ -16,7 +16,6 @@ export interface PagePoint {
 }
 
 const scratch = new PerspectiveCamera();
-const view = new Vector3();
 
 /**
  * Projects world points onto the page as a camera resting at `viewpoint` sees them. A scratch
@@ -31,8 +30,9 @@ export function projectToPage(points: readonly Vector3[], viewpoint: Viewpoint, 
   scratch.lookAt(viewpoint.target);
   scratch.updateMatrixWorld();
   return points.map((point) => {
-    const behind = view.copy(point).applyMatrix4(scratch.matrixWorldInverse).z > 0;
     const ndc = point.clone().project(scratch);
+    // Depth past the far plane, which for a point behind the camera is where projection puts it.
+    const behind = ndc.z > 1;
     return { x: ((ndc.x + 1) / 2) * viewport.width, y: ((1 - ndc.y) / 2) * viewport.height, behind };
   });
 }

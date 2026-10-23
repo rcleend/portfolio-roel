@@ -8,14 +8,10 @@ function setup({ reduced = false } = {}) {
   const animation = { cancel: vi.fn() };
   const animate = vi.fn(() => animation as unknown as Animation);
   HTMLElement.prototype.animate = animate;
-  const drawImage = vi.fn();
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    drawImage,
-  } as unknown as CanvasRenderingContext2D);
   const overlay = new ScreenOverlay(container, { matches: reduced } as MediaQueryList);
   const live = vi.fn();
   overlay.onLiveChange(live);
-  return { container, overlay, animate, animation, drawImage, live };
+  return { container, overlay, animate, animation, live };
 }
 
 describe('ScreenOverlay', () => {
@@ -33,9 +29,7 @@ describe('ScreenOverlay', () => {
     expect(element?.style.pointerEvents).toBe('none');
     expect(element?.style.overflow).toBe('hidden');
     expect(element?.style.position).toBe('absolute');
-    expect([...(element?.children ?? [])].map((child) => child.tagName)).toEqual(['DIV', 'CANVAS']);
-    expect(element?.firstElementChild).toBe(overlay.content);
-    expect(element?.querySelector('canvas')?.style.pointerEvents).toBe('none');
+    expect([...(element?.children ?? [])]).toEqual([overlay.content]);
     expect(overlay.live).toBe(false);
     expect(overlay.placement).toEqual({ left: 0, top: 0, width: 0, height: 0 });
   });
@@ -93,15 +87,24 @@ describe('ScreenOverlay', () => {
     expect(live).toHaveBeenCalledTimes(2);
   });
 
-  it('copies the picture part of the shared glass finish once, the first time it shows', () => {
-    const { overlay, drawImage } = setup();
-    const source = document.createElement('canvas');
-    overlay.setFinish({ source: () => source, rect: { x: 7.2, y: 7.2, width: 241.6, height: 190.6 } });
-    expect(drawImage).not.toHaveBeenCalled();
+  it('lays the shared glass finish over the whole glass, clipped to the picture, the first time it shows', () => {
+    const { overlay } = setup();
+    const layer = document.createElement('canvas');
+    layer.width = 256;
+    layer.height = 205;
+    const canvas = vi.fn(() => layer);
+    overlay.setFinish({ canvas, picture: { x: 8, y: 6, width: 240, height: 200 } });
+    expect(canvas).not.toHaveBeenCalled();
     overlay.reveal();
     overlay.conceal();
     overlay.reveal();
-    expect(drawImage).toHaveBeenCalledExactlyOnceWith(source, 7.2, 7.2, 241.6, 190.6, 0, 0, 242, 191);
+    expect(canvas).toHaveBeenCalledTimes(1);
+    expect([...overlay.element.children]).toEqual([overlay.content, layer]);
+    expect(layer.style.pointerEvents).toBe('none');
+    expect(layer.style.left).toBe('-3.3333333333333335%');
+    expect(layer.style.top).toBe('-3%');
+    expect(layer.style.width).toBe('106.66666666666667%');
+    expect(layer.style.height).toBe('102.49999999999999%');
   });
 
   it('removes itself on dispose', () => {

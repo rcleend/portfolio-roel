@@ -14,7 +14,6 @@ import type { ScreenOverlay } from './pc/ScreenOverlay';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
 import { addRoomLighting } from './stage/roomLighting';
-import type { UvRect } from './tv/screenMapping';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { locateTv, type TvModel } from './tv/tvModel';
@@ -62,7 +61,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const tvModel = locateTv(assets.tv);
   const pcRoot = assets.devices.find((device) => device.getObjectByName('PC_Imported_CRT_base'));
   const desk = assets.room.scene.getObjectByName('02_Desk');
-  if (!pcRoot || !desk) throw new Error('The room assets are missing the computer or its desk');
+  if (!pcRoot || !desk) throw new Error('Room assets lack the computer or its desk');
   const pcModel = locatePc(pcRoot, desk);
   const fade = new ScreenFade();
   scene.add(fade.mesh);
@@ -114,7 +113,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   ];
 
   const anchorTargets: readonly AnchorTarget[] = [
-    { target: 'tv', point: tvPictureCentre(tvModel, television.contentRect) },
+    { target: 'tv', point: tvPictureCentre(tvModel) },
     { target: 'pc', point: planeCentre(pcModel.picture) },
   ];
   const publishAnchors = (): void => {
@@ -163,16 +162,13 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   };
 }
 
-/** The middle of the game picture on the TV's glass (UV u runs along +Z, v down from the top). */
-function tvPictureCentre(tv: TvModel, picture: UvRect): Vector3 {
+/**
+ * The middle of the game picture on the TV's glass. The picture is centred in the bezel's
+ * aperture, which is centred on the glass, so it is the glass's middle on its front face.
+ */
+function tvPictureCentre(tv: TvModel): Vector3 {
   const glass = new Box3().setFromObject(tv.screen);
-  const u = (picture.minU + picture.maxU) / 2;
-  const v = (picture.minV + picture.maxV) / 2;
-  return new Vector3(
-    glass.min.x,
-    glass.max.y - v * (glass.max.y - glass.min.y),
-    glass.min.z + u * (glass.max.z - glass.min.z),
-  );
+  return glass.getCenter(new Vector3()).setX(glass.min.x);
 }
 
 export function forEachTexture(material: Material | Material[], visit: (texture: Texture) => void): void {

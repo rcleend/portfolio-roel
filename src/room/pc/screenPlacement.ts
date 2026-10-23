@@ -54,3 +54,10 @@ export function screenPlacement(
     skew,
   };
 }
+
+/** A placement before there is a viewport to place in. */
+export const NO_RECT: ScreenRect = { left: 0, top: 0, width: 0, height: 0 };
+
+export function sameRect(a: ScreenRect, b: ScreenRect): boolean {
+  return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
+}

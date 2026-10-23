@@ -17,27 +17,15 @@ export class PcInteractable implements Interactable {
   ) {}
 
   cursor(): string {
-    switch (this.views.view) {
-      case 'tv':
-        return 'zoom-out';
-      case 'room':
-        return 'zoom-in';
-      case 'pc':
-        return this.id === 'pc' ? 'default' : 'zoom-out';
-    }
+    const { view } = this.views;
+    if (view === 'room') return 'zoom-in';
+    // Seated at the computer, its own parts are in use; everything else gets up again.
+    return view === 'pc' && this.id === 'pc' ? 'default' : 'zoom-out';
   }
 
   activate(): void {
-    switch (this.views.view) {
-      case 'tv':
-        this.views.request('room');
-        return;
-      case 'room':
-        this.views.request('pc');
-        return;
-      case 'pc':
-        if (this.id === 'desk') this.views.request('room');
-        return;
-    }
+    const { view } = this.views;
+    if (view === 'room') this.views.request('pc');
+    else if (view === 'tv' || this.id === 'desk') this.views.request('room');
   }
 }

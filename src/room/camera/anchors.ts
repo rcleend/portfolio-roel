@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
 import type { Viewpoint } from './cameraPath';
-import { type PageViewport, projectToPage } from './pageProjection';
+import { type PagePoint, type PageViewport, projectToPage } from './pageProjection';
 
 /** Props the visitor can fly to from the room view. */
 export type RoomTarget = 'tv' | 'pc';
@@ -29,57 +29,44 @@ export interface AnchorTarget {
 export const EDGE_BAND = 24;
 
 type Edge = NonNullable<PropAnchor['edge']>;
+const EDGES: readonly Edge[] = ['left', 'right', 'top', 'bottom'];
+
+/** How far a point behind the camera is pushed out along its direction: always past every edge. */
+const BEHIND_REACH = 1e6;
 
 /**
  * Where the props sit on the page in the settled room view. Always projected from the room
  * pose itself, never the live camera, so pointer parallax and flights do not move app UI.
  */
 export function propAnchors(targets: readonly AnchorTarget[], room: Viewpoint, viewport: PageViewport): PropAnchor[] {
+  const { width, height } = viewport;
   const projected = projectToPage(
     targets.map(({ point }) => point),
     room,
     viewport,
   );
   return targets.map(({ target }, i) => {
-    const point = projected[i];
-    if (!point) throw new Error('projectToPage dropped a point');
-    const { width, height } = viewport;
-    // Perspective division mirrors points behind the camera through the centre; undo that so
-    // a prop behind the viewer's left shoulder is still marked on the left.
-    let x = point.behind ? width - point.x : point.x;
-    let y = point.behind ? height - point.y : point.y;
-    const inFrame =
-      !point.behind && x >= EDGE_BAND && x <= width - EDGE_BAND && y >= EDGE_BAND && y <= height - EDGE_BAND;
+    let { x, y, behind } = projected[i] as PagePoint;
+    if (behind) {
+      // Perspective division mirrors points behind the camera through the centre: undo that, so
+      // a prop behind the viewer's left shoulder is marked on the left, and push it far out of
+      // frame along that direction, since it can never be in shot.
+      x = width / 2 - (x - width / 2) * BEHIND_REACH;
+      y = height / 2 - (y - height / 2) * BEHIND_REACH;
+    }
+    const inFrame = !behind && x >= EDGE_BAND && x <= width - EDGE_BAND && y >= EDGE_BAND && y <= height - EDGE_BAND;
     if (inFrame) return { target, x, y, inFrame, edge: null };
-    if (point.behind) [x, y] = pushOutOfFrame(x, y, viewport);
-    const overflow: Record<Edge, number> = {
-      left: EDGE_BAND - x,
-      right: x - (width - EDGE_BAND),
-      top: EDGE_BAND - y,
-      bottom: y - (height - EDGE_BAND),
-    };
-    const edge = (Object.keys(overflow) as Edge[]).reduce((a, b) => (overflow[b] > overflow[a] ? b : a));
+    // How far past each edge's band it lies; the largest names the edge it is clamped to.
+    const overflow = [EDGE_BAND - x, x - (width - EDGE_BAND), EDGE_BAND - y, y - (height - EDGE_BAND)];
+    const edge = EDGES[overflow.indexOf(Math.max(...overflow))] as Edge;
     return {
       target,
       x: clamp(x, EDGE_BAND, width - EDGE_BAND),
       y: clamp(y, EDGE_BAND, height - EDGE_BAND),
-      inFrame: false,
+      inFrame,
       edge,
     };
   });
-}
-
-/** A point behind the camera is never in frame: move it out along its direction from the centre. */
-function pushOutOfFrame(x: number, y: number, viewport: PageViewport): [number, number] {
-  const cx = viewport.width / 2;
-  const cy = viewport.height / 2;
-  const dx = x - cx;
-  const dy = y - cy;
-  const reach = Math.max(Math.abs(dx) / (cx - EDGE_BAND), Math.abs(dy) / (cy - EDGE_BAND));
-  if (reach >= 1) return [x, y];
-  // Straight behind the viewer has no side; any edge is as good as another.
-  if (reach === 0) return [-1, cy];
-  return [cx + (dx / reach) * 1.001, cy + (dy / reach) * 1.001];
 }
 
 function clamp(value: number, min: number, max: number): number {
