@@ -8,6 +8,8 @@
 
 export interface Profile {
   readonly name: string;
+  /** What this site is to the visitor, e.g. "Portfolio"; the title sets it opposite the name. */
+  readonly site: string;
   /** Short role headline, e.g. "Product Engineer". */
   readonly headline: string;
   readonly location: string;

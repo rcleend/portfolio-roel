@@ -1,5 +1,5 @@
 import { parseHex, type Rgba } from '@/engine/gfx/color';
-import type { Mask } from './Mask';
+import type { Mask, PixelBox } from './Mask';
 
 /** A colour per pixel, or `null` to leave the pixel as it is. */
 export type PixelPaint = (x: number, y: number) => Rgba | null;
@@ -49,6 +49,21 @@ export class Bitmap {
   /** True when the pixel has any coverage. */
   isOpaque(x: number, y: number): boolean {
     return (this.get(x, y)?.a ?? 0) > 0;
+  }
+
+  /** Smallest box containing every opaque pixel, or `null` when nothing is painted. */
+  bounds(): PixelBox | null {
+    let [minX, minY, maxX, maxY] = [this.width, this.height, -1, -1];
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (!this.data[(y * this.width + x) * 4 + 3]) continue;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    return maxX < 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   }
 
   /** Paints every set pixel of `mask` (placed at dx, dy) with a flat colour or a per-pixel paint. */
