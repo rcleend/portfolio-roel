@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Viewpoint } from '../camera/cameraPath';
 import { type GlassPlane, insetPlane } from './glassPlane';
@@ -6,9 +6,14 @@ import { pcViewpoint } from './pcFraming';
 import { screenPlacement } from './screenPlacement';
 
 const RIM: GlassPlane = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
+/** pc-base.glb's CRT shell around it. */
+const SHELL = new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654));
 const PICTURE = insetPlane(RIM, 0.01);
 const DESKTOP = { width: 1440, height: 900 };
-const AT_DESKTOP = pcViewpoint({ facing: new Vector3(0, 0, 1), rim: RIM }, DESKTOP.width / DESKTOP.height);
+const AT_DESKTOP = pcViewpoint(
+  { facing: new Vector3(0, 0, 1), rim: RIM, shellBounds: SHELL },
+  DESKTOP.width / DESKTOP.height,
+);
 
 describe('screenPlacement', () => {
   it('covers the picture where the straight-on camera sees it', () => {

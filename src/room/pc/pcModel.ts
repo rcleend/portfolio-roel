@@ -36,6 +36,8 @@ export interface PcModel {
   readonly picture: GlassPlane;
   /** World z of the CRT shell's front face, where the bezel lip catches the screen's light. */
   readonly shellFrontZ: number;
+  /** The CRT shell: the computer's outline, beyond which a click is a click on the room. */
+  readonly shellBounds: Box3;
   readonly keyboardBounds: Box3;
 }
 
@@ -51,6 +53,7 @@ export function locatePc(root: Object3D, desk: Object3D): PcModel {
   }
 
   const glassBounds = new Box3().setFromObject(glass);
+  const shellBounds = new Box3().setFromObject(crt);
   const rim: GlassPlane = {
     minX: glassBounds.min.x,
     maxX: glassBounds.max.x,
@@ -65,7 +68,8 @@ export function locatePc(root: Object3D, desk: Object3D): PcModel {
     facing: averageNormal(glass.geometry).transformDirection(glass.matrixWorld),
     rim,
     picture: insetPlane(rim, PC_PICTURE_BORDER),
-    shellFrontZ: new Box3().setFromObject(crt).max.z,
+    shellFrontZ: shellBounds.max.z,
+    shellBounds,
     keyboardBounds: new Box3().setFromObject(keyboard),
   };
 }

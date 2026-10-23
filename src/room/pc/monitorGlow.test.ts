@@ -6,12 +6,14 @@ import { bezelEmitter, monitorGlowPatches } from './monitorGlow';
 import { pcViewpoint } from './pcFraming';
 
 const RIM: GlassPlane = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
+/** pc-base.glb's CRT shell around it. */
+const SHELL = new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654));
 const MODEL = {
   picture: insetPlane(RIM, 0.01),
   shellFrontZ: -1.654,
   keyboardBounds: new Box3(new Vector3(-1.59, 0.785, -1.605), new Vector3(-1.1, 0.825, -1.405)),
 };
-const EYE = pcViewpoint({ facing: new Vector3(0, 0, 1), rim: RIM }, 1440 / 900).position;
+const EYE = pcViewpoint({ facing: new Vector3(0, 0, 1), rim: RIM, shellBounds: SHELL }, 1440 / 900).position;
 
 /** How far a patch's lit side is from facing `direction`. */
 const facingError = (patch: GlowPatch, direction: Vector3) =>

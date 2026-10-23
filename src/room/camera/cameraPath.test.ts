@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { pcViewpoint } from '../pc/pcFraming';
 import {
@@ -107,7 +107,9 @@ describe('the crane onto the desk', () => {
   /** The chair in front of the desk (room.glb, measured by ray casting): its back's footprint and top. */
   const CHAIR_BACK = { minX: -1.9, maxX: -0.8, minZ: -0.8, maxZ: -0.5, topY: 1.075 };
   const RIM = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
-  const PC = { facing: new Vector3(0, 0, 1), rim: RIM };
+  /** pc-base.glb's CRT shell, around the glass. */
+  const SHELL = new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654));
+  const PC = { facing: new Vector3(0, 0, 1), rim: RIM, shellBounds: SHELL };
 
   function clearanceOverChair(start: Viewpoint, end: Viewpoint, leg: 'arriving' | 'departing'): number {
     const pc = leg === 'arriving' ? end : start;
