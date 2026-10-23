@@ -10,7 +10,7 @@ Nothing is downloaded on first load beyond about 0.8 kB of glue.
 
 ## Contract with the room
 
-`display.ts` holds a structural copy of the room's `PcMonitor` (until the two branches merge; then it re-exports the room's types):
+`display.ts` re-exports the room's `PcMonitor` as `PcDisplay` (with `ScreenRect`, `StillRequest`, `StillPainter` and `RgbColor`), types only, so the type checker proves `room.pc` satisfies the screen and no room code reaches the PC chunks:
 
 | Member | Meaning |
 | --- | --- |
@@ -181,7 +181,7 @@ Measured in the production lab (Chromium, M-series Mac):
 pc/
   PcSlot.tsx            the room host's entry: lazy loading, portals, the load-failure message (main bundle)
   whenIdle.ts           requestIdleCallback with a timeout, and a fallback
-  display.ts            the room's monitor contract (structural copy until the merge)
+  display.ts            the room's monitor contract, re-exported as types
   presentation.ts     ★ desktop scale (re-exported), in-glass vs pop-out with hysteresis, default zoom
   cursors.ts            the screen's arrow and busy arrow as art and as CSS cursors
   PcExperience.tsx      the screen: placement, mode, session, reader mounting, documents, focus

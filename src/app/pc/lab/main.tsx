@@ -1,6 +1,6 @@
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { PcView } from '../display';
+import type { RoomView } from '@/room';
 import { PcSlot } from '../PcSlot';
 import { FakeDisplay, type LabEvent } from './FakeDisplay';
 import '../../styles.css';
@@ -30,9 +30,9 @@ const display = new FakeDisplay({
   tier: Number(params.get('tier')) || null,
 });
 
-let view: PcView = 'room';
+let view: RoomView = 'room';
 const viewListeners = new Set<() => void>();
-function setView(next: PcView): void {
+function setView(next: RoomView): void {
   view = next;
   for (const listener of viewListeners) listener();
 }

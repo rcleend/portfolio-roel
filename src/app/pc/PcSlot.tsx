@@ -1,6 +1,7 @@
 import { type ComponentType, type ReactNode, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { PcDisplay, PcView } from './display';
+import type { RoomView } from '@/room';
+import type { PcDisplay } from './display';
 import type { PcExperienceProps } from './PcExperience';
 import { whenIdle } from './whenIdle';
 import './PcSlot.css';
@@ -9,7 +10,7 @@ export interface PcSlotProps {
   /** The room's monitor once the room is ready, else null. */
   readonly display: PcDisplay | null;
   /** The view the camera is at or flying to. */
-  readonly view: PcView;
+  readonly view: RoomView;
   /** True once the TV is powering on: idle prefetch may begin. */
   readonly powered: boolean;
   /** Leave the computer for the room view (close button, Escape in the screen, after the 200 ms beat). */
