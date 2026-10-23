@@ -83,7 +83,8 @@ interface Room {
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
   readonly anchors: readonly PropAnchor[]; // the TV and the computer in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
-  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, lava, programs, pcTexturePixels
+  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, lava, programs, pcTexturePixels,
+                                           // backgroundPending (work still waiting for idle moments)
   dispose(): void;
 }
 
@@ -94,7 +95,7 @@ interface PcMonitor {
   readonly live: boolean;                  // true from the landing frame until the camera is asked to leave
   onLiveChange(listener: (live: boolean) => void): () => void;
   setStill(painter: StillPainter | null): void;   // what the glass shows otherwise; null = dark standby tube
-  invalidateStill(): void;                 // repainted before the next flight to or from the PC
+  invalidateStill(): void;                 // repainted in the background, before the PC is next seen up close
   setLight(color: RgbColor | null): void;  // light the screen spills while live differs from the still
 }
 type StillPainter = (context: CanvasRenderingContext2D, request: StillRequest) => void;
@@ -136,6 +137,8 @@ room/
   stage/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, DPR/buffer caps, resize, context loss
     RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame
+    IdleWork.ts         work ahead of need, in small units on idle time, never while anything on screen moves
+    sceneTextures.ts    every texture of the scene: anisotropy, disposal, and the upload ahead of the first flights
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
     roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
@@ -176,7 +179,7 @@ room/
   interaction/
     Interactable.ts     the props contract
     RoomInteraction.ts  DOM pointer events → ray hits → hover cursor, click, gestures
-    pickMeshes.ts       what a pointer ray tests: large meshes cut once into compact chunks
+    pickMeshes.ts       what a pointer ray tests: large meshes cut into compact chunks, in the background
   motion/easing.ts      easing curves (the room may not import engine runtime code)
   lab/                  dev lab: MockGameSurface, MockPcScreen + main.ts (served by room-lab.html)
 ```
@@ -224,8 +227,13 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
   Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, **0** while seated at the computer (the lava lamp is out of shot; the live screen is DOM).
   In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
-- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles once, at registration, into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms); cutting the desk costs about 9 ms (51 ms) once while the room assembles.
-- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the first click into a flight answers within 10–16 ms. The first leave from the TV also paints the monitor's still: 36 ms of work before the first flight frame (the app's painter 21 ms, the upload 4 ms; the glass finish is made earlier, when the app hands over its painter) and 57 ms to that frame. A visitor's first gesture also creates the page's `AudioContext`, about 75 ms in headless Chromium.
+- **Work ahead of need.** `IdleWork` runs small units of background work in idle callbacks, from the first frame on and never while the camera flies or the TV powers on or off (a unit invisible on a still frame is a dropped frame in motion). One callback runs units until its idle period is spent, always at least one. The room queues, in this order:
+  - **Every texture's upload** (`sceneTextures.ts`), one per unit. three uploads a texture the first time a frame draws it and the TV view draws only part of the attic, so the first look around would otherwise upload four 2048² atlases mid-flight (≈ 25 ms each) and, on a phone, the first flight to the computer two more. The uploads land while the loading screen fades out; under reduced motion (no fade) they land in idle moments of the TV view.
+  - **The pick chunks** (below), in units of about 4096 triangles.
+  - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), done in the background after the first frame; until then rays test the whole meshes (from the TV, rays point away from the desk).
+- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 29 ms from pointerup to the first flight frame (27 ms before the computer existed), with a 7 ms pointerup handler: the still is painted already. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
+- **First frame.** The background work starts after it: 1018 ms at 6× (1030 ms before the computer existed), 1083 ms on a phone at 6× (1078 ms), 211 ms at 1× (205 ms).
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
 - **Cost.** Revision 6 uses 57 draw calls and ~337 k triangles in the room view, plus 3 for the monitor's light spill once it shows a still; the TV view culls most of the room. The five runtime GLBs and credits total 6.97 MB, with 44.84 million decoded texture pixels. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
@@ -243,12 +251,13 @@ Power-on (≈600 ms after a 140 ms LED lead): dot → horizontal line → vertic
 The room owns the monitor as a device and knows nothing about what the app shows on it, just as it shows a `GameSurface` it does not understand.
 
 - **Glass contract.** `pc-base.glb`'s `PC_Interactive_Screen_base` (`interaction_id "pc-screen"`, `replaceable_screen`) faces +Z with planar UVs (v = 0 at the top); `pnpm verify:room` asserts both (within 0.5° and 0.002), because the flat DOM screen and the projector UVs depend on them. Bounds x −1.518…−1.162, y 0.929…1.213, z −1.679…−1.668 (11 mm of bulge); the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`), everything else is found at runtime.
-- **Camera.** `pcViewpoint` looks exactly along −facing (zero pitch, yaw and roll) and fits the glass plus 18 mm of bezel (30 mm chin) into the whole viewport with a 2 % margin, starting at a 30° lens and widening while the eye would be further than 0.72 m from the glass (it stays clear of the chair). Flights to and from it take the usual 1.1 s on a crane path (control point halfway across, 5 cm above the higher eye, at the desk eye's depth) that clears the chair back by 27 cm (landscape) to 18 cm (portrait); arriving, the look-at reaches the glass at 82 % of the flight, so the landing is a pure settle.
+- **Camera.** `pcViewpoint` looks exactly along −facing (zero pitch, yaw and roll) and fits the glass plus 18 mm of bezel (30 mm chin) into the whole viewport with a 2 % margin, starting at a 30° lens and widening while the eye would be further than 0.72 m from the glass (it stays clear of the chair). Clicking outside the computer is a way back to the room, so the frame always leaves 6 % of room beyond the CRT shell, on both sides of it or above it, whichever keeps the picture larger: wide and tall screens already do; squarer ones (4:3, 5:4, a window that is not maximised) step back for it, so 1024 × 768 shows the window and the wall beside the monitor round a 635 × 499 picture. Flights to and from it take the usual 1.1 s on a crane path (control point halfway across, 5 cm above the higher eye, at the desk eye's depth) that clears the chair back by 27 cm (landscape) to 18 cm (portrait); arriving, the look-at reaches the glass at 82 % of the flight, so the landing is a pure settle.
 - **Material.** The glass keeps its baked unlit `MeshBasicMaterial`, cloned with only its `map` swapped, so the computer compiles no shader program (7 in the lab after the first room view, before and after). The baked 2048² desktop picture is disposed and its `ImageBitmap` closed at assembly, before it could ever be uploaded.
-- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture` the moment it is painted. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is painted only before a flight: on the first flight after a painter is set (the first leave from the TV), and again before flights to or from the computer once the app calls `invalidateStill()` or the viewport changed its size or placement; `setStill` while the computer can be seen paints at once. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
+- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture` the moment it is painted. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is painted in the background (`IdleWork`): the glass finish in one unit, then the still and its upload, as soon as the app hands over a painter (the glass is out of sight at the TV, so the first leave from the TV has nothing left to do), and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen. A flight that starts before the background got there paints first: any flight when nothing is painted yet, a flight to or from the computer when the still is stale. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
 - **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 2.1/255 on average (lab test card, 1440 × 900 @2).
 - **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the room draws nothing; `setLight` (e.g. a white page) renders one frame of brighter spill.
-- **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour.
+- **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour. The bezel's emitter has the picture's rounded corners, so the corners catch the same light as the border along the edges.
+- **Glass finish.** An edge shadow (23 % in the corners, 8 % at the edge midpoints, nothing over the central 70 %) and a 6.5 % warm sheen of the desk lamp at the top left, the top of their tuning range, so the screen reads as a tube's curved glass.
 
 ## Dev lab and screenshots
 
@@ -273,4 +282,5 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 - `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
 - Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
 - Under software GL the room is fill-bound everywhere (flights 6–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. On a main thread that slow, the screen's idle prefetch can land during the flight to the computer when the visitor clicks it within about 2.5 s of looking around (a 145 ms task at 1× under SwiftShader).
+- Uploading every texture ahead of need allocates the four atlases only the room view needs (about 90 MB of GPU memory with mips) for visitors who never leave the TV too; a texture tier for low-memory devices is a room-wide follow-up.
 - Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
