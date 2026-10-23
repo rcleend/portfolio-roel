@@ -1,13 +1,23 @@
 import { MathUtils, type PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { easeInOutCubic, easeOutCubic } from '../motion/easing';
+import { type PcFramingModel, pcViewpoint } from '../pc/pcFraming';
 import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { TvModel } from '../tv/tvModel';
 import type { RoomView } from '../viewState';
-import { cloneViewpoint, fovForAspect, interpolateViewpoint, type Viewpoint } from './cameraPath';
+import {
+  cloneViewpoint,
+  craneControl,
+  type FlightPath,
+  type FlightProgress,
+  interpolateViewpoint,
+  pcLegProgress,
+  uniformProgress,
+  type Viewpoint,
+} from './cameraPath';
 import { boxCorners, FULL_VIEWPORT, frameSubject, type NdcRegion, regionFromInsets } from './framing';
+import { roomViewpoint } from './roomFraming';
 import type { ScreenFade } from './ScreenFade';
-import { sectionViewpoint } from './sectionFraming';
 
 /** CSS-pixel strips of the viewport covered by app overlays (e.g. a touch pad). */
 export interface FramingInsets {
@@ -30,19 +40,7 @@ const TV_MARGIN = 0.06;
 // Looking down slightly shows the top of the cabinet: depth without losing "straight on".
 const TV_PITCH_DEGREES = 4;
 
-/** The Blender review's "whole room" preset: window, desk, posters and the TV in one shot. */
-const ROOM_WIDE = { eye: new Vector3(-0.55, 1.62, 2.1), target: new Vector3(0.25, 1.12, -1.1), minHorizontalFov: 72 };
-/**
- * A tall screen cannot hold the whole room, and the TV must stay in shot to be clicked
- * back into, so portrait turns towards the TV corner: lava lamp, guitar, TV and console.
- */
-const ROOM_TALL = { eye: new Vector3(-0.25, 1.5, 2.25), target: new Vector3(1.55, 0.85, -0.6), minHorizontalFov: 50 };
-const ROOM_FOV = 64;
-const ROOM_MAX_FOV = 84;
-/** Aspect ratios between which the room view blends from the tall to the wide framing. */
-const ROOM_TALL_ASPECT = 0.62;
-const ROOM_WIDE_ASPECT = 1.15;
-
+/** One motion language: every flight, the computer's included, takes the same time. */
 const FLIGHT_MS = 1100;
 const FLIGHT_LIFT = 0.16;
 const REDUCED_FADE_MS = 140;
@@ -51,7 +49,7 @@ const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
 
 /**
- * Owns the TV, room and prop close-ups, the flight between them and a subtle pointer
+ * Owns the TV, room and computer viewpoints, the flights between them and a subtle pointer
  * parallax in the room view.
  */
 export class CameraRig {
@@ -71,21 +69,22 @@ export class CameraRig {
     private readonly camera: PerspectiveCamera,
     private readonly loop: RenderLoop,
     private readonly tv: TvModel,
+    private readonly pc: PcFramingModel,
     private readonly reducedMotion: MediaQueryList,
     private readonly fade: ScreenFade,
   ) {
-    this.poses = {
-      tv: this.computeTvPose(),
-      room: this.computeRoomPose(),
-      desk: sectionViewpoint('desk', 1),
-      drawer: sectionViewpoint('drawer', 1),
-    };
+    this.poses = { tv: this.computeTvPose(), room: roomViewpoint(1), pc: pcViewpoint(pc, 1) };
     this.current = cloneViewpoint(this.poses.tv);
     this.apply();
   }
 
   get moving(): boolean {
     return this.stopFlight !== null;
+  }
+
+  /** The pose the camera rests at in `view`, for the current viewport. */
+  viewpoint(view: RoomView): Viewpoint {
+    return cloneViewpoint(this.poses[view]);
   }
 
   resize(viewport: ViewportSize): void {
@@ -111,10 +110,13 @@ export class CameraRig {
 
   /** Flies to `view` (or cuts, under reduced motion) and calls `onArrive` once there. */
   goTo(view: RoomView, onArrive: () => void): void {
+    const leavingPc = !this.moving && this.settledView === 'pc';
     this.stopFlight?.();
     this.parallaxEnabled = false;
     this.setParallaxPointer(null);
-    const step = this.reducedMotion.matches ? this.cutStep(view, onArrive) : this.flightStep(view, onArrive);
+    const step = this.reducedMotion.matches
+      ? this.cutStep(view, onArrive)
+      : this.flightStep(view, view === 'pc' ? 'arriving' : leavingPc ? 'departing' : null, onArrive);
     this.stopFlight = this.loop.animate(step);
   }
 
@@ -143,13 +145,30 @@ export class CameraRig {
     this.stopFlight = null;
   }
 
-  private flightStep(view: RoomView, onArrive: () => void): (now: number) => boolean {
+  /**
+   * @param pcLeg 'arriving' or 'departing' for a flight to the computer or from a settled
+   *   computer: a crane over the chair with the look-at leading; null for the TV ↔ room arc.
+   */
+  private flightStep(
+    view: RoomView,
+    pcLeg: 'arriving' | 'departing' | null,
+    onArrive: () => void,
+  ): (now: number) => boolean {
     const from = cloneViewpoint(this.current);
     let start: number | null = null;
     return (now) => {
       start ??= now;
       const t = Math.min(1, (now - start) / FLIGHT_MS);
-      this.current = interpolateViewpoint(from, this.poses[view], easeInOutCubic(t), FLIGHT_LIFT);
+      // Read every frame, so a resize mid-flight lands on the new viewport's pose.
+      const to = this.poses[view];
+      let progress: FlightProgress = uniformProgress(easeInOutCubic(t));
+      let path: FlightPath = { lift: FLIGHT_LIFT };
+      if (pcLeg) {
+        const [pcEye, otherEye] = pcLeg === 'arriving' ? [to.position, from.position] : [from.position, to.position];
+        progress = pcLegProgress(t, pcLeg);
+        path = { control: craneControl(pcEye, otherEye) };
+      }
+      this.current = interpolateViewpoint(from, to, progress, path);
       this.apply();
       if (t < 1) return true;
       this.arrive(view, onArrive);
@@ -185,11 +204,10 @@ export class CameraRig {
   }
 
   private refreshPoses(): void {
-    this.poses.tv = this.computeTvPose();
-    this.poses.room = this.computeRoomPose();
     const aspect = this.viewport.width / this.viewport.height;
-    this.poses.desk = sectionViewpoint('desk', aspect);
-    this.poses.drawer = sectionViewpoint('drawer', aspect);
+    this.poses.tv = this.computeTvPose();
+    this.poses.room = roomViewpoint(aspect);
+    this.poses.pc = pcViewpoint(this.pc, aspect);
     if (!this.moving) {
       this.current = cloneViewpoint(this.poses[this.settledView]);
       this.apply();
@@ -213,17 +231,6 @@ export class CameraRig {
       pose = frameSubject({ points, direction, up, fovY: fov, aspect, region: this.region, margin: TV_MARGIN });
     }
     return { position: pose.position, target: pose.target, fov };
-  }
-
-  private computeRoomPose(): Viewpoint {
-    const aspect = this.viewport.width / this.viewport.height;
-    const wide = MathUtils.smoothstep(aspect, ROOM_TALL_ASPECT, ROOM_WIDE_ASPECT);
-    const minHorizontalFov = MathUtils.lerp(ROOM_TALL.minHorizontalFov, ROOM_WIDE.minHorizontalFov, wide);
-    return {
-      position: ROOM_TALL.eye.clone().lerp(ROOM_WIDE.eye, wide),
-      target: ROOM_TALL.target.clone().lerp(ROOM_WIDE.target, wide),
-      fov: fovForAspect(ROOM_FOV, minHorizontalFov, aspect, ROOM_MAX_FOV),
-    };
   }
 
   private apply(): void {

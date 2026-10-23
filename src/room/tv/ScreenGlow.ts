@@ -12,10 +12,11 @@ import {
 } from 'three';
 
 /**
- * Light the CRT spills into the room. The room is baked and unlit, so the spill is painted
- * on with additive quads lying on the surfaces around the TV. Their colour is the screen's
+ * Light a screen spills into the room. The room is baked and unlit, so the spill is painted
+ * on with additive quads lying on the surfaces around the screen. Their colour is the screen's
  * average colour, read on the GPU from the picture texture's smallest mip level: no pixel
- * readback, and the glow follows every game frame for free.
+ * readback, and the glow follows every game frame for free. Every screen shares this shader,
+ * so a second screen's spill costs draw calls, never another program.
  */
 export interface GlowPatch {
   /** Centre of the quad, slightly off the surface it lies on. */
@@ -115,6 +116,21 @@ export class ScreenGlow {
       parent.add(mesh);
       this.meshes.push(mesh);
     }
+  }
+
+  /** The texture whose mean colour (its 1 × 1 mip) tints the light, e.g. a 1 × 1 override colour. */
+  setPicture(picture: Texture): void {
+    for (const mesh of this.meshes) {
+      const uniform = mesh.material.uniforms.uPicture;
+      if (uniform) uniform.value = picture;
+    }
+  }
+
+  /** Moves patch `index`'s light source, in the quad's local metres, e.g. after the viewpoint changed. */
+  setEmitter(index: number, centre: Vector2, halfSize: Vector2): void {
+    const uniforms = this.meshes[index]?.material.uniforms;
+    (uniforms?.uEmitterCentre?.value as Vector2 | undefined)?.copy(centre);
+    (uniforms?.uEmitterHalfSize?.value as Vector2 | undefined)?.copy(halfSize);
   }
 
   /** 0–1 light output of the tube (power state × brightness). */

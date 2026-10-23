@@ -16,6 +16,8 @@ const CODE_WEIGHT = 0.08;
 /**
  * Lazily loads the room module (three.js is ~180 kB gzipped and the flat host
  * never needs it), builds one room in `container` and disposes it on unmount.
+ * The room lays the computer's live screen into `overlayContainer`, which must
+ * cover the same box outside the stage's `role="application"`.
  *
  * StrictMode safe: the first, discarded effect run is cancelled before the
  * module resolves, so only one WebGL context and one asset download ever
@@ -24,6 +26,7 @@ const CODE_WEIGHT = 0.08;
  */
 export function useRoom(
   container: RefObject<HTMLElement | null>,
+  overlayContainer: RefObject<HTMLElement | null>,
   surface: GameSurface,
   onProgress: (fraction: number) => void,
 ): RoomStatus {
@@ -32,7 +35,8 @@ export function useRoom(
 
   useEffect(() => {
     const element = container.current;
-    if (!element) return;
+    const overlay = overlayContainer.current;
+    if (!element || !overlay) return;
     let cancelled = false;
     let room: Room | null = null;
     const fail = (error: unknown): void => {
@@ -49,6 +53,7 @@ export function useRoom(
       try {
         room = createRoom({
           container: element,
+          overlayContainer: overlay,
           surface,
           onProgress: (fraction) => {
             if (!cancelled) reportProgress(CODE_WEIGHT + (1 - CODE_WEIGHT) * fraction);
@@ -69,7 +74,7 @@ export function useRoom(
       room?.dispose();
       room = null;
     };
-  }, [container, surface]);
+  }, [container, overlayContainer, surface]);
 
   return status;
 }

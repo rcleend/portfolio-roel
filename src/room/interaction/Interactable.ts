@@ -10,7 +10,7 @@ export interface InteractionHit {
 }
 
 /**
- * Anything in the room the viewer can point at and click: the TV, desk or radio cabinet.
+ * Anything in the room the viewer can point at and click: the TV or the computer.
  * Register one with RoomInteraction and it gets hover
  * cursors, clicks and (optionally) a full pointer gesture, without touching the TV logic.
  */

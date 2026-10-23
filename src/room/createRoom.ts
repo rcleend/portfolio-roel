@@ -2,16 +2,24 @@ import { type Material, Mesh, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import { assembleRoom, forEachTexture, type RoomScene } from './assembleRoom';
 import { loadRoomAssets } from './assets/roomAssets';
+import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
 import type { Interactable } from './interaction/Interactable';
+import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
+import { ScreenOverlay } from './pc/ScreenOverlay';
 import { RoomStage } from './stage/RoomStage';
 import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
-import type { RoomSection, RoomView } from './viewState';
+import type { RoomView } from './viewState';
 
 export interface CreateRoomOptions {
   /** Element the room's canvas fills; its size drives the framing. */
   readonly container: HTMLElement;
+  /**
+   * Covers exactly the same box as `container`; the room puts the monitor's live screen in it. Keep it outside any
+   * role="application" so screen readers can browse the document. Defaults to `container`.
+   */
+  readonly overlayContainer?: HTMLElement;
   readonly surface: GameSurface;
   /** Download progress, 0–1. */
   readonly onProgress?: (fraction: number) => void;
@@ -36,13 +44,18 @@ export interface Room {
   focusTv(): void;
   /** Pauses the game, disables its input and pulls back to show the whole room. */
   showRoom(): void;
-  /** Looks closer at the desktop or the radio/lava-lamp cabinet, keeping the game paused. */
-  focusSection(section: RoomSection): void;
+  /** Flies straight in front of the monitor; the game stays paused with its input off. */
+  focusPc(): void;
   onViewChange(listener: (view: RoomView) => void): () => void;
   /** Keeps the TV framing clear of app overlays (CSS-pixel strips of the viewport). */
   setFramingInsets(insets: FramingInsets): void;
-  /** Adds a clickable prop (PC, radio, poster…); returns its unregister function. */
+  /** Adds a clickable prop (radio, poster…); returns its unregister function. */
   registerInteractable(interactable: Interactable): () => void;
+  /** The computer's monitor; usable before `ready` (calls are remembered). */
+  readonly pc: PcMonitor;
+  /** Where the TV and the computer sit in the settled room view, for the current viewport. */
+  readonly anchors: readonly PropAnchor[];
+  onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
   /** Diagnostics for the dev lab and performance checks. */
   readonly stats: RoomStats;
   dispose(): void;
@@ -55,6 +68,10 @@ export interface RoomStats {
   readonly drawCalls: number;
   readonly triangles: number;
   readonly pixelRatio: number;
+  /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
+  readonly programs: number;
+  /** Pixels of the monitor's texture (0 in standby before the first paint). */
+  readonly pcTexturePixels: number;
 }
 
 /**
@@ -65,34 +82,54 @@ export function createRoom(options: CreateRoomOptions): Room {
   const { surface } = options;
   const stage = new RoomStage(options);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const overlay = new ScreenOverlay(options.overlayContainer ?? options.container, reducedMotion);
+  const pc = new PcMonitorHandle(overlay);
   let scene: RoomScene | null = null;
   let disposed = false;
   let framingInsets: FramingInsets | null = null;
+  let anchors: readonly PropAnchor[] = [];
+  const anchorListeners = new Set<(anchors: readonly PropAnchor[]) => void>();
   const queuedInteractables = new Map<Interactable, () => void>();
 
   const views = new ViewController({
     surface,
-    moveCamera: (view, arrived) => {
+    moveCamera: (from, to, arrived) => {
       // Before the room has loaded there is no flight to wait for.
       if (!scene) return arrived();
       const loaded = scene;
-      loaded.rig.goTo(view, () => {
+      // Any still the flight shows is painted and uploaded now, before its first frame.
+      loaded.monitor.prepare(from, to);
+      loaded.rig.goTo(to, () => {
         arrived();
         loaded.refreshCursor();
       });
       loaded.refreshCursor();
     },
     releasePointer: () => scene?.tvInput.release(),
+    revealScreen: () => pc.reveal(),
+    concealScreen: () => pc.conceal(),
   });
 
   const ready = loadRoomAssets(options.assetBaseUrl ?? defaultAssetBaseUrl(), options.onProgress ?? (() => {})).then(
     (assets) => {
       if (disposed) return;
-      scene = assembleRoom({ stage, assets, surface, views, reducedMotion });
-      if (framingInsets) scene.rig.setFramingInsets(framingInsets);
+      scene = assembleRoom({
+        stage,
+        assets,
+        surface,
+        views,
+        reducedMotion,
+        overlay,
+        onAnchorsChange: (next) => {
+          anchors = next;
+          for (const listener of anchorListeners) listener(next);
+        },
+      });
+      if (framingInsets) scene.setFramingInsets(framingInsets);
       for (const [interactable] of queuedInteractables) {
         queuedInteractables.set(interactable, scene.register(interactable));
       }
+      pc.attach(scene.monitor);
       return firstFrame(stage);
     },
   );
@@ -115,11 +152,11 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
     focusTv: () => views.request('tv'),
     showRoom: () => views.request('room'),
-    focusSection: (section) => views.request(section),
+    focusPc: () => views.request('pc'),
     onViewChange: (listener) => views.onChange(listener),
     setFramingInsets(insets) {
       framingInsets = insets;
-      scene?.rig.setFramingInsets(insets);
+      scene?.setFramingInsets(insets);
     },
     registerInteractable(interactable) {
       queuedInteractables.set(interactable, scene ? scene.register(interactable) : () => {});
@@ -128,8 +165,17 @@ export function createRoom(options: CreateRoomOptions): Room {
         queuedInteractables.delete(interactable);
       };
     },
+    pc,
+    get anchors() {
+      return anchors;
+    },
+    onAnchorsChange(listener) {
+      anchorListeners.add(listener);
+      return () => anchorListeners.delete(listener);
+    },
     get stats(): RoomStats {
-      const { calls, triangles } = stage.renderer.info.render;
+      const { renderer } = stage;
+      const { calls, triangles } = renderer.info.render;
       return {
         framesRendered: stage.loop.framesRendered,
         renderLoopIdle: stage.loop.idle,
@@ -137,14 +183,19 @@ export function createRoom(options: CreateRoomOptions): Room {
         drawCalls: calls,
         triangles,
         pixelRatio: stage.size.pixelRatio,
+        programs: renderer.info.programs?.length ?? 0,
+        pcTexturePixels: scene?.monitor.texturePixels ?? 0,
       };
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      pc.detach();
       scene?.dispose();
       scene = null;
       views.dispose();
+      overlay.dispose();
+      anchorListeners.clear();
       queuedInteractables.clear();
       disposeObjectTree(stage.scene);
       stage.dispose();
