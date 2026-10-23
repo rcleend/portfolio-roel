@@ -97,14 +97,17 @@
   cursor: var(--pc-cursor);
 }
 
-/* At least 44 CSS px to hit, whatever the screen's scale (--pc-hit is in layout px). */
+/*
+ * At least 44 CSS px to hit, whatever the screen's scale (--pc-hit is in layout px). It grows from
+ * the window's corner, left and down: centred on the button, the screen's edge would clip it.
+ * The corner is 2.5 px above the button and 3 px beside it, plus the button's 1 px border.
+ */
 .pc-caption--close::after {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100%, var(--pc-hit));
-  height: max(100%, var(--pc-hit));
-  transform: translate(-50%, -50%);
+  top: -3.5px;
+  right: -4px;
+  width: max(100% + 4px, var(--pc-hit));
+  height: max(100% + 3.5px, var(--pc-hit));
   content: "";
 }
 
