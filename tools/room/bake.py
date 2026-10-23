@@ -99,6 +99,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--work', required=True)
     parser.add_argument('--samples', type=int, default=48)
+    parser.add_argument('--device', choices=('CPU', 'METAL'), default='CPU')
     parser.add_argument('--reuse-bakes', action='store_true', help='Reuse unchanged atlases; delete affected PNGs first')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     work = Path(args.work).resolve()
@@ -108,7 +109,16 @@ def main():
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.samples = args.samples
-    scene.cycles.device = 'CPU'
+    if args.device == 'METAL':
+        preferences = bpy.context.preferences.addons['cycles'].preferences
+        preferences.compute_device_type = 'METAL'
+        preferences.get_devices()
+        assert any(device.type == 'METAL' for device in preferences.devices), 'No Metal GPU available'
+        for device in preferences.devices:
+            device.use = device.type == 'METAL'
+        scene.cycles.device = 'GPU'
+    else:
+        scene.cycles.device = 'CPU'
     scene.render.bake.margin = 10
     # Extend each island's own colour. ADJACENT_FACES pulls dark underside samples
     # across the tiny bevels in these imported meshes, producing black outlines.
@@ -178,18 +188,19 @@ def main():
                 room.append(obj)
                 retained.append(obj)
                 continue
-            if obj.get('bake_atlas') in ('guitar', 'pillow'):
+            if obj.get('bake_atlas') == 'guitar':
                 tag = obj['bake_atlas']
             elif obj.name.startswith(('Window ', 'Deep window sill')):
                 tag = 'window'
-            elif obj.name.startswith(('Scanned worn pine floor', 'Woven kilim rug', 'Cotton rug fringe')):
+            elif obj.get('bake_atlas') == 'rug' or obj.name.startswith('Scanned worn pine floor'):
                 tag = 'floor'
             else:
                 tag = 'surfaces'
             groups.setdefault(tag, []).append(obj)
         for tag, objects in groups.items():
-            # Posters keep individual IDs; cutaway parts keep their semantic boundary.
-            separate = [o for o in objects if o.get('replaceable') or o.get('cutaway')]
+            # Keep semantic boundaries while sharing an atlas, including the rug's
+            # dimensions/orientation contract and replaceable/cutaway objects.
+            separate = [o for o in objects if o.get('replaceable') or o.get('cutaway') or o.get('supplied_asset') == 'rug']
             joined = [o for o in objects if o not in separate]
             if joined:
                 select(joined)
@@ -202,9 +213,8 @@ def main():
             # Fine furniture bevels and blind slats need the same texel density as
             # the desk; 1K atlases turn their edge highlights into dark stair steps.
             size = 2048
-            if tag == 'pillow': size = 512
             if tag == 'guitar': size = 1024
-            batches.append((collection.name + '_' + tag, separate, size, tag == 'pillow'))
+            batches.append((collection.name + '_' + tag, separate, size, False))
     for key, objects in devices.items():
         surfaces = [obj for obj in objects if obj not in retained]
         if key == 'tv':
@@ -289,10 +299,12 @@ def main():
     export(room, work / 'room-raw.glb', animated=True)
     for key, objects in devices.items():
         export(objects, work / (key + '-raw.glb'))
-    report = {'revision': 6, 'samples': args.samples,
+    report = {'revision': 6, 'samples': args.samples, 'device': args.device,
               'atlases': {name: size for name, _, size, _ in batches}, 'bakeSeconds': timings,
-              'source': 'room-source.blend', 'lighting': 'Shared Cycles combined bake, AgX Medium High Contrast',
-              'preserved': ['object placement', 'source silhouettes', 'screen UVs', 'interaction IDs', '48s lava clip', 'poster IDs']}
+              'source': 'room-source.blend',
+              'lighting': 'High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85',
+              'preserved': ['furniture placement', 'screen UVs', 'interaction IDs', '48s lava clip'],
+              'removed': ['floor pillow', 'wall posters and cards', 'sloped-ceiling wooden rafters']}
     (work / 'bake-report.json').write_text(json.dumps(report, indent=2) + '\n')
     print('EXPORT_DONE', flush=True)
 

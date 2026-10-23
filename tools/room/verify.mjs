@@ -56,15 +56,52 @@ export async function verifyRoomAssets(directory, manifest) {
   assert.ok(triangles < 500_000, 'Geometry exceeds the room budget');
   assert.ok(texturePixels < 48_000_000, 'Decoded texture allocation exceeds the room budget');
   const room = documents.get('room.glb').getRoot();
+  assert.ok(
+    room.listNodes().every((node) => !/pillow/i.test(node.getName()) && node.getExtras().supplied_asset !== 'pillow'),
+    'The removed floor pillow is still in the scene',
+  );
+  const rugs = room.listNodes().filter((node) => node.getExtras().supplied_asset === 'rug');
+  assert.equal(rugs.length, 1, 'Expected the supplied folded rug');
+  const rug = rugs[0];
+  assert.equal(rug.getExtras().rotation_degrees, -15, 'Rug must sit 15 degrees clockwise');
+  const width = 2.3513786792755127;
+  assert.ok(Math.abs(rug.getExtras().square_width_m - width) < 0.001, 'Rug width changed');
+  const matrix = rug.getWorldMatrix();
+  const cosine = Math.cos(Math.PI / 12);
+  const sine = Math.sin(Math.PI / 12);
+  const low = [Infinity, Infinity, Infinity];
+  const high = [-Infinity, -Infinity, -Infinity];
+  const point = [];
+  for (const primitive of rug.getMesh().listPrimitives()) {
+    const positions = primitive.getAttribute('POSITION');
+    for (let i = 0; i < positions.getCount(); i++) {
+      positions.getElement(i, point);
+      const x = matrix[0] * point[0] + matrix[4] * point[1] + matrix[8] * point[2] + matrix[12];
+      const y = matrix[1] * point[0] + matrix[5] * point[1] + matrix[9] * point[2] + matrix[13];
+      const z = matrix[2] * point[0] + matrix[6] * point[1] + matrix[10] * point[2] + matrix[14];
+      // Undo the rotation in Blender's XY floor plane (glTF's X,-Z).
+      const aligned = [cosine * x + sine * z, sine * x - cosine * z, y];
+      aligned.forEach((value, axis) => {
+        low[axis] = Math.min(low[axis], value);
+        high[axis] = Math.max(high[axis], value);
+      });
+    }
+  }
+  for (const axis of [0, 1]) assert.ok(Math.abs(high[axis] - low[axis] - width) < 0.003, 'Rug is not square');
+  assert.ok(high[2] - low[2] > 0.04, 'The supplied rug fold was flattened');
   const groups = room
     .getDefaultScene()
     .listChildren()
     .map((node) => node.getName());
-  for (const name of ['01_TV', '02_Desk', '03_Room', '04_Drawer', '05_Posters_and_mic']) {
+  for (const name of ['01_TV', '02_Desk', '03_Room', '04_Drawer']) {
     assert.ok(groups.includes(name), `Missing room group: ${name}`);
   }
   const posters = room.listNodes().filter((node) => node.getExtras().poster_id);
-  assert.equal(new Set(posters.map((node) => node.getExtras().poster_id)).size, 9, 'Lost poster identities');
+  assert.equal(posters.length, 0, 'Wall posters should be removed');
+  assert.ok(
+    room.listNodes().every((node) => !node.getName().startsWith('Cutaway_attic_rafter')),
+    'Ceiling beams remain',
+  );
   const animations = room.listAnimations();
   assert.equal(animations.length, 1, 'Expected one lava animation');
   assert.equal(animations[0].getName(), 'Lava flow');

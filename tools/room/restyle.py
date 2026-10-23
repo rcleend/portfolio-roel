@@ -15,6 +15,12 @@ import bmesh
 import numpy as np
 from mathutils import Vector
 
+TOOL_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(TOOL_DIR))
+from desk_finishes import apply_desk_finishes
+from rug import replace_rug
+from room_finishes import apply_room_finishes
+
 
 def linear(hex_color):
     values = [int(hex_color[i:i + 2], 16) / 255 for i in (0, 2, 4)]
@@ -221,19 +227,21 @@ def open_box_bodies():
 
 
 def lighting(scene):
+    # Keep the original rig's night colours and local practical lights, but lower
+    # the broad illumination so their pools stand out against a much darker room.
+    # Colours are scene-linear RGB, not sRGB material swatches.
     settings = {
-        'Blue hour window fill': ('719dff', 340, 2.2),
-        'Warm attic practical': ('829bff', 34, 3.0),
-        'Task light tungsten': ('ffad61', 24, 0.065),
-        'Lava lamp amber spill': ('ff7940', 9, 0.09),
-        'TV screen reflected blue': ('8a9bff', 18, 0.7),
-        'Windows CRT screen bounce': ('75d8d8', 4, 0.4),
-        'Window reflected corner fill': ('97aaff', 30, 2.2),
+        'Blue hour window fill': ((0.24, 0.43, 1.0), 150, 0.16),
+        'Warm attic practical': ((0.14, 0.18, 0.70), 3.0, 2.2),
+        'Task light tungsten': ((1.0, 0.65, 0.31), 12, 0.045),
+        'Lava lamp amber spill': ((1.0, 0.16, 0.025), 5, 0.10),
+        'TV screen reflected blue': ((0.42, 0.43, 1.0), 20, 0.4),
+        'Windows CRT screen bounce': ((0.38, 0.65, 0.78), 3, 0.2),
+        'Window reflected corner fill': ((0.38, 0.51, 0.83), 0.7, 1.2),
     }
     for name, (color, energy, size) in settings.items():
         light = bpy.data.objects[name].data
-        # Blender lights use scene-linear RGB; retain chroma without over-darkening the key.
-        light.color = tuple(int(color[i:i + 2], 16) / 255 for i in (0, 2, 4))
+        light.color = color
         light.energy = energy
         if light.type == 'AREA':
             light.shape = 'DISK'
@@ -242,11 +250,11 @@ def lighting(scene):
             light.shadow_soft_size = size
     scene.world.use_nodes = True
     background = scene.world.node_tree.nodes.get('Background')
-    background.inputs['Color'].default_value = (*linear('849bce'), 1)
-    background.inputs['Strength'].default_value = 0.04
+    background.inputs['Color'].default_value = (0.025, 0.035, 0.15, 1)
+    background.inputs['Strength'].default_value = 0.012
     scene.view_settings.view_transform = 'AgX'
     scene.view_settings.look = 'AgX - Medium High Contrast'
-    scene.view_settings.exposure = 0.65
+    scene.view_settings.exposure = 0.85
     scene.render.engine = 'CYCLES'
     scene.cycles.samples = 48
     scene.cycles.use_denoising = True
@@ -254,6 +262,12 @@ def lighting(scene):
     scene.cycles.diffuse_bounces = 4
     scene.cycles.glossy_bounces = 2
     scene.cycles.seed = 26
+
+
+def remove_pillow():
+    for obj in list(bpy.data.objects):
+        if obj.get('supplied_asset') == 'pillow':
+            bpy.data.objects.remove(obj, do_unlink=True)
 
 
 def main():
@@ -303,7 +317,6 @@ def main():
     grain(bpy.data.materials['Scene_-_Root'], 'b48a63', (3, 65, 3), 0.08)
     fabric(bpy.data.materials['lambert3'], '527a83')
     principled(bpy.data.materials['lambert2'], '384651', 0.59)
-    fabric(bpy.data.materials['Pillow | warm oatmeal cotton'], 'c9ae88')
     fabric(bpy.data.materials['Upholstery | petrol weave'], '527a83')
     for m in bpy.data.materials:
         if m.users and m.name not in palette and m.name not in ('lambert2', 'lambert3', 'None', 'Scene_-_Root', 'Walnut | shared grain'):
@@ -340,6 +353,10 @@ def main():
     plank_floor()
     matte_game_case()
     open_box_bodies()
+    remove_pillow()
+    apply_desk_finishes()
+    apply_room_finishes()
+    replace_rug(TOOL_DIR / 'assets/rug-geometric.png')
     lighting(scene)
     scene['art_direction'] = 'After hours / crafted miniature / revision 6'
     scene['reference'] = 'https://github.com/brunosimon/my-room-in-3d (visual and lighting study only)'

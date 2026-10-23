@@ -25,9 +25,10 @@ await room.ready;          // assets loaded and the first frame drawn (TV dark, 
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
 game.start();              // or surface.resume(); the boot scene's first frame lands on a live tube
 
-room.onViewChange((view) => showHint(view));   // 'tv' | 'room'
+room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'desk' | 'drawer'
 room.setFramingInsets({ top: 0, right: 0, bottom: touchPadHeight, left: 0 }); // keep the TV clear of overlays
-// room.showRoom() / room.focusTv() for buttons or keyboard shortcuts; room.dispose() on unmount.
+// room.showRoom() / room.focusTv() / room.focusSection('desk' | 'drawer') for navigation.
+// room.dispose() on unmount.
 ```
 
 What the room does to the game, so the app does not have to:
@@ -37,10 +38,15 @@ What the room does to the game, so the app does not have to:
 | `createRoom` | `setInputEnabled(true)` (the page opens on the TV) |
 | Click/tap outside the TV while watching it, or `showRoom()` | pointer released, `setInputEnabled(false)`, `pause()` (only if running), camera flies to the room |
 | Click/tap the TV in the room view, or `focusTv()` | camera flies back; on landing `resume()` (only if the room paused it) and `setInputEnabled(true)` |
+| Click/tap the desk or radio/lava-lamp cabinet, or `focusSection()` | camera flies to that section; the game stays paused with input disabled |
+| Click/tap outside a section close-up, or `showRoom()` | camera pulls back to the room; the game stays paused |
 | Pointer over the picture while settled on the TV and powered on | `pointer.move(x, y)` in native pixels, `down()` / `up()`, `leave()` when it leaves the picture |
 
 A game the app paused itself (a menu, a hidden tab) is never resumed by the room.
-Escape is deliberately not bound: the game uses it for menus.
+Clicking a section again also zooms out. The app provides Desk, Radio and TV navigation buttons while exploring, plus a Room
+button in either section close-up. These also make the desk reachable when the portrait
+room crop puts it offscreen. Escape leaves desk/cabinet close-ups, while Enter or Space
+on the room stage returns to the TV. Escape remains available to the game's menus at the TV.
 The PAUSE on-screen display shows whenever the tube is on and `surface.paused` is true (checked on every drawn frame, since `GameSurface` has no pause event); the TV draws it, not the game.
 
 ### Public API
@@ -59,12 +65,13 @@ interface CreateRoomOptions {
 
 interface Room {
   readonly ready: Promise<void>;
-  readonly view: RoomView;                 // 'tv' | 'room', the view at or flying to
+  readonly view: RoomView;                 // 'tv' | 'room' | 'desk' | 'drawer', at or flying to
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
   powerOn(): Promise<void>;
   powerOff(): Promise<void>;
   focusTv(): void;
   showRoom(): void;
+  focusSection(section: RoomSection): void; // 'desk' | 'drawer'
   onViewChange(listener: (view: RoomView) => void): () => void;
   setFramingInsets(insets: FramingInsets): void;   // CSS px covered by overlays
   registerInteractable(interactable: Interactable): () => void;
@@ -72,7 +79,7 @@ interface Room {
   dispose(): void;
 }
 
-interface Interactable {                   // future props: PC, radio, PS2, guitar, posters
+interface Interactable {                   // registered TV, desk and cabinet; extensible to other props
   readonly id: string;
   readonly object: Object3D;               // ray-cast target, descendants included
   readonly gestureSurface?: Object3D;      // ray target while it owns a drag
@@ -104,7 +111,8 @@ room/
     roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
   camera/
-    CameraRig.ts        tv / room viewpoints, flights, reduced-motion cut, pointer parallax
+    CameraRig.ts        TV / room / section viewpoints, flights, reduced-motion cut, pointer parallax
+    sectionFraming.ts   responsive desk and radio/lava-lamp cabinet close-up framing
     framing.ts          pure: fit points into (part of) the viewport for a fov and aspect
     cameraPath.ts       pure: arc interpolation between viewpoints, fov-for-aspect
     ScreenFade.ts       black veil for the reduced-motion cut
@@ -123,6 +131,7 @@ room/
   interaction/
     Interactable.ts     the props contract
     RoomInteraction.ts  DOM pointer events → ray hits → hover cursor, click, gestures
+    SectionInteractable.ts  desk/cabinet mesh targets → focus and zoom-out behavior
   motion/easing.ts      easing curves (the room may not import engine runtime code)
   lab/                  dev lab: MockGameSurface + main.ts (served by room-lab.html)
 ```
@@ -139,6 +148,7 @@ pnpm verify:room
 It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6. Existing attribution remains in `CREDITS.txt`.
 The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
 The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and additive glow remain dynamic. There is no runtime studio environment capture.
+The night rig keeps blue window highlights, tungsten desk light and amber lava glow, with substantially reduced ambient/fill illumination for deep shadows and stronger local contrast. The pillow, ceiling beams and wall posters are removed. The folded rug is square at the original width and rotated 15° clockwise; its raised corner is nearest the TV. Desk drawer fronts share the white enamel, and the oak floor has more natural grain. Changing the baked mood requires rebuilding all atlases.
 See [ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) for the reference study and [the rebuild guide](../tools/room/README.md) for native source requirements. Normal application builds use the checked-in assets and do not require Blender. To import an already-built revision-6 runtime directory, use `ROOM_SOURCE=/path/to/optimized pnpm sync:room`.
 The GLBs use `EXT_meshopt_compression`, `KHR_mesh_quantization`, `EXT_texture_webp`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; three's `GLTFLoader` with `MeshoptDecoder` handles all of them.
 Baked surfaces already contain Blender's display transform (AgX), so the renderer uses `SRGBColorSpace` output and `NoToneMapping`.
@@ -168,7 +178,7 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
   Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion.
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** Revision 6 uses 68 draw calls and ~353 k triangles in the room view; the TV view culls most of the room. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
+- **Cost.** Revision 6 uses 57 draw calls and ~329 k triangles in the room view; the TV view culls most of the room. The five runtime GLBs and credits total 6.65 MB, with 41.69 million decoded texture pixels. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the room glow reads the screen's mean colour from the 1 × 1 mip on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 

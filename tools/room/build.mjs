@@ -24,5 +24,13 @@ async function run(command, args) {
 }
 const common = ['-b', '-t', '8', '--python-exit-code', '1', '--python'];
 await run(blender, [...common, 'tools/room/restyle.py', '--', '--source', input, '--out', work]);
-await run(blender, [...common, 'tools/room/bake.py', '--', '--work', work]);
+await run(blender, [
+  ...common,
+  'tools/room/bake.py',
+  '--',
+  '--work',
+  work,
+  '--device',
+  process.env.ROOM_BAKE_DEVICE ?? 'CPU',
+]);
 await run(process.execPath, ['tools/room/optimize.mjs', '--work', work]);

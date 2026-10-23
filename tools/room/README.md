@@ -13,24 +13,35 @@ pnpm install --frozen-lockfile
 ROOM_SOURCE=/absolute/path/to/attic-room.blend pnpm build:room
 pnpm verify:room
 pnpm shot:room --only room-view,tv-desktop,room-phone --out .context/room-review
+pnpm shot:room --only desk-desktop,drawer-desktop,desk-phone,drawer-phone --out .context/room-review
 ```
 
 `BLENDER_BIN` overrides the Blender executable. `ROOM_BUILD_DIR` overrides the default
 `.context/room-build` output. The output contains a packed, editable `room-source.blend`,
 PNG atlases, raw GLBs, `bake-report.json` and a validated `optimized/` runtime export.
-Blender uses eight CPU threads and 48 samples. This is an offline authoring job.
+Blender defaults to eight CPU threads and 48 samples. On Apple Silicon, set
+`ROOM_BAKE_DEVICE=METAL` to bake on the Metal GPU instead, or pass `--device METAL`
+to `bake.py`. This is an offline authoring job.
 
 ## Stages
 
 1. `restyle.py`: opens the original source, applies the shared material palette,
-   refines existing geometry, tunes the room lights and saves a new native scene.
+   refines existing geometry, removes the pillow/ceiling beams/wall art, tunes the night
+   light rig and saves a new native scene. `desk_finishes.py` paints four drawer fronts;
+   `room_finishes.py` restores natural floor grain without changing its oak palette;
+   `rug.py` fits the supplied folded rug to a 2.3514 m square, rotated 15° clockwise.
+   The rug model and generated textile input are checked in under `assets/`.
    Material colors are sRGB swatches converted to scene-linear values.
+   Light colors are already scene-linear: narrow blue window light, very dim cool fills,
+   tungsten at the desk and amber around the lava lamp. World illumination is 12% of
+   the original, and the broad fills approximately 10%, so local light sources stand
+   out against deep shadows. The original 0.85 exposure is retained.
 2. `bake.py`: binds source UVs before creating separate atlas UVs; checks UV area and
    bounds; bakes static surfaces and all four devices in the **same unchanged scene**.
    Original normal-map tangent spaces stay bound to the source UVs. Extended atlas
    gutters and 2K furniture/window atlases protect the small bevel highlights.
    All bakes finish before materials become unlit, preventing light contamination
-   from earlier atlases. Screen meshes/UVs, poster IDs and animated lava stay separate.
+   from earlier atlases. Screen meshes/UVs, the rug and animated lava stay separate.
 3. `optimize.mjs`: converts baked emissions to `KHR_materials_unlit`, compresses images
    to WebP and geometry to Meshopt with 16-bit UVs/positions, runs the glTF validator
    and asset-contract checks, then updates `public/room`, its hash manifest and the
@@ -59,9 +70,10 @@ It intentionally rejects the old machine-specific revision-5 export.
 ## Verification
 
 `pnpm verify:room` checks all five runtime GLBs, file sizes and hashes, zero glTF
-errors/warnings, static unlit materials, texture/geometry/transfer budgets, five room
-groups, nine poster IDs, seven animated wax meshes and the 48-second clip. It also checks
-both replaceable screens, the TV buttons, screen UV coverage and the unchanged TV aperture
+errors/warnings, static unlit materials, texture/geometry/transfer budgets, room groups,
+the square rotated rug, seven animated wax meshes and the 48-second clip. It also checks
+both replaceable screens, the TV buttons, screen UV coverage, removal of the pillow/wall
+posters/ceiling beams and the unchanged TV aperture
 position. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
 
 Use `pnpm e2e room.spec.ts touch.spec.ts no-webgl.spec.ts` to exercise room/TV navigation,

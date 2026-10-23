@@ -2,8 +2,9 @@ ATTIC ROOM — REVISION 6 — SOURCE ATTRIBUTION
 
 REVISION 6 — COHESIVE MATERIAL AND FIDELITY PASS
 
-All existing imported models, room layout, poster artwork, game-cover artwork
-and device identities are retained. Existing attribution and license notes below
+Existing furniture and device models, room layout and game-cover artwork are retained.
+The floor pillow, ceiling beams and wall posters/cards are removed; the rug is replaced.
+Attribution notes below
 continue to apply. No Bruno Simon geometry, textures or code are redistributed.
 
 Visual/material reference: Bruno Simon, My Room in 3D
@@ -18,8 +19,26 @@ grain; bevelled floorboards within the original floor footprint; refined furnitu
 edges and welded/smoothed chair and mouse meshes. Device labels and original
 screens are retained; incompatible roughness/normal response is reduced.
 Static environment and ALL four devices now share one Cycles lighting setup.
+The original night-light colors and localized tungsten/amber practicals are retained.
+Broad blue fills and world illumination are substantially reduced for deeper shadows
+and stronger contrast around the desk, lava lamp and narrow window highlights.
+The four desk drawer fronts now share the desk's cream enamel. The old rug/fringe
+is replaced with the supplied folded rug model credited below, squared to the old
+2.3514 m width, rotated 15 degrees clockwise with the folded corner nearest the TV.
+The floor keeps its warm oak color with more natural grain from the original CC0 scan.
+The rug's new geometric textile
+texture was generated with OpenAI image generation from the user's visual reference.
 The runtime uses baked, unlit materials, with the existing interactive CRT screen
 and animated lava preserved. Recipe: tools/room/restyle.py and tools/room/bake.py.
+
+NEW RUG MODEL
+
+Rug - Square pattern — Sousinho (https://sketchfab.com/sousinho)
+https://sketchfab.com/3d-models/rug-square-pattern-e45054df5644444ebca0670d75a6cf93
+License: CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/).
+Attribution and license retained from the user-supplied GLB's embedded metadata.
+Original mesh, folded corner and UV layout retained; resized to a square footprint,
+positioned in the attic and retextured with an original geometric textile map.
 
 The revision-5 history below describes the origins of the retained assets.
 
