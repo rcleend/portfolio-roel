@@ -13,14 +13,16 @@ import { BOOT_FRAMES, framesSince, plotterAt, STRIKE_FRAMES } from './timeline';
 export const blueprintBackdrop: TitleBackdrop<'blueprint'> = {
   id: 'blueprint',
   name: 'Blueprint',
-  description: 'The product, drafted: a pen strike boots a cyanotype sheet that measures where the words will land.',
+  description:
+    "The product, drafted on the menus' navy: a pen strike boots a sheet that measures where the words will land.",
   prepare: lazy(paintBlueprintBackdrop),
 };
 
 /**
  * "Blueprint" (docs/ART-DIRECTION.md › Title › Blueprint): the title card is
- * the engineering drawing of the product being built. A plotter-pen strike
- * boots a cyanotype sheet from the impact point, the engineer measures the
+ * the engineering drawing of the product being built, printed in the menus'
+ * navies and lavenders so it flows into the select screens. A plotter-pen
+ * strike boots the sheet from the impact point, the engineer measures the
  * spot where the words will land, the lock sends a ripple through the grid,
  * and the idle plotter drafts product wireframes in the free corners.
  * About 20 ms to paint.

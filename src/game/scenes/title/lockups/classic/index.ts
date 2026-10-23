@@ -35,7 +35,8 @@ const LAYOUT = {
 export const classicLockup: TitleLockup<'classic'> = {
   id: 'classic',
   name: 'Classic',
-  description: 'PRODUCT over ENGINEER in rusted slab letters, under the name and PORTFOLIO set flush with their edges.',
+  description:
+    'PRODUCT over ENGINEER in rusted slab letters, under a row with the name flush left and PORTFOLIO right.',
   prepare: lazy(paintClassicLockup),
 };
 

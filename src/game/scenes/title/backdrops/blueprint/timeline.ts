@@ -229,7 +229,7 @@ export const PLOTS = [
  * Erasing steps a finished drawing's ink down the ramp, a step every few
  * frames, through the brightest paper steps until the paper has it back.
  */
-export const ERASE_STEPS: readonly number[] = [INK.mid, INK.ghost, 9, 7, 5];
+export const ERASE_STEPS: readonly number[] = [INK.mid, INK.ghost, 10, 8, 6];
 const ERASE_STEP_FRAMES = 5;
 export const ERASE_FRAMES = ERASE_STEPS.length * ERASE_STEP_FRAMES;
 
