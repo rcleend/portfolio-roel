@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 12, "h": 12 },
+  "origin": { "x": 6, "y": 6 },
+  "animations": [
+    { "name": "fly", "fps": 20, "loop": true, "frames": 4 },
+    { "name": "trail", "fps": 30, "loop": false, "frames": 4 }
+  ]
+}

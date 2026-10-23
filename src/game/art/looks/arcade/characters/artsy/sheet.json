@@ -1,0 +1,30 @@
+{
+  "frame": { "w": 64, "h": 64 },
+  "origin": { "x": 32, "y": 64 },
+  "animations": [
+    { "name": "idle", "fps": 8, "loop": true, "frames": 8 },
+    { "name": "run", "fps": 15, "loop": true, "frames": 8 },
+    { "name": "jump", "fps": 12, "loop": false, "frames": 4 },
+    { "name": "fall", "fps": 10, "loop": true, "frames": 4 },
+    {
+      "name": "attack",
+      "fps": 16,
+      "loop": false,
+      "frames": 5,
+      "anchors": { "muzzle": [[36, 31], [36, 32], [36, 30], [36, 31], [36, 31]] }
+    },
+    {
+      "name": "skill",
+      "fps": 15,
+      "loop": false,
+      "frames": 6,
+      "anchors": {
+        "hand": [[20, 10], [21, 6], [37, 31], [36, 41], [20, 9], [20, 9]],
+        "mouth": [[33, 18], [32, 16], [38, 18], [39, 20], [34, 17], [34, 18]],
+        "strings": [[31, 36], [31, 36], [31, 36], [31, 37], [31, 36], [31, 36]]
+      }
+    },
+    { "name": "hurt", "fps": 14, "loop": false, "frames": 4 },
+    { "name": "victory", "fps": 10, "loop": true, "frames": 8 }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "frame": {
+    "w": 20,
+    "h": 20
+  },
+  "origin": {
+    "x": 10,
+    "y": 10
+  },
+  "animations": [
+    {
+      "name": "appear",
+      "fps": 18,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "drink",
+      "fps": 12,
+      "loop": false,
+      "frames": 5,
+      "anchors": {
+        "lip": [[10, 7], [8, 8], [7, 9], [7, 11], [7, 11]],
+        "bulb": [[10, 15], [13, 14], [15, 11], [14, 8], [14, 8]]
+      }
+    },
+    {
+      "name": "vanish",
+      "fps": 15,
+      "loop": false,
+      "frames": 4,
+      "anchors": {
+        "lip": [[7, 9], [7, 9], [7, 9], [7, 9]]
+      }
+    }
+  ]
+}

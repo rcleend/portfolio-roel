@@ -1,0 +1,254 @@
+/* Flat host: a late-90s CRT drawn in CSS. Sizes must match BEZEL in integerScale.ts. */
+
+.flat-host {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 42%, rgb(70 52 110 / 0.55), transparent 70%),
+    radial-gradient(ellipse at 50% 120%, #2a1a12 0%, transparent 60%), #0c0a14;
+}
+
+.tv {
+  position: relative;
+  padding: 28px 28px 0;
+  border-radius: 26px 26px 22px 22px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.08), transparent 18%),
+    linear-gradient(90deg, #22212a, #33323d 12%, #2b2a34 50%, #33323d 88%, #22212a);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.12),
+    inset 0 -3px 0 rgb(0 0 0 / 0.45),
+    0 30px 60px rgb(0 0 0 / 0.6),
+    0 0 120px rgb(120 100 220 / 0.12);
+}
+
+.tv__screen {
+  position: relative;
+  width: var(--screen-width);
+  height: var(--screen-height);
+  overflow: hidden;
+  border-radius: 14px / 12px;
+  background: #000;
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* The black ring around the tube. */
+  box-shadow:
+    0 0 0 4px #0a0a0e,
+    0 0 0 6px #45444f;
+}
+
+.tv__screen:focus-visible {
+  box-shadow:
+    0 0 0 4px #0a0a0e,
+    0 0 0 6px #a99cf0;
+}
+
+.tv__canvas {
+  display: block;
+  width: var(--screen-width);
+  height: var(--screen-height);
+  image-rendering: pixelated;
+}
+
+.tv__scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(var(--row) - var(--row-dark)),
+    rgb(0 0 0 / 0.28) calc(var(--row) - var(--row-dark))
+  );
+  background-size: 100% var(--row);
+}
+
+.tv__glass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 62%, rgb(0 0 0 / 0.5) 100%),
+    linear-gradient(160deg, rgb(255 255 255 / 0.07) 0%, transparent 28%);
+}
+
+.tv__panel {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 6px;
+  font:
+    700 12px / 1 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  letter-spacing: 0.18em;
+  color: #8d8b9c;
+}
+
+.tv__brand {
+  color: #d9d6e6;
+  font-size: 15px;
+  letter-spacing: 0.32em;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.6);
+}
+
+.tv__model {
+  font-size: 10px;
+  color: #6d6b7c;
+}
+
+.tv__knobs {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.tv__knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #5d5c69, #1a1a20 70%);
+  box-shadow: 0 2px 3px rgb(0 0 0 / 0.5);
+}
+
+.tv__power {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.tv__led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1d3a26;
+}
+
+.tv__led--on {
+  background: #4dff7a;
+  box-shadow: 0 0 8px #4dff7a;
+}
+
+/*
+ * Power-on: the tube covers the canvas in black until powered, then a white
+ * dot stretches into a line, snaps open vertically with a slight overshoot,
+ * blooms and fades into the picture (~600 ms after a short LED lead).
+ */
+.tv__tube {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+}
+
+.tv__tube--powering {
+  animation: tv-tube-clear 760ms steps(1, end) forwards;
+}
+
+.tv__raster {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, #fff 0%, #f2f0ff 55%, #c9c4f0 100%);
+  box-shadow: 0 0 24px 6px rgb(220 215 255 / 0.7);
+  transform: scale(0, 0);
+  opacity: 0;
+}
+
+.tv__tube--powering .tv__raster {
+  animation: tv-raster-on 620ms 140ms both;
+}
+
+@keyframes tv-raster-on {
+  0% {
+    transform: scale(0.01, 0.004);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  28% {
+    transform: scale(1, 0.006);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  52% {
+    transform: scale(1, 1.04);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  60% {
+    transform: scale(1, 1);
+    opacity: 1;
+    animation-timing-function: steps(5, end);
+  }
+  100% {
+    transform: scale(1, 1);
+    opacity: 0;
+  }
+}
+
+/* The black backdrop disappears with the raster's last step so the first game frame is on a live tube. */
+@keyframes tv-tube-clear {
+  0% {
+    background: #000;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Reduced motion: a 160 ms fade from black instead of the raster sequence. */
+@media (prefers-reduced-motion: reduce) {
+  .tv__tube--powering {
+    animation: tv-tube-fade 160ms linear forwards;
+  }
+
+  .tv__tube--powering .tv__raster {
+    animation: none;
+  }
+}
+
+@keyframes tv-tube-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+.flat-host__hint {
+  height: 32px;
+  margin: 12px 0 0;
+  font:
+    12px / 1.4 system-ui,
+    sans-serif;
+  color: #8d8b9c;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .tv {
+    padding: 10px 10px 0;
+    border-radius: 14px;
+  }
+
+  .tv__model,
+  .tv__knobs {
+    display: none;
+  }
+}
+
+/* Touch screens get the on-screen pad instead of keyboard instructions. */
+@media (pointer: coarse) {
+  .flat-host__hint {
+    display: none;
+  }
+}

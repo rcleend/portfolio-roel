@@ -1,0 +1,12 @@
+{
+  "frame": { "w": 32, "h": 32 },
+  "origin": { "x": 16, "y": 16 },
+  "animations": [
+    { "name": "summon", "fps": 30, "loop": false, "frames": 13 },
+    { "name": "hover", "fps": 15, "loop": true, "frames": 24 },
+    { "name": "hover-far", "fps": 15, "loop": true, "frames": 24 },
+    { "name": "fire", "fps": 30, "loop": false, "frames": 6 },
+    { "name": "powerdown", "fps": 8, "loop": true, "frames": 4 },
+    { "name": "dissolve", "fps": 30, "loop": false, "frames": 8 }
+  ]
+}

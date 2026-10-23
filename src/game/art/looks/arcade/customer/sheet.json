@@ -1,0 +1,17 @@
+{
+  "frame": { "w": 64, "h": 64 },
+  "origin": { "x": 32, "y": 64 },
+  "animations": [
+    { "name": "walk", "fps": 8, "loop": true, "frames": 8 },
+    {
+      "name": "shout",
+      "fps": 8,
+      "loop": true,
+      "frames": 4,
+      "anchors": { "mouth": [[41, 28], [42, 28], [42, 30], [42, 28]] }
+    },
+    { "name": "hurt", "fps": 14, "loop": false, "frames": 3 },
+    { "name": "stunned", "fps": 8, "loop": true, "frames": 6 },
+    { "name": "happy", "fps": 10, "loop": true, "frames": 8 }
+  ]
+}

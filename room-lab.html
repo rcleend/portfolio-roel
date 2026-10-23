@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Room lab</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; height: 100%; background: #07080c; color: #cfd6e6; font: 12px/1.4 ui-monospace, monospace; }
+      #stage { position: fixed; inset: 0; }
+      #panel { position: fixed; left: 8px; top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      #panel button { font: inherit; background: #1b2030; color: inherit; border: 1px solid #39425c; padding: 4px 8px; cursor: pointer; }
+      #status { padding: 4px 8px; background: #0d1018cc; }
+      body.clean #panel { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="panel">
+      <button type="button" data-action="power">power</button>
+      <button type="button" data-action="tv">tv</button>
+      <button type="button" data-action="room">room</button>
+      <span id="status">loading…</span>
+    </div>
+    <script type="module" src="/src/room/lab/main.ts"></script>
+  </body>
+</html>

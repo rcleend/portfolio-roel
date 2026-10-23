@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 16, "h": 24 },
+  "origin": { "x": 8, "y": 23 },
+  "animations": [{ "name": "puff", "fps": 12, "loop": false, "frames": 8 }]
+}

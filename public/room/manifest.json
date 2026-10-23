@@ -1,0 +1,43 @@
+{
+  "generatedBy": "scripts/sync-room-assets.mjs",
+  "sourceRevision": 5,
+  "totalBytes": 7873921,
+  "files": [
+    {
+      "name": "room.glb",
+      "source": "room.glb",
+      "bytes": 5461004,
+      "sha256": "991332e2d487adfab4a56fcbfcdff886ab863dd45f9840c22f89cd719da76b3a"
+    },
+    {
+      "name": "tv-high.glb",
+      "source": "assets/tv-high.glb",
+      "bytes": 556912,
+      "sha256": "667fd68286d978076587acbc24019ab78e69a500269f95a694db828ed3affdea"
+    },
+    {
+      "name": "pc-base.glb",
+      "source": "assets/pc-base.glb",
+      "bytes": 269724,
+      "sha256": "a87ec131294b44050074014e15e547db4946945f8b132f83cc20a3149d44eb96"
+    },
+    {
+      "name": "radio-base.glb",
+      "source": "assets/radio-base.glb",
+      "bytes": 518904,
+      "sha256": "cbf0807cc42d3f0db83442925bb5e153142a74e8bc5ff08ef54e6bf8e8f5d385"
+    },
+    {
+      "name": "ps2-base.glb",
+      "source": "assets/ps2-base.glb",
+      "bytes": 1060236,
+      "sha256": "b3b8e8b870ef02171b3143b256f521d82f1577509e3b233daff22c68da6d7e67"
+    },
+    {
+      "name": "CREDITS.txt",
+      "source": "licenses/ASSET-CREDITS.txt",
+      "bytes": 7141,
+      "sha256": "ddb4494235f71c58cf4f5e27af6ce00cfe3134e159dc7ac87458f2f524d06d2e"
+    }
+  ]
+}

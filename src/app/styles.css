@@ -1,0 +1,31 @@
+:root {
+  color-scheme: dark;
+  background: #0c0a14;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 4px;
+  background: #f7f3e6;
+  color: #1b1830;
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}

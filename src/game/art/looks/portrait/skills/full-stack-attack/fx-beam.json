@@ -1,0 +1,30 @@
+{
+  "frame": {
+    "w": 24,
+    "h": 16
+  },
+  "origin": {
+    "x": 0,
+    "y": 8
+  },
+  "animations": [
+    {
+      "name": "grow",
+      "fps": 30,
+      "loop": false,
+      "frames": 3
+    },
+    {
+      "name": "hold",
+      "fps": 15,
+      "loop": true,
+      "frames": 4
+    },
+    {
+      "name": "fade",
+      "fps": 25,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}

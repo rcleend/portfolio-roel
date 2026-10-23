@@ -1,0 +1,30 @@
+{
+  "frame": {
+    "w": 11,
+    "h": 11
+  },
+  "origin": {
+    "x": 5,
+    "y": 10
+  },
+  "animations": [
+    {
+      "name": "pop",
+      "fps": 15,
+      "loop": false,
+      "frames": 4
+    },
+    {
+      "name": "beat",
+      "fps": 8,
+      "loop": true,
+      "frames": 8
+    },
+    {
+      "name": "wane",
+      "fps": 8,
+      "loop": false,
+      "frames": 4
+    }
+  ]
+}

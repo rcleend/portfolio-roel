@@ -1,0 +1,5 @@
+{
+  "frame": { "w": 48, "h": 16 },
+  "origin": { "x": 24, "y": 8 },
+  "animations": [{ "name": "open", "fps": 20, "loop": false, "frames": 7 }]
+}

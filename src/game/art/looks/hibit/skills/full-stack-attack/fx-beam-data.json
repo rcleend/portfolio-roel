@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 32, "h": 5 },
+  "origin": { "x": 0, "y": 2 },
+  "animations": [
+    { "name": "front-end", "fps": 1, "loop": true, "frames": 1 },
+    { "name": "back-end", "fps": 1, "loop": true, "frames": 1 },
+    { "name": "database", "fps": 1, "loop": true, "frames": 1 }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "frame": { "w": 20, "h": 20 },
+  "origin": { "x": 10, "y": 10 },
+  "animations": [
+    { "name": "appear", "fps": 30, "loop": false, "frames": 5 },
+    { "name": "held", "fps": 8, "loop": true, "frames": 4 },
+    { "name": "uncork", "fps": 20, "loop": false, "frames": 4 },
+    { "name": "drink", "fps": 20, "loop": false, "frames": 8 },
+    { "name": "tumble", "fps": 20, "loop": true, "frames": 8 },
+    { "name": "poof", "fps": 20, "loop": false, "frames": 6 }
+  ]
+}

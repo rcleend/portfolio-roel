@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 5, "h": 7 },
+  "origin": { "x": 2, "y": 3 },
+  "animations": [
+    { "name": "bright", "fps": 1, "loop": false, "frames": 8 },
+    { "name": "dim", "fps": 1, "loop": false, "frames": 8 }
+  ]
+}

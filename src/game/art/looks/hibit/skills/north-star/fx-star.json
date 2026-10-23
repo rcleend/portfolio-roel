@@ -1,0 +1,9 @@
+{
+  "frame": { "w": 24, "h": 24 },
+  "origin": { "x": 12, "y": 12 },
+  "animations": [
+    { "name": "spawn", "fps": 30, "loop": false, "frames": 4 },
+    { "name": "spin", "fps": 15, "loop": true, "frames": 8 },
+    { "name": "fizzle", "fps": 20, "loop": false, "frames": 6 }
+  ]
+}
