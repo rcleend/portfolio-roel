@@ -10,6 +10,14 @@ Browser captures from the room lab, with the same camera and test picture:
 | --- | --- |
 | ![Original room](room/before.webp) | ![Restyled room](room/after.webp) |
 
+Clicking the computer or its desk seats the camera straight in front of the monitor, where the
+app's live desktop replaces the baked screen picture (a capture from the app itself; see
+[PC.md](PC.md) for what it shows and [ROOM.md](ROOM.md) for how the monitor hands over to it):
+
+| At the computer |
+| --- |
+| ![The beige CRT seen straight on, showing an original early-2000s-style desktop](room/pc.webp) |
+
 | Rebuilt desktop peripherals | Original basket with supported papers |
 | --- | --- |
 | ![Beige CRT, full-size keyboard and wheel mouse](room/desktop-detail.webp) | ![Basket clear of the desk, with papers reaching its base](room/basket.webp) |
