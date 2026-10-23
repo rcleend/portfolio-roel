@@ -29,7 +29,7 @@ export interface DesktopProps {
   readonly layout: DesktopLayout;
   /** The CV icon is selected (the scripted double-click's first click). */
   readonly selected: boolean;
-  /** The reader window is open: its taskbar button shows, pressed. */
+  /** The open window's title, for its pressed taskbar button; null while no window is open. */
   readonly taskTitle: string | null;
   readonly clock: string;
   /** Device pixels per layout px, for the wallpaper's sharpness. */

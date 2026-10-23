@@ -76,6 +76,7 @@ const PAGE_LIGHT = { r: 0.8, g: 0.8, b: 0.8 } as const;
 /** The room's own cross-fade length, used when this chunk arrives after the screen is already live. */
 const LATE_FADE_MS = 160;
 const FLIP_EASING = 'cubic-bezier(.2, .8, .2, 1)';
+/** The `performance` mark and measure of the reader's mount, from the second click (or a skip) to ready. */
 export const MOUNT_MARK = 'pc-reader-mount';
 
 /**
@@ -157,10 +158,10 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
   const breakOut = (duration: number): void => {
     const from = elements.glassWindow.current?.getBoundingClientRect();
     flushSync(() => dispatch({ type: 'breakout' }));
-    const window = elements.popOutWindow.current;
-    if (!from || !window) return;
-    window.animate(
-      { transform: [flipTransform(from, window.getBoundingClientRect()), 'none'] },
+    const reader = elements.popOutWindow.current;
+    if (!from || !reader) return;
+    reader.animate(
+      { transform: [flipTransform(from, reader.getBoundingClientRect()), 'none'] },
       { duration, easing: FLIP_EASING },
     );
     elements.scrim.current?.animate({ opacity: [0, 1] }, { duration });
@@ -266,12 +267,12 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
 
   /** The reverse FLIP: the pop-out reader shrinks back onto the in-glass window before it closes. */
   const shrinkBack = (): void => {
-    const window = elements.popOutWindow.current;
+    const reader = elements.popOutWindow.current;
     const to = elements.glassWindow.current?.getBoundingClientRect();
-    if (!window || !to) return;
-    const options = { duration: SHRINK_MS, easing: FLIP_EASING, fill: 'forwards' } as const;
-    window.animate({ transform: ['none', flipTransform(to, window.getBoundingClientRect())] }, options);
-    elements.scrim.current?.animate({ opacity: [1, 0] }, options);
+    if (!reader || !to) return;
+    const timing = { duration: SHRINK_MS, easing: FLIP_EASING, fill: 'forwards' } as const;
+    reader.animate({ transform: ['none', flipTransform(to, reader.getBoundingClientRect())] }, timing);
+    elements.scrim.current?.animate({ opacity: [1, 0] }, timing);
   };
 
   return { skip, close };
