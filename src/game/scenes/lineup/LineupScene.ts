@@ -65,7 +65,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
           sheet: terrariaDesignSheet(assets, stand.design),
           label: hero.className,
           color: accent,
-          caption: stand.design.variant,
+          caption: null,
         };
       }
       const look = looks.characters[stand.hero];
