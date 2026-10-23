@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMonth, sentenceCase } from './Resume';
+import { formatMonth, sentenceCase } from './format';
 
 describe('formatMonth', () => {
   it('formats ISO year-months in UTC', () => {
