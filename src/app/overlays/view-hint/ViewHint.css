@@ -39,6 +39,11 @@
   opacity: 1;
 }
 
+/* The computer's reader fills the viewport (app/pc/popout): there is no outside left to click. */
+body:has(.pc-popout[data-shown="true"]) .view-hint {
+  display: none;
+}
+
 .view-hint__marker {
   margin-right: 8px;
   color: #ffc83d;
