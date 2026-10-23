@@ -101,7 +101,7 @@ room/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, DPR/buffer caps, resize, context loss
     RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
-    deviceLighting.ts   environment + moonlight + practicals for the PBR devices
+    roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
   camera/
     CameraRig.ts        tv / room viewpoints, flights, reduced-motion cut, pointer parallax
@@ -129,19 +129,22 @@ room/
 
 ## Assets
 
-`public/room/` is a generated mirror of the Blender export, written by `scripts/sync-room-assets.mjs`:
+`public/room/` contains the revision-6 runtime export, generated and validated by `tools/room/`:
 
 ```sh
-ROOM_SOURCE=/path/to/attic-room node scripts/sync-room-assets.mjs   # or: pnpm sync:room
+ROOM_SOURCE=/path/to/original/attic-room.blend pnpm build:room
+pnpm verify:room
 ```
 
-It copies `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, the credits (`CREDITS.txt`), and writes `manifest.json` with byte sizes, SHA-256 and the source revision (currently 5).
-Total transfer is about 7.9 MB.
+It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6. Existing attribution remains in `CREDITS.txt`.
+The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
+The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and additive glow remain dynamic. There is no runtime studio environment capture.
+See [ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) for the reference study and [the rebuild guide](../tools/room/README.md) for native source requirements. Normal application builds use the checked-in assets and do not require Blender. To import an already-built revision-6 runtime directory, use `ROOM_SOURCE=/path/to/optimized pnpm sync:room`.
 The GLBs use `EXT_meshopt_compression`, `KHR_mesh_quantization`, `EXT_texture_webp`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; three's `GLTFLoader` with `MeshoptDecoder` handles all of them.
 Baked surfaces already contain Blender's display transform (AgX), so the renderer uses `SRGBColorSpace` output and `NoToneMapping`.
 `CREDITS.txt` must stay reachable from the site (several assets are CC BY 4.0).
 
-### What the inspection found (revision 5)
+### Original TV geometry contract (retained in revision 6)
 
 Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, world AABBs) and `node scripts/inspect-tv-screen.mjs public/room/tv-high.glb` (decoded UVs, normals and the visible aperture).
 
@@ -165,9 +168,9 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
   Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion.
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** 55 draw calls and ~246 k triangles in the room view; the TV view culls most of the room.
+- **Cost.** Revision 6 uses 68 draw calls and ~353 k triangles in the room view; the TV view culls most of the room. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the room glow reads the screen's mean colour from the 1 × 1 mip on the GPU (no pixel readback).
-- **Memory.** The baked atlases dominate (~160 MiB decoded, see the export's README). No KTX2 yet.
+- **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 
 ## CRT look (crtShader.ts)
 

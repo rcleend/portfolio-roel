@@ -1,43 +1,71 @@
 {
-  "generatedBy": "scripts/sync-room-assets.mjs",
-  "sourceRevision": 5,
-  "totalBytes": 7873921,
+  "generatedBy": "tools/room/optimize.mjs",
+  "sourceRevision": 6,
+  "artDirection": "After hours — crafted miniature",
+  "totalBytes": 8254684,
+  "lighting": "Shared Cycles combined bake, AgX Medium High Contrast",
+  "atlases": {
+    "01_TV_surfaces": 2048,
+    "02_Desk_surfaces": 2048,
+    "03_Room_surfaces": 2048,
+    "03_Room_window": 2048,
+    "03_Room_floor": 2048,
+    "03_Room_pillow": 512,
+    "04_Drawer_surfaces": 2048,
+    "04_Drawer_guitar": 1024,
+    "05_Posters_and_mic_surfaces": 2048,
+    "device_tv_front": 2048,
+    "device_tv_rear": 1024,
+    "device_pc": 1024,
+    "device_radio": 1024,
+    "device_ps2": 1024
+  },
   "files": [
     {
       "name": "room.glb",
-      "source": "room.glb",
-      "bytes": 5461004,
-      "sha256": "991332e2d487adfab4a56fcbfcdff886ab863dd45f9840c22f89cd719da76b3a"
+      "source": "room-raw.glb",
+      "bytes": 5894536,
+      "sha256": "c6b916565b8dd3737140db4c65effa946844c32fed29e81a9faf24434dfaf395",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "tv-high.glb",
-      "source": "assets/tv-high.glb",
-      "bytes": 556912,
-      "sha256": "667fd68286d978076587acbc24019ab78e69a500269f95a694db828ed3affdea"
+      "source": "tv-raw.glb",
+      "bytes": 407784,
+      "sha256": "ca93f60daacf5e8b10c9885975adca8593b3957626b8db6df1cac91f513a67e0",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "pc-base.glb",
-      "source": "assets/pc-base.glb",
-      "bytes": 269724,
-      "sha256": "a87ec131294b44050074014e15e547db4946945f8b132f83cc20a3149d44eb96"
+      "source": "pc-raw.glb",
+      "bytes": 232444,
+      "sha256": "011b52c50c65e88a6c1e1b8feb746f1042540150cf81df372c5a0984a90888c8",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "radio-base.glb",
-      "source": "assets/radio-base.glb",
-      "bytes": 518904,
-      "sha256": "cbf0807cc42d3f0db83442925bb5e153142a74e8bc5ff08ef54e6bf8e8f5d385"
+      "source": "radio-raw.glb",
+      "bytes": 913804,
+      "sha256": "88539a0314e1aca128afadff2edb2c411a0f415cfd510daa99c2b4cf097fc743",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "ps2-base.glb",
-      "source": "assets/ps2-base.glb",
-      "bytes": 1060236,
-      "sha256": "b3b8e8b870ef02171b3143b256f521d82f1577509e3b233daff22c68da6d7e67"
+      "source": "ps2-raw.glb",
+      "bytes": 797712,
+      "sha256": "104e6d9dca2f8dcabb9434af74ecd0aef155288977afe2e0bf709aa8e86f6fa3",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "CREDITS.txt",
-      "source": "licenses/ASSET-CREDITS.txt",
-      "bytes": 7141,
-      "sha256": "ddb4494235f71c58cf4f5e27af6ce00cfe3134e159dc7ac87458f2f524d06d2e"
+      "source": "Retained source attribution + revision 6 modifications",
+      "bytes": 8404,
+      "sha256": "eac591f806fb3a86515fde45607909dec6e7dbff25553138609a843bdcf9263b"
     }
   ]
 }

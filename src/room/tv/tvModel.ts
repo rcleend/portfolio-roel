@@ -2,7 +2,7 @@ import { Box3, type BufferGeometry, Mesh, type Object3D, Vector3 } from 'three';
 import type { UvRect } from './screenMapping';
 
 /**
- * Facts about the CRT television asset (tv-high.glb, room revision 5) that the room relies
+ * Facts about the CRT television asset (tv-high.glb, room revision 6) that the room relies
  * on. Anything findable at runtime is found at runtime; only the bezel aperture is a
  * measured constant (see docs/ROOM.md and scripts/inspect-tv-screen.mjs to re-measure).
  */

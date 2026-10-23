@@ -5,9 +5,9 @@ import { CameraRig } from './camera/CameraRig';
 import { ScreenFade } from './camera/ScreenFade';
 import type { Interactable } from './interaction/Interactable';
 import { RoomInteraction } from './interaction/RoomInteraction';
-import { addDeviceLighting } from './stage/deviceLighting';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
+import { addRoomLighting } from './stage/roomLighting';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { locateTv } from './tv/tvModel';
@@ -39,7 +39,7 @@ const MAX_ANISOTROPY = 4;
 export function assembleRoom({ stage, assets, surface, views, reducedMotion }: RoomSceneOptions): RoomScene {
   const { scene, loop, camera } = stage;
   scene.add(assets.room.scene, assets.tv, ...assets.devices);
-  const removeLighting = addDeviceLighting(scene, stage.renderer);
+  const removeLighting = addRoomLighting(scene);
   const anisotropy = Math.min(MAX_ANISOTROPY, stage.renderer.capabilities.getMaxAnisotropy());
   scene.traverse((object) => {
     if (object instanceof Mesh) forEachTexture(object.material, (texture) => (texture.anisotropy = anisotropy));

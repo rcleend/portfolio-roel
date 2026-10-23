@@ -1,0 +1,133 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { getBounds, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import validator from 'gltf-validator';
+import { MeshoptDecoder } from 'meshoptimizer';
+import { assetSizes } from './runtime-manifest.mjs';
+
+const FILES = ['room.glb', 'tv-high.glb', 'pc-base.glb', 'radio-base.glb', 'ps2-base.glb'];
+
+/** Asset-level regression checks for the contracts consumed by the room runtime. */
+export async function verifyRoomAssets(directory, manifest) {
+  await MeshoptDecoder.ready;
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  const documents = new Map();
+  let totalBytes = 0;
+  let triangles = 0;
+  let texturePixels = 0;
+  assert.equal(manifest.sourceRevision, 6);
+  for (const filename of [...FILES, 'CREDITS.txt']) {
+    const entry = manifest.files.find((file) => file.name === filename);
+    assert.ok(entry, `Missing manifest entry: ${filename}`);
+    const bytes = await readFile(join(directory, filename));
+    totalBytes += bytes.length;
+    assert.equal(bytes.length, entry.bytes, `${filename}: stale byte count`);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), entry.sha256, `${filename}: stale hash`);
+    if (!filename.endsWith('.glb')) continue;
+    const result = await validator.validateBytes(new Uint8Array(bytes), { uri: filename });
+    assert.equal(result.issues.numErrors, 0, `${filename}: ${JSON.stringify(result.issues.messages)}`);
+    assert.equal(result.issues.numWarnings, 0, `${filename}: ${JSON.stringify(result.issues.messages)}`);
+    const doc = await io.read(join(directory, filename));
+    documents.set(filename, doc);
+    for (const texture of doc.getRoot().listTextures()) {
+      const [width, height] = texture.getSize();
+      assert.ok(width <= 2048 && height <= 2048, `${filename}: oversized texture`);
+      texturePixels += width * height;
+    }
+    for (const mesh of doc.getRoot().listMeshes()) {
+      for (const primitive of mesh.listPrimitives()) {
+        triangles += (primitive.getIndices()?.getCount() ?? primitive.getAttribute('POSITION').getCount()) / 3;
+        const material = primitive.getMaterial();
+        assert.ok(material, `${mesh.getName()}: no material`);
+        if (!material.getName().startsWith('Lava |')) {
+          assert.ok(material.getExtension('KHR_materials_unlit'), `${material.getName()}: outside shared bake`);
+        }
+      }
+    }
+  }
+  assert.equal(totalBytes, manifest.totalBytes);
+  assert.ok(totalBytes < 9_000_000, 'Initial transfer exceeds the room budget');
+  assert.ok(triangles < 500_000, 'Geometry exceeds the room budget');
+  assert.ok(texturePixels < 48_000_000, 'Decoded texture allocation exceeds the room budget');
+  const room = documents.get('room.glb').getRoot();
+  const groups = room
+    .getDefaultScene()
+    .listChildren()
+    .map((node) => node.getName());
+  for (const name of ['01_TV', '02_Desk', '03_Room', '04_Drawer', '05_Posters_and_mic']) {
+    assert.ok(groups.includes(name), `Missing room group: ${name}`);
+  }
+  const posters = room.listNodes().filter((node) => node.getExtras().poster_id);
+  assert.equal(new Set(posters.map((node) => node.getExtras().poster_id)).size, 9, 'Lost poster identities');
+  const animations = room.listAnimations();
+  assert.equal(animations.length, 1, 'Expected one lava animation');
+  assert.equal(animations[0].getName(), 'Lava flow');
+  const targets = new Set(animations[0].listChannels().map((channel) => channel.getTargetNode()));
+  assert.equal(targets.size, 7, 'Lost animated wax meshes');
+  const duration = Math.max(...animations[0].listSamplers().flatMap((sampler) => [...sampler.getInput().getArray()]));
+  assert.ok(Math.abs(duration - 48) < 0.05, `Lava loop is ${duration}s, expected 48s`);
+  for (const [filename, id] of [
+    ['tv-high.glb', 'tv-screen'],
+    ['pc-base.glb', 'pc-screen'],
+  ]) {
+    const doc = documents.get(filename);
+    const screens = doc
+      .getRoot()
+      .listNodes()
+      .filter((node) => node.getExtras().interaction_id === id);
+    assert.equal(screens.length, 1, `${filename}: screen must be unique`);
+    const screen = screens[0];
+    assert.equal(screen.getExtras().replaceable_screen, true);
+    const primitive = screen.getMesh().listPrimitives()[0];
+    const uv = primitive.getAttribute('TEXCOORD_0');
+    assert.ok(uv, `${filename}: lost screen UVs`);
+    const point = [];
+    const min = [Infinity, Infinity];
+    const max = [-Infinity, -Infinity];
+    for (let i = 0; i < uv.getCount(); i++) {
+      uv.getElement(i, point);
+      for (let axis = 0; axis < 2; axis++) {
+        assert.ok(Number.isFinite(point[axis]) && point[axis] >= -0.001 && point[axis] <= 1.001);
+        min[axis] = Math.min(min[axis], point[axis]);
+        max[axis] = Math.max(max[axis], point[axis]);
+      }
+    }
+    assert.ok(max[0] - min[0] > 0.95 && max[1] - min[1] > 0.95, `${filename}: screen UV range collapsed`);
+    if (id === 'tv-screen') {
+      const bounds = getBounds(screen);
+      // The camera, glow and pointer mapping depend on the original curved aperture.
+      for (const [actual, expected] of [
+        [bounds.min, [2.159, 0.614, -0.611]],
+        [bounds.max, [2.184, 1.058, -0.029]],
+      ]) {
+        actual.forEach((value, axis) => {
+          assert.ok(Math.abs(value - expected[axis]) < 0.003, 'TV screen moved');
+        });
+      }
+      assert.equal(
+        doc
+          .getRoot()
+          .listNodes()
+          .filter((node) => node.getExtras().interaction_id === 'tv-buttons').length,
+        1,
+      );
+    }
+  }
+  return { totalBytes, triangles, texturePixels, files: FILES.length, validationErrors: 0, validationWarnings: 0 };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const directory = resolve(process.argv[2] ?? 'public/room');
+  const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8'));
+  if (directory === resolve('public/room')) {
+    const runtime = JSON.parse(await readFile('src/room/assets/roomAssetSizes.json', 'utf8'));
+    assert.deepEqual(runtime, assetSizes(manifest), 'Loading progress weights do not match the asset revision');
+  }
+  console.log(JSON.stringify(await verifyRoomAssets(directory, manifest), null, 2));
+}

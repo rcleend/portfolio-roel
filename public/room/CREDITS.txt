@@ -1,4 +1,27 @@
-ATTIC ROOM — REVISION 5 — SOURCE ATTRIBUTION
+ATTIC ROOM — REVISION 6 — SOURCE ATTRIBUTION
+
+REVISION 6 — COHESIVE MATERIAL AND FIDELITY PASS
+
+All existing imported models, room layout, poster artwork, game-cover artwork
+and device identities are retained. Existing attribution and license notes below
+continue to apply. No Bruno Simon geometry, textures or code are redistributed.
+
+Visual/material reference: Bruno Simon, My Room in 3D
+https://my-room-in-3d.vercel.app/
+https://github.com/brunosimon/my-room-in-3d
+Studied its rounded silhouettes, quiet materials, coherent baked illumination,
+contact shadows and warm/cool light separation.
+
+Original modifications in this revision: unified cream enamel, muted teal cloth,
+oiled oak/walnut, slate ABS and brushed-metal finishes; restrained procedural
+grain; bevelled floorboards within the original floor footprint; refined furniture
+edges and welded/smoothed chair and mouse meshes. Device labels and original
+screens are retained; incompatible roughness/normal response is reduced.
+Static environment and ALL four devices now share one Cycles lighting setup.
+The runtime uses baked, unlit materials, with the existing interactive CRT screen
+and animated lava preserved. Recipe: tools/room/restyle.py and tools/room/bake.py.
+
+The revision-5 history below describes the origins of the retained assets.
 
 IMPORTED / RECOVERED DEVICE MESHES
 

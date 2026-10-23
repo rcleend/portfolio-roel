@@ -36,5 +36,6 @@ In development (or with `?debug` in production) the URL accepts `host`, `scene`,
 
 - `docs/ARCHITECTURE.md` — module layout, contracts and the development harness. Start here.
 - `docs/ART-DIRECTION.md` — the visual and motion spec.
+- `docs/ROOM-ART-DIRECTION.md` — the 3D asset style and reference study; `tools/room/README.md` — the Blender rebuild pipeline.
 - `src/content` — the portfolio itself, as typed data.
 - `src/engine` — a small, generic 16-bit engine; `src/game` — the portfolio game; `src/app` — the React shell and hosts.
