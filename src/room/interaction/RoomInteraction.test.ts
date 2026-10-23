@@ -144,4 +144,32 @@ describe('room target picking', () => {
     expect(tasks).toEqual([]);
     interaction.dispose();
   });
+
+  it('keeps keyboard focus where it is while asked to, and still clicks', () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    let keep = true;
+    const onMiss = vi.fn();
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss,
+      idleCursor: () => 'default',
+      isEnabled: () => true,
+      keepsFocus: () => keep,
+    });
+    const press = () => {
+      const event = new PointerEvent('pointerdown', { pointerId: 1, isPrimary: true, button: 0, cancelable: true });
+      canvas.dispatchEvent(event);
+      canvas.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, isPrimary: true, button: 0 }));
+      return event.defaultPrevented;
+    };
+    expect(press()).toBe(true);
+    expect(onMiss).toHaveBeenCalledTimes(1);
+    keep = false;
+    expect(press()).toBe(false);
+    interaction.dispose();
+  });
 });

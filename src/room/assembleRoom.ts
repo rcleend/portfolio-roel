@@ -117,6 +117,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     onPointer: (ndc) => rig.setParallaxPointer(ndc),
     // Cutting the desk for picking would add 9 ms (50 ms on a slow phone) to the first frame.
     background,
+    // At the computer, a click on its bezel or keyboard must not take the keys from its screen
+    // (arrows would stop scrolling the document); a click outside hides the screen, and the app
+    // moves focus then.
+    keepsFocus: () => overlay.live,
   });
   // The radio cabinet and the lava lamp are scenery for now: clicking them does nothing.
   const unregister = [

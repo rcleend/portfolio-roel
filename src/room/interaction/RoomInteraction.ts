@@ -20,6 +20,11 @@ export interface RoomInteractionOptions {
    * its interactable's rays test the whole meshes. Without it they are cut as they are registered.
    */
   readonly background?: Pick<IdleWork, 'add'>;
+  /**
+   * While true, a press on the room leaves keyboard focus where it is instead of moving it to the
+   * stage (no compatibility mouse events, so no focus change). The click itself still happens.
+   */
+  readonly keepsFocus?: () => boolean;
 }
 
 /** An interactable and the meshes its rays test. */
@@ -107,6 +112,7 @@ export class RoomInteraction {
   };
 
   private readonly onPointerDown = (event: PointerEvent): void => {
+    if (this.options.keepsFocus?.()) event.preventDefault();
     if (!event.isPrimary || event.button !== 0 || !this.options.isEnabled()) return;
     this.setNdc(event);
     const found = this.pick();
