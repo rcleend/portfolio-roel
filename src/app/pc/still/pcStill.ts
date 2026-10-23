@@ -1,8 +1,8 @@
-import type { StillPainter } from '../display';
 import { formatClock } from '../desktop/clock';
 import { desktopLayout } from '../desktop/desktopLayout';
 import { paintIcons, paintTaskbar } from '../desktop/paintChrome';
 import { wallpaperCanvas } from '../desktop/wallpaper';
+import type { StillPainter } from '../display';
 import { desktopLayoutSize } from '../presentation';
 
 /**

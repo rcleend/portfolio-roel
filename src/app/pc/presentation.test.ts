@@ -23,7 +23,11 @@ describe('layoutScale', () => {
 
   it('shows the whole 800-wide desktop scaled down on small pictures', () => {
     expect(layoutScale(321)).toBeCloseTo(321 / 800, 10);
-    expect(desktopLayoutSize({ width: 321, height: 252 })).toEqual({ width: 800, height: 252 / (321 / 800), scale: 321 / 800 });
+    expect(desktopLayoutSize({ width: 321, height: 252 })).toEqual({
+      width: 800,
+      height: 252 / (321 / 800),
+      scale: 321 / 800,
+    });
   });
 
   it('is defined for a zero-sized placement (the room before it is ready)', () => {
@@ -31,7 +35,11 @@ describe('layoutScale', () => {
   });
 
   it('divides the placement into layout px', () => {
-    expect(desktopLayoutSize({ width: 1399, height: 1099 })).toEqual({ width: 1399 / 1.5, height: 1099 / 1.5, scale: 1.5 });
+    expect(desktopLayoutSize({ width: 1399, height: 1099 })).toEqual({
+      width: 1399 / 1.5,
+      height: 1099 / 1.5,
+      scale: 1.5,
+    });
   });
 });
 
@@ -74,12 +82,12 @@ describe('presentationMode', () => {
 
 describe('defaultZoom', () => {
   it('opens at Fit Width while the body stays 12 px or larger', () => {
-    const fit = (pictureWidth: number) => defaultZoom(paneClientWidth(pictureWidth, SCROLLBAR), 'in-glass');
-    expect(fit(1049)).toEqual({ kind: 'fit-width' });
+    const zoomFor = (pictureWidth: number) => defaultZoom(paneClientWidth(pictureWidth, SCROLLBAR), 'in-glass');
+    expect(zoomFor(1049)).toEqual({ kind: 'fit-width' });
     expect(bodyPx(1049)).toBeCloseTo(17.4, 1);
-    expect(fit(874)).toEqual({ kind: 'fit-width' });
+    expect(zoomFor(874)).toEqual({ kind: 'fit-width' });
     expect(bodyPx(874)).toBeCloseTo(14.3, 1);
-    expect(fit(746)).toEqual({ kind: 'fit-width' });
+    expect(zoomFor(746)).toEqual({ kind: 'fit-width' });
     expect(bodyPx(746)).toBeGreaterThanOrEqual(12);
   });
 

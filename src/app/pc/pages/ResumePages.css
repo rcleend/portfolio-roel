@@ -1,0 +1,221 @@
+/*
+ * The résumé as a PDF. Sizes are in em of the 14 px A4 body so Reflow only
+ * has to change the root size (16 px). Every text colour keeps a contrast of
+ * at least 8.6:1 on the white page.
+ */
+.pc-doc {
+  --pc-doc-sans: Arial, "Helvetica Neue", Helvetica, "Liberation Sans", sans-serif;
+  color: #111;
+  font:
+    14px / 1.5 Georgia,
+    "Times New Roman",
+    "Liberation Serif",
+    serif;
+  text-align: left;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pc-doc ::selection {
+  color: #fff;
+  background: #316ac5;
+}
+
+.pc-doc--a4 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 794px;
+}
+
+.pc-page {
+  position: relative;
+  box-sizing: border-box;
+  background: #fff;
+  outline: 1px solid #333;
+  box-shadow: 3px 3px 0 rgb(0 0 0 / 0.55);
+}
+
+.pc-doc--a4 .pc-page {
+  width: 794px;
+  /* Another platform's font metrics may need more room: the page grows instead of clipping. */
+  min-height: 1123px;
+  padding: 64px 72px;
+}
+
+.pc-page__footer {
+  position: absolute;
+  right: 72px;
+  bottom: 28px;
+  left: 72px;
+  display: flex;
+  justify-content: space-between;
+  color: #4a4a4a;
+  font: 0.7143em / 1.2 var(--pc-doc-sans);
+  cursor: default;
+}
+
+.pc-block {
+  display: flow-root;
+}
+
+.pc-block--header {
+  padding-bottom: 12px;
+}
+
+.pc-block--summary {
+  padding-bottom: 2px;
+}
+
+.pc-block--heading {
+  padding: 16px 0 8px;
+}
+
+.pc-block--job {
+  padding-bottom: 12px;
+}
+
+.pc-block--education {
+  padding-bottom: 9px;
+}
+
+.pc-block--publication {
+  padding-bottom: 6px;
+}
+
+.pc-doc h1,
+.pc-doc h2,
+.pc-doc h3,
+.pc-doc p,
+.pc-doc ul {
+  margin: 0;
+}
+
+.pc-doc__name {
+  font: 700 2em / 1.15 var(--pc-doc-sans);
+  letter-spacing: -0.01em;
+}
+
+.pc-doc__headline {
+  margin-top: 3px;
+  color: #444;
+  font: 1.0714em / 1.4 var(--pc-doc-sans);
+}
+
+.pc-doc__links {
+  margin-top: 5px;
+  color: #444;
+  font: 0.8571em / 1.4 var(--pc-doc-sans);
+}
+
+.pc-doc a {
+  color: #0b3fa8;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pc-doc a:focus-visible {
+  outline: 2px solid #316ac5;
+  outline-offset: 1px;
+  border-radius: 1px;
+}
+
+.pc-doc__summary {
+  margin-top: 0;
+}
+
+.pc-doc__section {
+  padding-bottom: 3px;
+  border-bottom: 1.5px solid #111;
+  font: 700 0.7857em / 1.2 var(--pc-doc-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.pc-doc h3 {
+  font: 700 1em / 1.35 var(--pc-doc-sans);
+}
+
+.pc-doc__head {
+  display: flex;
+  gap: 4px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pc-doc__dates {
+  flex: none;
+  color: #444;
+  font: 0.9286em / 1.35 var(--pc-doc-sans);
+  white-space: nowrap;
+}
+
+.pc-doc__meta {
+  margin-top: 1px;
+  color: #444;
+  font-size: 0.9286em;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.pc-doc__highlights {
+  margin-top: 4px;
+  padding-left: 1.15em;
+}
+
+.pc-doc__highlights li + li {
+  margin-top: 2px;
+}
+
+.pc-doc__stack {
+  margin-top: 4px;
+  color: #4a4a4a;
+  font: 0.8214em / 1.45 var(--pc-doc-sans);
+}
+
+.pc-doc__detail {
+  margin-top: 1px;
+}
+
+/* Reflow: the same page groups as sheets as wide as the pane allows, at a reading measure. */
+.pc-doc--reflow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.pc-doc--reflow .pc-page {
+  width: 100%;
+  max-width: calc(68ch + 2 * 28px);
+  margin: 0 auto;
+  padding: 26px 28px 44px;
+}
+
+.pc-doc--reflow .pc-page__footer {
+  right: 28px;
+  bottom: 16px;
+  left: 28px;
+}
+
+.pc-doc--reflow .pc-doc__head {
+  flex-direction: column;
+  gap: 0;
+}
+
+/* The out-of-sight column PageMeasure typesets blocks in: an A4 page's text width. */
+.pc-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style;
+}
+
+.pc-measure__column {
+  width: 650px;
+}

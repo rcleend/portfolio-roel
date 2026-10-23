@@ -1,0 +1,74 @@
+.pc-splash {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 360px;
+  height: 220px;
+  overflow: hidden;
+  color: #fff;
+  font-family: Tahoma, Verdana, "Segoe UI", "DejaVu Sans", sans-serif;
+  background: linear-gradient(135deg, #8e0f0b, #c4261c);
+  box-shadow:
+    0 0 0 1px rgb(60 0 0 / 0.6),
+    4px 4px 12px rgb(0 0 0 / 0.35);
+}
+
+/* A soft, lighter arc sweeping across the red. */
+.pc-splash::before {
+  position: absolute;
+  top: -190px;
+  left: 40px;
+  width: 520px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0) 78%,
+    rgb(255 255 255 / 0.16) 90%,
+    rgb(255 255 255 / 0) 100%
+  );
+  content: "";
+}
+
+.pc-splash p {
+  position: absolute;
+  margin: 0;
+}
+
+.pc-splash__mark {
+  position: absolute;
+  top: 26px;
+  left: 24px;
+}
+
+.pc-splash__name {
+  top: 104px;
+  left: 26px;
+  font:
+    bold 26px / 1.15 "Trebuchet MS",
+    Tahoma,
+    sans-serif;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 rgb(80 0 0 / 0.45);
+}
+
+.pc-splash__name span {
+  font-weight: normal;
+}
+
+.pc-splash__status,
+.pc-splash__credit {
+  bottom: 12px;
+  color: #f6d5d0;
+  line-height: 12px;
+}
+
+.pc-splash__status {
+  left: 26px;
+  font-size: 10px;
+}
+
+.pc-splash__credit {
+  right: 14px;
+  font-size: 9px;
+}

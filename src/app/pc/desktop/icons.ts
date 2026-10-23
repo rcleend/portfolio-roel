@@ -17,19 +17,31 @@ const CV: Art = {
     { d: 'M7.5 2.5h13l6 6v21h-19z', fill: vertical(32, '#ffffff', '#e6ebf2'), stroke: OUTLINE },
     {
       d: 'M20.5 2.5v6h6z',
-      fill: { x1: 20.5, y1: 2.5, x2: 26.5, y2: 8.5, stops: [
-        { offset: 0, color: '#ffffff' },
-        { offset: 1, color: '#c9d1dc' },
-      ] },
+      fill: {
+        x1: 20.5,
+        y1: 2.5,
+        x2: 26.5,
+        y2: 8.5,
+        stops: [
+          { offset: 0, color: '#ffffff' },
+          { offset: 1, color: '#c9d1dc' },
+        ],
+      },
       stroke: OUTLINE,
     },
     { d: 'M10.5 6h7v1h-7zM10.5 9h8v1h-8zM10.5 12h13v1h-13zM10.5 15h13v1h-13zM10.5 28h11v.8h-11z', fill: '#b6bfcb' },
     {
       d: 'M4.5 18.5h17a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z',
-      fill: { x1: 0, y1: 18.5, x2: 0, y2: 26.5, stops: [
-        { offset: 0, color: '#f0503f' },
-        { offset: 1, color: '#b3140c' },
-      ] },
+      fill: {
+        x1: 0,
+        y1: 18.5,
+        x2: 0,
+        y2: 26.5,
+        stops: [
+          { offset: 0, color: '#f0503f' },
+          { offset: 1, color: '#b3140c' },
+        ],
+      },
       stroke: '#8a0f09',
       width: 0.8,
     },
@@ -59,10 +71,16 @@ const PROJECTS: Art = {
     { d: 'M8 11.5h12v.8H8zM8 13.5h9v.8H8z', fill: '#c9ccd2' },
     {
       d: 'M2.5 13.5h27l-1.6 14H4.1z',
-      fill: { x1: 0, y1: 13.5, x2: 0, y2: 27.5, stops: [
-        { offset: 0, color: '#ffeaa8' },
-        { offset: 1, color: '#efc152' },
-      ] },
+      fill: {
+        x1: 0,
+        y1: 13.5,
+        x2: 0,
+        y2: 27.5,
+        stops: [
+          { offset: 0, color: '#ffeaa8' },
+          { offset: 1, color: '#efc152' },
+        ],
+      },
       stroke: '#a3781f',
     },
     { d: 'M3.5 14.5h25.1l-.12 1.1H3.62z', fill: 'rgba(255, 255, 255, 0.6)' },
@@ -109,10 +127,16 @@ const WASTEBASKET: Art = {
     { d: 'M17.4 8.2l1.2.9 1.3-1.1', stroke: '#b9bec4', width: 0.6 },
     {
       d: 'M6.5 10.5h19l-2.2 18.5H8.7z',
-      fill: { x1: 0, y1: 10.5, x2: 0, y2: 29, stops: [
-        { offset: 0, color: 'rgba(176, 190, 204, 0.42)' },
-        { offset: 1, color: 'rgba(112, 126, 142, 0.5)' },
-      ] },
+      fill: {
+        x1: 0,
+        y1: 10.5,
+        x2: 0,
+        y2: 29,
+        stops: [
+          { offset: 0, color: 'rgba(176, 190, 204, 0.42)' },
+          { offset: 1, color: 'rgba(112, 126, 142, 0.5)' },
+        ],
+      },
     },
     {
       d: 'M9.5 11.2l1.3 17.6M12.6 11.4l.7 17.5M16 11.5v17.4M19.4 11.4l-.7 17.5M22.5 11.2l-1.3 17.6M7 15h18M7.8 21.5h16.4',
@@ -142,10 +166,16 @@ export const START_MARK: Art = {
     { d: 'M9.3 5.6a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0-3.8 0z', fill: '#ffd93b' },
     {
       d: 'M2.04 9.3Q7 5.9 13.96 9.3A6.1 6.1 0 0 1 2.04 9.3z',
-      fill: { x1: 0, y1: 7.5, x2: 0, y2: 14, stops: [
-        { offset: 0, color: '#9be654' },
-        { offset: 1, color: '#2c8a1d' },
-      ] },
+      fill: {
+        x1: 0,
+        y1: 7.5,
+        x2: 0,
+        y2: 14,
+        stops: [
+          { offset: 0, color: '#9be654' },
+          { offset: 1, color: '#2c8a1d' },
+        ],
+      },
     },
     { d: 'M3.3 6.3a4.7 3 0 0 1 9.4 0a4.7 1.5 0 0 1-9.4 0z', fill: 'rgba(255, 255, 255, 0.45)' },
     { d: 'M.6 8a7.4 7.4 0 1 0 14.8 0a7.4 7.4 0 1 0-14.8 0z', stroke: 'rgba(18, 70, 18, 0.55)', width: 0.6 },

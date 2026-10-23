@@ -202,8 +202,8 @@ function paintNearHill(context: CanvasRenderingContext2D, rng: Rng, width: numbe
 function paintGrass(context: CanvasRenderingContext2D, rng: Rng, width: number, height: number): void {
   const bands = 3;
   const unit = Math.max(1, width / 900);
-  const tones = ['rgba(210, 244, 130, 0.2)', 'rgba(28, 88, 18, 0.2)'];
-  const paths = Array.from({ length: bands * tones.length }, () => new Array<number>());
+  const tones = ['rgba(214, 246, 136, 0.16)', 'rgba(30, 92, 20, 0.13)'];
+  const paths = Array.from({ length: bands * tones.length }, () => [] as number[]);
   for (let index = 0; index < GRASS_STROKES; index++) {
     const depth = rng.next();
     const x = rng.range(0, width);
@@ -236,8 +236,8 @@ function paintCrestLight(context: CanvasRenderingContext2D, width: number, heigh
   warm.addColorStop(0.8, 'rgba(255, 238, 160, 0)');
   context.strokeStyle = warm;
   for (const [lineWidth, alpha] of [
-    [0.07, 0.3],
-    [0.022, 1],
+    [0.05, 0.16],
+    [0.016, 0.7],
   ] as const) {
     context.globalAlpha = alpha;
     context.lineWidth = lineWidth * height;
