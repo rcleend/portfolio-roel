@@ -22,7 +22,9 @@
     "shot:room": "node scripts/room-shots.mjs",
     "build:room": "node tools/room/build.mjs",
     "verify:room": "node tools/room/verify.mjs",
-    "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
+    "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs",
+    "build:radio-placeholders": "tsx --tsconfig tsconfig.node.json scripts/radio/render-placeholders.ts",
+    "verify:radio": "tsx --tsconfig tsconfig.node.json scripts/verify-radio.ts"
   },
   "dependencies": {
     "@fontsource/silkscreen": "^5.3.0",
