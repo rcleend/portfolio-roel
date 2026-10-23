@@ -160,12 +160,12 @@ Measured in the production lab (Chromium, M-series Mac):
 
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
-| Reader mount, first visit (`performance.measure('pc-reader-mount')`) | 19 ms | 90 ms, no task over 50 ms |
-| Reader mount, warm | 3 ms | 23 ms |
-| Readable after landing, first / warm | 1.88 s / 0.61 s | 1.89 s / 0.62 s |
+| Reader mount, first visit (`performance.measure('pc-reader-mount')`) | 15 ms | 90 ms, no task over 50 ms |
+| Reader mount, warm | 4 ms | 22 ms |
+| Readable after landing, first / warm | 1.87 s / 0.59 s | 1.88 s / 0.61 s |
 | First still paint with the wallpaper (GPU canvas, main thread) | 9 ms | 24 ms, of which 12 ms the first use of the fonts |
 | Still repaint (the clock's minute) | < 1 ms | 2 ms |
-| Hand-off, still vs live desktop (lab, 1440 × 900) | mean \|Δ\| 0.2–0.9 / 255 | |
+| Hand-off, still vs live desktop (lab, 1440 × 900 at DPR 1 and 2, 390 × 844 at DPR 3) | mean \|Δ\| 0.2–0.95 / 255 | |
 
 ## Lookalike rules (PR checklist)
 
