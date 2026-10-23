@@ -170,6 +170,10 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 - `?scene=specimen&params={"page":1}` shows every hero animation, `{"page":2}` the customer and the icons.
 - `tools/looks/placeholder/generate.py` writes a 64 × 64 hero and customer, a 24 × 24 icon and an attack strip in this format. They are not a look: copy them into a look folder with an `index.ts` to try a layout, and never commit that.
 
+## Terraria designs
+
+The next look starts as still designs, to be picked before anything is animated: each hero standing in the style of Terraria, the DESIGNER in two cap colourways. `tools/looks/terraria/generate.py` composes them from hand-placed layers shared the way Terraria shares a player's parts (far hand, legs, shoes, torso, head, hair, eye, glasses, cap, near arm), so the three are one man in three outfits and the animation can pose the same layers. As in Terraria's standing pose, the near arm hangs lit along the back of the torso and only a sliver of the far hand shows at the front. It writes `src/game/art/looks/terraria/designs/<id>.png` + `.json`: one `idle` frame in classic's 32 × 40 hero frame on the feet line, no taller than the classic heroes, so the designs fit today's hitboxes. They are not a look: nothing registers them and the game never loads them; the playground's **Terraria Roels** board shows them through the development lineup (`?scene=lineup`).
+
 ## Checks
 
 - `pnpm test` (`registeredLooks.test.ts`): every index module declares its piece; every sheet meets its kind's animations, frame size and origin; every PNG has the size its JSON describes; every folder with art has an `index.ts`.

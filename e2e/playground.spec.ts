@@ -70,6 +70,21 @@ test.describe('playground', () => {
     expect(errors).toEqual([]);
   });
 
+  test('stands the Terraria designs beside the classic cast on every backdrop', async ({ page }) => {
+    const errors = trackErrors(page);
+    const boards = await openPlayground(page, '?zoom=1');
+    const lineups = [...new Set((boards.roels ?? []).map((key) => key.split('/')[1]))];
+    expect(lineups.length).toBeGreaterThan(1);
+    for (const lineup of lineups) {
+      const classic = `[data-board="roels"] [data-tile="roels/${lineup}/game"] canvas`;
+      const terraria = `[data-board="roels"] [data-tile="roels/${lineup}/terraria"] canvas`;
+      await page.locator(terraria).scrollIntoViewIfNeeded();
+      // Tiles out of view are not drawn, so wait for both to have caught up before comparing.
+      await expect.poll(async () => (await pixels(page, terraria)) !== (await pixels(page, classic))).toBe(true);
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('drives every preview from the keyboard transport', async ({ page }) => {
     const errors = trackErrors(page);
     await openPlayground(page);
