@@ -13,14 +13,12 @@ export interface RoomHotspotsProps {
 
 const NO_ANCHORS: readonly PropAnchor[] = [];
 
-/** Where the computer's chip points when it sits on an edge of the room view. */
-const CHIP_LABELS: Readonly<
-  Record<NonNullable<PropAnchor['edge']>, { readonly arrow: string; readonly before: boolean }>
-> = {
-  left: { arrow: '◂', before: true },
-  right: { arrow: '▸', before: false },
-  top: { arrow: '▴', before: true },
-  bottom: { arrow: '▾', before: true },
+/** The chip's arrow points off the screen, towards the computer. */
+const CHIP_ARROWS: Readonly<Record<NonNullable<PropAnchor['edge']>, string>> = {
+  left: '◂',
+  right: '▸',
+  top: '▴',
+  bottom: '▾',
 };
 
 /**
@@ -63,9 +61,7 @@ export function RoomHotspots({ room, view, onActivate }: RoomHotspotsProps) {
           aria-label="Use the computer"
           onClick={activate(() => room.focusPc())}
         >
-          {CHIP_LABELS[pc.edge].before ? <span aria-hidden="true">{CHIP_LABELS[pc.edge].arrow} </span> : null}
-          Computer
-          {CHIP_LABELS[pc.edge].before ? null : <span aria-hidden="true"> {CHIP_LABELS[pc.edge].arrow}</span>}
+          <ChipLabel edge={pc.edge} />
         </button>
       ) : (
         <button type="button" className="room-hotspots__spot" style={at(pc)} onClick={activate(() => room.focusPc())}>
@@ -77,6 +73,12 @@ export function RoomHotspots({ room, view, onActivate }: RoomHotspotsProps) {
       </button>
     </nav>
   );
+}
+
+/** "◂ COMPUTER" on the left edge, "COMPUTER ▸" on the right; the arrow is decoration. */
+function ChipLabel({ edge }: { readonly edge: NonNullable<PropAnchor['edge']> }) {
+  const arrow = <span aria-hidden="true">{CHIP_ARROWS[edge]}</span>;
+  return edge === 'right' ? <>Computer {arrow}</> : <>{arrow} Computer</>;
 }
 
 function at(anchor: PropAnchor | undefined): CSSProperties | undefined {
