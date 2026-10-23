@@ -5,6 +5,8 @@ import { meshesOf } from '../assets/modelQueries';
 export const PICK_CUT_TRIANGLES = 8192;
 /** The most triangles in one chunk. */
 export const PICK_CHUNK_TRIANGLES = 1024;
+/** Triangles visited per unit of work when cutting in the background: about a millisecond on a slow phone. */
+const TRIANGLES_PER_UNIT = 4096;
 
 const sources = new WeakMap<Object3D, Mesh>();
 
@@ -18,7 +20,20 @@ const sources = new WeakMap<Object3D, Mesh>();
  * finds exactly the same hits. Chunks are never rendered and hold nothing but an index.
  */
 export function pickMeshes(root: Object3D): Mesh[] {
-  return meshesOf(root).flatMap(chunksOf);
+  const steps = pickMeshesInSteps(root);
+  let step = steps.next();
+  while (!step.done) step = steps.next();
+  return step.value;
+}
+
+/**
+ * `pickMeshes` in units of work for the room's IdleWork: cutting the desk takes 9 ms on a laptop and
+ * 50 ms on a phone six times slower, too long for the room's first frame or one idle moment.
+ */
+export function* pickMeshesInSteps(root: Object3D): Generator<void, Mesh[], void> {
+  const meshes: Mesh[] = [];
+  for (const mesh of meshesOf(root)) meshes.push(...(yield* chunksOf(mesh)));
+  return meshes;
 }
 
 /** The mesh a ray hit belongs to: the object itself, or the mesh a chunk was cut from. */
@@ -26,7 +41,7 @@ export function pickedMesh(object: Object3D): Object3D {
   return sources.get(object) ?? object;
 }
 
-function chunksOf(mesh: Mesh): Mesh[] {
+function* chunksOf(mesh: Mesh): Generator<void, Mesh[], void> {
   const { geometry, material } = mesh;
   const position = geometry.getAttribute('position');
   const index = geometry.getIndex();
@@ -44,18 +59,20 @@ function chunksOf(mesh: Mesh): Mesh[] {
     centres[at] = (centres[at] as number) + point.x;
     centres[at + 1] = (centres[at + 1] as number) + point.y;
     centres[at + 2] = (centres[at + 2] as number) + point.z;
+    if ((corner + 1) % (TRIANGLES_PER_UNIT * 3) === 0) yield;
   }
-  const leaves: Uint32Array[] = [];
   const triangles = new Uint32Array(count);
   for (let triangle = 0; triangle < count; triangle++) triangles[triangle] = triangle;
-  split(triangles, centres, leaves);
+  const leaves = yield* split(triangles, centres);
 
-  return leaves.map((triangles) => {
+  const chunks: Mesh[] = [];
+  let visited = 0;
+  for (const leaf of leaves) {
     const chunk = new BufferGeometry();
     for (const [name, attribute] of Object.entries(geometry.attributes)) chunk.setAttribute(name, attribute);
-    const indices = new (position.count > 0xffff ? Uint32Array : Uint16Array)(triangles.length * 3);
+    const indices = new (position.count > 0xffff ? Uint32Array : Uint16Array)(leaf.length * 3);
     const bounds = new Box3();
-    triangles.forEach((triangle, i) => {
+    leaf.forEach((triangle, i) => {
       for (let corner = 0; corner < 3; corner++) {
         const v = vertex(triangle * 3 + corner);
         indices[i * 3 + corner] = v;
@@ -71,19 +88,45 @@ function chunksOf(mesh: Mesh): Mesh[] {
     piece.matrixAutoUpdate = false;
     piece.matrixWorldAutoUpdate = false;
     sources.set(piece, mesh);
-    return piece;
-  });
+    chunks.push(piece);
+    visited += leaf.length;
+    if (visited >= TRIANGLES_PER_UNIT) {
+      visited = 0;
+      yield;
+    }
+  }
+  return chunks;
 }
 
 /**
  * Halves `triangles` in place at the middle of their centres' longest extent, until each part is
- * small enough, and collects the parts (views into the one array).
+ * small enough, and returns the parts (views into the one array) in depth-first order.
  */
-function split(triangles: Uint32Array, centres: Float32Array, leaves: Uint32Array[]): void {
-  if (triangles.length <= PICK_CHUNK_TRIANGLES) {
-    leaves.push(triangles);
-    return;
+function* split(triangles: Uint32Array, centres: Float32Array): Generator<void, Uint32Array[], void> {
+  const leaves: Uint32Array[] = [];
+  const parts = [triangles];
+  let visited = 0;
+  for (let part = parts.pop(); part; part = parts.pop()) {
+    if (part.length <= PICK_CHUNK_TRIANGLES) {
+      leaves.push(part);
+      continue;
+    }
+    const below = partition(part, centres);
+    // Every centre at one point: nothing left to separate.
+    if (below === 0 || below === part.length) leaves.push(part);
+    // Upper half first onto the stack, so the lower half comes off it first.
+    else parts.push(part.subarray(below), part.subarray(0, below));
+    visited += part.length;
+    if (visited >= TRIANGLES_PER_UNIT) {
+      visited = 0;
+      yield;
+    }
   }
+  return leaves;
+}
+
+/** Moves the triangles whose centres lie below the middle of the longest extent to the front; returns how many. */
+function partition(triangles: Uint32Array, centres: Float32Array): number {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
   for (const triangle of triangles) {
@@ -103,11 +146,5 @@ function split(triangles: Uint32Array, centres: Float32Array, leaves: Uint32Arra
     triangles[i] = triangles[below] as number;
     triangles[below++] = triangle;
   }
-  // Every centre at one point: nothing left to separate.
-  if (below === 0 || below === triangles.length) {
-    leaves.push(triangles);
-    return;
-  }
-  split(triangles.subarray(0, below), centres, leaves);
-  split(triangles.subarray(below), centres, leaves);
+  return below;
 }

@@ -9,12 +9,14 @@ import {
   Vector3,
 } from 'three';
 import type { Viewpoint } from '../camera/cameraPath';
+import type { IdleTask, IdleWork } from '../stage/IdleWork';
 import type { ViewportSize } from '../stage/RoomStage';
+import type { TextureUploader } from '../stage/sceneTextures';
 import { ScreenGlow } from '../tv/ScreenGlow';
 import type { RoomView } from '../viewState';
 import { paintGlassLayer } from './glassLayer';
 import { planeHeight, planeWidth, regionInPixels } from './glassPlane';
-import { MonitorTexture, setSolidColor, solidTexture, type TextureUploader } from './MonitorTexture';
+import { MonitorTexture, setSolidColor, solidTexture } from './MonitorTexture';
 import { bezelEmitter, monitorGlowPatches } from './monitorGlow';
 import type { RgbColor, StillPainter } from './PcMonitor';
 import { PC_PICTURE_RADIUS, PC_TUBE_COLOR, type PcModel } from './pcModel';
@@ -35,6 +37,8 @@ export interface MonitorOptions {
   readonly pose: Viewpoint;
   /** True while the glass can be on screen: any view but a settled TV. */
   readonly isInView: () => boolean;
+  /** Where the still is painted ahead of the flights that show it. */
+  readonly background: Pick<IdleWork, 'add'>;
 }
 
 /** Width of the shared glass-finish canvas; its height follows the glass's aspect. */
@@ -48,8 +52,9 @@ const MAX_SKEW_PX = 0.5;
  * and that screen's placement.
  *
  * The glass keeps its baked unlit material (cloned, with only its map swapped), so the monitor
- * adds no shader program, and nothing here runs per frame: the still is painted when a flight
- * needs it and the room renders nothing at all while the visitor sits at the computer.
+ * adds no shader program, and nothing here runs per frame: the still is painted in the background
+ * ahead of the flights that show it, and the room renders nothing at all while the visitor sits
+ * at the computer.
  */
 export class Monitor {
   private readonly material: MeshBasicMaterial;
@@ -64,6 +69,8 @@ export class Monitor {
   private light: RgbColor | null = null;
   private layer: HTMLCanvasElement | null = null;
   private readonly layerHeight: number;
+  /** Drops the queued background paint, if one is queued. */
+  private cancelPaint: (() => void) | null = null;
   private warnedSkew = false;
 
   constructor(private readonly options: MonitorOptions) {
@@ -131,25 +138,27 @@ export class Monitor {
     // `navigator.deviceMemory`: GB, coarse, Chromium only.
     const memory = (navigator as Navigator & { readonly deviceMemory?: number }).deviceMemory;
     this.still.setTarget(textureTier(glassWidth * viewport.pixelRatio, aspect, memory), placement.rect);
+    if (this.options.isInView()) this.paintSoon();
     this.options.loop.invalidate();
   }
 
   /** Called before every flight, from the view the camera was at (or flying to) towards `to`. */
   prepare(from: RoomView, to: RoomView): void {
-    if (this.still.prepareFlight(from === 'pc' || to === 'pc')) this.sync();
+    // The background has normally painted already; a flight that starts before it does paints now.
+    if (this.still.paintIfDue(from === 'pc' || to === 'pc')) this.sync();
+    // A still that went stale while the glass was out of sight is repainted once the camera lands.
+    if (to !== 'tv') this.paintSoon();
   }
 
   setStill(painter: StillPainter | null): void {
-    // Every composite needs the glass finish. The app hands its painter over while the page is idle,
-    // so making the finish now keeps it off the click that first leaves the TV (14 ms at 6x CPU).
-    if (painter) this.glassLayer();
-    let changed = this.still.setPainter(painter);
-    if (painter && this.options.isInView()) changed = this.still.paint() || changed;
-    if (changed) this.sync();
+    if (this.still.setPainter(painter)) this.sync();
+    // Painted now, while the glass is out of sight at the TV, the first leave from the TV is free.
+    if (painter) this.paintSoon();
   }
 
   invalidateStill(): void {
     this.still.invalidate();
+    if (this.options.isInView()) this.paintSoon();
   }
 
   setLight(color: RgbColor | null): void {
@@ -160,6 +169,7 @@ export class Monitor {
   }
 
   dispose(): void {
+    this.cancelPaint?.();
     const { glass } = this.options.model;
     glass.material = this.originalMaterial;
     glass.geometry.setAttribute('uv', this.originalUv);
@@ -168,6 +178,19 @@ export class Monitor {
     this.glow.dispose();
     this.lightTexture.dispose();
     if (this.layer) this.layer.width = this.layer.height = 0;
+  }
+
+  /** Queues a background paint of whatever is due, unless one is queued already. */
+  private paintSoon(): void {
+    this.cancelPaint ??= this.options.background.add(this.paintAhead());
+  }
+
+  private *paintAhead(): IdleTask {
+    // The glass finish on its own: it is 14 ms of a slow phone's main thread.
+    this.glassLayer();
+    yield;
+    this.cancelPaint = null;
+    if (this.still.paintIfDue(true)) this.sync();
   }
 
   /** Shows what the still texture and the light override say, in one frame. */

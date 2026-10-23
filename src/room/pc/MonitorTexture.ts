@@ -6,15 +6,11 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
+import type { TextureUploader } from '../stage/sceneTextures';
 import { type GlassPlane, planeWidth, regionInPixels } from './glassPlane';
 import type { RgbColor, ScreenRect, StillPainter } from './PcMonitor';
 import { NO_RECT, sameRect } from './screenPlacement';
 import type { TextureSize } from './textureTier';
-
-/** The one renderer call this needs: upload a texture now rather than on the next frame that uses it. */
-export interface TextureUploader {
-  initTexture(texture: Texture): void;
-}
 
 export interface MonitorTextureOptions {
   /** The glass's whole UV square, which the texture covers. */
@@ -36,7 +32,7 @@ export interface MonitorTextureOptions {
  * UV square, composited from the tube border, the app's still and the glass finish, and uploaded
  * the moment it is painted so no flight frame ever waits for an upload.
  *
- * It paints rarely and only when asked (see `prepareFlight`), never per frame: in the room view
+ * It paints rarely and only when asked (see `paintIfDue`), never per frame: in the room view
  * and during flights the still costs nothing but its texture memory.
  */
 export class MonitorTexture {
@@ -96,21 +92,22 @@ export class MonitorTexture {
   }
 
   /**
-   * Paints before a flight if the rules call for it; true when the texture changed. A painter's
-   * first picture is painted on any flight (the first time the visitor leaves the TV); after that
-   * only flights to or from the display repaint, and only a stale still or a new texture size.
+   * Paints if a picture is due; true when the texture changed. A painter's first picture is always
+   * due. An outdated one (stale, or a new texture size) is due only with `refresh`: in the
+   * background, and before flights to or from the display. A flight elsewhere shows the old
+   * picture rather than wait for a new one.
    */
-  prepareFlight(touchesDisplay: boolean): boolean {
+  paintIfDue(refresh: boolean): boolean {
     if (!this.painter) return false;
     if (this.paintedWith === this.painter) {
       const resized = this.canvas?.width !== this.size.width || this.canvas.height !== this.size.height;
-      if (!touchesDisplay || !(this.stale || resized)) return false;
+      if (!refresh || !(this.stale || resized)) return false;
     }
     return this.paint();
   }
 
   /** Paints the current painter now; true when the texture changed. */
-  paint(): boolean {
+  private paint(): boolean {
     const painter = this.painter;
     if (!painter || this.size.width === 0) return false;
     const canvas = this.canvasOfSize(this.size);

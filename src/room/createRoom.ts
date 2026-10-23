@@ -1,6 +1,6 @@
 import { type Material, Mesh, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import { assembleRoom, forEachTexture, type RoomScene } from './assembleRoom';
+import { assembleRoom, type RoomScene } from './assembleRoom';
 import { loadRoomAssets } from './assets/roomAssets';
 import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
@@ -8,6 +8,7 @@ import type { Interactable } from './interaction/Interactable';
 import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
 import { ScreenOverlay } from './pc/ScreenOverlay';
 import { RoomStage } from './stage/RoomStage';
+import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
@@ -72,6 +73,8 @@ export interface RoomStats {
   readonly programs: number;
   /** Pixels of the monitor's texture (0 in standby before the first paint). */
   readonly pcTexturePixels: number;
+  /** True while work ahead of need (texture uploads, pick chunks, the monitor's still) waits for idle moments. */
+  readonly backgroundPending: boolean;
 }
 
 /**
@@ -130,7 +133,9 @@ export function createRoom(options: CreateRoomOptions): Room {
         queuedInteractables.set(interactable, scene.register(interactable));
       }
       pc.attach(scene.monitor);
-      return firstFrame(stage);
+      const { background } = scene;
+      // Work ahead of need never delays the first frame.
+      return firstFrame(stage).then(() => background.start());
     },
   );
 
@@ -185,6 +190,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         pixelRatio: stage.size.pixelRatio,
         programs: renderer.info.programs?.length ?? 0,
         pcTexturePixels: scene?.monitor.texturePixels ?? 0,
+        backgroundPending: scene?.background.pending ?? false,
       };
     },
     dispose() {

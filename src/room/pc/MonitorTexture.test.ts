@@ -71,7 +71,7 @@ describe('MonitorTexture', () => {
     expect(texture.texture.colorSpace).toBe(SRGBColorSpace);
     expect(texture.painted).toBe(false);
     expect(texture.pixels).toBe(0);
-    expect(texture.prepareFlight(true)).toBe(false);
+    expect(texture.paintIfDue(true)).toBe(false);
     expect(renderer.initTexture).not.toHaveBeenCalled();
   });
 
@@ -80,7 +80,7 @@ describe('MonitorTexture', () => {
     const painter = vi.fn<StillPainter>();
     texture.setPainter(painter);
     expect(painter).not.toHaveBeenCalled();
-    expect(texture.prepareFlight(false)).toBe(true);
+    expect(texture.paintIfDue(false)).toBe(true);
     expect(painter).toHaveBeenCalledTimes(1);
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
     const still = renderer.initTexture.mock.calls[0]?.[0];
@@ -103,7 +103,7 @@ describe('MonitorTexture', () => {
       context.calls.push(`paint(${Math.round(request.width)})`),
     );
     texture.setPainter(painter);
-    texture.prepareFlight(false);
+    texture.paintIfDue(false);
     const request = painter.mock.calls[0]?.[1];
     // 10 mm of a 356 mm wide glass on a 1024 px canvas is 28.8 px of border each side.
     expect(request?.width).toBeCloseTo(1024 * (0.336 / 0.356), 6);
@@ -129,16 +129,16 @@ describe('MonitorTexture', () => {
     expect(context.fillStyle).toBe('#070a09');
   });
 
-  it('repaints a stale still only for flights to or from the display', () => {
+  it('repaints a stale still only when asked to refresh (background, flights to or from the display)', () => {
     const { texture, renderer } = setup();
     const painter = vi.fn<StillPainter>();
     texture.setPainter(painter);
-    texture.prepareFlight(false);
-    expect(texture.prepareFlight(true)).toBe(false);
+    texture.paintIfDue(false);
+    expect(texture.paintIfDue(true)).toBe(false);
     texture.invalidate();
-    expect(texture.prepareFlight(false)).toBe(false);
-    expect(texture.prepareFlight(true)).toBe(true);
-    expect(texture.prepareFlight(true)).toBe(false);
+    expect(texture.paintIfDue(false)).toBe(false);
+    expect(texture.paintIfDue(true)).toBe(true);
+    expect(texture.paintIfDue(true)).toBe(false);
     expect(painter).toHaveBeenCalledTimes(2);
     expect(renderer.initTexture).toHaveBeenCalledTimes(2);
   });
@@ -146,16 +146,16 @@ describe('MonitorTexture', () => {
   it('repaints at a new size or placement, reallocating the texture for a new size', () => {
     const { texture, renderer } = setup();
     texture.setPainter(vi.fn<StillPainter>());
-    texture.prepareFlight(false);
+    texture.paintIfDue(false);
     const first = texture.texture;
     const dispose = vi.spyOn(first, 'dispose');
     texture.setTarget(SMALL, PLACEMENT);
-    expect(texture.prepareFlight(false)).toBe(false);
-    expect(texture.prepareFlight(true)).toBe(true);
+    expect(texture.paintIfDue(false)).toBe(false);
+    expect(texture.paintIfDue(true)).toBe(true);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(texture.pixels).toBe(768 * 613);
     texture.setTarget(SMALL, { ...PLACEMENT, width: 700 });
-    expect(texture.prepareFlight(true)).toBe(true);
+    expect(texture.paintIfDue(true)).toBe(true);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(renderer.initTexture).toHaveBeenCalledTimes(3);
   });
@@ -165,9 +165,9 @@ describe('MonitorTexture', () => {
     const first = vi.fn<StillPainter>();
     const second = vi.fn<StillPainter>();
     texture.setPainter(first);
-    texture.prepareFlight(false);
+    texture.paintIfDue(false);
     texture.setPainter(second);
-    expect(texture.prepareFlight(false)).toBe(true);
+    expect(texture.paintIfDue(false)).toBe(true);
     expect(second).toHaveBeenCalledTimes(1);
     expect(texture.setPainter(null)).toBe(true);
     expect(texture.texture).toBeInstanceOf(DataTexture);
@@ -180,15 +180,15 @@ describe('MonitorTexture', () => {
       throw new Error('no fonts');
     });
     texture.setPainter(broken);
-    expect(texture.prepareFlight(false)).toBe(false);
+    expect(texture.paintIfDue(false)).toBe(false);
     expect(texture.texture).toBeInstanceOf(DataTexture);
     expect(renderer.initTexture).not.toHaveBeenCalled();
     // A failed painter is not retried on every flight…
-    expect(texture.prepareFlight(false)).toBe(false);
+    expect(texture.paintIfDue(false)).toBe(false);
     expect(broken).toHaveBeenCalledTimes(1);
     // …only once it reports new content, and it warns only the first time.
     texture.invalidate();
-    texture.prepareFlight(true);
+    texture.paintIfDue(true);
     expect(broken).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledTimes(1);
   });
@@ -199,10 +199,10 @@ describe('MonitorTexture', () => {
     texture.setPainter(() => {
       if (fail) throw new Error('boom');
     });
-    texture.prepareFlight(false);
+    texture.paintIfDue(false);
     fail = true;
     texture.invalidate();
-    expect(texture.prepareFlight(true)).toBe(true);
+    expect(texture.paintIfDue(true)).toBe(true);
     expect(texture.painted).toBe(false);
     expect(texture.texture).toBeInstanceOf(DataTexture);
   });
@@ -210,7 +210,7 @@ describe('MonitorTexture', () => {
   it('asks for nothing per frame: no update hooks on what it hands the renderer', () => {
     const { texture } = setup();
     texture.setPainter(vi.fn<StillPainter>());
-    texture.prepareFlight(false);
+    texture.paintIfDue(false);
     expect(texture.texture.onUpdate).toBeNull();
   });
 });

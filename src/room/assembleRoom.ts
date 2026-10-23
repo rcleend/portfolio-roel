@@ -1,4 +1,4 @@
-import { Box3, type Material, Mesh, type Texture, Vector3 } from 'three';
+import { Box3, Mesh, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { RoomAssets } from './assets/roomAssets';
 import { type AnchorTarget, type PropAnchor, propAnchors } from './camera/anchors';
@@ -11,9 +11,11 @@ import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
 import { locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
+import { IdleWork } from './stage/IdleWork';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
 import { addRoomLighting } from './stage/roomLighting';
+import { forEachTexture, uploadTextures } from './stage/sceneTextures';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { locateTv, type TvModel } from './tv/tvModel';
@@ -38,6 +40,8 @@ export interface RoomScene {
   readonly tvInput: TvInteractable;
   readonly monitor: Monitor;
   readonly lava: LavaLamp;
+  /** Work ahead of need on idle time; `start()` it once the first frame is drawn. */
+  readonly background: IdleWork;
   register(interactable: Interactable): () => void;
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
@@ -67,6 +71,12 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   scene.add(fade.mesh);
   const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
+  // Never on a frame in motion: a flight, or the CRT turning on or off.
+  const background = new IdleWork(
+    () => views.moving || television.powerState === 'powering-on' || television.powerState === 'powering-off',
+  );
+  // First in the queue: the first look around the room would otherwise upload them mid-flight.
+  background.add(uploadTextures(scene, stage.renderer));
   const monitor = new Monitor({
     model: pcModel,
     scene,
@@ -76,6 +86,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     overlay,
     pose: rig.viewpoint('pc'),
     isInView: () => views.view !== 'tv' || views.moving,
+    background,
   });
   const lava = new LavaLamp({
     root: assets.room.scene,
@@ -104,6 +115,8 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     },
     idleCursor: () => (views.view === 'room' || views.moving ? 'default' : 'zoom-out'),
     onPointer: (ndc) => rig.setParallaxPointer(ndc),
+    // Cutting the desk for picking would add 9 ms (50 ms on a slow phone) to the first frame.
+    background,
   });
   // The radio cabinet and the lava lamp are scenery for now: clicking them does nothing.
   const unregister = [
@@ -141,6 +154,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     tvInput,
     monitor,
     lava,
+    background,
     register: (interactable) => interaction.register(interactable),
     setFramingInsets(insets) {
       rig.setFramingInsets(insets);
@@ -148,6 +162,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     },
     refreshCursor: () => interaction.refreshCursor(),
     dispose() {
+      background.dispose();
       stopResize();
       stopRender();
       for (const stop of unregister) stop();
@@ -169,16 +184,4 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
 function tvPictureCentre(tv: TvModel): Vector3 {
   const glass = new Box3().setFromObject(tv.screen);
   return glass.getCenter(new Vector3()).setX(glass.min.x);
-}
-
-export function forEachTexture(material: Material | Material[], visit: (texture: Texture) => void): void {
-  for (const m of Array.isArray(material) ? material : [material]) {
-    for (const value of Object.values(m)) {
-      if (isTexture(value)) visit(value);
-    }
-  }
-}
-
-function isTexture(value: unknown): value is Texture {
-  return typeof value === 'object' && value !== null && (value as { isTexture?: unknown }).isTexture === true;
 }

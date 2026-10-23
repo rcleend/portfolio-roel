@@ -15,6 +15,7 @@ import {
   Vector3,
 } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IdleTask } from '../stage/IdleWork';
 import { Monitor } from './Monitor';
 import { pcViewpoint } from './pcFraming';
 import { locatePc } from './pcModel';
@@ -38,6 +39,29 @@ function permissiveContext(): CanvasRenderingContext2D {
       return true;
     },
   }) as unknown as CanvasRenderingContext2D;
+}
+
+/** Background work run by hand: `runUnit` runs the first queued task's next unit, `runAll` everything. */
+function manualBackground() {
+  const tasks: IdleTask[] = [];
+  const runUnit = (): void => {
+    const task = tasks[0];
+    if (task?.next().done) tasks.shift();
+  };
+  return {
+    tasks,
+    add(task: IdleTask) {
+      tasks.push(task);
+      return () => {
+        const at = tasks.indexOf(task);
+        if (at >= 0) tasks.splice(at, 1);
+      };
+    },
+    runUnit,
+    runAll(): void {
+      while (tasks.length > 0) runUnit();
+    },
+  };
 }
 
 function setup({ inView = false } = {}) {
@@ -69,6 +93,8 @@ function setup({ inView = false } = {}) {
   const renderer = { initTexture: vi.fn() };
   const overlay = new ScreenOverlay(document.body, { matches: true } as MediaQueryList);
   const originalUv = glass.geometry.getAttribute('uv');
+  const view = { inView };
+  const background = manualBackground();
   const monitor = new Monitor({
     model,
     scene,
@@ -77,14 +103,29 @@ function setup({ inView = false } = {}) {
     anisotropy: 4,
     overlay,
     pose: pcViewpoint(model, 1),
-    isInView: () => inView,
+    isInView: () => view.inView,
+    background,
   });
   monitor.setPose(pcViewpoint(model, DESKTOP.width / DESKTOP.height), DESKTOP);
   loop.invalidate.mockClear();
   const glows = scene.children.filter(
     (child): child is Mesh<PlaneGeometry, ShaderMaterial> => child.name === 'ScreenGlow',
   );
-  return { monitor, model, glass, glassMaterial, disposeBaked, close, loop, renderer, overlay, originalUv, glows };
+  return {
+    monitor,
+    model,
+    glass,
+    glassMaterial,
+    disposeBaked,
+    close,
+    loop,
+    renderer,
+    overlay,
+    originalUv,
+    glows,
+    view,
+    background,
+  };
 }
 
 describe('Monitor', () => {
@@ -157,45 +198,95 @@ describe('Monitor', () => {
     expect(Math.abs(height - 687)).toBeLessThanOrEqual(1);
   });
 
-  it('paints the still on the first leave from the TV, then only for flights to or from the computer', () => {
-    const { monitor, glass, renderer } = setup();
+  it('paints the still in the background as soon as the painter arrives, so no flight has to', () => {
+    const { monitor, glass, renderer, background } = setup();
     monitor.setStill(() => {});
     expect(renderer.initTexture).not.toHaveBeenCalled();
-    monitor.prepare('tv', 'room');
+    background.runAll();
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
     expect((glass.material as MeshBasicMaterial).map).toBeInstanceOf(CanvasTexture);
     expect(monitor.texturePixels).toBe(1024 * 817);
+    monitor.prepare('tv', 'room');
+    monitor.prepare('room', 'pc');
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it('paints on the click only when a flight starts before the background got there', () => {
+    const { monitor, renderer, background } = setup();
+    monitor.setStill(() => {});
+    monitor.prepare('tv', 'room');
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it('repaints a stale still in the background whenever the computer can be seen', () => {
+    const { monitor, renderer, background, view } = setup();
+    monitor.setStill(() => {});
+    background.runAll();
+    // At the TV the glass is out of sight: the clock's minute waits for the next look around…
+    monitor.invalidateStill();
+    expect(background.tasks).toHaveLength(0);
+    monitor.prepare('tv', 'room');
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(2);
+    // …and in the room it is repainted in the background straight away.
+    view.inView = true;
+    monitor.invalidateStill();
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(3);
+  });
+
+  it('repaints a stale still before a flight to or from the computer that the background did not beat', () => {
+    const { monitor, renderer, background, view } = setup();
+    monitor.setStill(() => {});
+    background.runAll();
+    view.inView = true;
     monitor.invalidateStill();
     monitor.prepare('room', 'tv');
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
-    monitor.prepare('tv', 'room');
     monitor.prepare('room', 'pc');
+    expect(renderer.initTexture).toHaveBeenCalledTimes(2);
+    background.runAll();
     expect(renderer.initTexture).toHaveBeenCalledTimes(2);
   });
 
-  it('makes the glass finish when the painter arrives, so the first leave from the TV only paints', () => {
-    const { monitor } = setup();
+  it('makes the glass finish in a unit of its own, before the first paint', () => {
+    const { monitor, renderer, background } = setup();
     const created = vi.spyOn(document, 'createElement');
     const canvases = () => created.mock.calls.filter(([tag]) => tag === 'canvas').length;
     monitor.setStill(() => {});
+    expect(canvases()).toBe(0);
+    background.runUnit();
     expect(canvases()).toBe(1);
-    created.mockClear();
-    monitor.prepare('tv', 'room');
+    expect(renderer.initTexture).not.toHaveBeenCalled();
+    background.runUnit();
     // The still's own canvas; the finish is reused.
-    expect(canvases()).toBe(1);
+    expect(canvases()).toBe(2);
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
   });
 
-  it('paints a new still at once, in one frame, while the computer can be seen', () => {
-    const { monitor, renderer, loop } = setup({ inView: true });
+  it('shows a new still in one frame while the computer can be seen', () => {
+    const { monitor, renderer, loop, background } = setup({ inView: true });
     monitor.setStill(() => {});
+    background.runAll();
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
     expect(loop.invalidate).toHaveBeenCalledTimes(1);
   });
 
-  it('lights the room with an override colour for one frame, and follows the still again on null', () => {
-    const { monitor, glows, loop } = setup();
+  it('cancels its background paint on dispose', () => {
+    const { monitor, background } = setup();
     monitor.setStill(() => {});
-    monitor.prepare('tv', 'room');
+    monitor.dispose();
+    expect(background.tasks).toHaveLength(0);
+  });
+
+  it('lights the room with an override colour for one frame, and follows the still again on null', () => {
+    const { monitor, glows, loop, background } = setup();
+    monitor.setStill(() => {});
+    background.runAll();
     const still = glows[0]?.material.uniforms.uPicture?.value;
     loop.invalidate.mockClear();
     monitor.setLight({ r: 0.8, g: 0.8, b: 0.8 });
@@ -212,10 +303,10 @@ describe('Monitor', () => {
   });
 
   it('keeps its light spill dark until a still is painted', () => {
-    const { monitor, glows } = setup();
+    const { monitor, glows, background } = setup();
     for (const glow of glows) expect(glow.visible).toBe(false);
     monitor.setStill(() => {});
-    monitor.prepare('tv', 'room');
+    background.runAll();
     for (const glow of glows) expect(glow.visible).toBe(true);
   });
 });

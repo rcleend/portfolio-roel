@@ -1,6 +1,8 @@
 import { type Camera, type Intersection, type Mesh, Raycaster, Vector2 } from 'three';
+import { meshesOf } from '../assets/modelQueries';
+import type { IdleWork } from '../stage/IdleWork';
 import type { Interactable, InteractionHit } from './Interactable';
-import { pickedMesh, pickMeshes } from './pickMeshes';
+import { pickedMesh, pickMeshes, pickMeshesInSteps } from './pickMeshes';
 
 export interface RoomInteractionOptions {
   readonly canvas: HTMLCanvasElement;
@@ -13,6 +15,17 @@ export interface RoomInteractionOptions {
   readonly onPointer?: (ndc: Vector2 | null) => void;
   /** While false (e.g. during a camera flight) clicks and gestures are ignored. */
   readonly isEnabled: () => boolean;
+  /**
+   * Where large meshes are cut into pick chunks, off the room's first frame; until a cut is done
+   * its interactable's rays test the whole meshes. Without it they are cut as they are registered.
+   */
+  readonly background?: Pick<IdleWork, 'add'>;
+}
+
+/** An interactable and the meshes its rays test. */
+interface Registered {
+  readonly interactable: Interactable;
+  meshes: Mesh[];
 }
 
 /** Further than this (CSS px) between press and release, and it was a drag, not a click. */
@@ -23,8 +36,8 @@ const CLICK_SLOP = 6;
  * hover cursors, clicks/taps, and full gestures for interactables that want them.
  */
 export class RoomInteraction {
-  /** Each interactable with the meshes its rays test (large ones cut into chunks once, here). */
-  private readonly interactables = new Map<string, { readonly interactable: Interactable; readonly meshes: Mesh[] }>();
+  /** Each interactable with the meshes its rays test (large ones cut into chunks once, see pickMeshes). */
+  private readonly interactables = new Map<string, Registered>();
   private readonly raycaster = new Raycaster();
   private readonly ndc = new Vector2();
   private hovered: Interactable | null = null;
@@ -42,8 +55,19 @@ export class RoomInteraction {
   register(interactable: Interactable): () => void {
     if (this.interactables.has(interactable.id))
       throw new Error(`Interactable "${interactable.id}" is already registered`);
-    this.interactables.set(interactable.id, { interactable, meshes: pickMeshes(interactable.object) });
+    const { background } = this.options;
+    const registered: Registered = {
+      interactable,
+      meshes: background ? meshesOf(interactable.object) : pickMeshes(interactable.object),
+    };
+    this.interactables.set(interactable.id, registered);
+    const cancelCut = background?.add(
+      (function* () {
+        registered.meshes = yield* pickMeshesInSteps(interactable.object);
+      })(),
+    );
     return () => {
+      cancelCut?.();
       if (this.hovered === interactable) this.hovered = null;
       this.interactables.delete(interactable.id);
     };
