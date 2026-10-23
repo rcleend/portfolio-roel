@@ -118,7 +118,7 @@ describe('the looks boards', () => {
 describe('the Terraria Roels board', () => {
   it('stands the classic cast, marked current, beside the Terraria designs on the select screen and every stage', () => {
     const rows = boardRows(roelsBoard, {});
-    expect(rows.map(({ row }) => row.title)).toEqual(['MENU NAVY', ...levels.map((level) => level.city)]);
+    expect(rows.map(({ row }) => row.title)).toEqual(['MENU BLUEPRINT', ...levels.map((level) => level.city)]);
     for (const { tiles } of rows) {
       expect(tiles.map((tile) => [tile.choice.id, tile.current])).toEqual([
         ['game', true],

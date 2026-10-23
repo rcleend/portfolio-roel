@@ -12,6 +12,7 @@ import { KeyHints } from '../../ui/KeyHints';
 import type { GameScene, GameStep, LevelSelectParams } from '../params';
 import { InkStamp } from './art/InkStamp';
 import { BriefingPanel } from './BriefingPanel';
+import { drawBackdrop } from './backdrop';
 import { cardRect, FOCUS_LIFT, HEADER_Y, KEY_HINTS, previewRect } from './layout';
 import { buildSlots, initialFocus, type Slot } from './missions';
 import { Postcards } from './Postcards';
@@ -237,11 +238,4 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
 function hitRect(index: number): Rect {
   const card = cardRect(index);
   return { x: card.x, y: card.y - 8, w: card.w, h: card.h + 8 };
-}
-
-/** A night-blue tactical map: banded sky with a faint survey grid. */
-function drawBackdrop(gfx: Gfx): void {
-  gfx.fillRect(0, 0, gfx.width, gfx.height, { stops: ['#1a1a52', palette.ink], bands: 5, dither: 'bayer2' });
-  for (let x = 8; x < gfx.width; x += 16) gfx.fillRect(x, 0, 1, gfx.height, '#1d1b4e');
-  for (let y = 8; y < gfx.height; y += 16) gfx.fillRect(0, y, gfx.width, 1, '#1d1b4e');
 }

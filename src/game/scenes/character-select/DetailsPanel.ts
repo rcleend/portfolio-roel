@@ -57,7 +57,8 @@ export class DetailsPanel {
 
     // The cursor takes the next character cell, like a machine waiting for input.
     const cursor = blink(options.time, PROMPT_CURSOR_BLINK, PROMPT_CURSOR_BLINK) ? '_' : '';
-    gfx.text(`${PROMPT}${cursor}`, x, PROMPT_Y, { ...text.label, fill: palette.lavender });
+    // Lilac, the palette's palest lavender: the prompt sits in the paper's light, where lavender fades into the blue.
+    gfx.text(`${PROMPT}${cursor}`, x, PROMPT_Y, { ...text.label, fill: palette.lilac });
 
     // The heading settles in from the switch direction behind a mask at the column edge,
     // so it never slides across the hand cursor parked beside it.

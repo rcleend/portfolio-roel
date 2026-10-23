@@ -7,9 +7,9 @@ import type { Timeline } from './timeline';
 
 type Backdrop = NonNullable<LineupParams['backdrop']>;
 
-/** What the lineup stands on: the select screen's navy, where a hero is picked, and every stage. */
+/** What the lineup stands on: the select screen's blueprint paper, where a hero is picked, and every stage. */
 const BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = [
-  { id: 'menu', title: 'MENU NAVY' },
+  { id: 'menu', title: 'MENU BLUEPRINT' },
   ...levels.map((level) => ({ id: level.id, title: level.city })),
 ];
 
