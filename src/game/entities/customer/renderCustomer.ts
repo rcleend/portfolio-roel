@@ -17,16 +17,23 @@ export interface CustomerRules {
 const PIP = { w: 4, h: 3, gap: 1 } as const;
 /** Frame 1 of `walk` has both feet planted: the "standing" pose. */
 const STANDING_TIME = 1 / 6 + 1e-6;
-/** The sprite height everything above a customer was placed for: classic's frame. */
-const TUNED_HEIGHT = 40;
+/** How high above his feet classic's standing customer's head reaches: what everything above a customer was placed for. */
+const TUNED_HEAD = 30;
+/** How far below the top of its 40 px frame classic's head sits; a look without a `head` anchor is taken to stand the same way. */
+const TUNED_HEADROOM = 10;
 
 /**
  * How far everything shown above a customer — pips, hearts, steam, the +MRR
- * pop — must rise so a look's taller sprite does not wear it on its face.
- * Zero for classic; the hitbox, and so play, never changes.
+ * pop — must rise so a look's taller sprite does not wear it on its face:
+ * measured from the standing frame's `head` anchor where the look marks one,
+ * else from its frame's top. Zero for classic, negative for a look whose head
+ * stands lower; the hitbox, and so play, never changes.
  */
 export function overheadLift(kit: RenderKit, scale: number): number {
-  return (kit.looks.customer.sheet.height - TUNED_HEIGHT) * scale;
+  const sheet = kit.looks.customer.sheet;
+  const head = sheet.anchor('walk', 'head', STANDING_TIME);
+  const height = head ? sheet.origin.y - head.y : sheet.height - TUNED_HEADROOM;
+  return (height - TUNED_HEAD) * scale;
 }
 
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
