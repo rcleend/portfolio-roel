@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/radio/lab/main';
 import { trackErrors } from './helpers';
+import { audioRequests, sound, spyOnAudio, timePickToSound, waitAudible } from './radioAudio';
 
 /**
  * The CD player on the radio lab's stand-in deck (radio-lab.html): the music, the keys,
@@ -15,85 +16,10 @@ test.use({
   trace: { mode: 'retain-on-failure', snapshots: false },
 });
 
-interface Sound {
-  readonly src: string;
-  readonly time: number;
-  readonly volume: number;
-  readonly muted: boolean;
-  readonly paused: boolean;
-}
-
-declare global {
-  interface Window {
-    __spy: {
-      readonly audios: HTMLAudioElement[];
-      decodes: number;
-      /** Audio contexts open now (made and not closed). */
-      contexts: number;
-      readonly handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler | null>>;
-    };
-    __timing?: { click: number; audible: number };
-  }
-}
-
-/** Counts media elements, decodes and audio contexts, and keeps the Media Session's handlers to call. */
-async function spy(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const audios: HTMLAudioElement[] = [];
-    const handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler | null>> = {};
-    window.__spy = { audios, decodes: 0, contexts: 0, handlers };
-    const create = Document.prototype.createElement;
-    Document.prototype.createElement = function (this: Document, ...args: Parameters<Document['createElement']>) {
-      const element = create.apply(this, args);
-      if (element instanceof HTMLAudioElement) audios.push(element);
-      return element;
-    } as Document['createElement'];
-    const decode = BaseAudioContext.prototype.decodeAudioData;
-    BaseAudioContext.prototype.decodeAudioData = function (this: BaseAudioContext, ...args) {
-      window.__spy.decodes++;
-      return decode.apply(this, args);
-    } as BaseAudioContext['decodeAudioData'];
-    const NativeContext = window.AudioContext;
-    window.AudioContext = class extends NativeContext {
-      constructor(options?: AudioContextOptions) {
-        super(options);
-        window.__spy.contexts++;
-      }
-      override close(): Promise<void> {
-        window.__spy.contexts--;
-        return super.close();
-      }
-    };
-    const session = navigator.mediaSession;
-    const setHandler = session.setActionHandler.bind(session);
-    session.setActionHandler = (action, handler) => {
-      handlers[action] = handler;
-      setHandler(action, handler);
-    };
-  });
-}
-
-/** Audio the page has fetched (media requests: not the development server's `?url` modules naming the files). */
-function audioRequests(page: Page): string[] {
-  const urls: string[] = [];
-  page.on('request', (request) => {
-    if (request.resourceType() === 'media') urls.push(new URL(request.url()).pathname);
-  });
-  return urls;
-}
-
 async function open(page: Page, query = 'view=radio'): Promise<void> {
   await page.goto(`/radio-lab.html?clean&${query}`);
   await expect.poll(() => page.evaluate(() => window.__radioLab?.loaded() ?? false)).toBe(true);
 }
-
-const sound = (page: Page): Promise<Sound | null> =>
-  page.evaluate(() => {
-    const element = window.__spy.audios[0];
-    if (!element) return null;
-    const { src, currentTime: time, volume, muted, paused } = element;
-    return { src: new URL(src, location.href).pathname, time, volume, muted, paused };
-  });
 
 /** The radio's display, as the deck was last told. */
 const lcd = (page: Page) => page.evaluate(() => window.__radioLab?.deck.state.lcd);
@@ -102,52 +28,9 @@ const disc = (page: Page, id: string) => page.locator(`.fake-disc[data-disc="${i
 /** A key on the model (the room animates it and sends a press intent). */
 const modelKey = (page: Page, key: string) => page.locator(`.fake-key[data-key="${key}"]`);
 
-/** Waits until the element plays out loud: unmuted, above silence, and its clock moving. */
-async function waitAudible(page: Page, timeout = 5000): Promise<Sound> {
-  let last = -1;
-  let current: Sound | null = null;
-  await expect
-    .poll(
-      async () => {
-        current = await sound(page);
-        const moving = current !== null && current.time > last && last >= 0;
-        last = current?.time ?? -1;
-        return Boolean(current && moving && !current.paused && !current.muted && current.volume > 0.05);
-      },
-      { timeout, intervals: [50] },
-    )
-    .toBe(true);
-  if (!current) throw new Error('no sound');
-  return current;
-}
-
-/** Time from the next pointerdown to the first frame the element is audible, measured in the page. */
-async function timePickToSound(page: Page, pick: () => Promise<void>): Promise<number> {
-  await page.evaluate(() => {
-    const timing = { click: 0, audible: 0 };
-    window.__timing = timing;
-    window.addEventListener('pointerdown', () => (timing.click = performance.now()), { capture: true, once: true });
-    let last = -1;
-    const poll = (): void => {
-      const element = window.__spy.audios[0];
-      const moving = element !== undefined && element.currentTime > last && last >= 0;
-      last = element?.currentTime ?? -1;
-      if (timing.click && element && moving && !element.paused && !element.muted && element.volume > 0.05) {
-        timing.audible = performance.now();
-        return;
-      }
-      requestAnimationFrame(poll);
-    };
-    requestAnimationFrame(poll);
-  });
-  await pick();
-  await page.waitForFunction(() => (window.__timing?.audible ?? 0) > 0, null, { timeout: 5000 });
-  return page.evaluate(() => (window.__timing ? window.__timing.audible - window.__timing.click : Number.NaN));
-}
-
 test('a pick starts silently in the gesture and is heard within a second, after the seat', async ({ page }) => {
   const errors = trackErrors(page);
-  await spy(page);
+  await spyOnAudio(page);
   const requests = audioRequests(page);
   await open(page);
   await page.waitForTimeout(500);
@@ -190,7 +73,7 @@ test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
   test('the disc seats at once and the music starts within 0.35 s', async ({ page }) => {
-    await spy(page);
+    await spyOnAudio(page);
     await open(page);
     const elapsed = await timePickToSound(page, () => disc(page, 'night-shift').click());
     expect(elapsed).toBeLessThanOrEqual(350);
@@ -200,7 +83,7 @@ test.describe('with reduced motion', () => {
 
 test('the keys follow a CD player: pause, play, stop, next and previous', async ({ page }) => {
   const errors = trackErrors(page);
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await disc(page, 'insert-coin').click();
   await waitAudible(page);
@@ -254,7 +137,7 @@ test('the keys follow a CD player: pause, play, stop, next and previous', async 
 });
 
 test('a swap fades the playing disc out before the source changes, and the latest pick wins', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await disc(page, 'night-shift').click();
   await waitAudible(page);
@@ -275,7 +158,7 @@ test('a swap fades the playing disc out before the source changes, and the lates
 });
 
 test('the media session names the track and its controls drive the player', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await disc(page, 'sunday-roast').click();
   await waitAudible(page);
@@ -309,7 +192,7 @@ test('the media session names the track and its controls drive the player', asyn
 
 test('keyboard only: choose a CD with the arrows, pause from the toolbar, Escape leaves', async ({ page }) => {
   const errors = trackErrors(page);
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   const cds = page.getByRole('toolbar', { name: 'CDs' });
   await expect(cds.getByRole('button', { name: 'Night Shift by Studio Attic, 2 tracks' })).toBeFocused();
@@ -350,7 +233,7 @@ test('keyboard only: choose a CD with the arrows, pause from the toolbar, Escape
 });
 
 test('keys on an empty player ask for a CD, and the hint teaches the pick', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await page.keyboard.press('Tab');
   const play = page.getByRole('toolbar', { name: 'CD player controls' }).getByRole('button', { name: 'Play' });
@@ -366,7 +249,7 @@ test('keys on an empty player ask for a CD, and the hint teaches the pick', asyn
 });
 
 test('muted: the choice says the sound is off, and the music plays silently until unmuted', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page, 'view=radio&muted=1');
   await disc(page, 'night-shift').click();
   await expect(announced(page)).toHaveText(
@@ -378,7 +261,7 @@ test('muted: the choice says the sound is off, and the music plays silently unti
 });
 
 test('a track that cannot be played shows the error, says so and moves on after two seconds', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await page.route('**/01-kettle-on.m4a*', (route) =>
     route.request().resourceType() === 'media' ? route.abort() : route.continue(),
   );
@@ -395,7 +278,7 @@ test('a track that cannot be played shows the error, says so and moves on after 
 
 test.describe('without a gesture', () => {
   test('a play the browser refuses asks for a press, and the press plays', async ({ page }) => {
-    await spy(page);
+    await spyOnAudio(page);
     // The lab picks as soon as the player has loaded, from a timer: no gesture, so the policy refuses. Nothing may
     // touch the page before that pick: Playwright's own calls into a page count as user activation.
     const refused = page.waitForEvent('console', (message) => message.text().includes('said "Press play to start'));
@@ -412,7 +295,7 @@ test.describe('without a gesture', () => {
 });
 
 test('the TV takes the floor and gives it back, unless the visitor paused', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await disc(page, 'solar-drive').click();
   await waitAudible(page);
@@ -437,7 +320,7 @@ test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test('a bottom bar of 48 px keys reports its height, presses the 3D keys and leaves', async ({ page }) => {
-    await spy(page);
+    await spyOnAudio(page);
     await open(page);
     const bar = page.getByRole('toolbar', { name: 'CD player controls' });
     await expect(bar).toBeVisible();
@@ -540,7 +423,7 @@ test('the mechanical sounds render clean, at their level, and die away', async (
 });
 
 test('one element, and no more audio contexts than the game’s and the radio’s own', async ({ page }) => {
-  await spy(page);
+  await spyOnAudio(page);
   await open(page);
   await disc(page, 'night-shift').click();
   await waitAudible(page);
