@@ -1,5 +1,6 @@
 import {
   type Box3,
+  type BufferGeometry,
   Group,
   LinearFilter,
   LinearMipmapLinearFilter,
@@ -12,13 +13,14 @@ import {
   Vector3,
 } from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { cutTriangles, indexedBounds } from './cutParts';
+import { cutTriangles, indexedBounds, type TriangleCut } from './cutParts';
 
 /**
  * The radio's close-up (`radio-closeup.glb`, built by tools/room/radio-closeup.mjs): the parts an open lid reveals,
  * baked open, plus the extras that say which triangles of the shipped radio-base.glb are its lid and keys. This
  * module checks the close-up was cut for exactly the radio on screen, cuts the moving parts out and hangs them on
- * their pivots; a mismatch makes the radio scenery rather than broken.
+ * their pivots; a mismatch makes the radio scenery rather than broken: nothing of the shipped radio changes until
+ * every part has been found where it was measured.
  */
 
 type Vec3 = readonly [number, number, number];
@@ -92,8 +94,8 @@ export function closeUpMismatch(extras: unknown, meshes: ReadonlyMap<string, Mes
   return null;
 }
 
-/** World bounds of a geometry's indexed vertices under `matrix`. */
-function worldBounds(mesh: Mesh, geometry = mesh.geometry): Box3 {
+/** World bounds of a geometry's indexed vertices under its mesh's matrix. */
+function worldBounds(mesh: Mesh, geometry: BufferGeometry): Box3 {
   return indexedBounds(geometry).applyMatrix4(mesh.matrixWorld);
 }
 
@@ -126,6 +128,11 @@ export interface RadioParts {
   readonly keyMaterials: Readonly<Record<'rockerTop' | 'rockerBottom' | 'previous' | 'next', MeshBasicMaterial>>;
   /** The close-up's atlas (512²). */
   readonly atlas: Texture | null;
+  /**
+   * Gives the shipped radio back every triangle the parts took and takes the parts down: the room view is again
+   * exactly as baked. Idempotent.
+   */
+  restore(): void;
 }
 
 /** A mesh drawn under `parent` exactly where `world` puts it. */
@@ -136,32 +143,47 @@ function hang(mesh: Mesh, parent: Object3D, world: Matrix4): void {
   parent.add(mesh);
 }
 
+const PART_NAMES = ['lid', 'rockerTop', 'rockerBottom', 'previous', 'next'] as const;
+type PartName = (typeof PART_NAMES)[number];
+
 /**
- * Cuts the lid and keys out of the radio's meshes by the close-up's lists, checks the lid landed where it was
- * measured, and hangs every moving part and the close-up's meshes on their pivots under `root`.
- * Throws when anything does not match.
+ * Cuts the lid and keys out of the radio's meshes by the close-up's lists, checks every part landed where the
+ * close-up measured it, and hangs the moving parts and the close-up's meshes on their pivots under `root`.
+ * Throws when anything does not match, before the shipped meshes change: until the returned parts are restored
+ * (or the device is disposed) the radio's base meshes lack the cut triangles, never before.
  */
 export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, root: Object3D): RadioParts {
   const extras = gltf.scene.userData as CloseUpExtras;
   const problem = closeUpMismatch(extras, meshes);
   if (problem) throw new Error(problem);
-  const mesh = (name: string): Mesh => {
-    const found = meshes.get(name);
-    if (!found) throw new Error(`radio-base.glb lacks ${name}`);
-    found.updateMatrixWorld(true);
-    return found;
-  };
-  const cut = (list: TriangleList, material?: MeshBasicMaterial): { part: Mesh; source: Mesh } => {
-    const source = mesh(list.mesh);
-    const geometry = cutTriangles(source.geometry, decodeTriangles(list));
-    const part = new Mesh(geometry, material ?? source.material);
-    part.name = `${source.name}:cut`;
-    return { part, source };
-  };
-  const lidCut = cut(extras.parts.lid);
-  if (!sameBounds(worldBounds(lidCut.source, lidCut.part.geometry), extras.parts.lid.bounds)) {
-    throw new Error('The cut lid is not where radio-closeup.glb measured it');
+  // Every list against its mesh's own numbering, all of a mesh's lists at once: nothing is cut yet.
+  const byMesh = new Map<string, PartName[]>();
+  for (const name of PART_NAMES) {
+    const mesh = extras.parts[name].mesh;
+    byMesh.set(mesh, [...(byMesh.get(mesh) ?? []), name]);
   }
+  const planned = new Map<PartName, { readonly geometry: BufferGeometry; readonly source: Mesh }>();
+  const cuts: TriangleCut[] = [];
+  for (const [meshName, names] of byMesh) {
+    const source = meshes.get(meshName);
+    if (!source) throw new Error(`radio-base.glb lacks ${meshName}`);
+    source.updateMatrixWorld(true);
+    const cut = cutTriangles(
+      source.geometry,
+      names.map((name) => decodeTriangles(extras.parts[name])),
+    );
+    cuts.push(cut);
+    names.forEach((name, k) => {
+      const geometry = cut.parts[k];
+      if (!geometry) throw new Error(`cutTriangles lost ${name}`);
+      if (!sameBounds(worldBounds(source, geometry), extras.parts[name].bounds)) {
+        throw new Error(`The cut ${name} is not where radio-closeup.glb measured it`);
+      }
+      planned.set(name, { geometry, source });
+    });
+  }
+  const lidCut = planned.get('lid');
+  if (!lidCut) throw new Error('radio-closeup.glb names no lid');
   const baseMaterial = lidCut.source.material as MeshBasicMaterial;
   const keyMaterial = (): MeshBasicMaterial => baseMaterial.clone();
   const keyMaterials = {
@@ -170,28 +192,18 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
     previous: keyMaterial(),
     next: keyMaterial(),
   };
-  const rockerTop = cut(extras.parts.rockerTop, keyMaterials.rockerTop);
-  const rockerBottom = cut(extras.parts.rockerBottom, keyMaterials.rockerBottom);
-  const previous = cut(extras.parts.previous, keyMaterials.previous);
-  const next = cut(extras.parts.next, keyMaterials.next);
-
-  const lidPivot = new Group();
-  lidPivot.name = 'RadioLidPivot';
-  lidPivot.position.fromArray(extras.hinge.point);
-  root.add(lidPivot);
-  hang(lidCut.part, lidPivot, lidCut.source.matrixWorld);
-  const rockerPivot = new Group();
-  rockerPivot.name = 'RadioRockerPivot';
-  rockerPivot.position.fromArray(extras.rocker.pivot);
-  root.add(rockerPivot);
-  hang(rockerTop.part, rockerPivot, rockerTop.source.matrixWorld);
-  hang(rockerBottom.part, rockerPivot, rockerBottom.source.matrixWorld);
-  for (const side of [previous, next]) {
-    const holder = new Group();
-    holder.name = `${side.part.name}:travel`;
-    root.add(holder);
-    hang(side.part, holder, side.source.matrixWorld);
-  }
+  const part = (name: PartName, material?: MeshBasicMaterial): { part: Mesh; source: Mesh } => {
+    const cut = planned.get(name);
+    if (!cut) throw new Error(`radio-closeup.glb names no ${name}`);
+    const mesh = new Mesh(cut.geometry, material ?? cut.source.material);
+    mesh.name = `${cut.source.name}:${name}`;
+    return { part: mesh, source: cut.source };
+  };
+  const lid = part('lid');
+  const rockerTop = part('rockerTop', keyMaterials.rockerTop);
+  const rockerBottom = part('rockerBottom', keyMaterials.rockerBottom);
+  const previous = part('previous', keyMaterials.previous);
+  const next = part('next', keyMaterials.next);
 
   gltf.scene.updateMatrixWorld(true);
   const node = (name: string): Mesh => {
@@ -201,6 +213,26 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
   };
   const well = node('Radio_CD_Well');
   const lidInner = node('Radio_CD_LidInner');
+
+  const lidPivot = new Group();
+  lidPivot.name = 'RadioLidPivot';
+  lidPivot.position.fromArray(extras.hinge.point);
+  root.add(lidPivot);
+  hang(lid.part, lidPivot, lid.source.matrixWorld);
+  const rockerPivot = new Group();
+  rockerPivot.name = 'RadioRockerPivot';
+  rockerPivot.position.fromArray(extras.rocker.pivot);
+  root.add(rockerPivot);
+  hang(rockerTop.part, rockerPivot, rockerTop.source.matrixWorld);
+  hang(rockerBottom.part, rockerPivot, rockerBottom.source.matrixWorld);
+  const holders: Group[] = [];
+  for (const side of [previous, next]) {
+    const holder = new Group();
+    holder.name = `${side.part.name}:travel`;
+    root.add(holder);
+    hang(side.part, holder, side.source.matrixWorld);
+    holders.push(holder);
+  }
   const wellWorld = well.matrixWorld.clone();
   const innerWorld = lidInner.matrixWorld.clone();
   well.removeFromParent();
@@ -210,9 +242,13 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
   well.visible = false;
   lidInner.visible = false;
   const atlas = (well.material as MeshBasicMaterial).map ?? null;
+
+  // Everything fits: the shipped meshes give up their parts, together.
+  for (const cut of cuts) cut.commit();
+  let restored = false;
   return {
     lidPivot,
-    lid: lidCut.part,
+    lid: lid.part,
     lidInner,
     rockerPivot,
     rockerTop: rockerTop.part,
@@ -224,6 +260,22 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
     skinMaterials: [baseMaterial, ...Object.values(keyMaterials)],
     keyMaterials,
     atlas,
+    restore() {
+      if (restored) return;
+      restored = true;
+      for (const cut of cuts) cut.restore();
+      for (const object of [lidPivot, rockerPivot, ...holders, well]) object.removeFromParent();
+      for (const material of Object.values(keyMaterials)) material.dispose();
+      for (const mesh of [lid.part, rockerTop.part, rockerBottom.part, previous.part, next.part]) {
+        // The children share the shipped meshes' attributes: disposing them must free only their own index.
+        const { geometry } = mesh;
+        for (const name of Object.keys(geometry.attributes)) geometry.deleteAttribute(name);
+        geometry.dispose();
+      }
+      well.geometry.dispose();
+      lidInner.geometry.dispose();
+      atlas?.dispose();
+    },
   };
 }
 
@@ -246,17 +298,4 @@ export function skinTexture(bitmap: ImageBitmap, anisotropy: number): Texture {
   texture.anisotropy = anisotropy;
   texture.needsUpdate = true;
   return texture;
-}
-
-/** Restores the cut triangles to their meshes is not needed: disposal drops the whole room. */
-export function disposeParts(parts: RadioParts): void {
-  for (const mesh of [parts.lid, parts.rockerTop, parts.rockerBottom, parts.previous, parts.next]) {
-    mesh.removeFromParent();
-  }
-  for (const material of Object.values(parts.keyMaterials)) material.dispose();
-  parts.lidPivot.removeFromParent();
-  parts.rockerPivot.removeFromParent();
-  parts.well.removeFromParent();
-  parts.well.geometry.dispose();
-  parts.lidInner.geometry.dispose();
 }

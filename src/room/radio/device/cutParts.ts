@@ -1,43 +1,68 @@
 import { Box3, BufferAttribute, type BufferGeometry, BufferGeometry as Geometry, Sphere, Vector3 } from 'three';
 
 /**
- * Moves the listed triangles of an indexed geometry into a child geometry that shares every attribute of the
- * parent (no vertex is copied): the parent keeps the rest. The radio's lid and keys are cut out of the baked meshes
- * this way, so they can move while the room view still looks exactly as baked.
+ * Cuts listed triangles of an indexed geometry out into child geometries that share every attribute of the parent
+ * (no vertex is copied), so the radio's lid and keys can move while the room view still looks exactly as baked.
+ *
+ * Nothing changes until `commit`: every list is read against the parent's own triangle numbering, all at once, so
+ * several parts cut from one mesh never see each other's renumbering, and a check that fails after planning leaves
+ * the shipped radio exactly as it was. `restore` gives the parent back every triangle it had.
  */
-export function cutTriangles(geometry: BufferGeometry, triangles: readonly number[]): Geometry {
+export interface TriangleCut {
+  /** One child per list, in list order, its bounds those of the vertices it uses. */
+  readonly parts: readonly Geometry[];
+  /** The parent keeps only the triangles no list names. Idempotent. */
+  commit(): void;
+  /** The parent gets its original index back (the children keep theirs). Idempotent. */
+  restore(): void;
+}
+
+export function cutTriangles(geometry: BufferGeometry, lists: readonly (readonly number[])[]): TriangleCut {
   const index = geometry.getIndex();
   if (!index) throw new Error('cutTriangles needs an indexed geometry');
   const count = index.count / 3;
-  const listed = new Uint8Array(count);
-  for (const t of triangles) {
-    if (t < 0 || t >= count || !Number.isInteger(t)) throw new RangeError(`No triangle ${t} in a geometry of ${count}`);
-    listed[t] = 1;
-  }
+  // 0: kept; k + 1: the k-th list's.
+  const owner = new Uint8Array(count);
+  if (lists.length > 254) throw new RangeError('cutTriangles cuts at most 254 parts from one geometry');
+  lists.forEach((list, k) => {
+    for (const t of list) {
+      if (!Number.isInteger(t) || t < 0 || t >= count) throw new RangeError(`No triangle ${t} in a geometry of ${count}`);
+      if (owner[t] !== 0) throw new Error(`cutTriangles: triangle ${t} is listed twice`);
+      owner[t] = k + 1;
+    }
+  });
   const source = index.array;
   const Indices = source instanceof Uint32Array ? Uint32Array : Uint16Array;
-  const cut = new Indices(triangles.length * 3);
-  const kept = new Indices(source.length - triangles.length * 3);
-  let c = 0;
+  const sizes = lists.map((list) => list.length * 3);
+  const cuts = sizes.map((size) => new Indices(size));
+  const kept = new Indices(source.length - sizes.reduce((sum, size) => sum + size, 0));
+  const cursor = new Array<number>(lists.length).fill(0);
   let k = 0;
   for (let t = 0; t < count; t++) {
-    const target = listed[t] ? cut : kept;
-    let at = listed[t] ? c : k;
+    const part = (owner[t] ?? 0) - 1;
+    const target = part < 0 ? kept : (cuts[part] as InstanceType<typeof Indices>);
+    let at = part < 0 ? k : (cursor[part] as number);
     for (let corner = 0; corner < 3; corner++) target[at++] = source[t * 3 + corner] as number;
-    if (listed[t]) c = at;
-    else k = at;
+    if (part < 0) k = at;
+    else cursor[part] = at;
   }
-  if (c !== cut.length) throw new Error('cutTriangles: a triangle was listed twice');
-  geometry.setIndex(new BufferAttribute(kept, 1));
-  geometry.computeBoundingSphere();
-  geometry.computeBoundingBox();
-  const child = new Geometry();
-  for (const [name, attribute] of Object.entries(geometry.attributes)) child.setAttribute(name, attribute);
-  child.setIndex(new BufferAttribute(cut, 1));
-  const bounds = indexedBounds(child);
-  child.boundingBox = bounds;
-  child.boundingSphere = bounds.getBoundingSphere(new Sphere());
-  return child;
+  const parts = cuts.map((indices) => {
+    const child = new Geometry();
+    for (const [name, attribute] of Object.entries(geometry.attributes)) child.setAttribute(name, attribute);
+    child.setIndex(new BufferAttribute(indices, 1));
+    const bounds = indexedBounds(child);
+    child.boundingBox = bounds;
+    child.boundingSphere = bounds.getBoundingSphere(new Sphere());
+    return child;
+  });
+  const keptIndex = new BufferAttribute(kept, 1);
+  const apply = (attribute: BufferAttribute): void => {
+    if (geometry.getIndex() === attribute) return;
+    geometry.setIndex(attribute);
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
+  };
+  return { parts, commit: () => apply(keptIndex), restore: () => apply(index) };
 }
 
 /** The bounds of the vertices an index actually uses (shared attributes span the whole parent). */

@@ -104,23 +104,28 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
   // The skin downloads and decodes beside the close-up; it is uploaded only once the visitor reaches for the radio.
   const skin = skinWanted ? loadSkin(new URL(SKIN_FILE, base).href).catch(() => null) : Promise.resolve(null);
   const buffer = await fetchBuffer(new URL(CLOSEUP_FILE, base).href);
-  const gltf = await await inIdle(context.background, () => context.loader.parseAsync(buffer, base));
+  // The parse itself is asynchronous (meshopt decodes in a worker): the unit only starts it.
+  const gltf = await (await inIdle(context.background, () => context.loader.parseAsync(buffer, base)));
   const meshes = new Map(context.model.meshes.map((mesh) => [mesh.name, mesh]));
   const root = new Group();
   root.name = 'RadioDevice';
   context.scene.add(root);
+  let parts: RadioParts | null = null;
+  let device: Device | null = null;
   try {
-    const parts = await inIdle(context.background, () => assembleParts(gltf, meshes, root));
-    const device = await inIdle(
+    parts = await inIdle(context.background, () => assembleParts(gltf, meshes, root));
+    const assembled = parts;
+    device = await inIdle(
       context.background,
-      () => new Device(context, root, parts, gltf.scene.userData as CloseUpExtras, skin),
+      () => new Device(context, root, assembled, gltf.scene.userData as CloseUpExtras, skin),
     );
-    if (parts.atlas) {
-      const atlas = parts.atlas;
-      await inIdle(context.background, () => context.renderer.initTexture(atlas), uploadUnit);
-    }
+    const { atlas } = assembled;
+    if (atlas) await inIdle(context.background, () => context.renderer.initTexture(atlas), uploadUnit);
     return device;
   } catch (error) {
+    // Whatever step failed, the room's radio goes back to exactly what was baked: scenery, never broken.
+    if (device) device.dispose();
+    else parts?.restore();
     root.removeFromParent();
     throw error;
   }
@@ -461,6 +466,7 @@ class Device implements RadioDevice {
     this.#lcd.dispose();
     this.#led.dispose();
     this.#skinBitmap?.close();
+    this.#parts.restore();
     this.root.removeFromParent();
   }
 
