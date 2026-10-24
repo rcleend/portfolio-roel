@@ -24,6 +24,7 @@ import { isSlow, wantsSkin } from './deviceTier';
 import { keyShade, rockerDegrees, sideKeyTravel } from './keyMotion';
 import { Lcd } from './Lcd';
 import { blinks } from './lcdSegments';
+import { MonotonicClock } from './monotonicClock';
 import { decodeSkin, fetchSkin, Skin } from './Skin';
 
 /**
@@ -191,7 +192,8 @@ class Device implements RadioDevice {
   #pointerAttention: string | null = null;
   #attention: string | null = null;
   #pointer: Vector2 | null = null;
-  #gesture: { target: DeviceTarget; cancelled: boolean } | null = null;
+  /** The pointer gesture the device owns: `acted` once a key's transport ran (a mouse's on the press). */
+  #gesture: { target: DeviceTarget; cancelled: boolean; acted: boolean } | null = null;
   #lastInput = Number.NEGATIVE_INFINITY;
   #blinkOn = true;
   #blinkTimer: ReturnType<typeof setTimeout> | null = null;
@@ -202,8 +204,15 @@ class Device implements RadioDevice {
   #flightMeasured = false;
   #compiling: Promise<void> | null = null;
   #disposed = false;
+  readonly #time = new MonotonicClock();
   /** A reveal asked for before the discs could be drawn: it runs once they can. */
   #revealOnceCompiled = false;
+  /**
+   * The viewport changed while the discs were put away: re-laid in the room's next idle moment, or on the next
+   * approach if that comes first. `#dropRelay` takes the queued idle unit back.
+   */
+  #relayoutDue = false;
+  #dropRelay: (() => void) | null = null;
   /** The shelf's disc ids, in slot order. */
   #discIds: readonly string[] = [];
   /** Fires the storyboard's next moment when no frame does (the tab hidden, the phone locked). */
@@ -273,9 +282,9 @@ class Device implements RadioDevice {
             fetchBytes: () => fetchSkin(skinUrl),
             decode: decodeSkin,
           });
+    // Only the bytes ahead of a visit: the 20 MB on the GPU waits for the visitor to reach for the radio (a hover, a
+    // focus, or a touch screen's tap, whose 1.1 s flight carries the strips between its frames).
     this.#skin?.fetch();
-    // Primary touch devices cannot hover: their skin goes up ahead of the first visit instead of on intent.
-    if (window.matchMedia('(hover: none)').matches) this.#skin?.want();
     context.renderer.domElement.addEventListener('webglcontextrestored', this.#onContextRestored);
     context.reducedMotion.addEventListener('change', this.#onMotionPreference);
   }
@@ -298,7 +307,7 @@ class Device implements RadioDevice {
   }
 
   setDiscs(discs: readonly DiscArt[]): void {
-    const now = performance.now();
+    const now = this.#clock();
     const ids = discs.map((disc) => disc.id);
     const heirs = discHeirs(this.#discIds, ids, this.#state.loaded);
     this.#discIds = ids;
@@ -312,7 +321,7 @@ class Device implements RadioDevice {
   setState(state: DeckState): void {
     const previous = this.#state;
     this.#state = state;
-    const now = performance.now();
+    const now = this.#clock();
     this.#choreography.setTransport(state.transport, now);
     if (state.loaded !== previous.loaded) {
       const reduced = this.#context.reducedMotion.matches;
@@ -336,7 +345,7 @@ class Device implements RadioDevice {
   }
 
   press(key: RadioKey): void {
-    const now = performance.now();
+    const now = this.#clock();
     this.#input(now);
     this.#choreography.press(key, now, now, { instant: this.#context.reducedMotion.matches });
     this.#kick();
@@ -344,14 +353,14 @@ class Device implements RadioDevice {
 
   setKeyboardAttention(disc: string | null): void {
     this.#keyboardAttention = disc;
-    if (disc !== null) this.#input(performance.now());
+    if (disc !== null) this.#input(this.#clock());
     this.#updateAttention();
   }
 
   setPointer(ndc: Vector2 | null): void {
     this.#pointer = ndc ? ndc.clone() : null;
     if (this.#context.views.view !== 'radio' || this.#context.views.moving) return;
-    const now = performance.now();
+    const now = this.#clock();
     if (ndc) this.#input(now);
     this.#choreography.parallax(ndc, now);
     this.#updateTilt(now);
@@ -359,7 +368,8 @@ class Device implements RadioDevice {
   }
 
   approach(at: number): void {
-    const now = performance.now();
+    const now = this.#clock();
+    if (this.#relayoutDue) this.#relay(now);
     this.#input(now);
     this.#compileDiscs();
     this.#choreography.approach(at, now);
@@ -375,13 +385,13 @@ class Device implements RadioDevice {
       this.#revealOnceCompiled = true;
       return;
     }
-    this.#choreography.reveal(performance.now());
+    this.#choreography.reveal(this.#clock());
     this.#kick();
   }
 
   conceal(): void {
     this.#revealOnceCompiled = false;
-    const now = performance.now();
+    const now = this.#clock();
     this.#discsOut = false;
     this.#gesture = null;
     this.#pointerAttention = null;
@@ -395,13 +405,27 @@ class Device implements RadioDevice {
   }
 
   relayout(): void {
-    this.#choreography.relayout(this.#context.slots(), performance.now());
-    this.#publishLayout();
+    const now = this.#clock();
+    // Away from the radio with every disc put away, a new viewport moves nothing: a phone turned in the room, at the
+    // computer or at the TV costs no re-lay and no frame in its resize handler. The re-lay waits for an idle moment
+    // (never a frame in motion), so the click that next sets off for the radio does not pay for it either; an
+    // approach that comes first lays the discs out itself.
+    if (!this.#choreography.atRadio && !this.#choreography.sample(now).moving) {
+      this.#relayoutDue = true;
+      this.#dropRelay ??= this.#context.background.add(
+        unit(() => {
+          this.#dropRelay = null;
+          if (this.#relayoutDue && !this.#disposed) this.#relay(this.#clock());
+        }),
+      );
+      return;
+    }
+    this.#relay(now);
     this.#kick();
   }
 
   pick(raycaster: Raycaster): DevicePick | null {
-    const now = performance.now();
+    const now = this.#clock();
     const lid = this.#choreography.lidDegrees(now);
     let best: DevicePick | null = null;
     const disc = this.#discs.pick(raycaster, (id) => {
@@ -435,19 +459,21 @@ class Device implements RadioDevice {
     return best;
   }
 
-  pointerDown(target: DeviceTarget): boolean {
-    const now = performance.now();
+  pointerDown(target: DeviceTarget, pointerType: string): boolean {
+    const now = this.#clock();
     this.#input(now);
     if (target.kind === 'key') {
-      // The key goes down with the finger and the transport acts at once (a user gesture: media may start).
+      // The key goes down with the pointer. A mouse press is a user gesture, so the transport acts at once; a touch is
+      // one only on its release (media started before it is refused), so a finger's key acts when it lifts.
       this.#choreography.press(target.key, now, null, { instant: this.#context.reducedMotion.matches });
       this.#kick();
-      this.#gesture = { target, cancelled: false };
-      this.#context.events.intent({ type: 'press', key: target.key });
+      const acted = pointerType === 'mouse';
+      this.#gesture = { target, cancelled: false, acted };
+      if (acted) this.#context.events.intent({ type: 'press', key: target.key });
       return true;
     }
     if (target.kind === 'disc' && !target.seated) {
-      this.#gesture = { target, cancelled: false };
+      this.#gesture = { target, cancelled: false, acted: false };
       this.#pointerAttention = target.disc;
       this.#updateAttention();
       return true;
@@ -457,7 +483,13 @@ class Device implements RadioDevice {
 
   pointerMove(target: DeviceTarget | null): void {
     const gesture = this.#gesture;
-    if (gesture?.target.kind !== 'disc') return;
+    if (!gesture) return;
+    if (gesture.target.kind === 'key') {
+      // A finger sliding off a key it has not acted on lets it go, like a button.
+      if (!gesture.acted && !(target?.kind === 'key' && target.key === gesture.target.key)) gesture.cancelled = true;
+      return;
+    }
+    if (gesture.target.kind !== 'disc') return;
     const still = target?.kind === 'disc' && target.disc === gesture.target.disc;
     if (!still && !gesture.cancelled) {
       // Sliding off the disc cancels the pick.
@@ -467,14 +499,23 @@ class Device implements RadioDevice {
     }
   }
 
-  pointerUp(): void {
+  pointerUp(cancelled: boolean): void {
     const gesture = this.#gesture;
     this.#gesture = null;
     if (!gesture) return;
-    const now = performance.now();
+    const now = this.#clock();
     if (gesture.target.kind === 'key') {
       this.#choreography.release(gesture.target.key, now);
       this.#kick();
+      // Inside the release: the app may start the music in this very gesture.
+      if (!gesture.acted && !gesture.cancelled && !cancelled) {
+        this.#context.events.intent({ type: 'press', key: gesture.target.key });
+      }
+      return;
+    }
+    if (cancelled && gesture.target.kind === 'disc') {
+      this.#pointerAttention = null;
+      this.#updateAttention();
       return;
     }
     if (gesture.target.kind === 'disc' && !gesture.cancelled) {
@@ -490,7 +531,7 @@ class Device implements RadioDevice {
   activate(target: DeviceTarget): void {
     if (target.kind !== 'disc' || !target.seated) return;
     // A click on the disc in the well: ▷II presses itself and the transport toggles.
-    const now = performance.now();
+    const now = this.#clock();
     this.#input(now);
     this.#choreography.press('play-pause', now, now, { instant: this.#context.reducedMotion.matches });
     this.#kick();
@@ -499,9 +540,9 @@ class Device implements RadioDevice {
 
   hover(target: DeviceTarget | null): void {
     const disc = target?.kind === 'disc' && !target.seated ? target.disc : null;
-    if (disc !== null) this.#input(performance.now());
+    if (disc !== null) this.#input(this.#clock());
     if (disc === this.#pointerAttention) {
-      this.#updateTilt(performance.now());
+      this.#updateTilt(this.#clock());
       return;
     }
     this.#pointerAttention = disc;
@@ -510,6 +551,7 @@ class Device implements RadioDevice {
 
   dispose(): void {
     this.#disposed = true;
+    this.#dropRelay?.();
     this.#stopStep?.();
     this.#stopStep = null;
     this.#pacer.stop();
@@ -526,6 +568,14 @@ class Device implements RadioDevice {
   }
 
   /** Where the discs and keys sit on the page at the settled pose, for the app's buttons and captions. */
+  #relay(now: number): void {
+    this.#relayoutDue = false;
+    this.#dropRelay?.();
+    this.#dropRelay = null;
+    this.#choreography.relayout(this.#context.slots(), now);
+    this.#publishLayout();
+  }
+
   #publishLayout(): void {
     const { stage, events } = this.#context;
     const ids = this.#discIds;
@@ -541,12 +591,17 @@ class Device implements RadioDevice {
     );
   }
 
+  /** performance.now() through the device's clock: a frame never draws earlier than an event already handled. */
+  #clock(at = performance.now()): number {
+    return this.#time.at(at);
+  }
+
   /** Keeps the frame step alive while anything moves; it stops itself when everything rests. */
   #kick(): void {
     if (this.#disposed) return;
     if (this.#stopStep === null) {
       const step = (now: number): boolean => {
-        const moving = this.#frame(now);
+        const moving = this.#frame(this.#clock(now));
         if (!moving) this.#stopStep = null;
         return moving;
       };
@@ -568,15 +623,15 @@ class Device implements RadioDevice {
     this.#momentTimer = setTimeout(
       () => {
         this.#momentTimer = null;
-        for (const moment of this.#choreography.advance(performance.now())) this.#fire(moment);
+        for (const moment of this.#choreography.advance(this.#clock())) this.#fire(moment);
         this.#armMoments();
       },
-      Math.max(0, next - performance.now()) + MOMENT_GRACE_MS,
+      Math.max(0, next - this.#clock()) + MOMENT_GRACE_MS,
     );
   }
 
   readonly #ambientFrame = (now: number): boolean => {
-    this.#frame(now);
+    this.#frame(this.#clock(now));
     return false;
   };
 
@@ -688,7 +743,7 @@ class Device implements RadioDevice {
     this.#blinkTimer = setTimeout(() => {
       this.#blinkTimer = null;
       this.#blinkOn = !this.#blinkOn;
-      const at = performance.now();
+      const at = this.#clock();
       this.#lcd.show(this.#displayed(at), this.#blinkOn || !this.#blinking(at), this.#context.reducedMotion.matches);
       this.#syncBlink(at);
     }, BLINK_MS);
@@ -709,7 +764,7 @@ class Device implements RadioDevice {
     }
     if (next === this.#attention) return;
     this.#attention = next;
-    const now = performance.now();
+    const now = this.#clock();
     this.#choreography.attend(next, now);
     this.#updateTilt(now);
     this.#kick();
@@ -734,7 +789,7 @@ class Device implements RadioDevice {
   #ambientWanted(): boolean {
     const { views, stage, reducedMotion } = this.#context;
     if (views.view !== 'radio' || views.moving || !stage.visible || reducedMotion.matches || this.#slow) return false;
-    return this.#choreography.ambientAt(performance.now());
+    return this.#choreography.ambientAt(this.#clock());
   }
 
   #prepareLabel(id: string): void {
