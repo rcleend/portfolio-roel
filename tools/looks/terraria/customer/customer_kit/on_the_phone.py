@@ -188,65 +188,66 @@ LEGS: Dict[str, Drawing] = {
                      .0111110011110
                      .0000000000000
 '''),
-    # The walk, a heavy plod that keeps the foot he stands on planted while he moves over it: the far foot
+    # The walk, a heavy plod that keeps the foot he stands on planted while he moves over it, the far leg a flat
+    # shade behind the lit near one as Terraria shades a walker's back leg, so the lead swap reads: the far foot
     # strikes out ahead, takes his weight (the stomp), stands under his hips while the near foot passes it lifted,
     # and pushes off behind as the near foot swings through to strike; then the other way round.
     'far strike': art('legs: far foot striking', 8, 32, '''
                      ....#xoo++o+#....
-                     ...#xo+#xxo#.....
-                     ..#xo+#.#xxo#....
-                     .#xo+#...#xxo#...
-                     #xo+#.....#xxo#..
-                     0123200...0122200
+                     ...#xo+#xxx#.....
+                     ..#xo+#.#xxx#....
+                     .#xo+#...#xxx#...
+                     #xo+#.....#xxx#..
+                     0123200...0111100
                      0111110...0111110
                      0000000...0000000
 '''),
     'far down': art('legs: weight on the far foot', 7, 32, '''
                      .....#xoo++o+#..
-                     ....#xo+#xxo#...
-                     ...#xo+#.#xxo#..
-                     ..#xo+#..#xxo#..
-                     .#xo+#...#xxo#..
-                     01210....0122200
+                     ....#xo+#xxx#...
+                     ...#xo+#.#xxx#..
+                     ..#xo+#..#xxx#..
+                     .#xo+#...#xxx#..
+                     01210....0111100
                      .01110...0111110
                      ..0000...0000000
 '''),
     'far pass': art('legs: near foot passing the far', 10, 32, '''
                      ..#xoo++o#
-                     ..#xo+#o#.
-                     .#xo+#xo#.
-                     01210xxo#.
-                     011110xo#.
-                     .000002210
+                     ..#xo+#x#.
+                     .#xo+#xx#.
+                     01210xxx#.
+                     011110xx#.
+                     .000001110
                      ...0111110
                      ...0000000
 '''),
     'far push': art('legs: far foot pushing off', 11, 32, '''
                      .#xoo++o+#...
                      ..#xx#xo+#...
-                     ..#xxo#xo+#..
-                     .#xxo#.01300.
-                     .#xxo#0111110
-                     012221000000
+                     ..#xxx#xo+#..
+                     .#xxx#.01300.
+                     .#xxx#0111110
+                     011111000000
                      0111110......
                      0000000......
 '''),
     'near strike': art('legs: near foot striking', 8, 32, '''
                      ....#xoo++o+#....
-                     ...#xxo#xo+#.....
-                     ..#xxo#.#xo+#....
-                     .#xxo#...#xo+#...
-                     #xxo#.....#xo+#..
-                     0122200...0123200
+                     ...#xxx#xo+#.....
+                     ..#xxx#.#xo+#....
+                     .#xxx#...#xo+#...
+                     #xxx#.....#xo+#..
+                     0111100...0123200
                      0111110...0111110
                      0000000...0000000
 '''),
     'near down': art('legs: weight on the near foot', 7, 32, '''
                      .....#xoo++o+#..
-                     ....#xxo#xo+#...
-                     ...#xxo#.#xo+#..
-                     ..#xxo#..#xo+#..
-                     .#xxo#...#xo+#..
+                     ....#xxx#xo+#...
+                     ...#xxx#.#xo+#..
+                     ..#xxx#..#xo+#..
+                     .#xxx#...#xo+#..
                      01110....0123200
                      .01110...0111110
                      ..0000...0000000
@@ -263,9 +264,9 @@ LEGS: Dict[str, Drawing] = {
 '''),
     'near push': art('legs: near foot pushing off', 11, 32, '''
                      .#xoo++o+#...
-                     ..#xo+#o#....
-                     ..#xo+#xo#...
-                     .#xo+#.01200.
+                     ..#xo+#x#....
+                     ..#xo+#xx#...
+                     .#xo+#.01100.
                      .#xo+#0111110
                      012321000000
                      0111110......
@@ -486,8 +487,9 @@ PHONE = Prop(art('brick phone', 13, 8, '''
 # Jolted off his ear, his fist round its middle, clear of whatever the game shows over his head.
 PHONE_FLUNG = Prop(PHONE.drawing._replace(name='brick phone yanked off his ear', points=(('grip', (14, 16)),)))
 # Slack in a limp hand, hanging upside down at his side: the fingers gone loose round its middle, behind the
-# hand, its antenna pointing at the ground and its light still from above. Its lower end swings on the hand, a pixel behind his
-# sway, so the brick hangs heavy.
+# hand, its antenna pointing at the ground and its light still from above. It hangs high enough in his fingers,
+# the antenna drawn short, that the antenna stops 3 px clear of the ground and reads as a phone, not a walking
+# cane. Its lower end swings on the hand, a pixel behind his sway, so the brick hangs heavy.
 DANGLING = art('brick phone hanging upside down', 13, 8, '''
                      0000
                      0330
@@ -505,19 +507,20 @@ DANGLING = art('brick phone hanging upside down', 13, 8, '''
                      0000
                      0...
                      0...
-                     0...
-''', legend=PHONE_LEGEND, grip=(16, 14))
+''', legend=PHONE_LEGEND, grip=(16, 15))
 # The rows the hand closes over and above stay put as the rest swings.
-DANGLING_PIVOT = 15
+DANGLING_PIVOT = 16
 PHONE_DANGLING = {
     'phone dangling': Prop(DANGLING),
     'phone swinging ahead': Prop(DANGLING.swung(DANGLING_PIVOT, 1)._replace(name='brick phone swinging ahead')),
     'phone swinging back': Prop(DANGLING.swung(DANGLING_PIVOT, -1)._replace(name='brick phone swinging back')),
 }
 
-# Terraria's anger emote: a vein popping in four arcs round a cross. Terraria draws it in a white bubble, so
-# floating free over a busy street its arcs take their dark red on the outside, the red and orange within. It
-# floats up behind his head, clear of the phone's antenna as he lunges.
+# Terraria's anger emote: a vein popping in four arcs round a cross. Terraria draws it in a white bubble;
+# floating free over a busy street instead, its arcs are rimmed in the near-black red of his open mouth in place
+# of the emote's own dark red, so it holds over a red mailbox as well as against the night, the red and orange
+# within. It floats up behind his head, clear of the phone's antenna as he lunges.
+ANGER_LEGEND = {'0': ('mouth', 0), '1': ('anger', 1), '2': ('anger', 2)}
 VEIN = Effect(art('anger vein', -3, 5, '''
                      ...02..20...
                      ...01..10...
@@ -528,9 +531,9 @@ VEIN = Effect(art('anger vein', -3, 5, '''
                      .011....110.
                      ...01..10...
                      ...02..20...
-''', legend=tones('anger', '012'), crown=(16, 12)))
+''', legend=ANGER_LEGEND, crown=(16, 12)))
 
-# Between yells, the emote shrinks back: it pulses.
+# Drawing breath between yells, the emote shrinks back for a moment: it pulses.
 VEIN_SMALL = Effect(art('anger vein, pulsing', -1, 6, '''
                      ..0..0..
                      .01..10.
@@ -539,7 +542,7 @@ VEIN_SMALL = Effect(art('anger vein, pulsing', -1, 6, '''
                      01....10
                      .01..10.
                      ..0..0..
-''', legend=tones('anger', '012'), crown=(16, 12)))
+''', legend=ANGER_LEGEND, crown=(16, 12)))
 
 FIGURE = Figure(
     name='on the phone',

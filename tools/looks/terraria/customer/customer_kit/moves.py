@@ -76,11 +76,11 @@ YELL = Pose(mood='unhappy', face='rant', near='phone', far='point', body=(LEAN +
 
 def shout() -> Animation:
     """A yell and the breath for the next one, the windup's 0.4 s a loop: he settles back from the lunge, rocks
-    back upright drawing breath, then sinks into the next yell, the emote swelling with it."""
-    settle = YELL._replace(face='rant half', far='jab', body=(LEAN, 0), head=(0, 0), effects=('vein small',),
-                           swing='rest')
-    breath = settle._replace(face='grumble', far='wag', body=(0, 0))
-    build = settle._replace(body=(LEAN, 1), effects=('vein',))
+    back upright drawing breath, then sinks into the next yell. The emote holds big through the yell and only
+    shrinks back as he draws breath, so it pulses at the yell's pace rather than flickering."""
+    settle = YELL._replace(face='rant half', far='jab', body=(LEAN, 0), head=(0, 0), swing='rest')
+    breath = settle._replace(face='grumble', far='wag', body=(0, 0), effects=('vein small',))
+    build = settle._replace(body=(LEAN, 1))
     return Animation(10, True, (YELL, settle, breath, build))
 
 
@@ -101,7 +101,10 @@ def hurt() -> Animation:
 
 
 # ── stunned ──
+# The body sways a pixel either way from the feet, and the head twice as far, a pixel a frame so it wobbles
+# rather than ticks.
 SWAY = (0, 0, -1, -1, 0, 0, 1, 1)
+HEAD_SWAY = (0, -1, -1, 0, 0, 1, 1, 0)
 # The eye rolls up out of sight, round to the front, up again and to the back.
 ROLLING = ('up', 'up', 'front', 'front', 'up', 'up', 'back', 'back')
 # The phone's lower end lags a frame behind the sway: as he sways one way it swings the other, then catches up.
@@ -110,9 +113,9 @@ SWINGING = {1: 'phone swinging ahead', 0: 'phone dangling', -1: 'phone swinging 
 
 def stunned() -> Animation:
     frames = tuple(
-        Pose(mood='unhappy', face=f'dazed {look}', near='limp', far='limp', body=(sway, 0), head=(sway, 1),
+        Pose(mood='unhappy', face=f'dazed {look}', near='limp', far='limp', body=(sway, 0), head=(head, 1),
              held=(Held(SWINGING[SWAY[index - 1] - sway], 'near'),), effects=dazed.pair(index))
-        for index, (sway, look) in enumerate(zip(SWAY, ROLLING))
+        for index, (sway, head, look) in enumerate(zip(SWAY, HEAD_SWAY, ROLLING))
     )
     return Animation(10, True, frames)
 

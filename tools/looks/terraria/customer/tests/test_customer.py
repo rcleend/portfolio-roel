@@ -25,6 +25,7 @@ for path in (TOOL, TOOL.parent):
 from customer_kit import dazed, on_the_phone  # noqa: E402
 from customer_kit.art import paint  # noqa: E402
 from customer_kit.moves import ANIMATIONS, STANDING, Animation  # noqa: E402
+from customer_kit.palette import RAMPS  # noqa: E402
 from customer_kit.rig import Pose, pose  # noqa: E402
 from tests import test_concepts as concepts  # noqa: E402
 
@@ -195,6 +196,24 @@ class Motion(unittest.TestCase):
             self.assertTrue(antenna, name)
             self.assertTrue(all((y > grip) == (name in dangling) for y in antenna), name)
 
+    def test_hangs_the_stunned_phone_clear_of_the_ground(self) -> None:
+        """Its antenna stops short of the floor, so the dangling phone never reads as a walking cane."""
+        image, meta = load()
+        phone = {tuple(int(hex_[i:i + 2], 16) for i in (1, 3, 5)) for hex_ in RAMPS['phone']}
+        for name, index, picture, _ in frames(image, meta):
+            if name != 'stunned':
+                continue
+            lowest = max(y for y in range(picture.height) for x in range(picture.width)
+                         if picture.getpixel((x, y))[3] and picture.getpixel((x, y))[:3] in phone)
+            self.assertGreaterEqual(concepts.FEET_ROW - lowest, 3, f'stunned[{index}]')
+
+    def test_sways_his_head_a_pixel_at_a_time_while_stunned(self) -> None:
+        """A woozy sway, not a tick-tock: the head never jumps or holds still from one frame to the next."""
+        _, meta = load()
+        heads = [x for x, _ in next(a for a in meta['animations'] if a['name'] == 'stunned')['anchors']['head']]
+        for index, x in enumerate(heads):
+            self.assertEqual(abs(x - heads[index - 1]), 1, f'stunned[{index}]')
+
     def test_is_knocked_off_his_feet_and_comes_down_to_land(self) -> None:
         lifts = [posed.lift for posed in ANIMATIONS['hurt'].frames]
         self.assertGreaterEqual(lifts[0], 2)
@@ -204,6 +223,12 @@ class Motion(unittest.TestCase):
     def test_lunges_past_his_walk_to_yell(self) -> None:
         yell, walk = ANIMATIONS['shout'].frames[0], ANIMATIONS['walk'].frames[STANDING]
         self.assertGreater(yell.body[0] + yell.head[0], walk.body[0] + walk.head[0])
+
+    def test_holds_the_anger_emote_big_but_to_draw_breath(self) -> None:
+        """It swells for the yell and stays swollen, shrinking back only as he draws breath, so it never flickers."""
+        emotes = [posed.effects for posed in ANIMATIONS['shout'].frames]
+        self.assertEqual(emotes.count(('vein small',)), 1)
+        self.assertEqual(emotes.count(('vein',)), len(emotes) - 1)
 
     def test_yells_on_the_first_frame_of_a_shout(self) -> None:
         """The game restarts `shout` as the complaint leaves, so its first frame is the yell."""
