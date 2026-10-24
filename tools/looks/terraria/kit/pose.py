@@ -12,7 +12,7 @@ from typing import List, NamedTuple, Tuple
 from PIL import Image
 
 from .art import Art, Dye, Point, Stroke, paint
-from .body import EAR, EYES, GLASSES, HEAD
+from .body import EYES, HEAD
 from .limbs import FAR_ARMS, FAR_SHOULDER, HIPS, LEGS, NEAR_ARMS, NEAR_SHOULDER, Arm
 from .outfits import Outfit
 
@@ -71,9 +71,9 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
         *(Stroke(part, dye, body) for part, dye in outfit.torso),
         Stroke(HEAD, Dye(), body),
         Stroke(outfit.hair, Dye(), body),
-        Stroke(EAR, Dye(), body),
+        *((Stroke(outfit.ear, Dye(), body),) if outfit.ear else ()),
         Stroke(EYES[pose.eyes], Dye(), body),
-        Stroke(GLASSES, Dye(), body),
+        Stroke(outfit.glasses, Dye(), body),
         *(Stroke(part, dye, body) for part, dye in outfit.headgear),
         *props('held'),
         *props('grip'),
