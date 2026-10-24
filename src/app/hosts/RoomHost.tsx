@@ -161,6 +161,7 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
       <RadioSlot
         deck={room?.radio ?? null}
         view={view}
+        settled={settled}
         powered={tvOn}
         muted={muted}
         onLeave={showRoom}

@@ -10,6 +10,8 @@ export interface RadioSlotProps {
   readonly deck: RadioDeck | null;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
+  /** The camera rests at `view`: the player's idle prefetch and first mount never land in a flight. */
+  readonly settled: boolean;
   /** True once the TV's picture is up: nothing radio-related happens before. */
   readonly powered: boolean;
   /** The site's sound preference (the sound toggle). */
@@ -22,8 +24,12 @@ export interface RadioSlotProps {
 
 type Experience = ComponentType<RadioExperienceProps>;
 
-/** The 1.1 s flight to the room plus 1.5 s settled there: the visitor is looking around, not passing through. */
-export const PREFETCH_AFTER_ROOM_MS = 2600;
+/**
+ * Settled in the room view this long, the visitor is looking around rather than passing through: one heading for
+ * the computer has clicked by now. The computer's screen loads first, as the camera lands; the radio's halves
+ * follow, so the two prefetches never compete.
+ */
+export const PREFETCH_AFTER_SETTLED_MS = 3000;
 
 let experience: Promise<Experience> | null = null;
 
@@ -37,12 +43,14 @@ function loadExperience(): Promise<Experience> {
  * The CD player as the room host mounts it (docs/RADIO.md › Loading): nothing on first
  * load but this glue. The player loads at once on the way to the radio, hidden by the
  * flight, or at idle once the visitor has been looking around the room for a moment, when
- * the room starts preparing its half too. Once loaded it stays mounted for the page, so
- * the music plays on wherever the visitor goes. Renders a portal into the room's controls
- * slot only.
+ * the room starts preparing its half too. A player loaded at idle first mounts (and paints
+ * the discs' prints) only while the camera rests, so a flight that sets off meanwhile
+ * never pays for it. Once mounted it stays for the page, so the music plays on wherever
+ * the visitor goes. Renders a portal into the room's controls slot only.
  */
-export function RadioSlot({ deck, view, powered, muted, onLeave, onFocusStage }: RadioSlotProps): ReactNode {
+export function RadioSlot({ deck, view, settled, powered, muted, onLeave, onFocusStage }: RadioSlotProps): ReactNode {
   const [Player, setPlayer] = useState<Experience | 'failed' | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     // A radio that cannot work is scenery: nothing of the player loads for it.
@@ -53,7 +61,7 @@ export function RadioSlot({ deck, view, powered, muted, onLeave, onFocusStage }:
       return;
     }
     // Looking around the room for a while: both halves at idle, never on Save-Data.
-    if (view !== 'room' || !powered || saveData()) return;
+    if (view !== 'room' || !settled || !powered || saveData()) return;
     let cancelIdle: (() => void) | undefined;
     const timer = window.setTimeout(() => {
       cancelIdle = whenIdle(() => {
@@ -61,21 +69,28 @@ export function RadioSlot({ deck, view, powered, muted, onLeave, onFocusStage }:
         deck.prefetch('idle');
         load(setPlayer);
       });
-    }, PREFETCH_AFTER_ROOM_MS);
+    }, PREFETCH_AFTER_SETTLED_MS);
     return () => {
       window.clearTimeout(timer);
       cancelIdle?.();
     };
-  }, [deck, powered, view, Player]);
+  }, [deck, powered, view, settled, Player]);
 
-  if (!deck || !Player) return null;
+  // Mounting (the player, its controls, the prints) waits for the camera to rest, except on the way to the radio,
+  // where the flight hides it and the discs want their prints before they rise.
+  const mountable = Player !== null && (settled || view === 'radio');
+  useEffect(() => {
+    if (mountable) setMounted(true);
+  }, [mountable]);
+
+  if (!deck || !Player || !(mounted || mountable)) return null;
   return createPortal(
     Player === 'failed' ? (
       <p className="radio-unavailable" role="alert">
         The CD player could not load its music.
       </p>
     ) : (
-      <Player deck={deck} view={view} muted={muted} onLeave={onLeave} onFocusStage={onFocusStage} />
+      <Player deck={deck} view={view} settled={settled} muted={muted} onLeave={onLeave} onFocusStage={onFocusStage} />
     ),
     deck.controls,
   );

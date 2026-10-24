@@ -67,6 +67,7 @@ function fly(instant = false): void {
     () => {
       flight = null;
       deck.reveal();
+      changed();
     },
     reduced ? REDUCED_CUT_MS : FLIGHT_MS,
   );
@@ -99,13 +100,14 @@ function Lab() {
       listeners.add(onChange);
       return () => listeners.delete(onChange);
     },
-    () => `${view}|${muted}`,
+    () => `${view}|${muted}|${flight === null}`,
   );
-  const [currentView, currentMuted] = current.split('|');
+  const [currentView, currentMuted, currentSettled] = current.split('|');
   return (
     <RadioSlot
       deck={deck}
       view={currentView as RoomView}
+      settled={currentSettled === 'true'}
       powered
       muted={currentMuted === 'true'}
       onLeave={() => {

@@ -40,8 +40,8 @@ It renders a portal into `deck.controls` only, a sibling of the stage outside `r
 | Chunk | Contents | Loaded |
 | --- | --- | --- |
 | main bundle | `RadioSlot.tsx` and its failure message's style | first load |
-| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle after the view has been `room` for 2.6 s (the flight plus 1.5 s settled), together with `deck.prefetch('idle')`; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
-| covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize) | when the player mounts |
+| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands), together with `deck.prefetch('idle')`; it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
+| covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize), then painted one per idle moment while the camera rests away from the TV (`labels/discPrints.ts`) and handed to the room together | when the player mounts |
 | audio | one track at a time, streamed | from the pick that needs it |
 
 Once loaded the player stays mounted for the page, so the music survives leaving the radio.
@@ -189,6 +189,7 @@ radio/
     testing.ts             stand-ins for the unit tests
   labels/
     discLabel.ts         ★ a disc's print with its rim text
+    discPrints.ts        ★ the shelf's prints for the room: plain discs at once, prints painted one per idle moment
     loadArt.ts             fetch and off-thread decode of covers and prints
   ui/
     RadioControls.tsx      CDs, transport, caption, hint, live region, focus, Escape
