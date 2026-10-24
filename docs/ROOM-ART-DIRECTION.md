@@ -18,6 +18,15 @@ app's live desktop replaces the baked screen picture (a capture from the app its
 | --- |
 | ![The beige CRT seen straight on, showing an original early-2000s-style desktop](room/pc.webp) |
 
+Clicking the radio, its cabinet or the lava lamp sits the camera over the CD player with its lid open and the
+collection floating above it (a capture from the app itself, at rest, with one of the five original placeholder
+albums spinning in the well; see [RADIO.md](RADIO.md) for the player and [ROOM.md](ROOM.md) › The CD player for
+the device):
+
+| At the CD player |
+| --- |
+| ![The boombox on the cabinet with its CD lid open, a disc spinning in the well and four printed CDs floating above](room/radio.webp) |
+
 | Rebuilt desktop peripherals | Original basket with supported papers |
 | --- | --- |
 | ![Beige CRT, full-size keyboard and wheel mouse](room/desktop-detail.webp) | ![Basket clear of the desk, with papers reaching its base](room/basket.webp) |
