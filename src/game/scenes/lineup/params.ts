@@ -1,17 +1,22 @@
 import { type LevelId, levels } from '@/content';
+import { CUSTOMER_CONCEPTS, type CustomerConceptId } from '../../art/looks/terraria/customer-concepts/concepts';
 import type { LineupParams } from '../params';
 
+type Backdrop = 'menu' | LevelId;
+
+/** The customer the customers cast stands in both moods: a Terraria concept, or the one the game draws. */
+export type LineupCustomer = 'game' | CustomerConceptId;
+
 /** What the lineup shows, resolved from its params. */
-export interface Lineup {
-  readonly cast: 'terraria' | 'revised' | 'game';
-  readonly backdrop: 'menu' | LevelId;
-}
+export type Lineup =
+  | { readonly cast: 'terraria' | 'revised' | 'game'; readonly backdrop: Backdrop }
+  | { readonly cast: 'customers'; readonly backdrop: Backdrop; readonly customer: LineupCustomer };
 
 export class LineupParamsError extends Error {
   override readonly name = 'LineupParamsError';
 }
 
-const CASTS = ['terraria', 'revised', 'game'] as const;
+const CASTS = ['terraria', 'revised', 'game', 'customers'] as const;
 
 /**
  * Reads the lineup's params, which arrive as untrusted JSON from the
@@ -21,10 +26,14 @@ const CASTS = ['terraria', 'revised', 'game'] as const;
 export function resolveLineup(params: LineupParams | undefined): Lineup {
   const raw: Record<string, unknown> = { ...params };
   const backdrops = ['menu', ...levels.map((level) => level.id)] as const;
-  return {
-    cast: oneOf(raw.cast ?? 'terraria', 'cast', CASTS),
-    backdrop: oneOf(raw.backdrop ?? 'menu', 'backdrop', backdrops),
-  };
+  const cast = oneOf(raw.cast ?? 'terraria', 'cast', CASTS);
+  const backdrop = oneOf(raw.backdrop ?? 'menu', 'backdrop', backdrops);
+  if (cast !== 'customers') {
+    if (raw.customer !== undefined) throw new LineupParamsError('lineup: customer is only for the customers cast');
+    return { cast, backdrop };
+  }
+  const customers = ['game', ...CUSTOMER_CONCEPTS.map((concept) => concept.id)] as const;
+  return { cast, backdrop, customer: oneOf(raw.customer ?? 'game', 'customer', customers) };
 }
 
 function oneOf<T extends string>(value: unknown, name: string, allowed: readonly T[]): T {

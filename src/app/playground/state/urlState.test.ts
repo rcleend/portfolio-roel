@@ -85,6 +85,7 @@ describe('the URL state', () => {
       roels: {},
       skills: {},
       customer: {},
+      'customers-terraria': {},
     });
   });
 });

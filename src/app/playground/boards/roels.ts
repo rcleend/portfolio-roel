@@ -9,7 +9,7 @@ type Backdrop = NonNullable<LineupParams['backdrop']>;
 type Cast = NonNullable<LineupParams['cast']>;
 
 /** What the lineup stands on: the select screen's blueprint paper, where a hero is picked, and every stage. */
-const BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = [
+export const LINEUP_BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = [
   { id: 'menu', title: 'MENU BLUEPRINT' },
   ...levels.map((level) => ({ id: level.id, title: level.city })),
 ];
@@ -60,7 +60,7 @@ export const roelsBoard: Board = {
   title: 'Terraria Roels',
   summary:
     'The Terraria designs and their revision idling next to the classic heroes, on the select screen and on each stage.',
-  rows: BACKDROPS.map(({ id, title }) => ({ subject: lineupSubject(id, title), title })),
+  rows: LINEUP_BACKDROPS.map(({ id, title }) => ({ subject: lineupSubject(id, title), title })),
   compares: 'cast',
   shares: [],
 };
