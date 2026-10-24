@@ -1,0 +1,12 @@
+{
+  "frame": { "w": 24, "h": 24 },
+  "origin": { "x": 12, "y": 12 },
+  "animations": [
+    { "name": "projectile", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "impact", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "muzzle", "fps": 20, "loop": false, "frames": 3 },
+    { "name": "projectile-braces", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "projectile-arrow", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "projectile-semicolon", "fps": 15, "loop": true, "frames": 4 }
+  ]
+}

@@ -53,9 +53,9 @@ describe('parseLookSelection', () => {
     ],
     [
       { skills: { 'power-chord': 'neon' } },
-      'looks.skills.power-chord must be one of classic, arcade, portrait, hibit, got "neon"',
+      'looks.skills.power-chord must be one of classic, arcade, portrait, hibit, terraria, got "neon"',
     ],
-    [{ customer: 7 }, 'looks.customer must be one of classic, arcade, portrait, hibit, got 7'],
+    [{ customer: 7 }, 'looks.customer must be one of classic, arcade, portrait, hibit, terraria, got 7'],
     [{ characters: ['arcade'] }, 'looks.characters must map ids to looks, like {"hackerman":"arcade"}, got ["arcade"]'],
   ])('rejects %j with a clear message', (raw, message) => {
     expect(() => parseLookSelection(raw)).toThrow(new LookSelectionError(message));

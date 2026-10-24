@@ -24,8 +24,8 @@ const CAST: Picker = {
   current: 'game',
 };
 
-/** The lineup never moves; a second's loop gives the transport something to scrub. */
-const STILL: Timeline = { frames: STEP_HZ, loops: true, beats: [] };
+/** The lineup only idles: two seconds take the Terraria designs through one blink. */
+const IDLE: Timeline = { frames: 2 * STEP_HZ, loops: true, beats: [] };
 
 /** The lineup on one backdrop, either cast. */
 function lineupSubject(backdrop: Backdrop, title: string): Subject {
@@ -33,7 +33,7 @@ function lineupSubject(backdrop: Backdrop, title: string): Subject {
     id: `lineup-${backdrop}`,
     label: `Lineup · ${title}`,
     pickers: [CAST],
-    timeline: STILL,
+    timeline: IDLE,
     show: (picks) => ({
       spec: {
         scene: 'lineup',
@@ -47,7 +47,7 @@ function lineupSubject(backdrop: Backdrop, title: string): Subject {
 export const roelsBoard: Board = {
   id: 'roels',
   title: 'Terraria Roels',
-  summary: 'The default designs standing still next to the classic heroes, on the select screen and on each stage.',
+  summary: 'The Terraria designs idling next to the classic heroes, on the select screen and on each stage.',
   rows: BACKDROPS.map(({ id, title }) => ({ subject: lineupSubject(id, title), title })),
   compares: 'cast',
   shares: [],

@@ -10,6 +10,7 @@ This document is the contract between whoever draws a look and the code that loa
 | `arcade`   | Neo Geo / Metal Slug: near-black outline, bold cel shading         |
 | `portrait` | slim, realistic, selective coloured outlines                       |
 | `hibit`    | modern high-fidelity pixel art: rich ramps, lavish effects         |
+| `terraria` | Terraria: classic-sized heroes posed limb by limb (heroes only)    |
 
 Hero ids: `hackerman`, `artsy`, `strategy`. Skill ids: `full-stack-attack`, `agent-summon`, `ux-elixir`, `power-chord`, `north-star`, `churn-shield`. The customer has no id.
 
@@ -60,7 +61,7 @@ src/game/art/looks/<lookId>/
 | skill `icon`        | 24 × 24 | (0, 0)    | `idle`, a subtle loop on a dark slot                                |
 | `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and variants (`projectile-<v>`, `impact-<v>`, `muzzle-<v>`) |
 
-All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall. Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
+All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall, or about 30 in a look drawn at classic's size (`terraria`). Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
 
 ## Index modules
 
@@ -170,9 +171,17 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 - `?scene=specimen&params={"page":1}` shows every hero animation, `{"page":2}` the customer and the icons.
 - `tools/looks/placeholder/generate.py` writes a 64 × 64 hero and customer, a 24 × 24 icon and an attack strip in this format. They are not a look: copy them into a look folder with an `index.ts` to try a layout, and never commit that.
 
-## Terraria designs
+## The Terraria look
 
-The next look starts as still designs, one per hero, to be settled before anything is animated: each hero standing in the style of Terraria. `tools/looks/terraria/generate.py` composes them from hand-placed parts shared the way Terraria shares a player's (far arm, legs and shoes, torso, head, hair, ear, eye, glasses, cap, near arm), so the three are one man in three outfits. The limbs follow Terraria's own sprites at about 5/4 of their art-pixel size: standing, the near arm hangs over the back of the torso from a shoulder beside the jaw, only the far hand shows at the front, and the near leg is the wide one at the back with the far leg a lit sliver ahead of it. Each limb is a part on its own bone with the joint it hangs from, so the animation can move or redraw a limb about that joint and compose every frame from the same parts. It writes `src/game/art/looks/terraria/designs/<hero>.png` + `.json`: one `idle` frame in classic's 32 × 40 hero frame on the feet line, no taller than the classic heroes, so the designs fit today's hitboxes. They are not a look: nothing registers them and the game never loads them; the playground's **Terraria Roels** board shows them through the development lineup (`?scene=lineup`).
+`terraria` draws the three heroes as Terraria players, at classic's size (30 px tall, around the same 12 × 28 hitbox and hand point) in the shared 64 × 64 frames; their skills and the customer are classic's. `tools/looks/terraria/generate.py` composes every frame from hand-placed parts shared the way Terraria shares a player's (far arm, legs and shoes, torso, head, hair, ear, eye, glasses, cap, near arm), so the three are one man in three outfits, and poses them the way Terraria poses its player: a drawing per limb per pose, chosen frame by frame, with the upper body moving as one.
+
+- The limbs follow Terraria's own sprites at about 5/4 of their art-pixel size: standing, the near arm hangs over the back of the torso and only the far hand shows at the front; the near leg is the wide one at the back.
+- `idle` stands still and blinks, as Terraria's player does; `run` is Terraria's 13-frame walk (its leg-sheet frames 7–19, the arm cell it pairs with each, the bob on the first three frames of each stride) at 30 fps; `jump` and `fall` are its one airborne frame, legs split and both arms up; `hurt` is that frame screwed shut and shoved back; `victory` raises a fist and hops.
+- Props exist only while used: the ENGINEER's summoned keyboard, the DESIGNER's white Stratocaster and the STRATEGIST's sticky notes appear in `attack` and `skill` alone. An attack's first frame is the shot leaving, with its `muzzle` there; a skill's first frame is its cast, with `hand` (the prop or the hand) and `mouth` anchors on every frame, and one skill pose suits both of a hero's skills.
+- The head is the same pixels in every frame of every hero: only the eye changes, to blink or to wince.
+- `python3 tools/looks/terraria/review.py` writes GIFs and strips of every animation; `python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria` checks that the committed sheets are what the generator writes, crisp, standing on the feet line, with one head.
+
+The playground's **Terraria Roels** board stands the look's heroes idling beside the classic cast (`?scene=lineup`, `art/looks/terraria/designs.ts`), whatever look the game is set to.
 
 ## Checks
 

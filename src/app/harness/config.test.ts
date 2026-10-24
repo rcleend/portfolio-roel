@@ -32,7 +32,7 @@ describe('readHarnessConfig', () => {
     expect(() => readHarnessConfig('?frames=-1', true)).toThrow(/frames/);
     expect(() => readHarnessConfig('?seed=1.5', true)).toThrow(/seed/);
     expect(() => readHarnessConfig('?looks={"customer":"neon"}', true)).toThrow(
-      new HarnessConfigError('looks.customer must be one of classic, arcade, portrait, hibit, got "neon"'),
+      new HarnessConfigError('looks.customer must be one of classic, arcade, portrait, hibit, terraria, got "neon"'),
     );
   });
 });
