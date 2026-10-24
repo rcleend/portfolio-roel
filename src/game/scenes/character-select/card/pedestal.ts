@@ -1,4 +1,5 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
+import { INK, shadeOf } from '../../title/backdrops/blueprint/inks';
 import type { ClassTheme } from '../classThemes';
 import { cycle } from '../cycle';
 import { fillEllipse, strokeEllipse } from './ellipse';
@@ -7,13 +8,13 @@ const RX = 30;
 const RY = 7;
 const DEPTH = 8;
 
-/** Stone colours: rim light, top face, inner top, then the side from lit to shadowed. */
+/** Stone colours, as blueprint ramp steps: rim light, top face, inner top, then the side from lit to shadowed. */
 const STONE = {
-  rim: '#b3a6f5',
-  top: '#4b3da6',
-  inset: '#3a2f8c',
-  side: ['#33297e', '#261e63', '#1a144a'],
-  shadow: '#120e36',
+  rim: shadeOf(INK.mid),
+  top: shadeOf(5),
+  inset: shadeOf(4),
+  side: [shadeOf(3), shadeOf(2), shadeOf(1)],
+  shadow: shadeOf(0),
 } as const;
 
 /** Glow level per pulse step: up, peak, down, rest — four hard steps a second. */

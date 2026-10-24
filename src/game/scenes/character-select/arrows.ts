@@ -1,16 +1,18 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { bob } from '@/engine/motion/oscillators';
+import { INK, shadeOf } from '../title/backdrops/blueprint/inks';
 import { ARROW_FLASH_SECONDS } from './choreography';
 import { ARROW_LEFT_TIP, ARROW_RIGHT_TIP } from './layout';
 
 const LENGTH = 10;
 
+/** Blueprint inks, as the card's frame is drawn in, and a yellow and white flash. */
 const COLORS = {
-  outline: '#0b0a1f',
-  shadow: '#0b0a1f',
-  light: '#ffffff',
-  lit: '#d9d0ff',
-  shade: '#8f84d8',
+  outline: shadeOf(0),
+  shadow: shadeOf(0),
+  light: shadeOf(INK.hot),
+  lit: shadeOf(INK.pale),
+  shade: shadeOf(INK.ghost),
   flashA: '#ffe14d',
   flashB: '#ffffff',
 } as const;

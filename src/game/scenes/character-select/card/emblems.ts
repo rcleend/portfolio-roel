@@ -1,13 +1,15 @@
 import type { CharacterId } from '@/content';
 import type { PixelArtSheet } from '@/engine/gfx/PixelArt';
 import { pixels } from '@/engine/gfx/PixelArt';
+import { shadeOf } from '../../title/backdrops/blueprint/inks';
 
 /**
  * Large class emblems shown faintly in the spotlight behind each character,
  * the way fighting-game select screens put a team crest behind the fighter:
  * a code bracket for Hackerman, a paint palette for Artsy, a target hit dead
  * centre for Strategy. Two tones only, so they stay scenery and never
- * compete with the character.
+ * compete with the character: the spotlight's core step, which shows only
+ * where the emblem crosses the beam's dimmer bands, and one step above it.
  */
 export type EmblemAnimation = 'still';
 
@@ -112,7 +114,7 @@ const target = pixels(`
 function emblem(rows: string[]): PixelArtSheet<EmblemAnimation> {
   const w = [...(rows[0] ?? '')].length;
   return {
-    palette: { a: '#2b2283', b: '#3a2f9e' },
+    palette: { a: shadeOf(4), b: shadeOf(5) },
     size: { w, h: rows.length },
     origin: { x: Math.floor(w / 2), y: Math.floor(rows.length / 2) },
     animations: { still: { fps: 1, loop: false, frames: [rows] } },
