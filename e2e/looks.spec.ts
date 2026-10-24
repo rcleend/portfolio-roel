@@ -114,9 +114,9 @@ test('loads every registered look and draws every sheet crisply', async ({ page 
 });
 
 /**
- * The lineup loads the Terraria designs itself, outside the look selection:
- * draw each one as the lineup does, crisp, and no taller than the classic
- * heroes, whose height the captain asked them not to outgrow.
+ * The lineup loads the Terraria designs and their revision itself, outside
+ * the look selection: draw each one as the lineup does, crisp, and no taller
+ * than the classic heroes, whose height the captain asked them not to outgrow.
  */
 test('opens the Terraria lineup and draws every design crisply, no taller than the classic heroes', async ({
   page,
@@ -129,7 +129,7 @@ test('opens the Terraria lineup and draws every design crisply, no taller than t
     const loadPath = '/src/game/art/looks/load.ts';
     const selectionPath = '/src/game/art/looks/selection.ts';
     const storePath = '/src/engine/assets/AssetStore.ts';
-    const { TERRARIA_DESIGNS, loadTerrariaDesigns, terrariaDesignSheet } = (await import(
+    const { REVISED_TERRARIA_DESIGNS, TERRARIA_DESIGNS, loadTerrariaDesigns, terrariaDesignSheet } = (await import(
       designsPath
     )) as typeof DesignsModule;
     const { loadLooks } = (await import(loadPath)) as typeof LoadModule;
@@ -156,17 +156,17 @@ test('opens the Terraria lineup and draws every design crisply, no taller than t
       };
     };
     const classic = Object.values(looks.characters).map((look) => measure(look.sheet).height);
-    const designs = TERRARIA_DESIGNS.map((design) => ({
-      hero: design.hero,
+    const designs = [...TERRARIA_DESIGNS, ...REVISED_TERRARIA_DESIGNS].map((design) => ({
+      id: design.id,
       ...measure(terrariaDesignSheet(assets, design)),
     }));
     return { classic: Math.min(...classic), designs };
   });
   expect(report.designs).not.toHaveLength(0);
   for (const design of report.designs) {
-    expect(design.height, design.hero).toBeGreaterThan(0);
-    expect(design.height, design.hero).toBeLessThanOrEqual(report.classic);
-    expect(design.soft, design.hero).toBe(false);
+    expect(design.height, design.id).toBeGreaterThan(0);
+    expect(design.height, design.id).toBeLessThanOrEqual(report.classic);
+    expect(design.soft, design.id).toBe(false);
   }
   expect(await page.evaluate(() => window.__arcade?.state().scene)).toBe('lineup');
   expect(errors).toEqual([]);

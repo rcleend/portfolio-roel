@@ -2,10 +2,11 @@ import { levels } from '@/content';
 import { STEP_HZ } from '@/engine/core/FixedLoop';
 import type { LineupParams } from '@/game/scenes/params';
 import type { Board } from './board';
-import { chosen, type Picker, type Subject } from './subject';
+import { type Choice, chosen, type Picker, type Subject } from './subject';
 import type { Timeline } from './timeline';
 
 type Backdrop = NonNullable<LineupParams['backdrop']>;
+type Cast = NonNullable<LineupParams['cast']>;
 
 /** What the lineup stands on: the select screen's blueprint paper, where a hero is picked, and every stage. */
 const BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = [
@@ -13,21 +14,30 @@ const BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = 
   ...levels.map((level) => ({ id: level.id, title: level.city })),
 ];
 
-/** The cast the game ships, so it is today's pick, beside the designs that may replace it. */
-const CAST: Picker = {
-  id: 'cast',
-  label: 'Cast',
-  choices: [
-    { id: 'game', name: 'Classic', description: 'The three heroes as the game draws them today.' },
-    { id: 'terraria', name: 'Terraria', description: 'The default designs, a classic hero beside them for scale.' },
-  ],
-  current: 'game',
-};
+/**
+ * The cast the game ships, so it is today's pick, beside the Terraria designs that may replace it: the look's
+ * as they are, and the revision drawn to compare with them. Each choice's id is the lineup's cast.
+ */
+const CASTS: readonly (Choice & { readonly id: Cast })[] = [
+  { id: 'game', name: 'Classic', description: 'The three heroes as the game draws them today.' },
+  {
+    id: 'terraria',
+    name: 'Terraria · current',
+    description: 'The Terraria designs as they are, a classic hero beside them for scale.',
+  },
+  {
+    id: 'revised',
+    name: 'Terraria · revised',
+    description: 'Swept hair, cleaner glasses and a cap with one spot, then the ENGINEER with his hood up.',
+  },
+];
+
+const CAST: Picker = { id: 'cast', label: 'Cast', choices: CASTS, current: 'game' };
 
 /** The lineup only idles: two seconds take the Terraria designs through one blink. */
 const IDLE: Timeline = { frames: 2 * STEP_HZ, loops: true, beats: [] };
 
-/** The lineup on one backdrop, either cast. */
+/** The lineup on one backdrop, any cast. */
 function lineupSubject(backdrop: Backdrop, title: string): Subject {
   return {
     id: `lineup-${backdrop}`,
@@ -37,7 +47,7 @@ function lineupSubject(backdrop: Backdrop, title: string): Subject {
     show: (picks) => ({
       spec: {
         scene: 'lineup',
-        params: { cast: chosen(CAST, picks).id === 'terraria' ? 'terraria' : 'game', backdrop },
+        params: { cast: CASTS.find((cast) => cast.id === chosen(CAST, picks).id)?.id ?? 'game', backdrop },
       },
       looks: {},
     }),
@@ -47,7 +57,8 @@ function lineupSubject(backdrop: Backdrop, title: string): Subject {
 export const roelsBoard: Board = {
   id: 'roels',
   title: 'Terraria Roels',
-  summary: 'The Terraria designs idling next to the classic heroes, on the select screen and on each stage.',
+  summary:
+    'The Terraria designs and their revision idling next to the classic heroes, on the select screen and on each stage.',
   rows: BACKDROPS.map(({ id, title }) => ({ subject: lineupSubject(id, title), title })),
   compares: 'cast',
   shares: [],

@@ -116,13 +116,14 @@ describe('the looks boards', () => {
 });
 
 describe('the Terraria Roels board', () => {
-  it('stands the classic cast, marked current, beside the Terraria designs on the select screen and every stage', () => {
+  it('stands the classic cast, marked current, beside the Terraria designs and their revision on every backdrop', () => {
     const rows = boardRows(roelsBoard, {});
     expect(rows.map(({ row }) => row.title)).toEqual(['MENU BLUEPRINT', ...levels.map((level) => level.city)]);
     for (const { tiles } of rows) {
       expect(tiles.map((tile) => [tile.choice.id, tile.current])).toEqual([
         ['game', true],
         ['terraria', false],
+        ['revised', false],
       ]);
     }
     const [menu, stage] = rows;
@@ -132,6 +133,10 @@ describe('the Terraria Roels board', () => {
     });
     expect(stage?.tiles[0]?.row.subject.show(stage.tiles[0].picks)).toEqual({
       spec: { scene: 'lineup', params: { cast: 'game', backdrop: levels[0]?.id } },
+      looks: {},
+    });
+    expect(stage?.tiles[2]?.row.subject.show(stage.tiles[2].picks)).toEqual({
+      spec: { scene: 'lineup', params: { cast: 'revised', backdrop: levels[0]?.id } },
       looks: {},
     });
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { characters } from '@/content';
-import { TERRARIA_DESIGNS } from '../../art/looks/terraria/designs';
+import { REVISED_TERRARIA_DESIGNS, TERRARIA_DESIGNS } from '../../art/looks/terraria/designs';
 import { standsFor, standX } from './cast';
 
 describe('the lineup cast', () => {
@@ -9,6 +9,13 @@ describe('the lineup cast', () => {
     expect(scale).toEqual({ hero: 'hackerman', design: null, scale: true });
     expect(designs.map((stand) => stand.design)).toEqual(TERRARIA_DESIGNS);
     expect(designs.map((stand) => stand.hero)).toEqual(TERRARIA_DESIGNS.map((design) => design.hero));
+  });
+
+  it('stands the revised designs, the hooded ENGINEER last, beside the same hero for scale', () => {
+    const [scale, ...designs] = standsFor('revised');
+    expect(scale).toEqual({ hero: 'hackerman', design: null, scale: true });
+    expect(designs.map((stand) => stand.design)).toEqual(REVISED_TERRARIA_DESIGNS);
+    expect(designs.map((stand) => stand.hero)).toEqual(REVISED_TERRARIA_DESIGNS.map((design) => design.hero));
   });
 
   it('stands every hero as the game draws them, in the select order', () => {

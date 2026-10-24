@@ -39,7 +39,8 @@ interface Figure {
  * by side at native size, each labelled under its feet, on the select
  * screen's blueprint paper or on a stage. `{"cast":"terraria"}` (the default) stands the
  * Terraria designs (art/looks/terraria/designs.ts) beside the game's ENGINEER
- * for scale; `{"cast":"game"}` the three heroes as the game draws them. The
+ * for scale, `{"cast":"revised"}` their revision, a design's variant named
+ * under it; `{"cast":"game"}` the three heroes as the game draws them. The
  * designs load with whoever opens the scene (`preloadSceneArt`). Everyone
  * plays their idle on the scene's own clock, so a design blinks as it will in
  * the game; nothing else moves.
@@ -68,7 +69,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
           sheet: terrariaDesignSheet(assets, stand.design),
           label: hero.className,
           color: accent,
-          caption: null,
+          caption: stand.design.variant,
         };
       }
       const look = looks.characters[stand.hero];

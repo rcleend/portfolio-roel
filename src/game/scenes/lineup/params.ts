@@ -3,7 +3,7 @@ import type { LineupParams } from '../params';
 
 /** What the lineup shows, resolved from its params. */
 export interface Lineup {
-  readonly cast: 'terraria' | 'game';
+  readonly cast: 'terraria' | 'revised' | 'game';
   readonly backdrop: 'menu' | LevelId;
 }
 
@@ -11,7 +11,7 @@ export class LineupParamsError extends Error {
   override readonly name = 'LineupParamsError';
 }
 
-const CASTS = ['terraria', 'game'] as const;
+const CASTS = ['terraria', 'revised', 'game'] as const;
 
 /**
  * Reads the lineup's params, which arrive as untrusted JSON from the
