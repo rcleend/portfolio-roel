@@ -30,7 +30,8 @@ await room.ready;          // assets loaded and the first frame drawn (TV dark, 
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
 game.start();              // or surface.resume(); the boot scene's first frame lands on a live tube
 
-room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc'
+room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc', as the camera sets off
+room.onSettle((view) => showChip(view));       // as it comes to rest
 room.setFramingInsets({ top: 0, right: 0, bottom: touchPadHeight, left: 0 }); // keep the TV clear of overlays
 room.onAnchorsChange((anchors) => placeHotspots(anchors)); // where the TV and the computer sit in the room view
 // room.showRoom() / room.focusTv() / room.focusPc() for navigation.
@@ -71,13 +72,15 @@ interface CreateRoomOptions {
 interface Room {
   readonly ready: Promise<void>;
   readonly view: RoomView;                 // 'tv' | 'room' | 'pc', at or flying to
+  readonly settled: boolean;               // the camera rests at `view`
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
   powerOn(): Promise<void>;
   powerOff(): Promise<void>;
   focusTv(): void;
   showRoom(): void;
   focusPc(): void;                         // straight in front of the monitor; the game stays paused
-  onViewChange(listener: (view: RoomView) => void): () => void;
+  onViewChange(listener: (view: RoomView) => void): () => void;   // as the camera sets off
+  onSettle(listener: (view: RoomView) => void): () => void;       // as it comes to rest
   setFramingInsets(insets: FramingInsets): void;   // CSS px covered by overlays
   registerInteractable(interactable: Interactable): () => void;
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
@@ -98,8 +101,15 @@ interface PcMonitor {
   invalidateStill(): void;                 // repainted in the background, before the PC is next seen up close
   setLight(color: RgbColor | null): void;  // light the screen spills while live differs from the still
 }
-type StillPainter = (context: CanvasRenderingContext2D, request: StillRequest) => void;
-interface StillRequest { width: number; height: number; placement: ScreenRect } // canvas px of the picture
+interface StillPainter {
+  (context: CanvasRenderingContext2D, request: StillRequest): void;
+  prepare?(request: StillRequest): Iterable<void>;  // the first paint's one-time work, a unit per yield
+}
+interface StillRequest {
+  width: number; height: number;           // canvas px of the picture
+  placement: ScreenRect;                   // the live screen's rectangle
+  cpuCanvas: boolean;                      // a software GPU: make canvases painted ahead CPU ones
+}
 
 interface PropAnchor {                     // RoomTarget = 'tv' | 'pc'
   target: RoomTarget;
@@ -137,8 +147,9 @@ room/
   stage/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, DPR/buffer caps, resize, context loss
     RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame
-    IdleWork.ts         work ahead of need, in small units on idle time, never while anything on screen moves
-    sceneTextures.ts    every texture of the scene: anisotropy, disposal, and the upload ahead of the first flights
+    IdleWork.ts         work ahead of need, in small units on idle time: never in motion, never making a frame late
+    softwareGpu.ts      pure: whether the GPU is software (2D canvases then paint on the CPU)
+    sceneTextures.ts    every texture of the scene: anisotropy, disposal, and the upload of those no frame has drawn
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
     roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
@@ -227,13 +238,21 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
   Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, **0** while seated at the computer (the lava lamp is out of shot; the live screen is DOM).
   In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
-- **Work ahead of need.** `IdleWork` runs small units of background work in idle callbacks, from the first frame on and never while the camera flies or the TV powers on or off (a unit invisible on a still frame is a dropped frame in motion). One callback runs units until its idle period is spent, always at least one. The room queues, in this order:
-  - **Every texture's upload** (`sceneTextures.ts`), one per unit. three uploads a texture the first time a frame draws it and the TV view draws only part of the attic, so the first look around would otherwise upload four 2048² atlases mid-flight (≈ 25 ms each) and, on a phone, the first flight to the computer two more. The uploads land while the loading screen fades out; under reduced motion (no fade) they land in idle moments of the TV view.
-  - **The pick chunks** (below), in units of about 4096 triangles.
+- **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
+  - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs, since a unit invisible on a still frame is a dropped frame in motion;
+  - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, the longest so far), so no frame is late; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait;
+  - otherwise (the dark TV behind the loading screen, a paused game, the room view): units run until the idle period is spent, always at least one.
+
+  On a device too slow to fit a unit between the game's frames the work waits for a quiet moment, or for the flight that needs it. The room queues:
+  - **The pick chunks** (below), for quiet moments: the loading screen's fade and the room view.
+  - **The monitor's glass finish**, in bands of 32 rows (17-50 ms in all on a phone twenty times slower than a laptop).
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
-- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), done in the background after the first frame; until then rays test the whole meshes (from the TV, rays point away from the desk).
-- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 29 ms from pointerup to the first flight frame (27 ms before the computer existed), with a 7 ms pointerup handler: the still is painted already. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
-- **First frame.** The background work starts after it: 1018 ms at 6× (1030 ms before the computer existed), 1083 ms on a phone at 6× (1078 ms), 211 ms at 1× (205 ms).
+  - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, for quiet moments, once the visitor first leaves the TV. three uploads a texture the first time a frame draws it: the TV view's own are on the GPU with the first frame; the first look around draws (and uploads) the rest of the room mid-flight, as it did before the computer; and the room view's quiet uploads what only the flight to the computer draws (two 2048² atlases on a portrait phone, 27-36 ms each at 6× CPU). A visitor who stays at the TV never allocates the room's other atlases: 97.8 MB of textures at the TV, as before the computer, against 221 MB once the room has been seen.
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), in units of 4096 triangle visits in quiet moments after the first frame (under the loading screen's fade, else in the room view); until then rays test the whole meshes (from the TV, rays point away from the desk).
+- **Software GPUs.** Where the GPU is software (SwiftShader, llvmpipe: `softwareGpu.ts` reads the renderer's name), a 2D canvas the browser accelerates queues its raster behind the room's frames on the same CPU: the computer's first wallpaper paint took the running game 1.1 s there. The monitor then paints its still and glass finish on CPU canvases (`willReadFrequently`) and asks the app's painter to do the same (`StillRequest.cpuCanvas`), so the work lands on the main thread, 7 ms of it, in the idle moments the room chooses.
+- **The game and the TV's turn-on stay as they were** (production builds, 3-6 runs each against the build before the computer): at 20× CPU on a phone, the game's first 3 s run at 52-61 frames/s with a worst frame gap of 21-32 ms (before: 54-60, 20-32 ms) and the turn-on's worst gap is 83-92 ms (81-89 ms), with no long task in either; under SwiftShader the game's longest frame is 82-139 ms (90-205 ms) and nothing freezes it; at 6× the game's worst gap is 11-18 ms (10-17 ms).
+- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 26 ms from pointerup to the first flight frame (26 ms before the computer existed): the still was prepared between the game's frames and only its upload is left for the click. On a phone twenty times slower than a laptop no unit fits between the game's frames, and the first leave pays the still once, about 110-125 ms after the game has paused and before the camera moves. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
+- **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
 - **Cost.** Revision 6 uses 57 draw calls and ~337 k triangles in the room view, plus 3 for the monitor's light spill once it shows a still; the TV view culls most of the room. The five runtime GLBs and credits total 6.97 MB, with 44.84 million decoded texture pixels. The additional geometry refines the original chair, furniture edges and floorboards; static devices no longer need PBR lights or an environment capture.
@@ -253,7 +272,7 @@ The room owns the monitor as a device and knows nothing about what the app shows
 - **Glass contract.** `pc-base.glb`'s `PC_Interactive_Screen_base` (`interaction_id "pc-screen"`, `replaceable_screen`) faces +Z with planar UVs (v = 0 at the top); `pnpm verify:room` asserts both (within 0.5° and 0.002), because the flat DOM screen and the projector UVs depend on them. Bounds x −1.518…−1.162, y 0.929…1.213, z −1.679…−1.668 (11 mm of bulge); the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`), everything else is found at runtime.
 - **Camera.** `pcViewpoint` looks exactly along −facing (zero pitch, yaw and roll) and fits the glass plus 18 mm of bezel (30 mm chin) into the whole viewport with a 2 % margin, starting at a 30° lens and widening while the eye would be further than 0.72 m from the glass (it stays clear of the chair). Clicking outside the computer is a way back to the room, so the frame always leaves 6 % of room beyond the CRT shell, on both sides of it or above it, whichever keeps the picture larger: wide and tall screens already do; squarer ones (4:3, 5:4, a window that is not maximised) step back for it, so 1024 × 768 shows the window and the wall beside the monitor round a 635 × 499 picture. Flights to and from it take the usual 1.1 s on a crane path (control point halfway across, 5 cm above the higher eye, at the desk eye's depth) that clears the chair back by 27 cm (landscape) to 18 cm (portrait); arriving, the look-at reaches the glass at 82 % of the flight, so the landing is a pure settle.
 - **Material.** The glass keeps its baked unlit `MeshBasicMaterial`, cloned with only its `map` swapped, so the computer compiles no shader program (7 in the lab after the first room view, before and after). The baked 2048² desktop picture is disposed and its `ImageBitmap` closed at assembly, before it could ever be uploaded.
-- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture` the moment it is painted. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is painted in the background (`IdleWork`): the glass finish in one unit, then the still and its upload, as soon as the app hands over a painter (the glass is out of sight at the TV, so the first leave from the TV has nothing left to do), and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen. A flight that starts before the background got there paints first: any flight when nothing is painted yet, a flight to or from the computer when the still is stale. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
+- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture`. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is made in the background (`IdleWork`) as soon as the app hands over a painter, and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen: the painter's own preparation (`StillPainter.prepare`, its fonts and wallpaper) and the composition are units that may go between the game's frames, and the upload waits for a quiet moment, so the TV view allocates nothing for it. A flight that starts before the background got there finishes the job first (what is left of it, usually the upload): any flight when nothing is shown yet, a flight to or from the computer when the still is stale; and a still that went stale on the way in (a resize, the clock's minute) is repainted on the landing frame, before the live screen fades in over it. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
 - **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 2.1/255 on average (lab test card, 1440 × 900 @2).
 - **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the room draws nothing; `setLight` (e.g. a white page) renders one frame of brighter spill.
 - **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour. The bezel's emitter has the picture's rounded corners, so the corners catch the same light as the border along the edges.
@@ -281,6 +300,6 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 - `TV_SCREEN_APERTURE` is a measured constant; re-run `scripts/inspect-tv-screen.mjs` after a TV asset change.
 - `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
 - Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
-- Under software GL the room is fill-bound everywhere (flights 6–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. On a main thread that slow, the screen's idle prefetch can land during the flight to the computer when the visitor clicks it within about 2.5 s of looking around (a 145 ms task at 1× under SwiftShader).
-- Uploading every texture ahead of need allocates the four atlases only the room view needs (about 90 MB of GPU memory with mips) for visitors who never leave the TV too; a texture tier for low-memory devices is a room-wide follow-up.
+- Under software GL the room is fill-bound everywhere (flights 5–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. The first frame under SwiftShader comes about 60 ms later than before the computer (it did in the previous round too).
+- The first look around uploads the room's atlases the TV view never drew in the middle of its flight (as before the computer: a few frames over 34 ms at 6×, a 277 ms task at the reduced-motion cut). Uploading them ahead at the TV would cost every visitor ~120 MB of GPU memory and, on weak or software GPUs, frames of the game; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap enough for both and cut texture memory by about four, a room-wide follow-up.
 - Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.

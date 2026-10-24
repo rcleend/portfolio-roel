@@ -17,20 +17,21 @@ Nothing is downloaded on first load beyond about 0.8 kB of glue.
 | `screen` | Content slot positioned exactly over the picture (container CSS px), clipped with rounded corners, the room's glass-finish canvas on top. Visibility-hidden unless `live`. |
 | `placement`, `onPlacementChange` | The picture's rectangle when the camera rests at the PC, for the current viewport; `left`/`top` snapped to device pixels. |
 | `live`, `onLiveChange` | True from the landing frame until the camera is asked to leave. The room fades the slot in over 160 ms as it turns true, and hides it synchronously as it turns false. |
-| `setStill(painter)` | What the glass shows whenever the live screen does not. The room calls the painter in the background as soon as it has it (the glass is out of sight at the TV, so the first leave from the TV has nothing to paint), and again whenever the still is out of date while the glass can be seen. |
+| `setStill(painter)` | What the glass shows whenever the live screen does not. The room prepares and paints it in the background as soon as it has the painter, in idle moments between the game's frames that can hold the work, and uploads it once nothing plays or with the first flight away from the TV; again whenever the still is out of date while the glass can be seen (docs/ROOM.md › Work ahead of need). |
 | `invalidateStill()` | The still's content changed (the clock's minute): repainted in the background, before the PC is next seen up close. |
 | `setLight(color)` | The light the monitor spills while the live screen differs from the still (the white page); one WebGL frame; cleared by the room on conceal. |
 
-A `StillPainter` gets a context whose origin is the picture's top-left, clipped to it, and `{ width, height, placement }` (canvas px of the picture, and the live screen's CSS size).
+A `StillPainter` gets a context whose origin is the picture's top-left, clipped to it, and `{ width, height, placement, cpuCanvas }` (canvas px of the picture, the live screen's CSS size, and whether to make any canvas it paints ahead a CPU one: true on a software GPU, where an accelerated canvas's raster would stall the game's frames).
 It composes transforms only (`save`/`scale`/`translate`/`restore`) and never reads pixels.
+Its optional `prepare(request)` is the first paint's one-time work in small units, each `yield` ending one; the room runs them ahead of the first paint. `paintDesktop` prepares the wallpaper's bitmap and the first use of its two fonts (5 ms each on a phone six times slower than a laptop), so the paint itself is a few milliseconds.
 
 `PcSlot` (`PcSlot.tsx`) is the only module the room host imports:
 
 ```tsx
-<PcSlot display={room?.pc ?? null} view={view} powered={tvOn} onLeave={() => room?.showRoom()} onFocusStage={focusStage} />
+<PcSlot display={room?.pc ?? null} view={view} settled={settled} powered={tvOn} onLeave={leaveComputer} onFocusStage={focusStage} />
 ```
 
-`powered` turns true once `room.powerOn()` has resolved and the game runs, never while the TV turns on: nothing for the computer may compete with the CRT turn-on and the boot's first frame (`e2e/pc-flow.spec.ts` checks every PC request starts after `#game` runs).
+`powered` turns true once `room.powerOn()` has resolved and the game runs, never while the TV turns on: nothing for the computer may compete with the CRT turn-on and the boot's first frame (`e2e/pc-flow.spec.ts` checks every PC request starts after `#game` runs). `settled` is true while the camera rests at `view` (`room.onSettle`): the screen's prefetch waits for the landing in the room view, so it never lands in a flight. The callbacks are stable (`useCallback`) and `PcExperience` is memoised, so the view changes the room host renders inside a click never re-render the screen.
 
 It renders portals only and is a sibling of the stage, outside `role="application"`, so React events from the screen never reach the stage's handlers.
 The room host owns Escape on the stage element; the screen handles Escape only from its own roots (the screen's content root and the pop-out's dialog).
@@ -41,12 +42,12 @@ The room host owns Escape on the stage element; the screen handles Escape only f
 | --- | --- | --- |
 | main bundle | `PcSlot.tsx`, `whenIdle.ts`, `display.ts` types | first load |
 | `pcStill-*` (`still/pcStill.ts`) | desktop layout, tokens, icon art, wallpaper, chrome painter | `whenIdle` once the room is ready and the TV's picture is up (also with Save-Data: it keeps the monitor from showing a dead tube) |
-| `PcExperience-*` (`PcExperience.tsx` + CSS) | live desktop, storyboard, cursors, splash, reader, pages, pop-out | `whenIdle` the first time the view becomes `room` (skipped with Save-Data); at once when the view becomes `pc`, hidden by the 1.1 s flight |
+| `PcExperience-*` (`PcExperience.tsx` + CSS) | live desktop, storyboard, cursors, splash, reader, pages, pop-out | `whenIdle` once the camera first lands in the room view (skipped with Save-Data); at once when the view becomes `pc`, hidden by the 1.1 s flight |
 
 `whenIdle` is `requestIdleCallback` with a 2 s timeout (a 200 ms timeout where it does not exist).
 Once loaded, `PcExperience` stays mounted in `display.screen` (hidden by the room while not live) so the desktop is ready for every landing; the reader mounts only for each visit.
 If it arrives after the screen is already live, it fades its own root in over 160 ms and starts the storyboard on mount.
-If the chunk fails to load, the screen shows a small message box, "The document could not be opened.", with a link to the semantic résumé (`#resume`), and Escape or a click outside still leaves. That stays so for the page load: browsers keep a failed dynamic import failed, so asking again would fail without a request.
+If the chunk fails to load, the screen shows a small message box, "The document could not be opened.", with a link to the semantic résumé (`#resume`). A click outside leaves, and so does Escape, from the stage, the link or the box (a click focuses it), handing the keys back to the stage. That stays so for the page load, and is said once: browsers keep a failed dynamic import failed, so asking again would fail without a request.
 
 ## Presentation (`presentation.ts`, `desktop/desktopScale.ts`)
 
@@ -104,8 +105,9 @@ First visit in a page load (readable at 1.85 s; reader ready measured at 1.88 s 
 - **Reduced motion**: no scripted cursor, glides, fades or zooms (`document.getAnimations()` stays empty). The first visit shows the splash standing still ("Opening Roel Leenders CV.pdf…") and opens at max(400, ready); warm visits open as soon as the reader is ready.
 - **Pop-out**: identical inside the glass up to `opening`; at +150 the full-viewport reader grows out of the in-glass window with a FLIP (280 ms, `cubic-bezier(.2, .8, .2, 1)`, transform only) over a scrim fading to `rgb(0 0 0 / 0.6)`, `reader` at +430. Reduced motion cuts.
 - **Skip**: a pointer press inside the screen or the pop-out, or any key but Tab, Shift, Escape or a lone modifier, cancels every animation and jumps to the reader (through the splash while it is still mounting). Browser and system shortcuts (anything with Ctrl, ⌘ or Alt, and the function keys) neither skip nor lose their default. The page becoming hidden skips too.
-- **Interrupted**: `live` turning false cancels every timer and animation, unmounts the reader, remembers zoom and scroll, and hands focus back to the stage if it was inside the screen.
-- **Closing** (close button or Escape): the window and its taskbar button vanish at once (in the pop-out after shrinking back into the glass, 200 ms), the light is cleared, and 200 ms later `onLeave()`. A repeated close is ignored.
+- **Interrupted**: `live` turning false cancels every timer and animation, remembers zoom and scroll, and hands focus back to the stage if it was inside the screen (or stranded on the page by a pane that unmounted); the reader then unmounts in a transition, after the flight's first frame.
+- **Closing** (close button or Escape): the window and its taskbar button vanish at once (in the pop-out after shrinking back into the glass, 200 ms), the CV icon is deselected (the still the camera pulls back over has no selection), the light is cleared, and 200 ms later `onLeave()`. A repeated close is ignored.
+- **A resize mid-startup** that moves the window between the glass and the pop-out: what follows the opening (the page fading in, or the breakout) is chosen when the window opens, for the mode it opens in.
 
 ## The reader (`reader/`)
 
@@ -114,8 +116,8 @@ First visit in a page load (readable at 1.85 s; reader ready measured at 1.88 s 
 - **Title bar**: the blue gradient, square-cornered because the window is maximised, the reader's mark (a white folded sheet on a red square), bold 13 px Trebuchet title with ellipsis; minimise and restore are decoration; close is a real `<button aria-label="Close the résumé">` whose hit area is 44 × 44 CSS px at any scale, growing from the window's (and the screen's) top-right corner to the left and down.
 - **Menus** (File … Help) and the navigation strip's Bookmarks and Pages tabs are decoration.
 - **Toolbar**: Save a Copy, Hand and Select are decoration; Print (`window.print()`, which prints the semantic résumé; every PC layer is `display: none` in print), Email (`mailto:`), Zoom out, the zoom field (50–200 %, Fit Width, Reflow), Zoom in, Fit Width and Reflow form one `role="toolbar"` with a roving tabindex.
-- **Document pane**: `role="document"`, `aria-label="Roel Leenders' résumé"`, focusable for native keyboard scrolling (a click on the monitor's bezel or keyboard leaves the focus there); grey, with the pages centred 12 px apart; native pinch zoom stays the browser's. A4 pages are laid out once at 794 × 1123 and scaled with a transform inside a box sized to them, so zooming never re-lays out or re-paginates. Reflow re-typesets the same page groups at the pane's width, 16 CSS px, at most 68 ch per line.
-- **Status bar**: 8.27 × 11.69 in, first / previous / "n of N" / next / last (the page from an IntersectionObserver band across the pane's middle, no scroll listeners), decorative layout buttons.
+- **Document pane**: `role="document"`, `aria-label="Roel Leenders' résumé"`, focusable for native keyboard scrolling (a click on the monitor's bezel or keyboard leaves the focus there), with a focus ring of a 1 px black line round a 2 px white one (each over 3:1 against the grey); grey, with the pages centred 12 px apart; native pinch zoom stays the browser's. A4 pages are laid out once at 794 × 1123 and scaled with a transform inside a box sized to them, so zooming never re-lays out or re-paginates. Reflow re-typesets the same page groups at the pane's width, 16 CSS px, at most 68 ch per line.
+- **Status bar**: 8.27 × 11.69 in, first / previous / "n of N" / next / last (the page from an IntersectionObserver band across the pane's middle, no scroll listeners; the 20 px buttons are 25 px apart, WCAG 2.5.8's spacing for small targets), decorative layout buttons.
 - **Dialog**: `role="dialog"`, `aria-modal`, labelled by the title; Tab cycles close → toolbar → document → its links → page buttons → close. Before it opens, focus rests on the screen's root, a section labelled "Computer screen".
 - **Cursors** (`cursors.ts`): an original arrow and busy arrow as SVG data URIs over the screen; `text` over page text and `pointer` over links.
 - **Splash** (first visit, or while a skip waits): 360 × 220 layout px, a diagonal red gradient with a lighter arc, the folded-sheet mark, "Document Reader 7.0", the status line and "A lookalike by Roel Leenders".
@@ -153,11 +155,13 @@ Clicking outside the monitor leaves, like the room. `window.__pcLab` lands, leav
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS (with `PcSlot`, the hotspots, without the old navigation bar) | baseline + 1.0 kB | + 0.99 kB |
-| Entry CSS | baseline + 0.5 kB | + 0.30 kB |
-| Room chunk (the monitor; chunked picking, the idle-time work and the framing round the computer: docs/ROOM.md) | baseline + 6.7 kB | + 6.61 kB |
-| `pcStill` closure | 5 kB | 4.99 kB |
-| `PcExperience` closure, JS + CSS | 25 kB, no three.js | 19.2 kB |
+| Entry JS (with `PcSlot`, the hotspots, the landing signal, without the old navigation bar) | baseline + 1.06 kB (spec: + 1.0) | + 1.03 kB |
+| Entry CSS | baseline + 0.5 kB | + 0.29 kB |
+| Room chunk (the monitor; chunked picking, the idle-time work and its scheduling, the framing round the computer: docs/ROOM.md) | baseline + 7.6 kB (spec: + 5.0) | + 7.55 kB |
+| `pcStill` closure (with the still's preparation in idle units) | 5.15 kB (spec: 5) | 5.11 kB |
+| `PcExperience` closure, JS + CSS | 25 kB, no three.js | 19.4 kB |
+
+The three budgets over the spec's wait for the captain's word: what they hold is listed in `bundle-budgets.json`.
 
 Measured in the app (production build, Chromium on an M-series Mac; readable times on a paused clock, `e2e/pc-flow.spec.ts`):
 
@@ -166,10 +170,11 @@ Measured in the app (production build, Chromium on an M-series Mac; readable tim
 | Readable after landing: first visit / warm / reduced motion | 1.87 s / 0.59 s / 0.42 s | |
 | Reader mount, first visit / warm | 15 ms / 4 ms | 79 ms / 14 ms |
 | Long tasks over 50 ms from the click on the computer until it is left again | none | none |
-| First leave from the TV: pointerup → first flight frame (still painted in the background) | | 29 ms (27 ms before the computer) |
-| Phone (375 × 667): textures uploaded during the first flight to the computer | none | none (two 2048² atlases, 37 ms each, before) |
+| First leave from the TV: pointerup → first flight frame (the still prepared between the game's frames, its upload left for the click) | | 26 ms (26 ms before the computer); 110-125 ms more at 20× on a phone, where nothing fits between the game's frames |
+| Phone (375 × 667): textures uploaded during the first flight to the computer, after the room view's quiet | none | none (two 2048² atlases, 37 ms each, before) |
 | WebGL frames from the landing to the open reader / while reading or scrolling | 1 / 0 | |
 | Hand-off, still vs live desktop on the landing frame (1440 × 900, 1280 × 720, 390 × 844, all at DPR 2) | mean \|Δ\| 0.66–0.80 / 255, only at edges (the still's texture is coarser than the page) | |
+| Hand-off in the 200 ms beat after the close button (1440 × 900 at DPR 2) | mean \|Δ\| 0.66–0.71 / 255, the CV icon deselected on both | |
 
 Measured in the production lab (Chromium, M-series Mac):
 
@@ -178,7 +183,7 @@ Measured in the production lab (Chromium, M-series Mac):
 | Reader mount, first visit (`performance.measure('pc-reader-mount')`) | 15 ms | 90 ms, no task over 50 ms |
 | Reader mount, warm | 4 ms | 22 ms |
 | Readable after landing, first / warm | 1.87 s / 0.59 s | 1.88 s / 0.61 s |
-| First still paint with the wallpaper (GPU canvas, main thread; the room does it in the background at the TV) | 9 ms | 24 ms, of which 12 ms the first use of the fonts |
+| First still, in the room's idle units (main thread): the wallpaper, each font's first use, the composition | 9 ms in all | 5-7, 5-11 and 6 ms |
 | Still repaint (the clock's minute) | < 1 ms | 2 ms |
 | Hand-off, still vs live desktop (lab, 1440 × 900 at DPR 1 and 2, 390 × 844 at DPR 3) | mean \|Δ\| 0.2–0.95 / 255 | |
 
