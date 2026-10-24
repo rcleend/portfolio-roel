@@ -145,8 +145,9 @@ export class MusicElement {
 
   /** Fades the playing disc out over `ms`, then starts `url` silently (the element is already allowed to play). */
   swapSilently(url: string, ms: number): void {
-    this.#fade(0, ms, () => this.startSilently(url));
+    // Remembered before the fade, which ends at once where volume is read-only (iOS) and then starts `url` itself.
     this.#swapTo = url;
+    this.#fade(0, ms, () => this.startSilently(url));
   }
 
   /**

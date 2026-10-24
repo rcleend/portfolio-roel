@@ -8,7 +8,8 @@ import type { AudioLike, FrameClock } from './MusicElement';
 
 /** An audio element that plays at once (or refuses, with `refuse`) and records every call. */
 export class FakeAudio implements AudioLike {
-  src = '';
+  /** Every source assigned, in order: each one is a new request for the browser. */
+  readonly sources: string[] = [];
   currentTime = 0;
   muted = false;
   preload = 'none';
@@ -19,10 +20,20 @@ export class FakeAudio implements AudioLike {
   readonly log: string[] = [];
   readonly #writable: boolean;
   #volume = 1;
+  #src = '';
   readonly #listeners = new Map<string, Set<() => void>>();
 
   constructor(options: { readonly writableVolume?: boolean } = {}) {
     this.#writable = options.writableVolume ?? true;
+  }
+
+  get src(): string {
+    return this.#src;
+  }
+
+  set src(url: string) {
+    this.#src = url;
+    this.sources.push(url);
   }
 
   get volume(): number {

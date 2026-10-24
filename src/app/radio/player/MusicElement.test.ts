@@ -182,6 +182,18 @@ describe('MusicElement', () => {
     expect(audio.log.filter((entry) => entry.startsWith('play'))).toEqual(['play /a/01.m4a', 'play /b/01.m4a']);
   });
 
+  it('requests the new disc once where volume is read-only: the instant fade starts it, the seat only opens it', () => {
+    const { music, audio } = setup({ writableVolume: false });
+    music.play('/a/01.m4a', 0, 1, 0);
+    music.swapSilently('/b/01.m4a', 250);
+    expect(audio.src).toBe('/b/01.m4a');
+    music.open(1, 120);
+    // A second assignment would throw away what streamed since the pick and play outside the gesture again.
+    expect(audio.sources).toEqual(['/a/01.m4a', '/b/01.m4a']);
+    expect(audio.log.filter((entry) => entry.startsWith('play'))).toEqual(['play /a/01.m4a', 'play /b/01.m4a']);
+    expect(audio.muted).toBe(false);
+  });
+
   it('tells an outside pause from its own and from the end of a track', () => {
     const { music, audio, events } = setup();
     music.play('/a/01.m4a', 0, 1, 0);
