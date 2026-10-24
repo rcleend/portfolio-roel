@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Review boards for the Terraria look, rendered from the committed sheets (what ships, not the recipe).
 
-    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR]
+    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR] [--revised]
 
-Writes, at whole-pixel zoom on a dark stage with the feet line marked:
+Writes, at whole-pixel zoom on a dark stage with the feet line marked (--revised: for the revision's designs
+in revised/ rather than the look's heroes, named by design):
   gif/<hero>-<animation>-x1.gif and -x4.gif   each animation at its own frame rate
   strip/<hero>-<animation>-x1.png and -x4.png its frames left to right
   sheet-<hero>-x2.png                         the whole sheet with its anchors marked
@@ -21,15 +22,16 @@ from typing import List, Tuple
 from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
-LOOK = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks' / 'terraria' / 'characters'
+ART = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks' / 'terraria'
+LOOK = ART / 'characters'
 STAGE = (43, 53, 80, 255)
 FLOOR = (92, 104, 140, 255)
 MARK = (255, 220, 0, 255)
 
 
-def load(hero: str, stem: str) -> Tuple[Image.Image, dict]:
-    with Image.open(LOOK / hero / f'{stem}.png') as image:
-        return image.convert('RGBA'), json.loads((LOOK / hero / f'{stem}.json').read_text())
+def load(hero: str, stem: str, folder: Path = LOOK) -> Tuple[Image.Image, dict]:
+    with Image.open(folder / hero / f'{stem}.png') as image:
+        return image.convert('RGBA'), json.loads((folder / hero / f'{stem}.json').read_text())
 
 
 def frames(sheet: Image.Image, spec: dict, row: int) -> List[Image.Image]:
@@ -78,7 +80,7 @@ def anchored(sheet: Image.Image, spec: dict) -> Image.Image:
     return out.resize((sheet.width * 2, sheet.height * 2), Image.NEAREST)
 
 
-def run_versus(refs: Path, heroes: List[str], out: Path) -> None:
+def run_versus(refs: Path, heroes: List[str], out: Path, folder: Path = LOOK) -> None:
     """The captain's Terraria GIF beside the three runs, sampled at the same instants, art pixel for art pixel.
 
     The GIF steps every 70 ms and draws one Terraria art pixel as about 3 of its pixels, so our frames are
@@ -92,7 +94,7 @@ def run_versus(refs: Path, heroes: List[str], out: Path) -> None:
         reference.append(gif.convert('RGBA').crop((20, 0, 140, 130)).transpose(Image.FLIP_LEFT_RIGHT))
     runs = []
     for hero in heroes:
-        sheet, spec = load(hero, 'sheet')
+        sheet, spec = load(hero, 'sheet', folder)
         row_index = [a['name'] for a in spec['animations']].index('run')
         runs.append((frames(sheet, spec, row_index), spec['animations'][row_index]['fps']))
     boards = []
@@ -119,12 +121,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--out', type=Path, default=Path('/tmp/fm-terraria-roels-2/review'))
     parser.add_argument('--refs', type=Path)
+    parser.add_argument('--revised', action='store_true', help="review the revision's designs instead")
     args = parser.parse_args()
-    heroes = sorted(path.name for path in LOOK.iterdir() if path.is_dir())
+    folder = ART / 'revised' if args.revised else LOOK
+    heroes = sorted(path.name for path in folder.iterdir() if path.is_dir())
     (args.out / 'gif').mkdir(parents=True, exist_ok=True)
     (args.out / 'strip').mkdir(parents=True, exist_ok=True)
     for hero in heroes:
-        sheet, spec = load(hero, 'sheet')
+        sheet, spec = load(hero, 'sheet', folder)
         origin_y = spec['origin']['y'] - 1
         for r, animation in enumerate(spec['animations']):
             name = animation['name']
@@ -135,7 +139,7 @@ def main() -> None:
                 row(images).save(args.out / 'strip' / f'{hero}-{name}-x{scale}.png')
         anchored(sheet, spec).save(args.out / f'sheet-{hero}-x2.png')
     if args.refs:
-        run_versus(args.refs, heroes, args.out / 'run-vs-terraria')
+        run_versus(args.refs, heroes, args.out / 'run-vs-terraria', folder)
     print(f'wrote review boards to {args.out}')
 
 

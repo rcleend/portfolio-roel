@@ -61,8 +61,8 @@ export interface ShowcaseParams {
 }
 
 export interface LineupParams {
-  /** Who stands in line: the Terraria designs (default), or the heroes as the game draws them. */
-  readonly cast?: 'terraria' | 'game';
+  /** Who stands in line: the Terraria designs (default), their revision, or the heroes as the game draws them. */
+  readonly cast?: 'terraria' | 'revised' | 'game';
   /** What they stand on: the select screen's blueprint paper (default) or a stage. */
   readonly backdrop?: 'menu' | LevelId;
 }

@@ -184,7 +184,10 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 - The head is the same pixels in every frame of every hero: only the eye changes, to blink or to wince.
 - `python3 tools/looks/terraria/review.py` writes GIFs and strips of every animation; `python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria` checks that the committed sheets are what the generator writes, crisp, standing on the feet line, with one head, each frame one figure, and no attack or skill frame held.
 
-The playground's **Terraria Roels** board stands the look's heroes idling beside the classic cast (`?scene=lineup`, `art/looks/terraria/designs.ts`), whatever look the game is set to.
+The playground's **Terraria Roels** board stands the look's heroes idling beside the classic cast (`?scene=lineup`, `art/looks/terraria/designs.ts`), whatever look the game is set to, and beside their revision (`{"cast":"revised"}`).
+
+- The revision (`tools/looks/terraria/kit/revision.py`) redraws only head layers over the same bodies: the hair after the Terraria hairstyle the captain picked, glasses with one flat heavy rim and nothing standing on it, the DESIGNER's cap with only its front spot and the hair pushed out behind it, and a fourth design, the ENGINEER with his hood up. The generator writes each as a full sheet in `art/looks/terraria/revised/<design>/`, posed in every animation of its hero and held to the same checks; the game never loads them, and promoting one means making its layers the look's own.
+- `python3 tools/looks/terraria/review.py --revised` writes the same review boards for them.
 
 ## Checks
 

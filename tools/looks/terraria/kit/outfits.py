@@ -5,10 +5,10 @@ each hero's own drawings. The standing sleeve is each hero's own too, the cut th
 """
 from __future__ import annotations
 
-from typing import Dict, NamedTuple, Tuple
+from typing import Dict, NamedTuple, Optional, Tuple
 
 from .art import Art, Dye, art, full
-from .body import CAPPED_HAIR, HAIR, NECK
+from .body import CAPPED_HAIR, EAR, GLASSES, HAIR, NECK
 
 #                    01234567890123456789012345678901
 # ── ENGINEER: a black hoodie ─────────────────────────────────────────────────────────────────────
@@ -152,14 +152,18 @@ class Outfit(NamedTuple):
     # What the near sleeve is dyed in: the top's own colour, or a step lighter where the top is too dark for
     # the near arm to part from the torso it swings across.
     near: str
+    # The glasses he wears and the ear that shows: the shared body's, unless a design redraws the glasses or
+    # covers the ear (a hood pulled up).
+    glasses: Art
+    ear: Optional[Art]
 
 
 def outfit(
     *, torso: Tuple[Tuple[Art, Dye], ...], top: str, legs: str, shoes: str, hang: Art,
     hair: Art = HAIR, headgear: Tuple[Tuple[Art, Dye], ...] = (), front: Tuple[Tuple[Art, Dye], ...] = (),
-    near: str = '',
+    near: str = '', glasses: Art = GLASSES, ear: Optional[Art] = EAR,
 ) -> Outfit:
-    return Outfit(torso, hair, headgear, front, top, legs, shoes, hang, near or top)
+    return Outfit(torso, hair, headgear, front, top, legs, shoes, hang, near or top, glasses, ear)
 
 
 # By the heroes' ids, in the select order.

@@ -243,7 +243,7 @@ Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and r
 | `stageClear`      | `scenes/stage-clear/StageClearScene.ts`            | `{ levelId, characterId, result: LevelResult }` |
 | `specimen` (dev)  | `scenes/specimen/SpecimenScene.ts`                 | `{ page?: 0–3 }`      |
 | `showcase` (dev)  | `scenes/showcase/ShowcaseScene.ts`                 | `{ demo?, hero?, skill?, levelId? }` (see Looks) |
-| `lineup` (dev)    | `scenes/lineup/LineupScene.ts`                     | `{ cast?: 'terraria' \| 'game', backdrop?: 'menu' \| LevelId }` |
+| `lineup` (dev)    | `scenes/lineup/LineupScene.ts`                     | `{ cast?: 'terraria' \| 'revised' \| 'game', backdrop?: 'menu' \| LevelId }` |
 
 Stubs draw a yellow `STUB · NAME` banner (`scenes/StubBanner.ts`); delete it once every stub is replaced.
 A development scene may draw art the game itself never loads, such as the lineup's Terraria designs: `preloadSceneArt(id, assets)` (`scenes/index.ts`) fetches it, and the harness awaits it before opening that scene; the playground loads the designs up front with everything else.
@@ -372,7 +372,7 @@ The script uses the dev server given by `--url`, otherwise starts Vite from the 
 `/playground` on the dev server (`playground.html`, development only) compares title variants live and side by side, to pick winners.
 The **Title lockup** board shows every registered lockup on one backdrop and the **Backdrop** board every registered backdrop behind one lockup, each with a picker for the half they share.
 The **Characters**, **Skills** and **Customer** boards give every hero, every skill (grouped by hero) and the customer a row with a tile per registered look (docs/LOOKS.md), each playing its showcase demo; a skill's hero wears the skill's look where it has one. Every look loads once (`loadLookLibrary`) and each tile assembles its own selection.
-The **Terraria Roels** board stands the Terraria look's heroes, idling (docs/LOOKS.md › The Terraria look), in the lineup scene, a classic hero beside them for scale, next to the classic cast the game ships: a row per backdrop, the select screen's blueprint paper and every stage.
+The **Terraria Roels** board stands the Terraria look's heroes, idling (docs/LOOKS.md › The Terraria look), in the lineup scene, a classic hero beside them for scale, next to the classic cast the game ships and to their revision: a row per backdrop, the select screen's blueprint paper and every stage.
 A tile is the real scene (`TitleScene`, or the showcase for looks) at a whole-number zoom with the variant's name and line from its registry; what `TITLE_DEFAULTS` ships is marked current, and a variant appears as soon as it is registered.
 Click a tile or press 1–9 (the first nine tiles of the board in view) for focus mode: one combination at the largest whole zoom that fits, with a picker for everything it shows, so any hero look can meet any skill and customer look. Esc closes it.
 
