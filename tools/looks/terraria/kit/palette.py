@@ -16,6 +16,9 @@ RAMPS: Dict[str, Tuple[str, ...]] = {
     # Black, as Terraria draws black cloth: a dark grey base between a near-black outline and grey lights,
     # so its folds and edges still read on the dark stages. The drawstrings' tips are the ENGINEER's green.
     'hoodie': ('#111115', '#23242b', '#32333c', '#4a4c58', '#6f7282', '#3ddc84'),
+    # The near sleeve a step lighter than the body, as the arm nearest the light, so it parts from the torso
+    # it swings across instead of sinking into it.
+    'hoodie-near': ('#111115', '#32333c', '#4a4c58', '#6f7282', '#8f93a3', '#3ddc84'),
     'jeans': ('#10172a', '#233559', '#31497a', '#4a68a0'),
     'sneakers-dark': ('#0f0f13', '#26272e', '#383a44', '#555867', '#d9dbe0'),
     # The black and sage tie-dye knit from the cap photo: a charcoal that still parts from menu navy, with
@@ -35,7 +38,7 @@ RAMPS: Dict[str, Tuple[str, ...]] = {
     'keyboard': ('#101014', '#2a2c35', '#3d404c', '#8a8f9e', '#d3d6df', '#1d8a52', '#3ddc84', '#b4ffd2'),
     # The Olympic White Stratocaster from the room: a cream body, a mint pickguard with white pickups, a
     # rosewood fingerboard on a maple neck and headstock, and a chrome bridge.
-    'strat': ('#4a4236', '#cbbf9f', '#e9e1c8', '#fbf6e6'),
+    'strat': ('#2a2219', '#b3a786', '#e9e1c8', '#fbf6e6'),
     'pickguard': ('#b9d3c4', '#e3f2e8'),
     'rosewood': ('#1f120c', '#3b2418'),
     'maple': ('#5a3a17', '#b98a4c', '#e0bb7c'),

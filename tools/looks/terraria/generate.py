@@ -7,9 +7,9 @@
 Every frame is composed from the hand-placed parts in kit/ (body.py, outfits.py, limbs.py, props.py), posed
 the way Terraria poses its player (pose.py, moves.py, heroes.py), so no frame is ever drawn twice by hand
 and the head is the same pixels in all of them. Writes, per hero, characters/<hero>/sheet.png + .json (the
-eight hero animations, 64 x 64 frames, feet on the bottom-centre origin) and attack.png + .json (its
-projectile, impact and muzzle strip), both as docs/LOOKS.md describes them. Python 3.9+ and Pillow only;
-the same code writes the same bytes, which is what --check relies on.
+eight hero animations and any skill he poses his own way, 64 x 64 frames, feet on the bottom-centre origin)
+and attack.png + .json (its projectile, impact and muzzle strip), both as docs/LOOKS.md describes them.
+Python 3.9+ and Pillow only; the same code writes the same bytes, which is what --check relies on.
 """
 from __future__ import annotations
 
@@ -37,12 +37,17 @@ HERO_ANIMATIONS = ('idle', 'run', 'jump', 'fall', 'attack', 'skill', 'hurt', 'vi
 
 
 def animations(hero: str) -> List[Animation]:
-    attack, skill = MOVES[hero]
-    moves = [idle(), run(), jump(), fall(), attack(), skill(), hurt(), victory()]
-    names = tuple(move.name for move in moves)
+    """The eight hero animations in the contract's order, then the skills he poses his own way."""
+    moves = MOVES[hero]
+    shared = [idle(), run(), jump(), fall(), moves.attack(), moves.skill(), hurt(), victory()]
+    names = tuple(move.name for move in shared)
     if names != HERO_ANIMATIONS:
         raise ValueError(f'{hero}: animations are {names}, not {HERO_ANIMATIONS}')
-    return moves
+    own = [pose() for pose in moves.own]
+    for move in own:
+        if not move.name.startswith('skill-'):
+            raise ValueError(f'{hero}: {move.name} is not a skill pose (skill-<skillId>)')
+    return shared + own
 
 
 def strip(hero: str, animation: Animation) -> Strip:

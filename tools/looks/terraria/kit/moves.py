@@ -86,7 +86,7 @@ def hurt() -> Animation:
 
 
 # A hop's lift at 20 frames a second: off the ground fast, hanging at the top, and back down.
-HOP = (0, 0, 0, 0, 0, 0, 1, 3, 4, 5, 5, 5, 5, 4, 3, 1)
+HOP = (0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 5, 5, 5, 5, 4, 2)
 
 
 def victory() -> Animation:

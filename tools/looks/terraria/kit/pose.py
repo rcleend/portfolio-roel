@@ -78,7 +78,7 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
         *props('held'),
         *props('grip'),
         *(front if near.raised else ()),
-        Stroke(near_art, top, body),
+        Stroke(near_art, Dye(outfit.near), body),
         *(() if near.raised else front),
         *props('front'),
     ]
@@ -92,6 +92,11 @@ def hand(outfit: Outfit, pose: Pose) -> Point:
     """Where the pose's near hand is, in design space, once the arm is nudged and the body has moved."""
     point = near_arm(outfit, pose.near).hand
     return carried((point[0] + pose.near_at[0], point[1] + pose.near_at[1]), pose)
+
+
+def far_hand(pose: Pose) -> Point:
+    """Where the pose's far hand is, in design space, once the body has moved."""
+    return carried(FAR_ARMS[pose.far].hand, pose)
 
 
 def carried(point: Point, pose: Pose) -> Point:

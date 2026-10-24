@@ -50,6 +50,16 @@ def keyboard(lit: Optional[str] = None, fading: Optional[str] = None) -> Art:
     return art(name, *KEYBOARD_AT, '\n'.join(rows), KEYS)
 
 
+def key_spark(key: str) -> Art:
+    """A key struck hard: a spark of green just over it."""
+    spans, start, width = _KEYS[key]
+    x, y = KEYBOARD_AT[0] + start + width // 2, KEYBOARD_AT[1] + spans[0] - 2
+    return art(f'spark over {key}', x - 1, y - 1, '''
+.W.
+GWG
+''', KEYS)
+
+
 # Summoned: green motes wink at its corners on the frame it appears.
 SUMMONED = art('keyboard summoned', 12, 24, '''
 .W.............W.
@@ -91,25 +101,23 @@ GUITAR = art('stratocaster', 12, 16, '''
            ................MwM
            ...............MnwM
            ..............MnnM.
-           .............MnmF..
-           ............MnmF...
-           ...........MnmF....
-           ..........MnmF.....
-           .....##..MnmF......
-           ....#Lo#MnmF.......
-           ...#LooMnmF##......
-           ..#Lo@PmFoLo#......
-           .#Lo@wP@ooL#.......
-           #Lo@PwP@oo#........
-           #oo@@Pw@ox#........
-           #ooo@Ccox#.........
-           #ooooxCx#..........
-           #xoooox#...........
-           .#xxxx#............
-           ..####.............
+           .........#...MnmF..
+           ........#L#.MnmF...
+           .......#Lo#MnmF....
+           ......#LooMnmF.....
+           .....#LooMnmF.#....
+           ....#Loo@nmF#L#....
+           ...#Loo@w@ooo#.....
+           ...#oo@w@ooo#......
+           ...#o@w@ooox#......
+           ...#oCC@oox#.......
+           ...#oooooxx#.......
+           ....#xxxxx#........
+           .....#####.........
 ''', STRAT)
-# Where the strum rings out, over the pickups, and where its paint leaves, up the neck past the fretting hand.
-STRINGS: Point = (17, 29)
+# Where the strum rings out, off the strings at the edge of the body where the flash reads against the stage, and
+# where its paint leaves, up the neck past the fretting hand.
+STRINGS: Point = (23, 27)
 NECK: Point = (26, 21)
 
 # The far hand on the neck, gripping it in front of the chest while its sleeve stays behind the torso.
@@ -120,16 +128,68 @@ KsssK
 .KKK.
 ''', BODY)
 
-# A Terraria healing potion, the pink of the UX ELIXIR flask, tipped up out of the fist so its neck is at his
-# lips; held, so the fist closes over its neck.
-POTION = art('potion', 22, 15, '''
-...###
-..#LWo#
-.#Looo#
-.#ooox#
-.Mxxx#.
-MM##...
-''', {**tones('paint-pink', '#xoLW'), **tones('maple', 'M')})
+# A Terraria healing potion in the pink of the UX ELIXIR flask: a round bulb with a white glint, a glass neck
+# and a cork. It is drunk the way Terraria drinks one (useStyle 9): held out ahead of the face in the far hand,
+# which lifts it from the chest to the lips and tips its bulb up as the pink drains, so nothing but the potion
+# is in front of his face.
+# Pink liquid, a pale glass neck that the drained bulb turns to, a glint on the glass and a maple cork.
+DRINK = {**tones('paint-pink', '#xoLW'), 'g': ('chrome', 1), 'e': ('chrome', 1), 'w': ('chrome', 2), 'c': ('maple', 1)}
+
+
+def potion(at: Point, rows: str, fill: int) -> Art:
+    """The potion drawn at `at` with only its lowest `fill` rows of liquid still pink, the rest drunk and
+    turned to empty glass."""
+    lines = rows.strip('\n').split('\n')
+    liquid = [i for i, line in enumerate(lines) if set(line) & set('oxL')]
+    keep = set(liquid[len(liquid) - fill:]) if fill else set()
+    drained = [line if i in keep or i not in liquid else line.replace('o', 'e').replace('x', 'e').replace('L', 'w')
+               for i, line in enumerate(lines)]
+    return art(f'potion, {fill} rows full', *at, '\n'.join(drained), DRINK)
+
+
+# Lifted ahead of the chest, upright: cork, glass neck and a round bulb with a glint.
+POTION_LIFTED = '''
+..###..
+..#c#..
+..#g#..
+.#LWo#.
+#Loooo#
+#oooox#
+.#xxx#.
+'''
+# At the lips, tipped back so the neck points down into them and the bulb rises ahead of the face.
+POTION_TIPPED = '''
+....###.
+...#LWo#
+..#Looo#
+..#ooox#
+.#g#xx#.
+#c#.##..
+'''
+POTION_AT = {'lifted': (22, 16), 'tipped': (21, 16)}
+POTION_ROWS = {'lifted': POTION_LIFTED, 'tipped': POTION_TIPPED}
+
+
+def held_potion(tilt: str, fill: int = 4) -> Art:
+    """The potion `tilt`ed as the pose holds it, with `fill` rows of pink left in its bulb."""
+    return potion(POTION_AT[tilt], POTION_ROWS[tilt], fill)
+
+
+# The far hand around the potion, a shade darker than the near one, drawn over it.
+DRINK_HAND = {
+    'lift': art('far hand lifting the potion', 22, 22, '''
+.KKK.
+KSsSK
+KsssK
+.KKK.
+''', BODY),
+    'tip': art('far hand tipping the potion', 24, 20, '''
+.KKK.
+KSsSK
+KsssK
+.KKK.
+''', BODY),
+}
 
 # ── STRATEGIST: the North Star ───────────────────────────────────────────────────────────────────
 # The North Star's glint in the raised hand: a four-pointed Terraria star.

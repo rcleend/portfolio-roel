@@ -303,6 +303,34 @@ FAR_ARMS: Dict[str, Arm] = {
                      ....KssSK
                      .....KKK.
 '''), (24, 29)),
+    # Spread up and forward at 45 degrees, coming down from a cast with both hands up.
+    'spread': Arm(art('far arm spread up and forward', 19, 14, '''
+                     ....KKK.
+                     ...KSsSK
+                     ...KsssK
+                     ...KsssK
+                     ..#xox#.
+                     .#xo+#..
+                     #xo+#...
+                     #xo+#...
+                     #xo+#...
+                     #xo+#...
+'''), (24, 16)),
+    # Drinking a potion the way Terraria does (useStyle 9), with the far arm, whose shoulder is at the front, so
+    # nothing but the potion comes in front of his face: lifting it ahead of the chest, then out at the lips.
+    # The hand is drawn over the potion (props.DRINK_HAND), so only the sleeve is drawn here.
+    'lift': Arm(art('far arm lifting', 17, 23, '''
+                     #xo+#...
+                     #xo+#...
+                     .#xo+#..
+                     ..#xox#.
+                     ...###..
+'''), (24, 23)),
+    'tip': Arm(art('far arm at the lips', 17, 22, '''
+                     ......##
+                     #xo+xo+#
+                     .######.
+'''), (26, 21)),
 }
 # Falling, the far hand sinks a pixel from where it rose: the one change Terraria's single airborne frame gets.
 FAR_ARMS['air low'] = Arm(FAR_ARMS['air'].art.moved(0, 1), (22, 19))
@@ -445,17 +473,8 @@ NEAR_ARMS: Dict[str, Arm] = {
                      .....KSSSSK
                      ......KKKK.
 '''), (13, 30)),
-    # Typing on the summoned keyboard: the arm out at the shoulder with the hand on the keys, near its front
-    # or nearer the body, and the same a pixel lower as a key goes down.
-    'type': Arm(art('near arm typing', 8, 21, '''
-                     ..##............
-                     .#**########....
-                     #o+*+***++*xKKK.
-                     #o++*+++++oxsLsK
-                     #o+*#######SssSK
-                     .###.......KSSSK
-                     ............KKK.
-'''), (20, 25)),
+    # Typing on the summoned keyboard: the arm out at the shoulder with the hand on its keys, and the same a
+    # pixel lower as a key goes down.
     'type close': Arm(art('near arm typing close', 8, 21, '''
                      ..##.........
                      .#**#####....
@@ -465,18 +484,31 @@ NEAR_ARMS: Dict[str, Arm] = {
                      .###....KSSSK
                      .........KKK.
 '''), (17, 25)),
-    # Drinking, as Terraria drinks a potion (useStyle 2): the arm out at the shoulder with the forearm folded
-    # up, so the fist meets the mouth.
-    'drink': Arm(art('near arm drinking', 8, 19, '''
-                     ............KKKK.
-                     ...........KsLLsK
-                     ..##.......KsssSK
-                     .#**#######KSSSSK
-                     #o+*+***++*xKKKK.
-                     #o++*+++++ox#....
-                     #o+*#######......
-                     .###.............
-'''), (21, 21)),
+    # Both fists up off the keyboard, the forearm bent up from an elbow out at the shoulder, about to slam.
+    'type raised': Arm(art('near arm raised over the keys', 8, 19, '''
+                     .........KKK.
+                     ........KsLsK
+                     ..##....KssSK
+                     .#**####KSSSK
+                     #o+*+*++#KKK.
+                     #o++*++o#....
+                     #o+*####.....
+                     .###.........
+'''), (17, 21)),
+    # Spread up and out at 45 degrees, coming down from a cast with both hands up.
+    'spread': Arm(art('near arm spread up and back', 3, 13, '''
+                     .KKKK....
+                     KsLLsK...
+                     KssssK...
+                     KSssSK...
+                     .#xoxo#..
+                     ..#o+*#..
+                     ...#o+*#.
+                     ....#o+*#
+                     .....#o+*#
+                     ......#**#
+                     .......##.
+'''), (5, 15), raised=True),
     # Strumming the Strat as Terraria plays its guitars (useStyle 12): the arm held down and forward across
     # the body while its stretch pumps Full, 3/4, 1/4, None and back, so the hand sweeps up off the strings
     # toward the elbow and back down through them.
@@ -486,51 +518,40 @@ NEAR_ARMS: Dict[str, Arm] = {
                      #o+*+#........
                      #o++*+#.......
                      .#o+*+*#......
-                     ..#o+*+*#.....
-                     ...#o+*+*#....
-                     ....#o+*+*#...
-                     .....#xox#KK..
-                     ........KsLLsK
-                     ........KsssSK
+                     ..#o+*+*#KKKK.
+                     ...#xox#KsLLsK
+                     ....###.KsssSK
                      ........KSSSSK
                      .........KKKK.
-'''), (18, 31)),
+'''), (18, 28)),
     'strum 3/4': Arm(art('near arm strumming, three-quarter stretch', 8, 21, '''
                      ..##.........
                      .#**#........
                      #o+*+#.......
                      #o++*+#......
-                     .#o+*+*#.....
-                     ..#o+*+*#....
-                     ...#o+*+*#...
-                     ....#xox#KK..
-                     .......KsLLsK
-                     .......KsssSK
+                     .#o+*+*#KKKK.
+                     ..#xox#KsLLsK
+                     ...###.KsssSK
                      .......KSSSSK
                      ........KKKK.
-'''), (17, 30)),
+'''), (17, 27)),
     'strum 1/4': Arm(art('near arm strumming, quarter stretch', 8, 21, '''
                      ..##........
                      .#**#.......
                      #o+*+#......
-                     #o++*+#.....
-                     .#o+*+*#....
-                     ..#o+*+*#...
-                     ...#xox#KK..
-                     ......KsLLsK
-                     ......KsssSK
+                     #o++*#.KKKK.
+                     .#xox#KsLLsK
+                     ..###.KsssSK
                      ......KSSSSK
                      .......KKKK.
-'''), (16, 29)),
+'''), (16, 26)),
     'strum none': Arm(art('near arm strumming, folded', 8, 21, '''
                      ..##.......
                      .#**#......
-                     #o+*+#.....
-                     #o++*+#....
-                     .#o+*+#KK..
-                     ..#xox#sLLsK
-                     ...###KsssSK
-                     .....KSSSSK
-                     ......KKKK.
-'''), (15, 27)),
+                     #o+*+KKKK..
+                     #o++KsLLsK.
+                     .#oxKsssSK.
+                     ..##KSSSSK.
+                     .....KKKK..
+'''), (14, 25)),
 }

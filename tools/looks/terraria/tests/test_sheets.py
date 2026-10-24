@@ -39,6 +39,31 @@ def frames(image: Image.Image, meta: Dict[str, Any], name: str) -> List[Image.Im
     return [image.crop((i * w, row * h, (i + 1) * w, (row + 1) * h)) for i in range(meta['animations'][row]['frames'])]
 
 
+# The most pixels a prop's light (a glint, a burst, a summoning mote) may have and float free of the figure.
+LIGHT = 12
+# The potion's cork, in the maple it is drawn in.
+CORK = ('maple', 1)
+
+
+def figures(frame: Image.Image) -> List[set]:
+    """The frame's opaque pixels in 8-connected parts."""
+    alpha = frame.getchannel('A')
+    todo = {(x, y) for y in range(frame.height) for x in range(frame.width) if alpha.getpixel((x, y))}
+    parts = []
+    while todo:
+        part, edge = set(), [todo.pop()]
+        while edge:
+            x, y = edge.pop()
+            part.add((x, y))
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    if (x + dx, y + dy) in todo:
+                        todo.remove((x + dx, y + dy))
+                        edge.append((x + dx, y + dy))
+        parts.append(part)
+    return parts
+
+
 def opaque_above(frame: Image.Image, row: int) -> int:
     return sum(1 for alpha in frame.crop((0, 0, frame.width, row)).getchannel('A').getdata() if alpha)
 
@@ -91,18 +116,38 @@ class Poses(unittest.TestCase):
                     self.assertEqual(opaque_above(frame, skull), opaque_above(standing, skull),
                                      f"{hero} {animation['name']}[{index}] raises something above his head")
 
-    def test_every_attack_moves_on_every_frame(self) -> None:
+    def test_every_attack_and_skill_moves_on_every_frame(self) -> None:
+        # An attack restarts with every shot, so its last frame leads into its first; a skill plays once.
         for hero in HEROES:
             image, meta = load(hero, 'sheet')
-            strip = frames(image, meta, 'attack')
-            for index, (before, after) in enumerate(zip(strip, strip[1:] + strip[:1])):
-                self.assertNotEqual(before.tobytes(), after.tobytes(), f'{hero} attack[{index}] is held')
+            for animation in meta['animations']:
+                name = animation['name']
+                if not (name == 'attack' or name.startswith('skill')):
+                    continue
+                strip = frames(image, meta, name)
+                pairs = zip(strip, strip[1:] + strip[:1]) if name == 'attack' else zip(strip, strip[1:])
+                for index, (before, after) in enumerate(pairs):
+                    self.assertNotEqual(before.tobytes(), after.tobytes(), f'{hero} {name}[{index}] is held')
 
-    def test_the_designer_ends_his_skill_with_the_potion_at_his_lips(self) -> None:
-        _, meta = load('artsy', 'sheet')
-        skill = next(animation for animation in meta['animations'] if animation['name'] == 'skill')
-        (hx, hy), (mx, my) = skill['anchors']['hand'][-1], skill['anchors']['mouth'][-1]
-        self.assertLessEqual(max(abs(hx - mx), abs(hy - my)), 2)
+    def test_every_frame_is_one_figure(self) -> None:
+        # A torso lifted off its legs, or a limb that misses its joint, splits the figure; only the light a
+        # prop gives off (a glint, a burst, summoning motes) may float free of it.
+        for hero in HEROES:
+            image, meta = load(hero, 'sheet')
+            for animation in meta['animations']:
+                for index, frame in enumerate(frames(image, meta, animation['name'])):
+                    sizes = sorted(len(part) for part in figures(frame))
+                    self.assertTrue(all(size <= LIGHT for size in sizes[:-1]),
+                                    f"{hero} {animation['name']}[{index}] splits into parts of {sizes} pixels")
+
+    def test_the_designer_drinks_ux_elixir_with_the_cork_at_his_lips(self) -> None:
+        elixir = next(animation for animation in animations('artsy') if animation.name == 'skill-ux-elixir')
+        for index, frame in enumerate(elixir.frames[1:], start=1):
+            cork = [(x + stroke.at[0], y + stroke.at[1]) for stroke in strokes(OUTFITS['artsy'], frame.pose, 'artsy')
+                    if stroke.art.name.startswith('potion') for x, y, tone in stroke.art.pixels if tone == CORK]
+            mx, my = frame.anchors['mouth']
+            self.assertTrue(cork, f'skill-ux-elixir[{index}] has no cork')
+            self.assertLessEqual(min(max(abs(x - mx), abs(y - my)) for x, y in cork), 2, f'skill-ux-elixir[{index}]')
 
 
 class Head(unittest.TestCase):
@@ -127,7 +172,7 @@ class Head(unittest.TestCase):
     def test_props_appear_only_while_attacking_or_using_a_skill(self) -> None:
         for hero in HEROES:
             for animation in animations(hero):
-                if animation.name in ('attack', 'skill'):
+                if animation.name == 'attack' or animation.name.startswith('skill'):
                     continue
                 for index, frame in enumerate(animation.frames):
                     self.assertEqual(frame.pose.props, (), f'{hero} {animation.name}[{index}] holds something')

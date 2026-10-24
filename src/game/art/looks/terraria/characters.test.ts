@@ -43,6 +43,10 @@ function animation(spec: SpriteSheetSpec, name: string): SpriteAnimationSpec {
 
 const seconds = (spec: SpriteAnimationSpec): number => spec.frames / spec.fps;
 
+/** `skill` and every skill the hero poses his own way (`skill-<skillId>`), each played for one cast. */
+const skillPoses = (spec: SpriteSheetSpec): SpriteAnimationSpec[] =>
+  spec.animations.filter((candidate) => candidate.name === 'skill' || candidate.name.startsWith('skill-'));
+
 describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
   it('loops idle, run, fall and victory and plays the rest once', async () => {
     const { sheet } = await sheets(hero);
@@ -52,7 +56,7 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
   it('attacks for exactly one cooldown, and skills and hurts for as long as the game holds them', async () => {
     const { sheet } = await sheets(hero);
     expect(seconds(animation(sheet, 'attack'))).toBeCloseTo(PRIMARY_ATTACKS[hero].cooldown, 1);
-    expect(seconds(animation(sheet, 'skill'))).toBeCloseTo(SKILL_SECONDS, 2);
+    for (const pose of skillPoses(sheet)) expect(seconds(pose), pose.name).toBeCloseTo(SKILL_SECONDS, 2);
     expect(seconds(animation(sheet, 'hurt'))).toBeCloseTo(HURT_SECONDS, 2);
   });
 
@@ -60,9 +64,10 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
     const { sheet } = await sheets(hero);
     const attack = animation(sheet, 'attack');
     expect(attack.anchors.muzzle).toHaveLength(attack.frames);
-    const skill = animation(sheet, 'skill');
-    expect(skill.anchors.hand).toHaveLength(skill.frames);
-    expect(skill.anchors.mouth).toHaveLength(skill.frames);
+    for (const pose of skillPoses(sheet)) {
+      expect(pose.anchors.hand, pose.name).toHaveLength(pose.frames);
+      expect(pose.anchors.mouth, pose.name).toHaveLength(pose.frames);
+    }
   });
 
   it('marks the top of his head on every frame, drawn smaller than his frame as he is', async () => {
@@ -80,6 +85,12 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
     const hand = { x: sheet.origin.x + HAND.reach, y: sheet.origin.y - HAND.height };
     expect(Math.abs(muzzle.x - hand.x)).toBeLessThanOrEqual(4);
     expect(Math.abs(muzzle.y - hand.y)).toBeLessThanOrEqual(4);
+  });
+
+  it('poses UX ELIXIR its own way for the DESIGNER, who drinks it, and shares one pose for every other skill', async () => {
+    const { sheet } = await sheets(hero);
+    const own = sheet.animations.map((spec) => spec.name).filter((name) => name.startsWith('skill-'));
+    expect(own).toEqual(hero === 'artsy' ? ['skill-ux-elixir'] : []);
   });
 
   it('draws a projectile and an impact for spriteAttack, and its variants', async () => {

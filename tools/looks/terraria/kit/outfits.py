@@ -27,16 +27,17 @@ HOODIE = full('hoodie', 22, '''
                      ...........#xoxoxoxo#...........
 ''')
 
-# Hood down: bunched round the back of the neck and lying over the near shoulder, drawn over the near arm
-# as Terraria draws a cloak's front; its lit rim folds into the dark of its opening.
+# Hood down: a soft fold lying over the back of the neck and the near shoulder, its lit rim on top and its
+# point drooping down the back, so it reads as cloth on the shoulders rather than a pack on the back. It is
+# drawn over the near arm, as Terraria draws a cloak's front.
 HOOD = full('hood', 19, '''
-                     .........###....................
-                     .......##*+*#...................
-                     ......#*++oox#..................
-                     ......#+oox##o#.................
-                     ......#oxx#..x#.................
-                     .......#x#......................
-                     ........#.......................
+                     ..........###...................
+                     .........#*+*#..................
+                     ........#*+oox#.................
+                     ........#+ox##..................
+                     ........#ox#....................
+                     ........#x#.....................
+                     .........#......................
 ''')
 
 # The near sleeve standing: rounded at the shoulder, a pixel fuller there than below, lighter than the
@@ -148,20 +149,24 @@ class Outfit(NamedTuple):
     shoes: str
     # The near arm standing, in the hero's own sleeve.
     hang: Art
+    # What the near sleeve is dyed in: the top's own colour, or a step lighter where the top is too dark for
+    # the near arm to part from the torso it swings across.
+    near: str
 
 
 def outfit(
     *, torso: Tuple[Tuple[Art, Dye], ...], top: str, legs: str, shoes: str, hang: Art,
     hair: Art = HAIR, headgear: Tuple[Tuple[Art, Dye], ...] = (), front: Tuple[Tuple[Art, Dye], ...] = (),
+    near: str = '',
 ) -> Outfit:
-    return Outfit(torso, hair, headgear, front, top, legs, shoes, hang)
+    return Outfit(torso, hair, headgear, front, top, legs, shoes, hang, near or top)
 
 
 # By the heroes' ids, in the select order.
 OUTFITS: Dict[str, Outfit] = {
     'hackerman': outfit(
         torso=((HOODIE, Dye('hoodie')),), top='hoodie', legs='jeans', shoes='sneakers-dark', hang=HOODIE_HANG,
-        front=((HOOD, Dye('hoodie')),),
+        near='hoodie-near', front=((HOOD, Dye('hoodie')),),
     ),
     'artsy': outfit(
         torso=((KNIT, Dye('knit')),), top='knit', legs='trousers-brown', shoes='sneakers-light', hang=KNIT_HANG,
