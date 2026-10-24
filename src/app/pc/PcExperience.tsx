@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent,
+  memo,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -60,9 +61,11 @@ let paginated: number[][] | null = null;
  * The computer's screen: the desktop, the startup sequence and the document
  * reader with the résumé, rendered into the room's live screen element (and,
  * on small pictures, a full-viewport pop-out). Lazy-loaded; it stays mounted
- * once loaded, and the reader itself mounts only for each visit.
+ * once loaded, and the reader itself mounts only for each visit. Memoised: the
+ * room host renders on every view change, inside the click that starts a
+ * flight, and the open document is a large tree.
  */
-export function PcExperience({ display, onLeave, onFocusStage }: PcExperienceProps) {
+export const PcExperience = memo(function PcExperience({ display, onLeave, onFocusStage }: PcExperienceProps) {
   const placement = usePlacement(display);
   const mode = usePresentationMode(placement);
   const reducedMotion = useMediaQuery(REDUCED_MOTION);
@@ -293,7 +296,7 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
       ) : null}
     </>
   );
-}
+});
 
 function usePlacement(display: PcDisplay): ScreenRect {
   const subscribe = useCallback((onChange: () => void) => display.onPlacementChange(onChange), [display]);

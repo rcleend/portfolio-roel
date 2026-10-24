@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import type { Room, RoomView } from '@/room';
 import { RoomHotspots } from '../overlays/room-hotspots/RoomHotspots';
 import { PcSlot } from '../pc/PcSlot';
@@ -95,7 +95,9 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
     room?.setFramingInsets({ top, right, bottom, left });
   }, [room, top, right, bottom, left]);
 
-  const focusStage = (): void => stageRef.current?.focus({ preventScroll: true });
+  // Stable, so a view change never re-renders the computer's screen through its props.
+  const focusStage = useCallback((): void => stageRef.current?.focus({ preventScroll: true }), []);
+  const leaveComputer = useCallback(() => room?.showRoom(), [room]);
 
   // Escape belongs to the game at the TV; at the computer it gets up again (also mid-flight, or
   // after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
@@ -151,7 +153,7 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
         view={view}
         settled={settled}
         powered={tvOn}
-        onLeave={() => room?.showRoom()}
+        onLeave={leaveComputer}
         onFocusStage={focusStage}
       />
     </>

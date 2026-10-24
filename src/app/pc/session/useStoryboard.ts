@@ -1,4 +1,13 @@
-import { createRef, type Dispatch, type RefObject, useEffect, useEffectEvent, useRef, useState } from 'react';
+import {
+  createRef,
+  type Dispatch,
+  type RefObject,
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 import type { DesktopLayout } from '../desktop/desktopLayout';
 import type { PcDisplay } from '../display';
@@ -195,8 +204,12 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
       active === document.body ||
       [elements.root.current, elements.popOut.current].some((element) => element?.contains(active));
     lit.current = false;
-    options.announce('');
-    dispatch({ type: 'away' });
+    // The room hid the screen already. Taking the reader down can wait for the flight's first frame:
+    // in the same task, a large document's unmount would hold that frame back.
+    startTransition(() => {
+      options.announce('');
+      dispatch({ type: 'away' });
+    });
     // The screen is hidden this very frame; focus must not be stranded in it.
     if (focused) options.onFocusStage();
   });
