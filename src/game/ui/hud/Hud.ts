@@ -47,6 +47,8 @@ export interface HudKit {
 
 const TOP = 3;
 const PORTRAIT = { x: 4, y: TOP, size: 26 } as const;
+/** How far below the portrait's top a marked head's top sits: inside the bevel, with a little air above it. */
+const PORTRAIT_HEAD_TOP = 5;
 /** Skill slots are at least this big — classic's 16 px icons with their bevel — and grow with a look's icons. */
 const SLOT_SIZE = 22;
 /** The score face's digit height, for centring the seconds left on a slot. */
@@ -74,11 +76,14 @@ export function drawHud(gfx: Gfx, kit: HudKit, state: HudState): void {
 function drawPortrait(gfx: Gfx, kit: HudKit, characterId: CharacterId): void {
   const { x, y, size } = PORTRAIT;
   drawWindow(gfx, { x, y, w: size, h: size }, windowThemes.steel);
-  // Frame the head and shoulders of the idle sprite inside the bevel: heads sit near the top of every look's frame.
+  // Frame the head and shoulders of the idle sprite inside the bevel. Heads sit near the top of most looks'
+  // frames; a look drawn smaller than its frame marks the top of its head with a `head` anchor instead.
   const sheet = kit.looks.characters[characterId].sheet;
+  const head = sheet.anchor('idle', 'head', 0);
+  const feet = head ? y + PORTRAIT_HEAD_TOP + sheet.origin.y - head.y : y - 1 + sheet.height;
   gfx.withClip(x + 3, y + 3, size - 6, size - 6, () => {
     gfx.fillRect(x + 3, y + 3, size - 6, size - 6, { stops: ['#3a3f57', '#181a28'], bands: 3 });
-    gfx.sprite(sheet, 'idle', 0, x + size / 2, y - 1 + sheet.height);
+    gfx.sprite(sheet, 'idle', 0, x + size / 2, feet);
   });
 }
 

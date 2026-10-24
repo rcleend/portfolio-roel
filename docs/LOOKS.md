@@ -51,6 +51,7 @@ src/game/art/looks/<lookId>/
 - `anchors` are optional, per animation: named pixels, one `[x, y]` per frame, inside the frame.
   - `muzzle` on `attack`: where the basic attack leaves (the keyboard, the guitar, the throwing hand). The game simulates shots from a fixed hand point; a look with a muzzle has its whole attack (shots, impacts, hit sparks) *drawn* shifted to the muzzle of the first `attack` frame, so hits land exactly where they always did.
   - `hand` on `skill`: where a skill effect attaches (the potion, the guitar body). Skill visuals receive it, and any other anchor of the current frame, in world pixels.
+  - `head` on every animation, for a look drawn smaller than its frame: the top of the head. The HUD frames its portrait at `idle`'s, the select screen's iris closes on the middle of the hero below it, and classic's UX ELIXIR pops its flask over the current frame's; without it they take heads to sit near the frame's top, as they do in a look that fills it.
 - Errors name the file and the field, e.g. `animations[2].anchors.muzzle[3] must be [x, y] inside the 64×64 frame`. Unknown keys are rejected, so a typo cannot vanish.
 - The JSON is data, not source: Biome leaves `looks/**/*.json` alone, so a generator's output never fails the lint.
 
