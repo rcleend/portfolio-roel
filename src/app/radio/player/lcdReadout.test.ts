@@ -42,6 +42,16 @@ describe('lcdReadout', () => {
     expect(lcdReadout(stop, 'room', DISC)).toEqual({ kind: 'off' });
   });
 
+  it('shows a track chosen while stopped by its number, at 00:00', () => {
+    expect(lcdReadout(loaded({ transport: 'stopped', track: 2 }), 'radio', DISC)).toEqual({
+      kind: 'track',
+      track: 2,
+      seconds: 0,
+      transport: 'stopped',
+    });
+    expect(lcdReadout(loaded({ transport: 'stopped', track: 2 }), 'room', DISC)).toEqual({ kind: 'off' });
+  });
+
   it('shows the device’s error', () => {
     expect(lcdReadout(loaded({ error: true }), 'radio', DISC)).toEqual({ kind: 'error' });
     expect(lcdReadout(loaded({ error: true }), 'room', DISC)).toEqual({ kind: 'error' });

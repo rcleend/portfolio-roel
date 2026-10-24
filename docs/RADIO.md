@@ -57,7 +57,7 @@ If the chunk fails to load, the controls slot says "The CD player could not load
 | the seat | the sound opens: rewound to 0:00, faded in over 120 ms; the LCD reads `-- --:--` until the first second of sound |
 | ▷II | playing → paused (120 ms fade); paused → playing, sound first (80 ms); stopped → plays the current track at once; empty → "Choose a CD first." |
 | ■ | playing or paused → stopped, back to track 1 at 0:00; the LCD shows the disc's track count and total |
-| ⏭ / ⏮ | the track number changes at once; playing, the sound switches 250 ms after the last press (three quick presses fetch only the third track); ⏮ restarts the track after 3 s, else goes back one; paused or stopped, it only selects; ⏭ on the last track does nothing |
+| ⏭ / ⏮ | the track number changes at once; playing, the sound switches 250 ms after the last press (three quick presses fetch only the third track); ⏮ restarts the track after 3 s, else goes back one; paused or stopped, it only selects (stopped, the LCD shows the chosen track at `00:00` instead of the totals, back to the totals on track 1); ⏭ on the last track does nothing |
 | a track ends | the next plays; after the last, stopped on track 1, "End of the CD." |
 | a track fails | the LCD's own error (`00 -- --`), "This track could not be played."; playing with a next track, it moves on after 2 s; otherwise it stays on that track until the next action |
 | the browser refuses to play (no user activation yet) | paused, "Press play to start the music."; the next press is a gesture and plays (a disc still going in starts again silently, for its seat to open) |

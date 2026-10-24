@@ -499,7 +499,7 @@ export function lcdText(readout: LcdReadout): string {
     case 'reading':
       return '-- --:--';
     case 'track':
-      return `${readout.transport === 'playing' ? '>' : '||'} ${two(readout.track)} ${clock(readout.seconds)}`;
+      return `${{ playing: '>', paused: '||', stopped: ' ' }[readout.transport]} ${two(readout.track)} ${clock(readout.seconds)}`;
     case 'total':
       return `${two(readout.tracks)} ${clock(readout.seconds)}`;
     case 'error':

@@ -20,7 +20,8 @@ export type LcdReadout =
       readonly kind: 'track';
       readonly track: number;
       readonly seconds: number;
-      readonly transport: 'playing' | 'paused';
+      /** 'stopped': a track chosen with ⏭ or ⏮ after ■ shows its number and a steady 00:00, without an icon. */
+      readonly transport: Transport;
     }
   | { readonly kind: 'total'; readonly tracks: number; readonly seconds: number } // stopped: the disc's totals
   | { readonly kind: 'error' }; //                   "00 -- --", the device's own

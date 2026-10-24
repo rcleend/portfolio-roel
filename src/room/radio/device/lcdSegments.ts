@@ -76,7 +76,7 @@ export function lcdFrame(readout: LcdReadout, blinkOn = true): LcdFrame {
       const [m, s] = clock(readout.seconds);
       const hidden = readout.transport === 'paused' && !blinkOn;
       return {
-        icon: readout.transport === 'playing' ? 'play' : 'pause',
+        icon: readout.transport === 'playing' ? 'play' : readout.transport === 'paused' ? 'pause' : null,
         cells: cellsOf(`${two(readout.track)}${hidden ? '    ' : `${m}${s}`}`),
         colon: !hidden,
       };

@@ -33,6 +33,21 @@ describe('the LCD', () => {
     expect(total.cells).toEqual([GLYPHS['0'], GLYPHS['2'], GLYPHS['0'], GLYPHS['4'], GLYPHS['3'], GLYPHS['1']]);
   });
 
+  it('shows a track chosen while stopped by its number and a steady 00:00, without an icon', () => {
+    const chosen = { kind: 'track', track: 2, seconds: 0, transport: 'stopped' } as const;
+    expect(lcdFrame(chosen).icon).toBeNull();
+    expect(lcdFrame(chosen).cells).toEqual([
+      GLYPHS['0'],
+      GLYPHS['2'],
+      GLYPHS['0'],
+      GLYPHS['0'],
+      GLYPHS['0'],
+      GLYPHS['0'],
+    ]);
+    expect(blinks(chosen)).toBe(false);
+    expect(lcdFrame(chosen, false)).toEqual(lcdFrame(chosen, true));
+  });
+
   it('caps the minutes at 99', () => {
     expect(clock(59)).toEqual(['00', '59']);
     expect(clock(99 * 60 + 59)).toEqual(['99', '59']);
