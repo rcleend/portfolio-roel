@@ -41,8 +41,9 @@
   outline-offset: 2px;
 }
 
-.radio__cd:focus-visible,
-.radio__key:focus-visible {
+/* A keyboard user's focus only: the landing focuses a CD from a script, which Chrome would ring for a mouse too. */
+.radio[data-keyboard="true"] .radio__cd:focus-visible,
+.radio[data-keyboard="true"] .radio__key:focus-visible {
   outline-color: #ffc83d;
 }
 

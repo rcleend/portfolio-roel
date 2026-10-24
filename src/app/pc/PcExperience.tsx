@@ -15,6 +15,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { flushSync } from 'react-dom';
+import { useKeyboardModality } from '../a11y/useKeyboardModality';
 import { resumeOutline } from '../resume/outline';
 import { REDUCED_MOTION, useMediaQuery } from '../useMediaQuery';
 import { ARROW_ART, BUSY_ART, cursorValue } from './cursors';
@@ -30,7 +31,6 @@ import { READER_TITLE, ReaderWindow } from './reader/ReaderWindow';
 import { Splash, splashRect } from './reader/Splash';
 import { StatusBar } from './reader/StatusBar';
 import { Toolbar } from './reader/Toolbar';
-import { useKeyboardModality } from './reader/useKeyboardModality';
 import { type ResolvedZoom, resolveZoom, type ZoomSetting, zoomIn, zoomOut } from './reader/zoom';
 import { isSkipKey } from './session/keys';
 import { readerMemory, restoredScrollTop } from './session/memory';

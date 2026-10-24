@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { Album } from '@/content/radio/types';
 import { nextRovingIndex } from '../../a11y/roving';
+import { useKeyboardModality } from '../../a11y/useKeyboardModality';
 import { browserStorage } from '../../storage/localFlag';
 import { COARSE_POINTER, useMediaQuery } from '../../useMediaQuery';
 import type { DiscAnchor, RadioDeck, RadioKey, RadioLayout, ScreenRect } from '../deck';
@@ -62,6 +63,9 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
   const coarse = useMediaQuery(COARSE_POINTER);
   const rail = useMediaQuery(RAIL_QUERY);
   const words = useAnnouncements(player);
+  // The camera's landing focuses a CD from a script: a keyboard user sees it ringed and brought forward, a mouse
+  // or touch user does not (Chrome would ring it for them too, see useKeyboardModality).
+  const keyboard = useKeyboardModality();
   const loadedIndex = albums.findIndex((album) => album.id === snapshot.disc);
   const [activeCd, setActiveCd] = useState(Math.max(0, loadedIndex));
   const [activeKey, setActiveKey] = useState(1);
@@ -106,6 +110,7 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
       data-coarse={coarse}
       data-rail={rail}
       data-live={live}
+      data-keyboard={keyboard}
       onKeyDown={onKeyDown}
     >
       <div
@@ -136,8 +141,8 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
               aria-label={`${album.title} by ${album.artist}, ${count} ${count === 1 ? 'track' : 'tracks'}${loaded ? ', in the player' : ''}`}
               onFocus={(event) => {
                 setActiveCd(index);
-                // Only a keyboard focus brings the disc forward: a programmatic one after a click must not.
-                if (event.currentTarget.matches(':focus-visible')) deck.setAttention(album.id);
+                // Only a keyboard focus brings the disc forward: the landing's after a click must not.
+                if (keyboard && event.currentTarget.matches(':focus-visible')) deck.setAttention(album.id);
               }}
               onBlur={() => deck.setAttention(null)}
               onClick={() => pickOrToggle(album)}
