@@ -19,7 +19,7 @@ Hero ids: `hackerman`, `artsy`, `strategy`. Skill ids: `full-stack-attack`, `age
 ```
 src/game/art/looks/<lookId>/
   characters/<characterId>/index.ts      registers the hero
-  characters/<characterId>/sheet.png + sheet.json     the 8 hero animations, 64 × 64 frames
+  characters/<characterId>/sheet.png + sheet.json     the 8 hero animations (and any skill poses), 64 × 64 frames
   characters/<characterId>/attack.png + attack.json   the basic attack: projectile, impact, muzzle (optional)
   customer/index.ts + sheet.png + sheet.json          the 5 customer animations, 64 × 64 frames
   skills/<skillId>/index.ts + icon.png + icon.json    a 24 × 24 icon with one animation, idle
@@ -50,19 +50,21 @@ src/game/art/looks/<lookId>/
 - `origin` is the point placed on the position the game draws at: for heroes and the customer, bottom-centre, the feet line.
 - `anchors` are optional, per animation: named pixels, one `[x, y]` per frame, inside the frame.
   - `muzzle` on `attack`: where the basic attack leaves (the keyboard, the guitar, the throwing hand). The game simulates shots from a fixed hand point; a look with a muzzle has its whole attack (shots, impacts, hit sparks) *drawn* shifted to the muzzle of the first `attack` frame, so hits land exactly where they always did.
-  - `hand` on `skill`: where a skill effect attaches (the potion, the guitar body). Skill visuals receive it, and any other anchor of the current frame, in world pixels.
+  - `hand` on `skill` (and on every skill pose): where a skill effect attaches (the potion, the guitar body). Skill visuals receive it, and any other anchor of the current frame, in world pixels.
   - `head` on every animation, for a look drawn smaller than its frame: the top of the head. The HUD frames its portrait at `idle`'s, the select screen's iris closes on the middle of the hero below it, and classic's UX ELIXIR pops its flask over the current frame's; without it they take heads to sit near the frame's top, as they do in a look that fills it.
 - Errors name the file and the field, e.g. `animations[2].anchors.muzzle[3] must be [x, y] inside the 64×64 frame`. Unknown keys are rejected, so a typo cannot vanish.
 - The JSON is data, not source: Biome leaves `looks/**/*.json` alone, so a generator's output never fails the lint.
 
 | Sheet               | Frame   | Origin    | Animations                                                          |
 | ------------------- | ------- | --------- | ------------------------------------------------------------------- |
-| hero `sheet`        | 64 × 64 | (32, 64)  | `idle`, `run`, `jump`, `fall`, `attack`, `skill`, `hurt`, `victory` |
+| hero `sheet`        | 64 × 64 | (32, 64)  | `idle`, `run`, `jump`, `fall`, `attack`, `skill`, `hurt`, `victory`; optionally `skill-<skillId>` |
 | customer `sheet`    | 64 × 64 | (32, 64)  | `walk`, `shout`, `hurt`, `stunned`, `happy` (won over)              |
 | skill `icon`        | 24 × 24 | (0, 0)    | `idle`, a subtle loop on a dark slot                                |
 | `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and variants (`projectile-<v>`, `impact-<v>`, `muzzle-<v>`) |
 
 All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall, or about 30 in a look drawn at classic's size (`terraria`). Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
+
+`skill` serves both of a hero's skills. A hero sheet may also pose one of its own hero's skills its own way, as Terraria gives every item its own use: `skill-<skillId>` (`skill-ux-elixir`) plays instead of `skill` whenever that skill is cast, held to the same rules (once, 0.4 s, its first frame the cast, `hand` on every frame). Any other extra animation is rejected at load, naming it. Classic's UX ELIXIR pops its flask only over a hero who does not pose `skill-ux-elixir`; one who does drinks his own potion in it (`caster.posesOwn(skill)` tells a skill visual).
 
 ## Index modules
 
@@ -136,7 +138,7 @@ Behaviour reduces everything visible to small read-only state, and a look draws 
 - `effect(gfx, fx)`: what it leaves in the world, which may outlive the skill: `fx.role` names it.
 - `customer(gfx, customer)`: what it puts on every customer it holds a rule over, drawn after the customer's frustration meter. Only UX ELIXIR has one: classic's calm heart over each calmed customer, which a look replaces by drawing its own.
 
-`caster` is the hero this frame: `x`, `y` (body centre), `feet`, `facing`, `height` (the hero sprite's frame height), the current frame's `hand` and `muzzle` anchors in world pixels or `null`, and `anchor(name)` for any other.
+`caster` is the hero this frame: `x`, `y` (body centre), `feet`, `facing`, `height` (the hero sprite's frame height), the current frame's `hand` and `muzzle` anchors in world pixels or `null`, `anchor(name)` for any other, and `posesOwn(skill)`, whether the hero's look poses that skill its own way.
 
 | Skill               | `active` state (all have `age`, `duration`)                                          | `shot`                      | `effect` roles                                                         | Runs                |
 | ------------------- | ------------------------------------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------- | ------------------- |

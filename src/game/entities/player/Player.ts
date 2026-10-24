@@ -1,8 +1,8 @@
-import type { CharacterId } from '@/content';
+import type { CharacterId, SkillId } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
-import type { CharacterAnimation } from '../../art/looks/contracts';
+import { type CharacterAnimation, heroAnimation } from '../../art/looks/contracts';
 import { type Body, type CollisionWorld, moveBody, type Surface } from '../../world/collision';
 import type { RenderKit } from '../RenderKit';
 import { type MoveIntent, type MoveScale, NORMAL_SCALE, PlatformerMotor } from './movement';
@@ -39,6 +39,14 @@ const KNOCKBACK_SECONDS = 0.3;
 const KNOCKBACK = { x: 150, y: -220 } as const;
 const STOMP_BOUNCE = -280;
 
+/** The animation a player shows, and how far into it. */
+export interface PlayerPose {
+  readonly animation: CharacterAnimation;
+  /** The skill being cast while the animation is `skill`, which a look may pose its own way; otherwise null. */
+  readonly skill: SkillId | null;
+  readonly time: number;
+}
+
 /** Poses that override locomotion for a moment. */
 type ActionPose = 'attack' | 'skill' | 'hurt' | 'victory';
 
@@ -59,8 +67,15 @@ export class Player {
   #grounded = false;
   #invulnerableUntil = Number.NEGATIVE_INFINITY;
   #lockedUntil = Number.NEGATIVE_INFINITY;
-  #action: { readonly pose: ActionPose; readonly since: number; readonly until: number } | null = null;
+  #action: {
+    readonly pose: ActionPose;
+    readonly since: number;
+    readonly until: number;
+    /** The skill being cast, while the pose is `skill`. */
+    readonly skill: SkillId | null;
+  } | null = null;
   #animation: CharacterAnimation = 'idle';
+  #skill: SkillId | null = null;
   #animationSince = 0;
 
   constructor(characterId: CharacterId, x: number, feetY: number) {
@@ -192,19 +207,25 @@ export class Player {
 
   /** Holds an action pose (attack, skill, victory) for `seconds` instead of the locomotion animation. */
   strike(pose: ActionPose, time: number, seconds: number): void {
-    this.#action = { pose, since: time, until: time + seconds };
+    this.#action = { pose, since: time, until: time + seconds, skill: null };
+  }
+
+  /** Holds the skill pose for `seconds` while casting `skill`, which a look may pose its own way. */
+  cast(skill: SkillId, time: number, seconds: number): void {
+    this.#action = { pose: 'skill', since: time, until: time + seconds, skill };
   }
 
   /** The animation on show and how far into it, at `time`. */
-  pose(time: number): { readonly animation: CharacterAnimation; readonly time: number } {
-    return { animation: this.#animation, time: time - this.#animationSince };
+  pose(time: number): PlayerPose {
+    return { animation: this.#animation, skill: this.#skill, time: time - this.#animationSince };
   }
 
   render(gfx: Gfx, kit: RenderKit): void {
     const invulnerable = this.isInvulnerable(kit.time) && !this.isLocked(kit.time);
     if (invulnerable && !blink(kit.time, 3 / 60, 3 / 60)) return;
-    const { animation, time } = this.pose(kit.time);
-    gfx.sprite(kit.looks.characters[this.characterId].sheet, animation, time, this.centerX, this.feet, {
+    const { animation, skill, time } = this.pose(kit.time);
+    const { sheet } = kit.looks.characters[this.characterId];
+    gfx.sprite(sheet, heroAnimation(sheet, animation, skill), time, this.centerX, this.feet, {
       flipX: this.facing < 0,
     });
   }
@@ -218,6 +239,7 @@ export class Player {
     else next = Math.abs(this.body.vx) > 12 ? 'run' : 'idle';
     if (next !== this.#animation || (action && action.since === time)) {
       this.#animation = next;
+      this.#skill = next === 'skill' ? (action?.skill ?? null) : null;
       this.#animationSince = action?.pose === next ? action.since : time;
     }
   }

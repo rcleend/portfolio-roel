@@ -4,7 +4,7 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec, type SpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
 import { ATTACK_VISUAL_PARTS, type AttackVisual } from '../../entities/shots/AttackVisual';
 import { SKILL_VISUAL_PARTS, type SkillVisual } from '../../skills/SkillVisual';
-import { CUSTOMER_SHEET, HERO_SHEET, type SheetContract, SKILL_ICON_SHEET } from './contracts';
+import { CUSTOMER_SHEET, HERO_SHEET, type SheetContract, SKILL_ICON_SHEET, strayHeroAnimations } from './contracts';
 import type { LookId } from './ids';
 import type { CustomerLook, HeroLook, Looks, SkillLook, SkillLooks } from './Looks';
 import type { FxSheets, SheetSource } from './module';
@@ -99,6 +99,11 @@ class LookLoader {
       this.#sheet(module.sheet, `${where}/sheet`, HERO_SHEET),
       this.#fx(module.fx, where),
     ]);
+    const stray = strayHeroAnimations(sheet.animationNames, characterId);
+    if (stray.length > 0) {
+      const names = stray.map((animation) => `"${animation}"`).join(', ');
+      throw new Error(`${where}/sheet: ${names}: not a hero animation, nor a pose of one of ${characterId}'s skills`);
+    }
     const own = module.attack?.(fx) ?? {};
     if (complete(own, ATTACK_VISUAL_PARTS)) return { lookId, sheet, attack: own };
     if (lookId === 'classic') throw new Error(`${where}: classic must draw the whole attack`);

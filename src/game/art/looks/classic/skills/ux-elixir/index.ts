@@ -17,7 +17,8 @@ export const look = defineSkillLook('ux-elixir', {
   icon: skillIconSheets['ux-elixir'],
   visual: () => ({
     active: (gfx, elixir, caster, layer) => {
-      if (layer !== 'front' || elixir.age > FLASK_SECONDS) return;
+      // A hero who poses UX ELIXIR his own way drinks his own potion, so the flask would be a second one.
+      if (layer !== 'front' || elixir.age > FLASK_SECONDS || caster.posesOwn('ux-elixir')) return;
       // The potion pops up above the hero's head, tips, and is gone.
       const rise = segment(elixir.age, 0, 0.25, easeOutBack);
       const x = Math.round(caster.x - 3);
