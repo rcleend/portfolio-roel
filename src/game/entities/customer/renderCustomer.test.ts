@@ -10,7 +10,7 @@ import { customerLabelArt } from '../../art/fx/customerLabel';
 import terrariaJson from '../../art/looks/terraria/customer/sheet.json';
 import type { RenderKit } from '../RenderKit';
 import { Customer, type CustomerMood } from './Customer';
-import { FEET_GAP } from './label';
+import { FEET_GAP, LabelLayout } from './label';
 import { customerPose, drawCustomerLabels, layOutCustomerLabels, overheadLift } from './renderCustomer';
 import { REGULAR_CUSTOMER } from './tuning';
 
@@ -73,6 +73,7 @@ beforeAll(() => vi.stubGlobal('document', { createElement: () => new RasterCanva
 afterAll(() => vi.unstubAllGlobals());
 
 const PLAYER = { centerX: 20, feet: 200, body: { x: 13, y: 170, w: 14, h: 30 } };
+const SCREEN = { width: 320, restLeft: 0, restBottom: 240, left: 0, bottom: 240 };
 const FONTS = { small: BitmapFont.fromGlyphData(smallFont) };
 const { sizes } = customerLabelArt(FONTS.small);
 
@@ -80,9 +81,10 @@ function paint(customers: readonly Customer[], time: number, reducedMotion = fal
   const ctx = rasterContext(320, 240);
   const gfx = new Gfx(ctx as unknown as CanvasRenderingContext2D);
   const kit = { time, reducedMotion, fonts: FONTS };
-  layOutCustomerLabels(kit, customers, PLAYER, 0, 320, 240);
-  drawCustomerLabels(gfx, kit, 'behind');
-  drawCustomerLabels(gfx, kit, 'front');
+  const labels = new LabelLayout();
+  layOutCustomerLabels(kit, labels, customers, PLAYER, SCREEN);
+  drawCustomerLabels(gfx, kit, labels, 'behind');
+  drawCustomerLabels(gfx, kit, labels, 'front');
   return ctx.paintedBounds();
 }
 

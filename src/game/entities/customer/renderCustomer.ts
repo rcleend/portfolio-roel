@@ -8,7 +8,7 @@ import { palette } from '../../palette';
 import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
-import { type LabelFocus, LabelLayout } from './label';
+import type { LabelFocus, LabelLayout, LabelScreen } from './label';
 import { REGULAR_CUSTOMER } from './tuning';
 
 /** The bits of the level's rules that change how a customer is drawn. */
@@ -84,14 +84,6 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rul
   }
 }
 
-/**
- * One layout serves every world drawn on the page: a stage lays out its
- * labels once and draws both layers before the next is drawn, and the layout
- * remembers rows by customer.
- */
-const labels = new LabelLayout();
-let laidOut = 0;
-
 /** What drawing the labels needs of the render kit. */
 export interface LabelKit extends Pick<RenderKit, 'time' | 'reducedMotion'> {
   readonly fonts: Pick<GameFonts, 'small'>;
@@ -99,37 +91,44 @@ export interface LabelKit extends Pick<RenderKit, 'time' | 'reducedMotion'> {
 
 /**
  * Lays out this frame's labels under the customers' feet ("Unhappy customer"
- * until won over) on the screen spanning `viewWidth` world pixels from
- * `viewX`, ending above the world row `bottom` where the HUD along its
- * bottom begins. `drawCustomerLabels` then draws them, a layer at a time.
+ * until won over) on `screen` in `labels`, which remembers the rows they
+ * took. `drawCustomerLabels` then draws them, a layer at a time.
  */
 export function layOutCustomerLabels(
   kit: LabelKit,
+  labels: LabelLayout,
   customers: readonly Customer[],
   player: LabelFocus,
-  viewX: number,
-  viewWidth: number,
-  bottom: number,
+  screen: LabelScreen,
 ): void {
   const { sizes } = customerLabelArt(kit.fonts.small);
-  laidOut = labels.update(customers, sizes, player, viewX, viewWidth, bottom, kit.time, kit.reducedMotion);
+  labels.update(customers, sizes, player, screen, kit.time, kit.reducedMotion);
 }
 
 /**
- * Draws the last laid-out labels of one layer, `(dx, dy)` from where the
- * layout put them: 'behind', before any character, the few that meet one,
- * so a sprite always stands in front of a label it meets; 'front', after the
- * foreground, all the others, so no post cuts a word out of them.
+ * Draws one layer of the labels last laid out in `labels`, `(dx, dy)` from
+ * where the layout put them: 'behind', before any character, the few that
+ * meet one, so a sprite always stands in front of a label it meets;
+ * 'front', after the foreground, all the others, so no post cuts a word out
+ * of them.
  */
-export function drawCustomerLabels(gfx: Gfx, kit: LabelKit, layer: 'behind' | 'front', dx = 0, dy = 0): void {
-  if (laidOut === 0) return;
+export function drawCustomerLabels(
+  gfx: Gfx,
+  kit: LabelKit,
+  labels: LabelLayout,
+  layer: 'behind' | 'front',
+  dx = 0,
+  dy = 0,
+): void {
+  const shown = labels.shown;
+  if (shown === 0) return;
   const front = layer === 'front';
   const bitmaps = customerLabelArt(kit.fonts.small).bitmaps();
-  for (let index = 0; index < laidOut; index++) {
+  for (let index = 0; index < shown; index++) {
     const label = labels.label(index);
     if (label.front !== front) continue;
     const bitmap = bitmaps[label.frame.picture];
-    gfx.image(bitmap.image, label.left + dx, label.top - label.lift + dy, bitmap.draw);
+    gfx.image(bitmap.image, label.x + dx, label.y + dy, bitmap.draw);
   }
 }
 

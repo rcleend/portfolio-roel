@@ -9,7 +9,7 @@ import { IDLE_INTENT } from '../../entities/player/Player';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
-import { BOSS_BAR_TOP, drawBossBar } from '../../ui/hud/BossBar';
+import { BOSS_BAR_TOP, bossBarTop, drawBossBar } from '../../ui/hud/BossBar';
 import { drawHud } from '../../ui/hud/Hud';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { Autopilot } from '../../world/autopilot';
@@ -26,9 +26,9 @@ import { HighlightCard } from './overlays/HighlightCard';
 import { drawMissionIntro, missionYears } from './overlays/missionIntro';
 import { type PauseChoice, PauseMenu } from './overlays/PauseMenu';
 import { fadeScreen } from './overlays/screen';
-import { drawStage } from './render/drawStage';
 import { drawHitboxes } from './render/hitboxes';
 import { levelRenderKit } from './render/renderKit';
+import { StageRenderer } from './render/StageRenderer';
 import { STAGES } from './stages';
 
 /** The level's flow. The world only advances in `play`, `retained` and `finale`. */
@@ -72,6 +72,7 @@ export class LevelScene implements GameScene<LevelParams> {
   #device: 'keyboard' | 'gamepad' = 'keyboard';
   #arenaAt: number | null = null;
   readonly #hud = new HudTracker();
+  readonly #stage = new StageRenderer();
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -166,16 +167,17 @@ export class LevelScene implements GameScene<LevelParams> {
     const level = this.#level;
     if (!world || !art || !level) return;
     const kit = levelRenderKit(this.#services, this.#levelText, world, art);
-    const bossBar = this.#hud.bossBar(world, this.#time);
     const celebrating = this.#phase.kind === 'finale' || this.#phase.kind === 'leaving';
-    const showBossBar = bossBar && !celebrating;
-    // The customers' labels end above the bands the HUD lays along the bottom, which would hide them.
+    const bossBar = celebrating ? null : this.#hud.bossBar(world, this.#time);
+    // The customers' labels keep above the bands the HUD lays along the bottom, which would hide them.
     const hintsTop = controlHintsTop(this.#time) ?? gfx.height;
-    const hudTop = Math.min(hintsTop, showBossBar ? BOSS_BAR_TOP : gfx.height);
+    const hud = bossBar
+      ? { settled: Math.min(hintsTop, BOSS_BAR_TOP), top: Math.min(hintsTop, bossBarTop(bossBar.age)) }
+      : { settled: hintsTop, top: hintsTop };
     const hitboxes = this.#dev.hitboxes ? (layer: Gfx) => drawHitboxes(layer, world) : undefined;
-    drawStage(gfx, world, kit, this.#time, hudTop, hitboxes);
+    this.#stage.draw(gfx, world, kit, this.#time, hud, hitboxes);
     drawHud(gfx, kit, this.#hud.hud(world, this.#time, this.#device));
-    if (showBossBar) drawBossBar(gfx, this.#services.text, bossBar);
+    if (bossBar) drawBossBar(gfx, this.#services.text, bossBar);
     this.#renderOverlays(gfx, world, level);
   }
 

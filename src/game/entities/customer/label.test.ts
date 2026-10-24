@@ -11,6 +11,7 @@ import {
   LABEL_GAP,
   type LabelFocus,
   LabelLayout,
+  type LabelScreen,
   labelFrame,
   labelKind,
   labelLeft,
@@ -27,6 +28,24 @@ afterAll(() => vi.unstubAllGlobals());
 const FRAME = 1 / 60;
 /** The screen, in world pixels, down to where the HUD along its bottom begins. */
 const VIEW = { x: 0, w: 320, bottom: 240 };
+/** The screen at rest, as drawn. */
+const SCREEN: LabelScreen = {
+  width: VIEW.w,
+  restLeft: VIEW.x,
+  restBottom: VIEW.bottom,
+  left: VIEW.x,
+  bottom: VIEW.bottom,
+};
+
+/** The screen at rest with the HUD along its bottom beginning at world row `bottom`. */
+function above(bottom: number): LabelScreen {
+  return { ...SCREEN, restBottom: bottom, bottom };
+}
+
+/** The screen at rest, drawn `dx` to the right and with the HUD beginning `dy` higher: a shake, or the boss bar's bounce. */
+function shaken(dx: number, dy: number, rest = SCREEN): LabelScreen {
+  return { ...rest, left: rest.restLeft + dx, bottom: rest.restBottom - dy };
+}
 const ART = customerLabelArt(BitmapFont.fromGlyphData(smallFont));
 const SIZES = ART.sizes;
 const { width: WIDTH, height: HEIGHT } = SIZES.unhappy;
@@ -68,8 +87,8 @@ function moveTo(moved: Customer, x: number): void {
 }
 
 /** One frame of `layout`: which customers wear a label, on which row, the neediest first. */
-function frame(layout: LabelLayout, customers: readonly Customer[], player = PLAYER, time = 10, bottom = VIEW.bottom) {
-  const count = layout.update(customers, SIZES, player, VIEW.x, VIEW.w, bottom, time, false);
+function frame(layout: LabelLayout, customers: readonly Customer[], player = PLAYER, time = 10, screen = SCREEN) {
+  const count = layout.update(customers, SIZES, player, screen, time, false);
   return Array.from({ length: count }, (_, index) => layout.label(index));
 }
 
@@ -247,17 +266,28 @@ describe('customer label placement', () => {
     expect(alone?.lift).toBe(2);
   });
 
-  it('never draws a label over another, popping or not', () => {
-    const customers = [customer(150), customer(165), customer(180), customer(195)];
+  it('hops a popping label no nearer a label beside it on the row above than labels on their rows stand', () => {
+    const near = customer(150);
+    const nearRight = 150 - Math.floor(WIDTH / 2) + WIDTH;
+    // Clear of the label above, but within the gap beside it, so the happy one steps down a row.
+    const left = nearRight + LABEL_GAP - 1;
+    const won = wonOver(customer(left + Math.floor(SIZES.flash.width / 2)), 10);
+    const [first, popping] = layOut([near, won], at(60), 10);
+    expect([first?.row, popping?.row, popping?.left, popping?.frame.rise]).toEqual([0, 1, left, 2]);
+    expect(popping?.lift).toBe(0);
+  });
+
+  it('never draws a label over another or within the gap beside it, popping or not', () => {
+    const customers = [customer(150), customer(165), customer(180), customer(195), customer(235), customer(250)];
     for (const won of customers.slice(1)) wonOver(won, 10);
     for (const time of [10, 10 + 3 * FRAME, 11]) {
       const drawn = layOut(customers, at(60), time);
       for (const a of drawn) {
         for (const b of drawn) {
           if (a === b) continue;
-          const side = a.left < b.left + b.width && b.left < a.left + a.width;
-          const level = a.top - a.lift < b.top - b.lift + b.height && b.top - b.lift < a.top - a.lift + a.height;
-          expect(side && level, `${a.index} over ${b.index} at ${time}`).toBe(false);
+          const side = a.x < b.x + b.width + LABEL_GAP && b.x < a.x + a.width + LABEL_GAP;
+          const level = a.y < b.y + b.height && b.y < a.y + a.height;
+          expect(side && level, `${a.index} beside ${b.index} at ${time}`).toBe(false);
         }
       }
     }
@@ -270,18 +300,18 @@ describe('customer label placement', () => {
   it('keeps labels out of the HUD along the bottom, so a second row it would hide waits', () => {
     // As under the boss bar: its strip begins two rows below the first row's bottom.
     const bottom = 200 + FEET_GAP + HEIGHT + 2;
-    const shown = frame(new LabelLayout(), [customer(150), customer(200)], at(60), 10, bottom);
+    const shown = frame(new LabelLayout(), [customer(150), customer(200)], at(60), 10, above(bottom));
     expect(shown.map(({ index, row }) => ({ index, row }))).toEqual([{ index: 0, row: 0 }]);
   });
 
   it('leaves out a customer whose label the HUD along the bottom would hide', () => {
-    expect(frame(new LabelLayout(), [customer(150)], PLAYER, 10, 200 + FEET_GAP + HEIGHT - 1)).toEqual([]);
+    expect(frame(new LabelLayout(), [customer(150)], PLAYER, 10, above(200 + FEET_GAP + HEIGHT - 1))).toEqual([]);
   });
 
   it('takes a second row again once the HUD along the bottom leaves it', () => {
     const layout = new LabelLayout();
     const customers = [customer(150), customer(200)];
-    frame(layout, customers, at(60), 10, 200 + FEET_GAP + HEIGHT + 2);
+    frame(layout, customers, at(60), 10, above(200 + FEET_GAP + HEIGHT + 2));
     expect(rows(customers, layout, at(60))).toEqual([0, 1]);
   });
 });
@@ -309,6 +339,50 @@ describe('customer label layers', () => {
     const won = wonOver(customer(160), 10);
     expect(layOut([won], PLAYER, 10).map(({ lift, front }) => ({ lift, front }))).toEqual([{ lift: 2, front: false }]);
     expect(layOut([won], PLAYER, 11).map(({ lift, front }) => ({ lift, front }))).toEqual([{ lift: 0, front: true }]);
+  });
+});
+
+describe('customer labels on a shaken screen', () => {
+  const placed = (labels: readonly PlacedLabel[]) => labels.map(({ index, row, x, y }) => ({ index, row, x, y }));
+  const pair = () => [customer(150), customer(190)];
+  /** Settled, the HUD along the bottom leaves room for two rows of labels and not a pixel more. */
+  const TIGHT = above(200 + FEET_GAP + 2 * HEIGHT);
+
+  it('choose their rows with the camera at rest, so a shake never flips one', () => {
+    expect(rows(pair(), new LabelLayout())).toEqual([0, 1]);
+    expect(frame(new LabelLayout(), pair(), PLAYER, 10, shaken(0, 3, TIGHT)).map(({ row }) => row)).toEqual([0, 1]);
+  });
+
+  it('hold every label above the HUD as drawn, all moved up together', () => {
+    const still = placed(frame(new LabelLayout(), pair(), PLAYER, 10, TIGHT));
+    const held = placed(frame(new LabelLayout(), pair(), PLAYER, 10, shaken(0, 3, TIGHT)));
+    expect(held).toEqual(still.map((label) => ({ ...label, y: label.y - 3 })));
+    // With room to spare under them, the HUD holds back none.
+    expect(placed(frame(new LabelLayout(), pair(), PLAYER, 10, shaken(0, 3)))).toEqual(placed(layOut(pair())));
+  });
+
+  it('hold every label on the screen as drawn, all moved in together', () => {
+    // Against the left edge at rest, with a second label a row lower.
+    const customers = [customer(10), customer(100)];
+    const still = placed(layOut(customers));
+    expect(still.map(({ x }) => x)).toEqual([0, 100 - Math.floor(WIDTH / 2)]);
+    const moved = (dx: number) => placed(frame(new LabelLayout(), customers, PLAYER, 10, shaken(dx, 0)));
+    expect(moved(4)).toEqual(still.map((label) => ({ ...label, x: label.x + 4 })));
+    expect(moved(-4)).toEqual(still);
+    const [right] = frame(new LabelLayout(), [customer(VIEW.w - 10)], PLAYER, 10, shaken(-4, 0));
+    expect(right?.x).toBe(VIEW.w - WIDTH - 4);
+  });
+
+  it('decide who wears a label with the camera at rest', () => {
+    // A shake carries the screen's edge past their middle for a frame, yet they keep their label.
+    expect(frame(new LabelLayout(), [customer(2)], at(200), 10, shaken(4, 0))).toHaveLength(1);
+    expect(frame(new LabelLayout(), [customer(-2)], at(200), 10, shaken(-4, 0))).toHaveLength(0);
+  });
+
+  it("drop a label held up into its own customer's feet behind the characters", () => {
+    const rest = above(200 + FEET_GAP + HEIGHT);
+    const front = (dy: number) => frame(new LabelLayout(), [customer(160)], PLAYER, 10, shaken(0, dy, rest))[0]?.front;
+    expect([front(0), front(FEET_GAP), front(FEET_GAP + 1)]).toEqual([true, true, false]);
   });
 });
 

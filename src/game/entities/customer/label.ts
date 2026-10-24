@@ -90,18 +90,25 @@ export function labelTop(feet: number, row: number, height: number): number {
   return Math.round(feet) + FEET_GAP + row * height;
 }
 
-/** A label as laid out this frame. */
+/** A label as laid out this frame, in world pixels. */
 export interface PlacedLabel {
   /** Which of the customers laid out wears it. */
   readonly index: number;
   readonly frame: LabelFrame;
-  readonly left: number;
-  /** Where it rests. */
-  readonly top: number;
-  /** Whole pixels the picture is drawn above `top`: the frame's `rise`, cut short where a label above leaves less room. */
-  readonly lift: number;
   /** 0 under the feet, 1 a row lower. */
   readonly row: number;
+  /** Where it rests on its row, with the camera at rest. */
+  readonly left: number;
+  readonly top: number;
+  /** Whole pixels the pop lifts it above `top`: the frame's `rise`, cut short where a label above leaves less room. */
+  readonly lift: number;
+  /**
+   * Where it is drawn this frame: lifted, and moved with every other label
+   * where a shake or the boss bar's bounce would carry one off the screen
+   * or into the HUD.
+   */
+  readonly x: number;
+  readonly y: number;
   readonly width: number;
   readonly height: number;
   /**
@@ -110,6 +117,29 @@ export interface PlacedLabel {
    * stays behind the characters, so a sprite always stands in front of it.
    */
   readonly front: boolean;
+}
+
+/**
+ * The screen in the world this frame, in world pixels. A shake moves the
+ * street under the HUD and the boss bar bounces as it rises, so the layout
+ * reads the screen twice: at rest for the choices a shake must not flip
+ * (who wears a label, and on which row), and as drawn, so that neither the
+ * screen's edge nor the HUD ever cuts a label.
+ */
+export interface LabelScreen {
+  readonly width: number;
+  /** The left edge with the camera at rest. */
+  readonly restLeft: number;
+  /** The row where the HUD along the bottom begins once settled, with the camera at rest. */
+  readonly restBottom: number;
+  /** The left edge as drawn, shake included. */
+  readonly left: number;
+  /**
+   * The row labels keep above as drawn, shake included: where the HUD along
+   * the bottom settles or where it is this frame (the boss bar bounces up
+   * past its place as it rises), whichever is higher.
+   */
+  readonly bottom: number;
 }
 
 /** The player or a customer, as far as a label meeting them goes. */
@@ -134,6 +164,8 @@ interface Slot {
   left: number;
   top: number;
   lift: number;
+  x: number;
+  y: number;
   /** The top of row 0, under the feet. */
   floor: number;
   /** How many rows, from row 0, end above the HUD. */
@@ -160,6 +192,11 @@ interface Slot {
  * same stretch, or a second while the boss bar or the control hints take
  * the second row's place.
  *
+ * The labels shake with the street as one layer, so a shake never moves one
+ * against another or flips a row: where it would carry one off the screen or
+ * into the HUD, or where the boss bar bounces up past its settled place, all
+ * of them are held back together, just far enough.
+ *
  * Labels claim room in order of who needs one most: unhappy customers
  * before happy ones (a won-over customer strolling off is no threat), then
  * those whose label is showing (so a newcomer never bumps one), then
@@ -180,29 +217,31 @@ export class LabelLayout {
   readonly #lastRows = new WeakMap<Customer, number>();
   #shown = 0;
 
+  /** How many labels show, as of the last layout. */
+  get shown(): number {
+    return this.#shown;
+  }
+
   /**
-   * Lays out this frame's labels on the screen spanning `viewWidth` world
-   * pixels from `viewX`, above the world row `bottom` where the HUD along
-   * its bottom begins, and returns how many show; `label(i)` reads them,
-   * the one that needed it most first.
+   * Lays out this frame's labels on `screen` and returns how many show;
+   * `label(i)` reads them, the one that needed it most first.
    */
   update(
     customers: readonly Customer[],
     sizes: Readonly<Record<LabelPicture, LabelSize>>,
     focus: LabelFocus,
-    viewX: number,
-    viewWidth: number,
-    bottom: number,
+    screen: LabelScreen,
     time: number,
     reducedMotion: boolean,
   ): number {
     const slots = this.#slots;
     const lastRows = this.#lastRows;
+    const { width: viewWidth, restLeft, restBottom } = screen;
     let count = 0;
     for (let index = 0; index < customers.length; index++) {
       const customer = customers[index] as Customer;
       const centerX = customer.centerX;
-      const frame = labelled(centerX, viewX, viewWidth)
+      const frame = labelled(centerX, restLeft, viewWidth)
         ? labelFrame(customer.mood, customer.moodAge(time), reducedMotion)
         : null;
       if (frame === null) {
@@ -219,9 +258,9 @@ export class LabelLayout {
       slot.frame = frame;
       slot.width = width;
       slot.height = height;
-      slot.left = labelLeft(centerX, width, viewX, viewWidth);
+      slot.left = labelLeft(centerX, width, restLeft, viewWidth);
       slot.floor = labelTop(feet, 0, height);
-      slot.rows = Math.min(ROWS, Math.floor((bottom - slot.floor) / height));
+      slot.rows = Math.min(ROWS, Math.floor((restBottom - slot.floor) / height));
       slot.lastRow = lastRow;
       slot.tier = (frame.picture === 'unhappy' ? 0 : 2) + (lastRow === UNPLACED ? 1 : 0);
       const dx = centerX - focus.centerX;
@@ -248,6 +287,10 @@ export class LabelLayout {
     for (let index = 0; index < shown; index++) {
       const slot = slots[index] as Slot;
       slot.lift = headroom(slots, shown, slot, slot.frame.rise);
+    }
+    hold(slots, shown, screen);
+    for (let index = 0; index < shown; index++) {
+      const slot = slots[index] as Slot;
       slot.front = !meets(slot, focus) && !meetsAny(slot, customers);
     }
 
@@ -279,6 +322,8 @@ function grow(slots: Slot[]): Slot {
     left: 0,
     top: 0,
     lift: 0,
+    x: 0,
+    y: 0,
     floor: 0,
     rows: 0,
     row: 0,
@@ -333,30 +378,58 @@ function fits(slots: readonly Slot[], shown: number, slot: Slot, row: number, ga
   return true;
 }
 
-/** How far, up to `rise`, `slot` may be lifted before it would cover one of the first `shown` labels above it. */
+/**
+ * How far, up to `rise`, `slot` may be lifted before it would reach the rows
+ * of one of the first `shown` labels above it and within `LABEL_GAP` side by
+ * side, as no two labels stand on their rows.
+ */
 function headroom(slots: readonly Slot[], shown: number, slot: Slot, rise: number): number {
   let room = rise;
   for (let index = 0; room > 0 && index < shown; index++) {
     const other = slots[index] as Slot;
     const above = other.top + other.height <= slot.top;
-    const over = slot.left < other.left + other.width && other.left < slot.left + slot.width;
-    if (other !== slot && above && over) room = Math.min(room, slot.top - other.top - other.height);
+    const beside = slot.left < other.left + other.width + LABEL_GAP && other.left < slot.left + slot.width + LABEL_GAP;
+    if (other !== slot && above && beside) room = Math.min(room, slot.top - other.top - other.height);
   }
   return room;
 }
 
 /**
- * Whether `slot` as drawn, lift included, meets `character`'s sprite: the
- * rows above their feet, and their hitbox widened by half on either side,
- * which holds every look's art (the regular customer's 18 px on its 14 px
- * hitbox, the escalated one's about 40 px on 26).
+ * Places the first `shown` labels where they are drawn: lifted, and moved
+ * together as far as `screen` as drawn needs to hold them all on it and
+ * above its HUD. Every one fits the screen at rest, so they never move
+ * further than the shake and the bar's bounce.
+ */
+function hold(slots: readonly Slot[], shown: number, screen: LabelScreen): void {
+  let leftmost = Number.POSITIVE_INFINITY;
+  let rightmost = Number.NEGATIVE_INFINITY;
+  let lowest = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < shown; index++) {
+    const slot = slots[index] as Slot;
+    leftmost = Math.min(leftmost, slot.left);
+    rightmost = Math.max(rightmost, slot.left + slot.width);
+    lowest = Math.max(lowest, slot.top - slot.lift + slot.height);
+  }
+  const dx = Math.max(0, screen.left - leftmost) + Math.min(0, screen.left + screen.width - rightmost);
+  const dy = Math.min(0, screen.bottom - lowest);
+  for (let index = 0; index < shown; index++) {
+    const slot = slots[index] as Slot;
+    slot.x = slot.left + dx;
+    slot.y = slot.top - slot.lift + dy;
+  }
+}
+
+/**
+ * Whether `slot` as drawn meets `character`'s sprite: the rows above their
+ * feet, and their hitbox widened by half on either side, which holds every
+ * look's art (the regular customer's 18 px on its 14 px hitbox, the
+ * escalated one's about 40 px on 26).
  */
 function meets(slot: Slot, character: LabelCharacter): boolean {
   const { x, y, w } = character.body;
   const reach = w / 2;
-  const top = slot.top - slot.lift;
-  const beside = slot.left < x + w + reach && x - reach < slot.left + slot.width;
-  return beside && top < character.feet && y < top + slot.height;
+  const beside = slot.x < x + w + reach && x - reach < slot.x + slot.width;
+  return beside && slot.y < character.feet && y < slot.y + slot.height;
 }
 
 function meetsAny(slot: Slot, customers: readonly Customer[]): boolean {
