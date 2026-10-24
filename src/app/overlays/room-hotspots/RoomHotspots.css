@@ -73,9 +73,13 @@
   pointer-events: auto;
 }
 
+/*
+ * Raised off the computer's own height: in the portrait room view the radio and the lava lamp stand
+ * there, at the computer's edge, and a chip on them would read as their label. The wall above is bare.
+ */
 .room-hotspots__chip[data-edge="left"],
 .room-hotspots__chip[data-edge="right"] {
-  top: clamp(25cqh, var(--y), 75cqh);
+  top: clamp(25cqh, calc(var(--y) - 14cqh), 75cqh);
   transform: translateY(-50%);
 }
 
