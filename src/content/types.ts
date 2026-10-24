@@ -121,6 +121,14 @@ export interface LevelInfo {
   readonly complaints: readonly string[];
 }
 
+/** What the label under every Unhappy Customer's feet calls them. */
+export interface CustomerLabels {
+  /** While they are frustrated: walking, shouting, hurt, stunned or calmed. */
+  readonly unhappy: string;
+  /** From the hit that wins them over until they have strolled off. */
+  readonly happy: string;
+}
+
 /** A non-playable teaser slot on the level select. */
 export interface LevelTeaser {
   readonly mission: string;

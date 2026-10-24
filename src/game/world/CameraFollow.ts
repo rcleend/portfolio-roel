@@ -40,6 +40,11 @@ export class CameraFollow {
     return this.#camera.height;
   }
 
+  /** Whole-pixel top edge, without shake: the world row under the screen's top. */
+  get top(): number {
+    return Math.round(this.#camera.y);
+  }
+
   /** Whole-pixel top-left including shake. */
   get view(): { readonly x: number; readonly y: number } {
     return this.#camera.view;

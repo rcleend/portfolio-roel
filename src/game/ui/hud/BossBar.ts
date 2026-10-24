@@ -16,6 +16,8 @@ export interface BossBarState {
 const WIDTH = 216;
 const HEIGHT = 7;
 const BOTTOM = 236;
+/** The top of the dark strip behind the bar once it has risen: the screen rows from here down are the HUD's. */
+export const BOSS_BAR_TOP = BOTTOM - HEIGHT - 15;
 
 /** The escalated customer's frustration, as a segmented arcade boss bar along the bottom of the screen. */
 export function drawBossBar(gfx: Gfx, text: TextStyles, state: BossBarState): void {

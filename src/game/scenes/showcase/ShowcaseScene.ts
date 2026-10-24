@@ -69,7 +69,7 @@ export class ShowcaseScene implements GameScene<ShowcaseParams | undefined> {
     const art = this.#art;
     if (!run || !art) return;
     const kit = levelRenderKit(this.#services, this.#levelText, run.world, art);
-    drawStage(gfx, run.world, kit, run.time);
+    drawStage(gfx, run.world, kit, run.time, gfx.height);
     drawHud(gfx, kit, this.#hud.hud(run.world, run.time, 'keyboard'));
   }
 
