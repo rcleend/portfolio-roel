@@ -19,10 +19,23 @@ const LOOKS: Readonly<Record<LookId, Choice>> = {
   },
   portrait: { id: 'portrait', name: 'Portrait', description: 'Slim and realistic, with selective coloured outlines.' },
   hibit: { id: 'hibit', name: 'Hi-bit', description: 'Modern high-fidelity pixel art: rich ramps and lavish effects.' },
+  // Named as the Terraria Roels board names them, the look "before" its revision.
   terraria: {
     id: 'terraria',
-    name: 'Terraria',
+    name: 'Terraria · before',
     description: 'The three Roels as Terraria players, animated the way Terraria animates its own.',
+  },
+  'terraria-revised': {
+    id: 'terraria-revised',
+    name: 'Terraria · revised',
+    description:
+      "Terraria's hairstyle 143, its lock flicking a pixel as he runs and comes down (still under a cap), flatter glasses and the DESIGNER's cap with one spot.",
+  },
+  'terraria-hooded': {
+    id: 'terraria-hooded',
+    name: 'Terraria · hood up',
+    description:
+      'The revised ENGINEER with his hood pulled up, moving with his head and shoulders, his hair still under it.',
   },
 };
 

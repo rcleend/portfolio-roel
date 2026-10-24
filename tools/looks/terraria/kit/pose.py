@@ -37,6 +37,8 @@ class Pose(NamedTuple):
     # How far the whole figure leaves the ground, legs too.
     lift: int = 0
     eyes: str = 'open'
+    # The state of his hair's motion (body.HAIR_MOTION): only its loose ends move.
+    hair: str = 'rest'
     props: Tuple[Prop, ...] = ()
     # Nudges the near arm from its drawing, on top of the body: a key pressed, a strum dug in.
     near_at: Point = (0, 0)
@@ -70,7 +72,7 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
         Stroke(legs, Dye(outfit.legs, outfit.shoes), ground),
         *(Stroke(part, dye, body) for part, dye in outfit.torso),
         Stroke(HEAD, Dye(), body),
-        Stroke(outfit.hair, Dye(), body),
+        Stroke(outfit.hair[pose.hair], Dye(), body),
         *((Stroke(outfit.ear, Dye(), body),) if outfit.ear else ()),
         Stroke(EYES[pose.eyes], Dye(), body),
         Stroke(outfit.glasses, Dye(), body),

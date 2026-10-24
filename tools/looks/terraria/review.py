@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Review boards for the Terraria look, rendered from the committed sheets (what ships, not the recipe).
+"""Review boards for the Terraria looks, rendered from the committed sheets (what ships, not the recipe).
 
-    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR] [--revised]
+    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR] [--look ID]
 
-Writes, at whole-pixel zoom on a dark stage with the feet line marked (--revised: for the revision's designs
-in revised/ rather than the look's heroes, named by design):
+Writes, for the heroes of one look (terraria, the default, or the revision's terraria-revised or
+terraria-hooded), at whole-pixel zoom on a dark stage with the feet line marked:
   gif/<hero>-<animation>-x1.gif and -x4.gif   each animation at its own frame rate
-  strip/<hero>-<animation>-x1.png and -x4.png its frames left to right
+  gif/<hero>-<animation>-head-x8.gif          the same around his head, held still on its `head` anchor, to
+                                              watch his hair move on it
+  strip/<hero>-<animation>-x1.png and -x4.png its frames left to right, and -head-x8.png around his head
   sheet-<hero>-x2.png                         the whole sheet with its anchors marked
   run-vs-terraria-x1.gif, -x2.gif, -frames.png the captain's Terraria running GIF beside the three runs, at
                                               the same size of art pixel (with --refs, the folder holding
@@ -22,8 +24,10 @@ from typing import List, Tuple
 from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
-ART = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks' / 'terraria'
-LOOK = ART / 'characters'
+LOOKS = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks'
+LOOK = LOOKS / 'terraria' / 'characters'
+# Around the `head` anchor, the top of his head: his hair, face and shoulders, wide enough for a raised arm.
+HEAD = (-14, -3, 13, 18)
 STAGE = (43, 53, 80, 255)
 FLOOR = (92, 104, 140, 255)
 MARK = (255, 220, 0, 255)
@@ -45,6 +49,14 @@ def staged(frame: Image.Image, scale: int, origin_y: int) -> Image.Image:
     ImageDraw.Draw(out).line([(0, origin_y), (frame.width, origin_y)], fill=FLOOR)
     out.alpha_composite(frame)
     return out.resize((frame.width * scale, frame.height * scale), Image.NEAREST)
+
+
+def head(frame: Image.Image, crown: Tuple[int, int], scale: int, origin_y: int) -> Image.Image:
+    """The staged frame around his head, `crown` (its `head` anchor) always at the same place."""
+    x, y = crown
+    box = (x + HEAD[0], y + HEAD[1], x + HEAD[2], y + HEAD[3])
+    return staged(frame, 1, origin_y).crop(box).resize(((box[2] - box[0]) * scale, (box[3] - box[1]) * scale),
+                                                     Image.NEAREST)
 
 
 def save_gif(images: List[Image.Image], fps: float, loop: bool, path: Path) -> None:
@@ -121,9 +133,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--out', type=Path, default=Path('/tmp/fm-terraria-roels-2/review'))
     parser.add_argument('--refs', type=Path)
-    parser.add_argument('--revised', action='store_true', help="review the revision's designs instead")
+    parser.add_argument('--look', default='terraria', help='the look to review (terraria, terraria-revised, ...)')
     args = parser.parse_args()
-    folder = ART / 'revised' if args.revised else LOOK
+    folder = LOOKS / args.look / 'characters'
     heroes = sorted(path.name for path in folder.iterdir() if path.is_dir())
     (args.out / 'gif').mkdir(parents=True, exist_ok=True)
     (args.out / 'strip').mkdir(parents=True, exist_ok=True)
@@ -137,6 +149,9 @@ def main() -> None:
                 images = [staged(frame, scale, origin_y) for frame in frs]
                 save_gif(images, animation['fps'], animation['loop'], args.out / 'gif' / f'{hero}-{name}-x{scale}.gif')
                 row(images).save(args.out / 'strip' / f'{hero}-{name}-x{scale}.png')
+            heads = [head(frame, tuple(crown), 8, origin_y) for frame, crown in zip(frs, animation['anchors']['head'])]
+            save_gif(heads, animation['fps'], animation['loop'], args.out / 'gif' / f'{hero}-{name}-head-x8.gif')
+            row(heads).save(args.out / 'strip' / f'{hero}-{name}-head-x8.png')
         anchored(sheet, spec).save(args.out / f'sheet-{hero}-x2.png')
     if args.refs:
         run_versus(args.refs, heroes, args.out / 'run-vs-terraria', folder)
