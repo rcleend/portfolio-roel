@@ -73,6 +73,8 @@ export class LevelScene implements GameScene<LevelParams> {
   #arenaAt: number | null = null;
   readonly #hud = new HudTracker();
   readonly #stage = new StageRenderer();
+  /** Where the HUD along the bottom begins, refilled every frame so drawing the stage allocates nothing for it. */
+  readonly #bottomHud = { settled: 0, top: 0 };
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -171,9 +173,9 @@ export class LevelScene implements GameScene<LevelParams> {
     const bossBar = celebrating ? null : this.#hud.bossBar(world, this.#time);
     // The customers' labels keep above the bands the HUD lays along the bottom, which would hide them.
     const hintsTop = controlHintsTop(this.#time) ?? gfx.height;
-    const hud = bossBar
-      ? { settled: Math.min(hintsTop, BOSS_BAR_TOP), top: Math.min(hintsTop, bossBarTop(bossBar.age)) }
-      : { settled: hintsTop, top: hintsTop };
+    const hud = this.#bottomHud;
+    hud.settled = bossBar ? Math.min(hintsTop, BOSS_BAR_TOP) : hintsTop;
+    hud.top = bossBar ? Math.min(hintsTop, bossBarTop(bossBar.age)) : hintsTop;
     const hitboxes = this.#dev.hitboxes ? (layer: Gfx) => drawHitboxes(layer, world) : undefined;
     this.#stage.draw(gfx, world, kit, this.#time, hud, hitboxes);
     drawHud(gfx, kit, this.#hud.hud(world, this.#time, this.#device));

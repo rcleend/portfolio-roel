@@ -3,12 +3,12 @@ import { fillLabelScreen, type LabelScreenBuffer } from './StageRenderer';
 
 /** A camera at rest at (100, 0), drawn `(dx, dy)` away by a shake. */
 function camera(dx = 0, dy = 0) {
-  return { width: 320, left: 100, top: 0, view: { x: 100 + dx, y: dy } };
+  return { rest: { width: 320, left: 100, top: 0 }, view: { x: 100 + dx, y: dy } };
 }
 
 function screenOf(cam: ReturnType<typeof camera>, hud?: { settled: number; top: number }): LabelScreenBuffer {
   const screen = { width: 0, restLeft: 0, restBottom: 0, left: 0, bottom: 0 };
-  fillLabelScreen(screen, cam, 240, hud);
+  fillLabelScreen(screen, cam.rest, cam.view, 240, hud);
   return screen;
 }
 

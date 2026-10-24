@@ -23,19 +23,21 @@ export type LabelScreenBuffer = { -readonly [K in keyof LabelScreen]: LabelScree
 
 /**
  * Fills `screen` with where the customers' labels may go this frame on a
- * screen `height` rows tall: the camera at rest and as drawn, above `hud`
- * (none by default). As drawn they clear the HUD both where it settles and
- * where it is this frame, so a shake never carries one onto the rows the
- * HUD is about to take, nor the boss bar's bounce onto one.
+ * screen `height` rows tall: `camera` at rest and `view`, its top-left as
+ * drawn this frame (which the caller reads once, as each read of a shaken
+ * camera's view builds a new one), above `hud` (none by default). As drawn
+ * they clear the HUD both where it settles and where it is this frame, so a
+ * shake never carries one onto the rows the HUD is about to take, nor the
+ * boss bar's bounce onto one.
  */
 export function fillLabelScreen(
   screen: LabelScreenBuffer,
-  camera: Pick<CameraFollow, 'width' | 'left' | 'top' | 'view'>,
+  camera: Pick<CameraFollow, 'width' | 'left' | 'top'>,
+  view: CameraFollow['view'],
   height: number,
   hud?: BottomHud,
 ): void {
   const settled = hud?.settled ?? height;
-  const view = camera.view;
   screen.width = camera.width;
   screen.restLeft = camera.left;
   screen.restBottom = camera.top + settled;
@@ -55,8 +57,9 @@ export class StageRenderer {
 
   /**
    * Draws `world`'s stage. `time` drives the backdrop's drift; labels keep
-   * above `hud` (none by default); `inWorld` draws extra layers in world
-   * space on top of the entities (the hitbox debug view).
+   * above `hud` (none by default), which a scene refills every frame rather
+   * than building anew; `inWorld` draws extra layers in world space on top
+   * of the entities (the hitbox debug view).
    */
   draw(gfx: Gfx, world: World, kit: RenderKit, time: number, hud?: BottomHud, inWorld?: (gfx: Gfx) => void): void {
     const { art } = kit;
@@ -64,7 +67,7 @@ export class StageRenderer {
     const view = camera.view;
     const labels = this.#labels;
     const screen = this.#screen;
-    fillLabelScreen(screen, camera, gfx.height, hud);
+    fillLabelScreen(screen, camera, view, gfx.height, hud);
     layOutCustomerLabels(kit, labels, world.customers, world.player, screen);
 
     drawParallax(gfx, art.background, view.x, 0, time);
