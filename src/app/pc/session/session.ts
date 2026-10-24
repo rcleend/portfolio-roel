@@ -90,7 +90,15 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
     case 'close':
       if (!isClosable(state)) return state;
       // A window that vanishes at once also unmounts the reader; one shrinking back keeps it until it is gone.
-      return { ...state, phase: 'closing', windowGone: !event.shrink, ready: event.shrink && state.ready };
+      // The CV icon is deselected with it: the desktop the visitor leaves must be the still the camera
+      // pulls back over, and the still has no selection (the window covered the icon until now).
+      return {
+        ...state,
+        phase: 'closing',
+        windowGone: !event.shrink,
+        ready: event.shrink && state.ready,
+        selected: false,
+      };
     case 'shrunk':
       return state.phase === 'closing' && !state.windowGone ? { ...state, windowGone: true, ready: false } : state;
   }

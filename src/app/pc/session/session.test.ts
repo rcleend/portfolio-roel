@@ -118,14 +118,15 @@ describe('sessionReducer: skipping', () => {
 describe('sessionReducer: closing and leaving', () => {
   it.each(['desktop', 'launching', 'splash', 'opening', 'reader'] as const)('closes from %s at once', (phase) => {
     const closing = sessionReducer(AT[phase], { type: 'close', shrink: false });
-    expect(closing).toMatchObject({ phase: 'closing', windowGone: true, ready: false });
+    // Deselected too: the desktop left behind is the monitor's still, which has no selection.
+    expect(closing).toMatchObject({ phase: 'closing', windowGone: true, ready: false, selected: false });
     expect(isMounted(closing)).toBe(false);
     expect(isWindowShown(closing)).toBe(false);
   });
 
   it('keeps the window while it shrinks back into the glass', () => {
     const shrinking = sessionReducer(AT.reader, { type: 'close', shrink: true });
-    expect(shrinking).toMatchObject({ phase: 'closing', windowGone: false, ready: true });
+    expect(shrinking).toMatchObject({ phase: 'closing', windowGone: false, ready: true, selected: false });
     expect(isWindowShown(shrinking)).toBe(true);
     const shrunk = sessionReducer(shrinking, { type: 'shrunk' });
     expect(shrunk).toMatchObject({ phase: 'closing', windowGone: true, ready: false });
