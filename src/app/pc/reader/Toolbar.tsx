@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 import { emailLink } from '@/content';
+import { nextRovingIndex } from '../../a11y/roving';
 import { ArtSvg } from '../desktop/ArtSvg';
 import type { Art } from '../desktop/art';
 import {
@@ -13,7 +14,6 @@ import {
   ZOOM_IN_GLYPH,
   ZOOM_OUT_GLYPH,
 } from './glyphs';
-import { nextRovingIndex } from './roving';
 import { parseZoomFieldValue, ZOOM_STEPS, type ZoomSetting, zoomFieldValue } from './zoom';
 
 export interface ToolbarProps {

@@ -22,7 +22,9 @@
     "shot:room": "node scripts/room-shots.mjs",
     "build:room": "node tools/room/build.mjs",
     "build:radio": "node tools/room/build-radio.mjs",
+    "build:radio-placeholders": "tsx --tsconfig tsconfig.node.json scripts/radio/render-placeholders.ts",
     "verify:room": "node tools/room/verify.mjs",
+    "verify:radio": "tsx --tsconfig tsconfig.node.json scripts/verify-radio.ts",
     "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
   },
   "dependencies": {

@@ -228,7 +228,7 @@ pc/
     ReaderWindow.tsx    the maximised window and its chrome; Toolbar.tsx, StatusBar.tsx, Splash.tsx
     DocumentPane.tsx    the scrolling document, zoom by transform, page in view
     zoom.ts           ★ zoom settings, steps, Fit Width
-    roving.ts         ★ the toolbar's roving tabindex
+    (the toolbar's roving tabindex is app/a11y/roving.ts ★, shared with the CD player)
     focus.ts            the dialog's Tab trap
     readerMetrics.ts    chrome heights and the pane's width
     glyphs.ts, marks.ts the reader's toolbar glyphs and marks
