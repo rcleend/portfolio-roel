@@ -113,12 +113,57 @@ class Figure(unittest.TestCase):
                 self.assertEqual(posed.effects, (), f'happy[{index}]: a happy customer neither steams nor fumes')
 
 
+# How fast a regular customer walks, in px a second (entities/customer/tuning.ts).
+WALK_SPEED = 30
+
+
+def soles(picture: Image.Image) -> list:
+    """The runs of pixels on the feet line, left to right, as (first, last) columns: one per foot on the ground."""
+    alpha = picture.getchannel('A').load()
+    runs, start = [], None
+    for x in range(picture.width + 1):
+        on = x < picture.width and alpha[x, concepts.FEET_ROW]
+        if on and start is None:
+            start = x
+        if not on and start is not None:
+            runs.append((start, x - 1))
+            start = None
+    return runs
+
+
 class Motion(unittest.TestCase):
     def test_stands_a_still_customer_on_both_feet(self) -> None:
-        """The game stands a customer who is not walking on the frame `walk` shows 1/6 s in."""
+        """The game stands a customer who is not walking on the frame `walk` shows 1/6 s in: a foot striking."""
         walk = ANIMATIONS['walk']
         self.assertEqual(int(walk.fps / 6), STANDING)
-        self.assertEqual(walk.frames[STANDING].legs, 'stand')
+        self.assertTrue(walk.frames[STANDING].legs.endswith(' strike'), walk.frames[STANDING].legs)
+        self.assertEqual(len(soles(body(walk.frames[STANDING], 'walk[standing]'))), 2)
+
+    def test_keeps_the_foot_he_stands_on_planted(self) -> None:
+        """From striking ahead to pushing off behind, the foot he stands on steps back as fast as he walks, so it
+        stays put on the ground: its toe moves less than a pixel against the street over the whole step."""
+        walk = ANIMATIONS['walk']
+        count = len(walk.frames)
+        advance = WALK_SPEED / walk.fps
+        pictures = [soles(body(posed, f'walk[{index}]')) for index, posed in enumerate(walk.frames)]
+        strikes = [index for index, posed in enumerate(walk.frames) if posed.legs.endswith(' strike')]
+        self.assertEqual(len(strikes), 2)
+        for strike in strikes:
+            # Ahead while it strikes and takes his weight, alone on the ground while the other foot is lifted past it
+            # and swung through, behind once the other strikes in turn.
+            picks = (max, max, None, None, min)
+            toes = []
+            for step, pick in enumerate(picks):
+                index = (strike + step) % count
+                runs = pictures[index]
+                if pick is None:
+                    self.assertEqual(len(runs), 1, f'walk[{index}]: the other foot is off the ground')
+                    run = runs[0]
+                else:
+                    self.assertEqual(len(runs), 2, f'walk[{index}]: both feet are down')
+                    run = pick(runs)
+                toes.append(run[1] + advance * step)
+            self.assertLessEqual(max(toes) - min(toes), 1, f'walk[{strike}] on: {toes}')
 
     def test_stomps_on_each_foot_in_a_walk(self) -> None:
         sinks = [index for index, posed in enumerate(ANIMATIONS['walk'].frames) if posed.body[1] > 0]

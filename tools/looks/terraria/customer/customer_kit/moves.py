@@ -2,10 +2,11 @@
 
 Posed the way Terraria poses its walkers, a drawing per limb chosen frame by frame and the upper body moved
 as one, and timed to what the game holds each mood for (entities/customer/Customer.ts):
-- `walk` is a heavy plod, 8 frames at 12 a second, the 0.67 s classic's takes: the weight comes down on each
-  foot with a 1 px stomp while the phone stays at his ear, his finger jabs on every step and his jaw goes on
-  complaining into the phone, so the gag never stops. The game stands a still customer on the frame it
-  shows 1/6 s in, so that frame stands on both feet.
+- `walk` is a heavy plod, 8 frames at 12 a second, the 0.67 s classic's takes, a step to each foot: the foot he
+  stands on stays planted at the game's walking pace while the other passes it lifted and swings through, and
+  the weight comes down on each with a 1 px stomp. The phone stays at his ear, his finger jabs on every step
+  and his jaw goes on complaining into the phone, so the gag never stops. The game stands a still customer on
+  the frame it shows 1/6 s in, so that frame is a foot striking, both feet down.
 - `shout` yells for 0.4 s, one loop for the windup, and again as the complaint flies: the game restarts the
   animation when the bubble leaves, so the first frame is the yell itself, its mouth where the bubble
   leaves, and Terraria's anger emote pulses behind his head.
@@ -33,27 +34,33 @@ class Animation(NamedTuple):
 ON_THE_PHONE = (Held('phone', 'near'),)
 
 # ── walk ──
-WALK_LEGS = ('far strike', 'far down', 'stand', 'near lift', 'near strike', 'near down', 'stand', 'far lift')
-# The weight coming down on a foot sinks the body a pixel: the stomp.
-WALK_STOMP = (0, 1, 0, 0, 0, 1, 0, 0)
-WALK_ARM = ('point', 'point', 'wag', 'wag', 'point', 'point', 'wag', 'wag')
-WALK_FACE = ('rant half', 'grumble', 'grumble', 'rant half', 'rant half', 'grumble', 'grumble', 'rant half')
-WALK_TIE = ('rest', 'bounce', 'rest', 'rest', 'rest', 'bounce', 'rest', 'rest')
+# A step to each foot, four frames apiece: the foot strikes ahead with both feet down, takes his weight, stands
+# under his hips while the other passes it lifted, and pushes off behind while the other swings through. The
+# foot he stands on steps back 2.5 px a frame (30 px/s at 12 frames a second, Customer.ts's walk), so at the
+# game's pace it stays planted on the ground while he moves over it.
+STEP = ('strike', 'down', 'pass', 'push')
+# The weight coming down on the foot sinks the body a pixel: the stomp.
+STEP_STOMP = (0, 1, 0, 0)
+# The finger jabs at you with every step: from the wag by his face, through a half jab, out to the full point as
+# the weight lands, and back.
+STEP_ARM = ('jab', 'point', 'jab', 'wag')
+STEP_FACE = ('rant half', 'grumble', 'grumble', 'rant half')
+STEP_TIE = ('rest', 'bounce', 'rest', 'rest')
 # Leaning into the walk, a pixel ahead of his feet.
 LEAN = 1
+# The game stands a still customer on the frame `walk` shows 1/6 s in (renderCustomer.ts): two frames in, so the
+# cycle starts two frames before the far foot strikes and he stands with both feet down.
+STANDING = 2
 
 
 def walk() -> Animation:
-    frames = tuple(
-        Pose(mood='unhappy', face=face, legs=legs, near='phone', far=far, body=(LEAN, stomp), held=ON_THE_PHONE,
-             swing=tie)
-        for legs, stomp, far, face, tie in zip(WALK_LEGS, WALK_STOMP, WALK_ARM, WALK_FACE, WALK_TIE)
+    steps = tuple(
+        Pose(mood='unhappy', face=face, legs=f'{foot} {phase}', near='phone', far=far, body=(LEAN, stomp),
+             held=ON_THE_PHONE, swing=tie)
+        for foot in ('far', 'near')
+        for phase, stomp, far, face, tie in zip(STEP, STEP_STOMP, STEP_ARM, STEP_FACE, STEP_TIE)
     )
-    return Animation(12, True, frames)
-
-
-# The frame a still customer stands on: the one `walk` shows 1/6 s in (renderCustomer.ts).
-STANDING = 2
+    return Animation(12, True, steps[-STANDING:] + steps[:-STANDING])
 
 
 # ── shout ──
