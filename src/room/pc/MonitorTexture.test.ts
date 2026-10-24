@@ -3,7 +3,7 @@ import { CanvasTexture, DataTexture, LinearMipmapLinearFilter, SRGBColorSpace } 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type GlassPlane, insetPlane } from './glassPlane';
 import { MonitorTexture } from './MonitorTexture';
-import type { ScreenRect, StillPainter } from './PcMonitor';
+import type { ScreenRect, StillPainter, StillRequest } from './PcMonitor';
 
 const GLASS: GlassPlane = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
 const PICTURE = insetPlane(GLASS, 0.01);
@@ -40,7 +40,9 @@ function recordingContext() {
 
 function setup() {
   const context = recordingContext();
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+  const getContext = vi
+    .spyOn(HTMLCanvasElement.prototype, 'getContext')
+    .mockReturnValue(context as unknown as CanvasRenderingContext2D);
   const renderer = { initTexture: vi.fn() };
   const glassLayer = document.createElement('canvas');
   const texture = new MonitorTexture({
@@ -53,7 +55,7 @@ function setup() {
     glassLayer: () => glassLayer,
   });
   texture.setTarget(LARGE, PLACEMENT);
-  return { texture, renderer, context };
+  return { texture, renderer, context, getContext };
 }
 
 describe('MonitorTexture', () => {
@@ -127,6 +129,60 @@ describe('MonitorTexture', () => {
       'drawImage(object,0,0,1024,817)',
     ]);
     expect(context.fillStyle).toBe('#070a09');
+  });
+
+  it("runs a painter's preparation once, a unit per step, with the request its paints will get", () => {
+    const { texture } = setup();
+    const steps: string[] = [];
+    const prepare = vi.fn(function* (request: StillRequest): Generator<void, void, void> {
+      steps.push(`fonts ${Math.round(request.width)}`);
+      yield;
+      steps.push('wallpaper');
+    });
+    const painter = Object.assign(vi.fn<StillPainter>(), { prepare });
+    texture.setPainter(painter);
+    const units = texture.prepare();
+    units.next();
+    expect(steps).toEqual(['fonts 966']);
+    expect(prepare.mock.calls[0]?.[0].placement).toEqual(PLACEMENT);
+    expect(units.next().done).toBe(true);
+    expect(steps).toEqual(['fonts 966', 'wallpaper']);
+    expect(texture.prepare().next().done).toBe(true);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(painter).not.toHaveBeenCalled();
+  });
+
+  it('composes a picture ahead without uploading it, and uploads it with the next paint', () => {
+    const { texture, renderer } = setup();
+    const painter = vi.fn<StillPainter>();
+    texture.setPainter(painter);
+    expect(texture.composeIfDue(false)).toBe(false);
+    expect(painter).toHaveBeenCalledTimes(1);
+    expect(renderer.initTexture).not.toHaveBeenCalled();
+    expect(texture.painted).toBe(false);
+    expect(texture.composeIfDue(true)).toBe(false);
+    expect(texture.paintIfDue(false)).toBe(true);
+    expect(painter).toHaveBeenCalledTimes(1);
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    expect(texture.painted).toBe(true);
+    expect(texture.paintIfDue(true)).toBe(false);
+  });
+
+  it('never uploads a composed picture once its painter is gone', () => {
+    const { texture, renderer } = setup();
+    texture.setPainter(vi.fn<StillPainter>());
+    texture.composeIfDue(false);
+    texture.setPainter(null);
+    expect(texture.paintIfDue(true)).toBe(false);
+    expect(renderer.initTexture).not.toHaveBeenCalled();
+    expect(texture.texture).toBeInstanceOf(DataTexture);
+  });
+
+  it('has nothing to prepare for a painter without a preparation', () => {
+    const { texture } = setup();
+    expect(texture.prepare().next().done).toBe(true);
+    texture.setPainter(vi.fn<StillPainter>());
+    expect(texture.prepare().next().done).toBe(true);
   });
 
   it('repaints a stale still only when asked to refresh (background, flights to or from the display)', () => {

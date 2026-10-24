@@ -36,14 +36,17 @@ export function glassLayerPixel(u: number, v: number): GlassPixel {
   return [SHEEN_COLOR[0] * colour, SHEEN_COLOR[1] * colour, SHEEN_COLOR[2] * colour, alpha];
 }
 
-/** Fills `image` (RGBA bytes) with the glass finish, sampling each pixel at its centre. */
-export function paintGlassLayer(image: {
-  readonly data: Uint8ClampedArray;
-  readonly width: number;
-  readonly height: number;
-}): void {
+/**
+ * Fills `image` (RGBA bytes) with the glass finish, sampling each pixel at its centre: all of it,
+ * or only rows `fromRow` up to `toRow`, so the work can be spread over several idle moments.
+ */
+export function paintGlassLayer(
+  image: { readonly data: Uint8ClampedArray; readonly width: number; readonly height: number },
+  fromRow = 0,
+  toRow = image.height,
+): void {
   const { data, width, height } = image;
-  for (let y = 0; y < height; y++) {
+  for (let y = fromRow; y < Math.min(toRow, height); y++) {
     for (let x = 0; x < width; x++) {
       const [r, g, b, a] = glassLayerPixel((x + 0.5) / width, (y + 0.5) / height);
       const i = (y * width + x) * 4;

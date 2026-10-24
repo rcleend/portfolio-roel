@@ -19,7 +19,15 @@ export interface StillRequest {
  * and it is clipped to the picture; compose transforms only (save/scale/translate/restore), never setTransform,
  * resetTransform or pixel reads. Called rarely, never per frame.
  */
-export type StillPainter = (context: CanvasRenderingContext2D, request: StillRequest) => void;
+export interface StillPainter {
+  (context: CanvasRenderingContext2D, request: StillRequest): void;
+  /**
+   * Optional: the one-time work of the first paint (fonts to load, a bitmap to cache) in small units, each `yield`
+   * ending one. The room runs them in idle moments ahead of the first paint, between a playing game's frames only
+   * when a unit fits; a paint that comes first must do the rest itself.
+   */
+  readonly prepare?: (request: StillRequest) => Iterable<void>;
+}
 
 /** sRGB, 0–1. */
 export interface RgbColor {

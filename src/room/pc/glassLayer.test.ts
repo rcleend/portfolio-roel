@@ -71,4 +71,14 @@ describe('paintGlassLayer', () => {
     const last = (8 * 6 - 1) * 4;
     expect(image.data[last + 3]).toBe(Math.round((glassLayerPixel(7.5 / 8, 5.5 / 6)[3] as number) * 255));
   });
+
+  it('paints the same pixels band by band as all at once', () => {
+    const whole = { width: 8, height: 6, data: new Uint8ClampedArray(8 * 6 * 4) };
+    paintGlassLayer(whole);
+    const banded = { width: 8, height: 6, data: new Uint8ClampedArray(8 * 6 * 4) };
+    paintGlassLayer(banded, 0, 4);
+    expect(banded.data.slice(4 * 8 * 4).every((byte) => byte === 0)).toBe(true);
+    paintGlassLayer(banded, 4, 10);
+    expect(banded.data).toEqual(whole.data);
+  });
 });

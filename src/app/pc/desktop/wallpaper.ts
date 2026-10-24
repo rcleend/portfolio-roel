@@ -105,9 +105,9 @@ function paintCloud(
   width: number,
   height: number,
 ): void {
-  // Three unit-radius gradients serve every puff; each puff only scales them and sets its alpha.
-  const body = puffGradient(context, '255, 255, 255');
-  const top = puffGradient(context, '255, 255, 255');
+  // Two unit-radius gradients serve every puff (white body and top, a cool underside); each puff
+  // only scales one and sets its alpha.
+  const white = puffGradient(context, '255, 255, 255');
   const underside = puffGradient(context, '146, 172, 214');
   for (let index = 0; index < PUFFS_PER_CLOUD; index++) {
     const angle = rng.range(0, Math.PI * 2);
@@ -118,8 +118,8 @@ function paintCloud(
     const radius = puffRadius * width * rng.range(0.55, 1.15) * (1.15 - 0.5 * reach);
     const alpha = rng.range(0.18, 0.4);
     puff(context, underside, x, y + radius * 0.28, radius * 0.95, alpha * 0.3);
-    puff(context, body, x, y, radius, alpha);
-    puff(context, top, x - radius * 0.08, y - radius * 0.22, radius * 0.62, alpha * 0.7);
+    puff(context, white, x, y, radius, alpha);
+    puff(context, white, x - radius * 0.08, y - radius * 0.22, radius * 0.62, alpha * 0.7);
   }
   context.globalAlpha = 1;
 }

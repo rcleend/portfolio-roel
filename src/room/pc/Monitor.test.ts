@@ -15,7 +15,7 @@ import {
   Vector3,
 } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IdleTask } from '../stage/IdleWork';
+import { type IdleTask, QUIET } from '../stage/IdleWork';
 import { Monitor } from './Monitor';
 import { pcViewpoint } from './pcFraming';
 import { locatePc } from './pcModel';
@@ -41,12 +41,19 @@ function permissiveContext(): CanvasRenderingContext2D {
   }) as unknown as CanvasRenderingContext2D;
 }
 
-/** Background work run by hand: `runUnit` runs the first queued task's next unit, `runAll` everything. */
+/**
+ * Background work run by hand: `runUnit` runs the first queued task's next unit, `runCpu` every unit
+ * that may run while something plays (all but those kept for a quiet moment), `runAll` everything.
+ */
 function manualBackground() {
   const tasks: IdleTask[] = [];
-  const runUnit = (): void => {
-    const task = tasks[0];
-    if (task?.next().done) tasks.shift();
+  /** The tasks whose next unit waits for a quiet moment. */
+  const quiet = new Set<IdleTask>();
+  const run = (task: IdleTask): void => {
+    const step = task.next();
+    quiet.delete(task);
+    if (step.done) tasks.splice(tasks.indexOf(task), 1);
+    else if (step.value === QUIET) quiet.add(task);
   };
   return {
     tasks,
@@ -57,9 +64,15 @@ function manualBackground() {
         if (at >= 0) tasks.splice(at, 1);
       };
     },
-    runUnit,
+    runUnit(): void {
+      const task = tasks[0];
+      if (task) run(task);
+    },
+    runCpu(): void {
+      for (let task = tasks.find((t) => !quiet.has(t)); task; task = tasks.find((t) => !quiet.has(t))) run(task);
+    },
     runAll(): void {
-      while (tasks.length > 0) runUnit();
+      while (tasks[0]) run(tasks[0]);
     },
   };
 }
@@ -253,19 +266,87 @@ describe('Monitor', () => {
     expect(renderer.initTexture).toHaveBeenCalledTimes(2);
   });
 
-  it('makes the glass finish in a unit of its own, before the first paint', () => {
-    const { monitor, renderer, background } = setup();
-    const created = vi.spyOn(document, 'createElement');
-    const canvases = () => created.mock.calls.filter(([tag]) => tag === 'canvas').length;
+  it('paints the glass finish in the background, in bands, before anything needs it', () => {
+    const { background } = setup();
+    // 205 rows in bands of 32.
+    for (let band = 1; band < 7; band++) {
+      background.runUnit();
+      expect(background.tasks).toHaveLength(1);
+    }
+    background.runUnit();
+    expect(background.tasks).toHaveLength(0);
+  });
+
+  it('finishes the glass finish at once if the first paint comes before the background', () => {
+    const { monitor, background, renderer } = setup();
+    background.runUnit();
     monitor.setStill(() => {});
-    expect(canvases()).toBe(0);
-    background.runUnit();
-    expect(canvases()).toBe(1);
-    expect(renderer.initTexture).not.toHaveBeenCalled();
-    background.runUnit();
-    // The still's own canvas; the finish is reused.
-    expect(canvases()).toBe(2);
+    monitor.prepare('tv', 'room');
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    // What was left of the finish went into that paint: its task ends without another band.
+    background.runUnit();
+    expect(background.tasks).toHaveLength(1);
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs the painter's preparation and the paint between frames, and leaves the upload for a quiet moment", () => {
+    const { monitor, renderer, background } = setup();
+    const units: string[] = [];
+    const painter = Object.assign(() => units.push('paint'), {
+      *prepare(): Generator<void, void, void> {
+        units.push('fonts');
+        yield;
+        units.push('wallpaper');
+      },
+    });
+    monitor.setStill(painter);
+    background.runCpu();
+    expect(units).toEqual(['fonts', 'wallpaper', 'paint']);
+    expect(renderer.initTexture).not.toHaveBeenCalled();
+    expect(monitor.texturePixels).toBe(0);
+    background.runAll();
+    expect(units).toEqual(['fonts', 'wallpaper', 'paint']);
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    expect(monitor.texturePixels).toBe(1024 * 817);
+  });
+
+  it('uploads a still painted between frames on the first flight, without painting it again', () => {
+    const { monitor, renderer, background } = setup();
+    const painter = vi.fn();
+    monitor.setStill(painter);
+    background.runCpu();
+    monitor.prepare('tv', 'room');
+    expect(painter).toHaveBeenCalledTimes(1);
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    background.runAll();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+  });
+
+  it('paints at the first flight even if the preparation is unfinished, and never prepares twice', () => {
+    const { monitor, renderer, background } = setup();
+    const prepare = vi.fn(function* (): Generator<void, void, void> {
+      yield;
+    });
+    monitor.setStill(Object.assign(() => {}, { prepare }));
+    background.runCpu();
+    monitor.invalidateStill();
+    monitor.prepare('tv', 'room');
+    expect(renderer.initTexture).toHaveBeenCalledTimes(1);
+    background.runAll();
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it('repaints a still that went stale on the way before the live screen shows over it', () => {
+    const { monitor, model, renderer, background } = setup({ inView: true });
+    monitor.setStill(() => {});
+    background.runAll();
+    // A resize while the camera flies: the background waits for the landing.
+    monitor.setPose(pcViewpoint(model, 1024 / 600), { width: 1024, height: 600, pixelRatio: 1 });
+    monitor.land();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(2);
+    monitor.land();
+    expect(renderer.initTexture).toHaveBeenCalledTimes(2);
   });
 
   it('shows a new still in one frame while the computer can be seen', () => {
@@ -274,6 +355,17 @@ describe('Monitor', () => {
     background.runAll();
     expect(renderer.initTexture).toHaveBeenCalledTimes(1);
     expect(loop.invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues no background work for a still that is up to date', () => {
+    const { monitor, model, background, view } = setup();
+    monitor.setStill(() => {});
+    background.runAll();
+    view.inView = true;
+    monitor.prepare('room', 'pc');
+    // The same viewport again: the same placement and texture size.
+    monitor.setPose(pcViewpoint(model, DESKTOP.width / DESKTOP.height), DESKTOP);
+    expect(background.tasks).toHaveLength(0);
   });
 
   it('cancels its background paint on dispose', () => {

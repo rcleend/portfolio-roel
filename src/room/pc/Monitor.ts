@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { Viewpoint } from '../camera/cameraPath';
-import type { IdleTask, IdleWork } from '../stage/IdleWork';
+import { type IdleTask, type IdleWork, QUIET } from '../stage/IdleWork';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { TextureUploader } from '../stage/sceneTextures';
 import { ScreenGlow } from '../tv/ScreenGlow';
@@ -43,6 +43,8 @@ export interface MonitorOptions {
 
 /** Width of the shared glass-finish canvas; its height follows the glass's aspect. */
 const GLASS_LAYER_WIDTH = 256;
+/** Rows of the glass finish painted per unit of background work: a few ms on a slow phone. */
+const FINISH_BAND_ROWS = 32;
 /** A projected picture this far off a rectangle means pc-base.glb's glass no longer faces +Z. */
 const MAX_SKEW_PX = 0.5;
 
@@ -67,10 +69,13 @@ export class Monitor {
   private readonly glow: ScreenGlow;
   private readonly lightTexture: DataTexture;
   private light: RgbColor | null = null;
-  private layer: HTMLCanvasElement | null = null;
+  /** The glass finish, shared with the live screen; painted in bands by `finishing`. */
+  private readonly layer = document.createElement('canvas');
+  private readonly finishing = this.paintFinish();
   private readonly layerHeight: number;
   /** Drops the queued background paint, if one is queued. */
   private cancelPaint: (() => void) | null = null;
+  private readonly cancelFinish: () => void;
   private warnedSkew = false;
 
   constructor(private readonly options: MonitorOptions) {
@@ -108,6 +113,8 @@ export class Monitor {
       canvas: this.glassLayer,
       picture: regionInPixels(model.rim, model.picture, GLASS_LAYER_WIDTH, this.layerHeight),
     });
+    // Room work that needs no app code: done while the TV is still dark, before anything plays.
+    this.cancelFinish = options.background.add(this.finishAhead());
   }
 
   /** Pixels of the still texture in use; 0 in standby. */
@@ -144,10 +151,19 @@ export class Monitor {
 
   /** Called before every flight, from the view the camera was at (or flying to) towards `to`. */
   prepare(from: RoomView, to: RoomView): void {
-    // The background has normally painted already; a flight that starts before it does paints now.
+    // A flight the background has not painted for yet (always, on a device too slow to prepare the
+    // still between the game's frames) paints now, while the camera has not moved.
     if (this.still.paintIfDue(from === 'pc' || to === 'pc')) this.sync();
     // A still that went stale while the glass was out of sight is repainted once the camera lands.
     if (to !== 'tv') this.paintSoon();
+  }
+
+  /**
+   * The camera landed at the computer. A still that went stale on the way (a resize, the clock's
+   * minute) is repainted before the landing frame, so the live screen fades in over its twin.
+   */
+  land(): void {
+    if (this.still.paintIfDue(true)) this.sync();
   }
 
   setStill(painter: StillPainter | null): void {
@@ -169,6 +185,7 @@ export class Monitor {
   }
 
   dispose(): void {
+    this.cancelFinish();
     this.cancelPaint?.();
     const { glass } = this.options.model;
     glass.material = this.originalMaterial;
@@ -177,18 +194,40 @@ export class Monitor {
     this.still.dispose();
     this.glow.dispose();
     this.lightTexture.dispose();
-    if (this.layer) this.layer.width = this.layer.height = 0;
+    this.layer.width = this.layer.height = 0;
   }
 
-  /** Queues a background paint of whatever is due, unless one is queued already. */
+  /** Queues a background paint of whatever is due, unless nothing is or one is queued already. */
   private paintSoon(): void {
-    this.cancelPaint ??= this.options.background.add(this.paintAhead());
+    if (this.still.due) this.cancelPaint ??= this.options.background.add(this.paintAhead());
+  }
+
+  /** The glass finish as background work: 17-50 ms on a phone twenty times slower than a laptop, so in bands. */
+  private *finishAhead(): IdleTask {
+    yield* this.finishing;
+  }
+
+  private *paintFinish(): Generator<void, void, void> {
+    const canvas = this.layer;
+    canvas.width = GLASS_LAYER_WIDTH;
+    canvas.height = this.layerHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    const image = context.createImageData(canvas.width, canvas.height);
+    for (let row = 0; row < canvas.height; row += FINISH_BAND_ROWS) {
+      if (row > 0) yield;
+      paintGlassLayer(image, row, row + FINISH_BAND_ROWS);
+    }
+    context.putImageData(image, 0, 0);
   }
 
   private *paintAhead(): IdleTask {
-    // The glass finish on its own: it is 14 ms of a slow phone's main thread.
-    this.glassLayer();
+    // The painter's preparation and the composition are CPU work in small units, which may go
+    // between the game's frames; the upload waits until nothing plays, or for the flight.
+    yield* this.still.prepare();
     yield;
+    if (this.still.composeIfDue(true)) this.sync();
+    yield QUIET;
     this.cancelPaint = null;
     if (this.still.paintIfDue(true)) this.sync();
   }
@@ -201,20 +240,11 @@ export class Monitor {
     this.options.loop.invalidate();
   }
 
-  /** The glass finish, painted the first time anything needs it and shared with the live screen. */
+  /** The finished glass finish: whatever needs it first paints the bands the background has not. */
   private readonly glassLayer = (): HTMLCanvasElement => {
-    if (this.layer) return this.layer;
-    const canvas = document.createElement('canvas');
-    canvas.width = GLASS_LAYER_WIDTH;
-    canvas.height = this.layerHeight;
-    const context = canvas.getContext('2d');
-    if (context) {
-      const image = context.createImageData(canvas.width, canvas.height);
-      paintGlassLayer(image);
-      context.putImageData(image, 0, 0);
-    }
-    this.layer = canvas;
-    return canvas;
+    let step = this.finishing.next();
+    while (!step.done) step = this.finishing.next();
+    return this.layer;
   };
 }
 

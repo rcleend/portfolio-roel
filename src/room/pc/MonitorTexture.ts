@@ -42,7 +42,11 @@ export class MonitorTexture {
   private painter: StillPainter | null = null;
   /** The painter whose picture is on the canvas, or that failed to paint it. */
   private paintedWith: StillPainter | null = null;
+  /** The painter whose `prepare` has been started. */
+  private preparedFor: StillPainter | null = null;
   private showingStill = false;
+  /** The canvas holds a picture the GPU does not have yet. */
+  private uploadDue = false;
   private stale = false;
   private size: TextureSize = { width: 0, height: 0 };
   private placement: ScreenRect = NO_RECT;
@@ -62,6 +66,13 @@ export class MonitorTexture {
     return this.showingStill;
   }
 
+  /** True while a refreshing paint would change something: no picture yet, an outdated one, or one not uploaded. */
+  get due(): boolean {
+    if (!this.painter) return false;
+    const resized = this.canvas?.width !== this.size.width || this.canvas.height !== this.size.height;
+    return this.paintedWith !== this.painter || this.stale || resized || this.uploadDue;
+  }
+
   /** Pixels of the still texture in use; 0 in standby. */
   get pixels(): number {
     return this.showingStill && this.canvas ? this.canvas.width * this.canvas.height : 0;
@@ -70,9 +81,11 @@ export class MonitorTexture {
   /** Returns true when the texture changed (a null painter shows the standby tube at once). */
   setPainter(painter: StillPainter | null): boolean {
     this.painter = painter;
-    if (painter || !this.showingStill) return false;
-    this.showingStill = false;
+    if (painter) return false;
+    this.uploadDue = false;
     this.paintedWith = null;
+    if (!this.showingStill) return false;
+    this.showingStill = false;
     return true;
   }
 
@@ -92,24 +105,40 @@ export class MonitorTexture {
   }
 
   /**
-   * Paints if a picture is due; true when the texture changed. A painter's first picture is always
-   * due. An outdated one (stale, or a new texture size) is due only with `refresh`: in the
-   * background, and before flights to or from the display. A flight elsewhere shows the old
-   * picture rather than wait for a new one.
+   * The painter's one-time work ahead of its first paint (`StillPainter.prepare`), once per
+   * painter, a unit per `yield`. The paint never depends on it: one that comes first does the
+   * rest itself.
+   */
+  *prepare(): Generator<void, void, void> {
+    const painter = this.painter;
+    if (!painter?.prepare || this.preparedFor === painter || this.size.width === 0) return;
+    this.preparedFor = painter;
+    const { width, height } = this.pictureRegion();
+    yield* painter.prepare({ width, height, placement: this.placement });
+  }
+
+  /**
+   * Paints if a picture is due and uploads it; true when the texture changed. A painter's first
+   * picture is always due. An outdated one (stale, or a new texture size) is due only with
+   * `refresh`: in the background, and before flights to or from the display. A flight elsewhere
+   * shows the old picture rather than wait for a new one.
    */
   paintIfDue(refresh: boolean): boolean {
-    if (!this.painter) return false;
-    if (this.paintedWith === this.painter) {
+    const failed = this.composeIfDue(refresh);
+    return this.upload() || failed;
+  }
+
+  /**
+   * The CPU half of `paintIfDue`: composes a due picture on the canvas, for a later `paintIfDue`
+   * to upload. True when the texture changed (the painter threw: standby).
+   */
+  composeIfDue(refresh: boolean): boolean {
+    const painter = this.painter;
+    if (!painter || this.size.width === 0) return false;
+    if (this.paintedWith === painter) {
       const resized = this.canvas?.width !== this.size.width || this.canvas.height !== this.size.height;
       if (!refresh || !(this.stale || resized)) return false;
     }
-    return this.paint();
-  }
-
-  /** Paints the current painter now; true when the texture changed. */
-  private paint(): boolean {
-    const painter = this.painter;
-    if (!painter || this.size.width === 0) return false;
     const canvas = this.canvasOfSize(this.size);
     this.paintedWith = painter;
     this.stale = false;
@@ -117,9 +146,18 @@ export class MonitorTexture {
       // A canvas that cannot give a 2D context fails like a throwing painter: standby.
       this.composite(canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D, painter);
     } catch (error) {
+      this.uploadDue = false;
       return this.fail(error);
     }
-    this.still ??= stillTexture(canvas, this.options.anisotropy);
+    this.uploadDue = true;
+    return false;
+  }
+
+  /** Uploads a composed picture; true when it did (the texture changed). */
+  private upload(): boolean {
+    if (!this.uploadDue || !this.canvas) return false;
+    this.uploadDue = false;
+    this.still ??= stillTexture(this.canvas, this.options.anisotropy);
     this.still.needsUpdate = true;
     this.options.renderer.initTexture(this.still);
     this.showingStill = true;
@@ -134,9 +172,9 @@ export class MonitorTexture {
   }
 
   private composite(context: CanvasRenderingContext2D, painter: StillPainter): void {
-    const { glass, picture, pictureRadius, tubeColor } = this.options;
+    const { glass, pictureRadius, tubeColor } = this.options;
     const { width, height } = this.size;
-    const { x, y, ...size } = regionInPixels(glass, picture, width, height);
+    const { x, y, ...size } = this.pictureRegion();
     context.fillStyle = tubeColor;
     context.fillRect(0, 0, width, height);
     context.save();
@@ -149,6 +187,11 @@ export class MonitorTexture {
       context.restore();
     }
     context.drawImage(this.options.glassLayer(), 0, 0, width, height);
+  }
+
+  /** Where the picture inside the tube border lies on the canvas, in canvas px. */
+  private pictureRegion(): ReturnType<typeof regionInPixels> {
+    return regionInPixels(this.options.glass, this.options.picture, this.size.width, this.size.height);
   }
 
   private fail(error: unknown): boolean {

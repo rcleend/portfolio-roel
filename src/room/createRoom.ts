@@ -109,7 +109,10 @@ export function createRoom(options: CreateRoomOptions): Room {
       loaded.refreshCursor();
     },
     releasePointer: () => scene?.tvInput.release(),
-    revealScreen: () => pc.reveal(),
+    revealScreen: () => {
+      scene?.monitor.land();
+      pc.reveal();
+    },
     concealScreen: () => pc.conceal(),
   });
 
