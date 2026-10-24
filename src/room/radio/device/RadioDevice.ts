@@ -184,7 +184,14 @@ class Device implements RadioDevice {
     });
     this.#discs = new Discs(root, context.anisotropy);
     const lcdWidth = this.#lcdRenderWidth(extras);
-    this.#lcd = new Lcd(root, extras.lcd, lcdWidth, context.anisotropy, context.loop);
+    // A new readout draws a frame only at the radio: elsewhere the clock ticks on silently and shows on the next frame
+    // drawn for another reason (the lava lamp's in the room view), so music playing at the computer costs no frames.
+    this.#lcd = new Lcd(root, extras.lcd, lcdWidth, context.anisotropy, {
+      animate: (step) => context.loop.animate(step),
+      invalidate: () => {
+        if (context.views.view === 'radio') context.loop.invalidate();
+      },
+    });
     this.#led = new PowerLed(
       root,
       { position: new Vector3().fromArray(extras.led.point), facing: new Vector3().fromArray(extras.led.normal) },
@@ -264,7 +271,11 @@ class Device implements RadioDevice {
       this.#publishLayout();
     }
     this.#updateLcd(now);
-    this.#kick();
+    // Away from the radio none of it moves on screen (the lid is shut, the disc inside): the choreography is a
+    // function of time, so the next visit samples where this change left it, and the clock the player ticks every
+    // second costs no frame at the computer or in the room. A step already running carries on regardless.
+    if (this.#context.views.view === 'radio') this.#kick();
+    else this.#pacer.sync();
   }
 
   press(key: RadioKey): void {
@@ -406,6 +417,10 @@ class Device implements RadioDevice {
       return;
     }
     if (gesture.target.kind === 'disc' && !gesture.cancelled) {
+      // The disc leaves the pointer for the player: its attention (and the app's caption) go with the gesture; the
+      // next pointer move finds whatever is under the pointer now.
+      this.#pointerAttention = null;
+      this.#updateAttention();
       // Inside the pointer event: the app may start the music in this very gesture.
       this.#context.events.intent({ type: 'pick', disc: gesture.target.disc });
     }
