@@ -92,6 +92,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     loop,
     renderer: stage.renderer,
     anisotropy,
+    cpuCanvases: stage.softwareGpu,
     overlay,
     pose: rig.viewpoint('pc'),
     isInView: () => views.view !== 'tv' || views.moving,

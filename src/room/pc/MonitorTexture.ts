@@ -23,6 +23,8 @@ export interface MonitorTextureOptions {
   readonly tubeColor: string;
   readonly renderer: TextureUploader;
   readonly anisotropy: number;
+  /** Paint on a CPU canvas, and ask the painter for CPU canvases too (a software GPU: see StillRequest). */
+  readonly cpuCanvas: boolean;
   /** The glass finish, drawn over the whole texture after the still; called at the first paint. */
   readonly glassLayer: () => CanvasImageSource;
 }
@@ -114,7 +116,7 @@ export class MonitorTexture {
     if (!painter?.prepare || this.preparedFor === painter || this.size.width === 0) return;
     this.preparedFor = painter;
     const { width, height } = this.pictureRegion();
-    yield* painter.prepare({ width, height, placement: this.placement });
+    yield* painter.prepare({ width, height, placement: this.placement, cpuCanvas: this.options.cpuCanvas });
   }
 
   /**
@@ -144,7 +146,8 @@ export class MonitorTexture {
     this.stale = false;
     try {
       // A canvas that cannot give a 2D context fails like a throwing painter: standby.
-      this.composite(canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D, painter);
+      const settings = { alpha: false, willReadFrequently: this.options.cpuCanvas };
+      this.composite(canvas.getContext('2d', settings) as CanvasRenderingContext2D, painter);
     } catch (error) {
       this.uploadDue = false;
       return this.fail(error);
@@ -182,7 +185,7 @@ export class MonitorTexture {
       roundedRect(context, x, y, size.width, size.height, pictureRadius * (width / planeWidth(glass)));
       context.clip();
       context.translate(x, y);
-      painter(context, { ...size, placement: this.placement });
+      painter(context, { ...size, placement: this.placement, cpuCanvas: this.options.cpuCanvas });
     } finally {
       context.restore();
     }

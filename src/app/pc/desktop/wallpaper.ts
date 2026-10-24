@@ -44,15 +44,16 @@ let cached: HTMLCanvasElement | null = null;
 /**
  * The shared wallpaper canvas, at least close to `requiredWidth` px wide.
  * Growing repaints the same element in place, so a DOM desktop already
- * showing it picks up the sharper bitmap without a swap.
+ * showing it picks up the sharper bitmap without a swap. The first call
+ * decides whether it is a CPU canvas (`cpu`, see StillRequest.cpuCanvas).
  */
-export function wallpaperCanvas(requiredWidth: number, aspect: number): HTMLCanvasElement {
+export function wallpaperCanvas(requiredWidth: number, aspect: number, cpu = false): HTMLCanvasElement {
   const wanted = wallpaperSize(requiredWidth, aspect, deviceMemory());
   if (cached && !needsRepaint(cached.width, wanted)) return cached;
   const canvas = cached ?? document.createElement('canvas');
   canvas.width = wanted.width;
   canvas.height = wanted.height;
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext('2d', { willReadFrequently: cpu });
   if (context) paintWallpaper(context, wanted.width, wanted.height);
   cached = canvas;
   return canvas;

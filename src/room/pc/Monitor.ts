@@ -32,6 +32,8 @@ export interface MonitorOptions {
   readonly loop: { invalidate(): void };
   readonly renderer: TextureUploader;
   readonly anisotropy: number;
+  /** Paint the still and the glass finish on CPU canvases (a software GPU). */
+  readonly cpuCanvases: boolean;
   readonly overlay: ScreenOverlay;
   /** The settled pose at the computer for the current viewport. */
   readonly pose: Viewpoint;
@@ -96,6 +98,7 @@ export class Monitor {
       tubeColor: PC_TUBE_COLOR,
       renderer: options.renderer,
       anisotropy: options.anisotropy,
+      cpuCanvas: options.cpuCanvases,
       glassLayer: this.glassLayer,
     });
     this.material.map = this.still.texture;
@@ -211,7 +214,7 @@ export class Monitor {
     const canvas = this.layer;
     canvas.width = GLASS_LAYER_WIDTH;
     canvas.height = this.layerHeight;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: this.options.cpuCanvases });
     if (!context) return;
     const image = context.createImageData(canvas.width, canvas.height);
     for (let row = 0; row < canvas.height; row += FINISH_BAND_ROWS) {

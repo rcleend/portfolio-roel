@@ -12,6 +12,11 @@ export interface StillRequest {
   readonly height: number;
   /** The picture's rectangle on the page when settled at the PC, for the current viewport: the live screen's size. */
   readonly placement: ScreenRect;
+  /**
+   * Make any canvas painted ahead (a cached bitmap) a CPU one, `{ willReadFrequently: true }`: the page draws with
+   * a software GPU, where an accelerated canvas's raster queues behind the room's frames and stalls them.
+   */
+  readonly cpuCanvas: boolean;
 }
 
 /**

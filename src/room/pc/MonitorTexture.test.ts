@@ -38,7 +38,7 @@ function recordingContext() {
   return context;
 }
 
-function setup() {
+function setup({ cpuCanvas = false } = {}) {
   const context = recordingContext();
   const getContext = vi
     .spyOn(HTMLCanvasElement.prototype, 'getContext')
@@ -52,6 +52,7 @@ function setup() {
     tubeColor: '#070a09',
     renderer,
     anisotropy: 4,
+    cpuCanvas,
     glassLayer: () => glassLayer,
   });
   texture.setTarget(LARGE, PLACEMENT);
@@ -111,6 +112,7 @@ describe('MonitorTexture', () => {
     expect(request?.width).toBeCloseTo(1024 * (0.336 / 0.356), 6);
     expect(request?.height).toBeCloseTo(817 * (0.264 / 0.284), 6);
     expect(request?.placement).toEqual(PLACEMENT);
+    expect(request?.cpuCanvas).toBe(false);
     expect(context.calls).toEqual([
       'fillRect(0,0,1024,817)',
       'save()',
@@ -183,6 +185,18 @@ describe('MonitorTexture', () => {
     expect(texture.prepare().next().done).toBe(true);
     texture.setPainter(vi.fn<StillPainter>());
     expect(texture.prepare().next().done).toBe(true);
+  });
+
+  it('paints on a CPU canvas on a software GPU, and asks the painter to do the same', () => {
+    const { texture, getContext } = setup({ cpuCanvas: true });
+    const prepare = vi.fn(function* (_request: StillRequest): Generator<void, void, void> {});
+    const painter = Object.assign(vi.fn<StillPainter>(), { prepare });
+    texture.setPainter(painter);
+    texture.prepare().next();
+    texture.paintIfDue(false);
+    expect(getContext).toHaveBeenCalledWith('2d', { alpha: false, willReadFrequently: true });
+    expect(prepare.mock.calls[0]?.[0].cpuCanvas).toBe(true);
+    expect(painter.mock.calls[0]?.[1].cpuCanvas).toBe(true);
   });
 
   it('repaints a stale still only when asked to refresh (background, flights to or from the display)', () => {

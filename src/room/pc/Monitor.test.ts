@@ -114,6 +114,7 @@ function setup({ inView = false } = {}) {
     loop,
     renderer,
     anisotropy: 4,
+    cpuCanvases: false,
     overlay,
     pose: pcViewpoint(model, 1),
     isInView: () => view.inView,

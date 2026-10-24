@@ -52,5 +52,5 @@ function layoutFor(request: StillRequest): DesktopLayout {
 }
 
 function wallpaperFor(request: StillRequest, layout: DesktopLayout): HTMLCanvasElement {
-  return wallpaperCanvas(request.width, layout.width / layout.height);
+  return wallpaperCanvas(request.width, layout.width / layout.height, request.cpuCanvas);
 }
