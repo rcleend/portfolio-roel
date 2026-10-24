@@ -287,8 +287,16 @@
   touch-action: pan-x pan-y pinch-zoom;
 }
 
-.pc-pane:focus-visible {
-  box-shadow: inset 0 0 0 1px #316ac5;
+/*
+ * The dialog's main stop (focused as the reader opens): a 1 px black line round a 2 px white one,
+ * each over 3:1 against the grey (5.3:1 and 3.9:1) and the black one against a page too. The outline
+ * stays above the pages and the scrollbars; the white ring shows in the grey gutters. Only for
+ * keyboard users (useKeyboardModality): a script focuses the pane.
+ */
+.pc-pane--keyboard:focus-visible {
+  outline: 1px solid #000;
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 3px #fff;
 }
 
 .pc-pane__layer {

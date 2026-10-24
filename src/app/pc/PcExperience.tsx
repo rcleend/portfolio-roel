@@ -29,6 +29,7 @@ import { READER_TITLE, ReaderWindow } from './reader/ReaderWindow';
 import { Splash, splashRect } from './reader/Splash';
 import { StatusBar } from './reader/StatusBar';
 import { Toolbar } from './reader/Toolbar';
+import { useKeyboardModality } from './reader/useKeyboardModality';
 import { type ResolvedZoom, resolveZoom, type ZoomSetting, zoomIn, zoomOut } from './reader/zoom';
 import { isSkipKey } from './session/keys';
 import { readerMemory, restoredScrollTop } from './session/memory';
@@ -75,6 +76,7 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
   const [pageInView, setPageInView] = useState(0);
   const [announcement, setAnnouncement] = useState('');
   const titleId = useId();
+  const keyboard = useKeyboardModality();
 
   // The reader mounts out of sight in a background render, so the startup's frames never wait on it.
   const wantsReader = isMounted(state);
@@ -212,7 +214,7 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
       zoom={zoom}
       pageShown={state.page}
       screenScale={popOut ? 1 : size.scale}
-      className={popOut ? 'pc-pane pc-pane--popout' : 'pc-pane'}
+      className={`pc-pane${popOut ? ' pc-pane--popout' : ''}${keyboard ? ' pc-pane--keyboard' : ''}`}
       paneRef={elements.pane}
       layerRef={elements.pageLayer}
       onWidth={setPaneWidth}
