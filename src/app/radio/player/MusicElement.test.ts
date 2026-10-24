@@ -166,6 +166,22 @@ describe('MusicElement', () => {
     expect(audio.log.at(-1)).toBe('play /b/01.m4a');
   });
 
+  it('opens the new disc when the seat comes before the swap has faded the old one out', () => {
+    const { music, audio, frames } = setup();
+    music.play('/a/01.m4a', 0, 1, 0);
+    audio.currentTime = 30;
+    music.swapSilently('/b/01.m4a', 250);
+    frames.tick(64);
+    // Reduced motion seats the disc at once: the old track must not be rewound and opened instead.
+    music.open(1, 120);
+    expect(audio.src).toBe('/b/01.m4a');
+    expect(audio.currentTime).toBe(0);
+    frames.tick(300);
+    expect(audio.src).toBe('/b/01.m4a');
+    expect(audio.volume).toBe(1);
+    expect(audio.log.filter((entry) => entry.startsWith('play'))).toEqual(['play /a/01.m4a', 'play /b/01.m4a']);
+  });
+
   it('tells an outside pause from its own and from the end of a track', () => {
     const { music, audio, events } = setup();
     music.play('/a/01.m4a', 0, 1, 0);

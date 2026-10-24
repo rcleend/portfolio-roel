@@ -85,6 +85,8 @@ export class MusicElement {
   #rampDeadline: (() => void) | null = null;
   /** Where the running ramp is heading. */
   #rampTo = 0;
+  /** The source a swap's fade-out will start; the seat may come first (reduced motion, a hidden page). */
+  #swapTo: string | null = null;
   readonly #handlers: Readonly<Record<(typeof ELEMENT_EVENTS)[number], () => void>>;
 
   constructor(listener: MusicListener, create: () => AudioLike = pageAudioElement, frames: FrameClock = PAGE_FRAMES) {
@@ -129,6 +131,7 @@ export class MusicElement {
   startSilently(url: string): void {
     const element = this.#ensure();
     this.#stopRamp();
+    this.#swapTo = null;
     this.#silent = true;
     this.#load(url, 0);
     if (this.#writable) {
@@ -143,10 +146,15 @@ export class MusicElement {
   /** Fades the playing disc out over `ms`, then starts `url` silently (the element is already allowed to play). */
   swapSilently(url: string, ms: number): void {
     this.#fade(0, ms, () => this.startSilently(url));
+    this.#swapTo = url;
   }
 
-  /** The disc is seated: from the top, fading in to `volume` over `ms`. */
+  /**
+   * The disc is seated: from the top, fading in to `volume` over `ms`. A swap whose fade-out is still running
+   * (the seat came at once) skips the rest of it: the new disc is the one that opens.
+   */
   open(volume: number, ms: number): void {
+    if (this.#swapTo !== null) this.startSilently(this.#swapTo);
     const element = this.#element;
     if (!element) return;
     this.#stopRamp();
@@ -163,6 +171,7 @@ export class MusicElement {
   play(url: string, at: number, volume: number, ms: number): void {
     const element = this.#ensure();
     this.#stopRamp();
+    this.#swapTo = null;
     if (this.#source !== url) this.#load(url, at);
     else if (this.#silent || Math.abs(element.currentTime - at) > 1) element.currentTime = at;
     this.#silent = false;
@@ -184,6 +193,7 @@ export class MusicElement {
   /** Silence now: the track is about to change. */
   quiet(): void {
     this.#stopRamp();
+    this.#swapTo = null;
     this.#pauseNow();
   }
 
