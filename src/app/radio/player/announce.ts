@@ -23,6 +23,7 @@ export const SAY = {
   endOfDisc: 'End of the CD.',
   failed: 'This track could not be played.',
   chooseFirst: 'Choose a CD first.',
+  stillGoingIn: 'The CD is still going in.',
   pressPlay: 'Press play to start the music.',
   soundOff: 'Sound is off.',
 } as const;
@@ -59,6 +60,10 @@ export function announcement(
       return next.disc !== previous.disc ? starting() : null;
     case 'press':
       if (previous.disc === null) return SAY.chooseFirst;
+      // The keys wait for a disc still going in (it plays once seated); say so rather than ignore the press.
+      if (previous.phase === 'inserting' && next.phase === 'inserting' && next.transport === previous.transport) {
+        return SAY.stillGoingIn;
+      }
       return transportWords(previous, next, starting, selected);
     case 'media':
       return previous.disc === null ? null : transportWords(previous, next, starting, selected);

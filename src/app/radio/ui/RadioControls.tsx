@@ -71,6 +71,7 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
   // or touch user does not (Chrome would ring it for them too, see useKeyboardModality).
   const keyboard = useKeyboardModality();
   const hint = useRadioHint(live, live && shelfUp, coarse, keyboard, snapshot.disc !== null);
+  const risen = useShelfRisen(live, shelfUp);
   // On a phone held upright the bar carries the line (the radio's front fills the bottom of the frame).
   const hintInBar = coarse && !rail;
   const loadedIndex = albums.findIndex((album) => album.id === snapshot.disc);
@@ -200,7 +201,7 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
       )}
       <Caption
         album={albums.find((album) => album.id === attended) ?? null}
-        anchor={anchorOf(layout, attended)}
+        anchor={captionAnchor(anchorOf(layout, attended), risen)}
         muted={muted}
       />
       {hintInBar ? null : (
@@ -218,6 +219,22 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
       </p>
     </section>
   );
+}
+
+/**
+ * Whether the shelf has come up on this visit. The layout places a disc at its slot, so before the rise is done a
+ * caption would wait there, away from a disc (and a pointer) still on its way up.
+ */
+function useShelfRisen(live: boolean, shelfUp: boolean): boolean {
+  const [risen, setRisen] = useState(false);
+  if (live && shelfUp && !risen) setRisen(true);
+  if (!live && risen) setRisen(false);
+  return risen;
+}
+
+/** A caption's anchor: a floating disc's once the shelf is up; the one in the player's at once (it never rises). */
+function captionAnchor(anchor: DiscAnchor | null, risen: boolean): DiscAnchor | null {
+  return anchor && (risen || anchor.inPlayer) ? anchor : null;
 }
 
 /** The plate under the disc that has the visitor's attention: what it is and how long. */

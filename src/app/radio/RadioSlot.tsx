@@ -93,8 +93,10 @@ export function RadioSlot({ deck, view, settled, powered, muted, onLeave, onFocu
   if (!deck || !Player || !(mounted || mountable)) return null;
   return createPortal(
     Player === 'failed' ? (
+      // The slot is hidden until the camera lands at the radio, and an alert filled while hidden is never read out: the
+      // live region is there from the start and its words arrive with the landing.
       <p className="radio-unavailable" role="alert">
-        The CD player could not load its music.
+        {view === 'radio' && settled ? 'The CD player could not load its music.' : null}
       </p>
     ) : (
       <Player deck={deck} view={view} settled={settled} muted={muted} onLeave={onLeave} onFocusStage={onFocusStage} />

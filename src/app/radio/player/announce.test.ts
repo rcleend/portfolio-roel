@@ -56,10 +56,17 @@ describe('announcement', () => {
     expect(say({ ...stopped, track: 2 }, { type: 'press', key: 'next' }).words).toBeNull();
   });
 
-  it('says nothing for a restart or a key on a disc still going in', () => {
+  it('says nothing for a restart', () => {
     expect(say({ ...playing, position: 30 }, { type: 'press', key: 'previous' }).words).toBeNull();
+  });
+
+  it('says a key waits while the disc is still going in, which then plays as it was asked to', () => {
     const going = say(EMPTY_PLAYER, { type: 'pick', disc: 'a' }).state;
-    expect(say(going, { type: 'press', key: 'play-pause' }).words).toBeNull();
+    for (const key of ['play-pause', 'stop', 'previous', 'next'] as const) {
+      const step = say(going, { type: 'press', key });
+      expect(step.words).toBe('The CD is still going in.');
+      expect(step.state).toEqual(going);
+    }
   });
 
   it('asks for a CD when a key is pressed on an empty player', () => {
@@ -94,6 +101,7 @@ describe('announcement', () => {
       'End of the CD.',
       'This track could not be played.',
       'Choose a CD first.',
+      'The CD is still going in.',
       'Press play to start the music.',
       'Sound is off.',
     ]);

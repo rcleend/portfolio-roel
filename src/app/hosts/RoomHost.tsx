@@ -20,7 +20,8 @@ const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
   tv: "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks. The same content is in the résumé after this game.",
   room: 'Paused, looking around the attic. Click the computer to read the résumé, the radio to play music, or the TV to play. Tab to reach them, or press Enter to return to the TV.',
   pc: 'At the computer. Press Escape to return to the room.',
-  radio: 'At the CD player. Choose a CD to play it; press Escape to return to the room.',
+  radio:
+    "At the CD player. Tab to the CDs and press Enter to play one, or to the player's own keys to pause, stop or skip a track. Press Escape to return to the room.",
 };
 
 /**
