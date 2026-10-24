@@ -155,12 +155,12 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.52 kB |
+| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.55 kB |
 | Entry CSS | + 0.15 kB | + 0.00 kB |
-| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.62 kB |
+| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.67 kB |
 | `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
 | `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.6 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 33.8, pending the captain's word: `bundle-budgets.json`) | 33.55 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 34.2, pending the captain's word: `bundle-budgets.json`) | 33.97 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
