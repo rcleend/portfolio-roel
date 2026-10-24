@@ -12,7 +12,7 @@ const FILES = import.meta.glob<string>('./albums/**/*.{m4a,mp3,webp,jpg,jpeg,png
   import: 'default',
 });
 
-/** Absolute `https:` URLs are the captain's to host; everything else is a file in the album's folder. */
+/** Absolute `https:` URLs are hosted elsewhere; everything else is a file in the album's folder. */
 export function isRemote(name: string): boolean {
   return /^https:\/\//i.test(name);
 }
