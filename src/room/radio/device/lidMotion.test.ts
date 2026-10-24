@@ -68,6 +68,19 @@ describe('the lid', () => {
     expect(lidReaches({ kind: 'closed' }, 80, 0)).toBeNull();
   });
 
+  it('says when a lid turned back mid-close passes 80° again, after it has stopped going down', () => {
+    const closing = { kind: 'closing', start: 0, from: LID.openDegrees } as const;
+    const turn = 200;
+    const swing = openFrom(closing, turn, turn);
+    expect(swing.kind).toBe('swing');
+    expect(lidAt(swing, turn).velocity).toBeLessThan(0);
+    const at = lidReaches(swing, LID_DISC_GATE_DEGREES, turn);
+    expect(at).not.toBeNull();
+    expect(lidAt(swing, at ?? 0).degrees).toBeCloseTo(LID_DISC_GATE_DEGREES, 3);
+    // Nowhere between the turn and that moment is the lid already past the gate.
+    for (let t = turn; t < (at ?? 0) - 1; t += 4) expect(lidAt(swing, t).degrees).toBeLessThan(LID_DISC_GATE_DEGREES);
+  });
+
   it('above 80° stays clear of any disc rising through the slot', () => {
     // A rising disc is 1.2 mm thick in the slot plane (z −2.115), 46 mm in front of the hinge; the lid is 5 mm
     // thick and 223 mm long. It crosses the slot plane at y = 1.044 + d·tan θ only while d / cos θ ≤ 223 mm.

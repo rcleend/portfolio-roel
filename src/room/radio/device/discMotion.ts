@@ -20,7 +20,8 @@ import { springAt } from './springs';
  *   so it never meets the disc coming in in front;
  * - back home from mid-flight in front of the shelf; and when the visitor leaves, the arrival backwards: out of the
  *   slot into a lane, turning back to the data side; across to the slot it rises through; and down it, one disc after
- *   another, each once the lanes between it and the slot are empty.
+ *   another, each once the lanes between it and the slot are empty. A disc leaving the player as the visitor leaves
+ *   takes the short way home instead: it stands up, backs into the slot's plane under the lanes and goes down it.
  */
 
 export interface DiscPose {
@@ -138,7 +139,22 @@ export const DISC_MOTION = {
     sinkGap: 50,
     /** The lid starts to close this long after the last disc starts down the slot. */
     lidAfterSinkMs: 0,
+    /**
+     * The lid should start down within this long of the request (the camera lands at 1100 ms, the close and its
+     * rebound take 410): a leave that starts late (discs still arriving) or a long one (many discs) is paced up to
+     * fit, its moves down to `minPace` of their length (the sink keeps its own, so the slot is never shared closer).
+     */
+    lidStartBy: 690,
+    minPace: 0.65,
   },
+  /**
+   * When the visitor leaves mid-pick, the disc going in commits: what is left of its way plays in at most `ms` (the
+   * part before the slide in `preMs`, the slide and the drop in `postMs`) once the well is clear.
+   */
+  commit: { ms: 200, preMs: 110, postMs: 90 },
+  /** And a disc leaving the player brakes in at most `brakeMs`, stands up and backs into the slot's plane (`backMs`). */
+  slit: { brakeMs: 120, backMs: 140 },
+  /** A disc whose slot moved (a resize, a rotation) glides to the new one. */
   relayoutMs: 400,
   /** At play speed (7.5 rev/s) a disc is drawn as its radial average: the same image every frame. */
   playSpeed: 2 * Math.PI * 7.5,
@@ -368,12 +384,10 @@ export function outOf(from: DiscPose, slot: DiscSlot, lane: number, start: numbe
   };
 }
 
-/** From a live pose to another in a plain eased move (a re-laid shelf). */
-export function ease(from: DiscPose, to: DiscPose, start: number, duration: number, lift = 0): PoseSegment {
-  const control = from.position
-    .clone()
-    .lerp(to.position, 0.5)
-    .add(new Vector3(0, lift * 2, 0));
+/** From a live pose to another in a plain eased move (a re-laid shelf), bowing `bow` (m) off the line at its middle. */
+export function ease(from: DiscPose, to: DiscPose, start: number, duration: number, bow?: Vector3): PoseSegment {
+  const control = from.position.clone().lerp(to.position, 0.5);
+  if (bow) control.addScaledVector(bow, 2);
   return {
     start,
     end: start + duration,
@@ -594,6 +608,28 @@ export function homeInFront(from: DiscPose, slot: DiscSlot, eye: Vector3, start:
   };
 }
 
+/**
+ * The short way home out of the player, as the visitor leaves: from standing over the seat straight back into the
+ * slot's plane at the same height (under the lanes the shelf's discs wait in), upright, label to the camera, then
+ * down it (`sink`). The slot is right behind the seat, so the well is clear for the disc coming in once it is there.
+ */
+export function toSlit(from: DiscPose, start: number, duration: number): PoseSegment {
+  const target = new Vector3(SLIT_X, from.position.y, DECK.slot.z);
+  const upright = new Quaternion();
+  return {
+    start,
+    end: start + duration,
+    at(t) {
+      const u = easeInOutCubic(clamp01((t - start) / duration));
+      return {
+        position: from.position.clone().lerp(target, u),
+        orientation: from.orientation.clone().slerp(upright, u),
+        scale: from.scale,
+      };
+    },
+  };
+}
+
 /** Where a disc going home waits above the slot before it sinks, data side out, in its lane. */
 export function hoverPose(slot: DiscSlot, lane: number): DiscPose {
   return aboveSlot(slot, DISC_MOTION.leave.hoverY, lane);
@@ -606,14 +642,13 @@ export function leaveLane(order: number): number {
 }
 
 /** Down the slot (easeInCubic): back into its plane and over its middle well before the lower edge reaches it. */
-export function sink(from: DiscPose, start: number): PoseSegment {
-  const { leave } = DISC_MOTION;
+export function sink(from: DiscPose, start: number, duration: number = DISC_MOTION.leave.sinkMs): PoseSegment {
   const hidden = hiddenPose();
   return {
     start,
-    end: start + leave.sinkMs,
+    end: start + duration,
     at(t) {
-      const u = clamp01((t - start) / leave.sinkMs);
+      const u = clamp01((t - start) / duration);
       const into = smooth(u / 0.7);
       return {
         position: new Vector3(

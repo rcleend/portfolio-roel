@@ -16,7 +16,7 @@ import { deviceMemory, saveData } from '../deviceFacts';
 import { discSlots } from '../discLayout';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
 import { AmbientPacer } from './AmbientPacer';
-import { Choreography, type DiscSample, type Moment } from './choreography';
+import { Choreography, type DiscSample, discHeirs, type Moment } from './choreography';
 import { assembleParts, type CloseUpExtras, type RadioParts } from './closeUpAsset';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
@@ -202,6 +202,18 @@ class Device implements RadioDevice {
   #flightMeasured = false;
   #compiling: Promise<void> | null = null;
   #disposed = false;
+  /** A reveal asked for before the discs could be drawn: it runs once they can. */
+  #revealOnceCompiled = false;
+  /** The shelf's disc ids, in slot order. */
+  #discIds: readonly string[] = [];
+  /** Fires the storyboard's next moment when no frame does (the tab hidden, the phone locked). */
+  #momentTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Whether any disc is out of the radio, as last reported to the deck. */
+  #discsOut = false;
+  /** Whether the LCD shows anything (its power LED follows). */
+  #lcdLit = false;
+  /** The pointer's attention as last reported to the deck. */
+  #pointerAttentionReported: string | null = null;
 
   readonly #context: RadioDeviceContext;
   readonly #parts: RadioParts;
@@ -287,13 +299,11 @@ class Device implements RadioDevice {
 
   setDiscs(discs: readonly DiscArt[]): void {
     const now = performance.now();
-    this.#discIds = discs.map((disc) => disc.id);
-    const pending = this.#discs.setDiscs(discs);
-    this.#choreography.setDiscs(
-      discs.map((disc) => disc.id),
-      this.#context.slots(),
-      now,
-    );
+    const ids = discs.map((disc) => disc.id);
+    const heirs = discHeirs(this.#discIds, ids, this.#state.loaded);
+    this.#discIds = ids;
+    const pending = this.#discs.setDiscs(discs, heirs);
+    this.#choreography.setDiscs(ids, this.#context.slots(), now, heirs);
     for (const id of pending) this.#prepareLabel(id);
     this.#publishLayout();
     this.#kick();
@@ -368,8 +378,6 @@ class Device implements RadioDevice {
     this.#choreography.reveal(performance.now());
     this.#kick();
   }
-
-  #revealOnceCompiled = false;
 
   conceal(): void {
     this.#revealOnceCompiled = false;
@@ -533,8 +541,6 @@ class Device implements RadioDevice {
     );
   }
 
-  #discIds: readonly string[] = [];
-
   /** Keeps the frame step alive while anything moves; it stops itself when everything rests. */
   #kick(): void {
     if (this.#disposed) return;
@@ -549,8 +555,6 @@ class Device implements RadioDevice {
     this.#pacer.sync();
     this.#armMoments();
   }
-
-  #momentTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Frames fire the storyboard's moments; when frames stop (the tab hidden, the phone locked mid-insert), a timer fires
@@ -586,8 +590,6 @@ class Device implements RadioDevice {
     this.#reportShelf(now);
     return sample.moving;
   }
-
-  #discsOut = false;
 
   /** Tells the handle when the shelf is up, and when it no longer is. */
   #reportShelf(now: number): void {
@@ -660,8 +662,6 @@ class Device implements RadioDevice {
     this.#syncBlink(now);
   }
 
-  #lcdLit = false;
-
   /** A paused time blinks while the visitor is at the radio and attentive (30 s), never in the slow tier or calm. */
   #blinking(now: number): boolean {
     return (
@@ -714,8 +714,6 @@ class Device implements RadioDevice {
     this.#updateTilt(now);
     this.#kick();
   }
-
-  #pointerAttentionReported: string | null = null;
 
   /** The pointer's offset from the attended disc's centre, in disc radii on screen, tilts that disc (mouse only). */
   #updateTilt(now: number): void {

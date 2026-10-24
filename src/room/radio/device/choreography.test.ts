@@ -1,10 +1,12 @@
+import type { Quaternion } from 'three';
 import { describe, expect, it } from 'vitest';
 import { discSlots } from '../discLayout';
 import { RADIO_FIXTURE } from '../radioFixtures';
-import { radioViewpoint } from '../radioFraming';
-import { Choreography, type Moment } from './choreography';
+import { radioViewpoint, slotOrientation } from '../radioFraming';
+import { Choreography, discHeirs, type Moment } from './choreography';
 import { DECK } from './deckLayout';
 import { DISC_MOTION } from './discMotion';
+import { BLUR_FROM } from './discShader';
 
 const SLOTS = discSlots(5, 1.6);
 const EYE = radioViewpoint(
@@ -22,12 +24,12 @@ const { pick } = DISC_MOTION;
 const CONTACT = pick.anticipationMs + pick.flightMs + pick.slideMs + pick.dropMs;
 const BOTTOM = CONTACT + pick.pressAfter + pick.pressDownMs;
 
-function setup(reduced = false) {
+function setup(reduced = false, slow = false) {
   const choreography = new Choreography({
     reducedFadeMs: 140,
     eye: () => EYE,
     reducedMotion: () => reduced,
-    slow: () => false,
+    slow: () => slow,
   });
   choreography.setDiscs(IDS, SLOTS, 0);
   const fired: Moment[] = [];
@@ -129,11 +131,64 @@ describe('the arrival', () => {
     expect(seated.map((moment) => moment.disc)).toEqual(['c']);
     const rise = cues(fired, 'disc-rise').find((moment) => moment.disc === 'c');
     expect(rise).toBeDefined();
-    // Up and across, then the flight with no wind-up (it is already moving), and never the turn into its slot.
+    // Up and across, then (once its way to the seat is clear of the discs still turning into their slots in the
+    // lanes in front) the flight with no wind-up (it is already moving), and never the turn into its slot.
     const { rise: up, across } = DISC_MOTION;
-    expect((seated[0]?.at ?? 0) - (rise?.at ?? 0)).toBeCloseTo(up.ms + across.ms + BOTTOM - pick.anticipationMs, 6);
+    const waited = (seated[0]?.at ?? 0) - (rise?.at ?? 0) - (up.ms + across.ms + BOTTOM - pick.anticipationMs);
+    expect(waited).toBeGreaterThanOrEqual(-1e-6);
+    expect(waited).toBeLessThan(400);
     expect(cues(fired, 'disc-flip').map((moment) => moment.disc)).not.toContain('c');
     expect(choreography.sample(4000).discs.filter((entry) => entry.phase === 'floating')).toHaveLength(4);
+  });
+});
+
+describe('a pick on the way up, then another', () => {
+  it('sends the first on into its slot from where it is, without a jump', () => {
+    const { choreography, fired, run, at } = setup();
+    choreography.approach(0, 0);
+    run(LANDING);
+    choreography.reveal(at());
+    choreography.setTransport('playing', at());
+    choreography.setLoaded('a', at(), true);
+    run(1220);
+    choreography.setLoaded('b', 1220, true);
+    let last = disc(choreography, 1220, 'a')?.position.clone();
+    for (let t = 1228; t <= 4000; t += 8) {
+      run(t);
+      const now = disc(choreography, t, 'a');
+      if (now?.visible && last) expect(now.position.distanceTo(last)).toBeLessThan(0.04);
+      last = now?.visible ? now.position.clone() : undefined;
+    }
+    expect(disc(choreography, 4000, 'a')?.phase).toBe('floating');
+    expect(disc(choreography, 4000, 'b')?.phase).toBe('seated');
+    // It turned over into its slot after all.
+    expect(cues(fired, 'disc-flip').map((moment) => moment.disc)).toContain('a');
+    expect(fired.filter((moment) => moment.seated).map((moment) => moment.disc)).toEqual(['b']);
+  });
+});
+
+describe('the slow tier', () => {
+  it('draws frames until every disc has come to rest label-upright, then none', () => {
+    const { choreography, run, at } = setup(false, true);
+    choreography.approach(0, 0);
+    run(LANDING);
+    choreography.reveal(at());
+    run(2000);
+    // Still settling: the label is not upright yet, and no ambient frame would ever bring it there.
+    expect(choreography.sample(2000).moving).toBe(true);
+    let restAt: number | null = null;
+    for (let t = 2000; t <= 8000 && restAt === null; t += 16) {
+      run(t);
+      if (!choreography.sample(t).moving) restAt = t;
+    }
+    expect(restAt).not.toBeNull();
+    const rest = choreography.sample(restAt ?? 0);
+    expect(rest.ambient).toBe(false);
+    rest.discs.forEach((entry, index) => {
+      const slot = SLOTS[index];
+      if (!slot) throw new Error('slot');
+      expect(entry.orientation.angleTo(slotOrientation(slot))).toBeLessThan(0.005);
+    });
   });
 });
 
@@ -278,6 +333,39 @@ describe('a pick', () => {
   });
 });
 
+describe('the label wind-down', () => {
+  /** The fastest |ω| of disc `id` over [from, to], sampled every 4 ms. */
+  const fastest = (choreography: Choreography, id: string, from: number, to: number) => {
+    let peak = 0;
+    for (let t = from; t <= to; t += 4) peak = Math.max(peak, Math.abs(disc(choreography, t, id)?.omega ?? 0));
+    return peak;
+  };
+
+  it('keeps the print out of the spin blur on a tap, from any angle, and seats the label upright', () => {
+    const seated: Quaternion[] = [];
+    // The idle spin goes about a turn in six seconds: these taps catch the label at every angle.
+    for (let tap = 3000; tap < 9000; tap += 397) {
+      const { choreography } = arrive();
+      choreography.attend('a', tap);
+      choreography.setLoaded('a', tap, true);
+      // Half a turn to go and the contact 750 ms away is the hardest case (1.5 · π / 0.75 s, a hair over BLUR_FROM).
+      expect(fastest(choreography, 'a', tap, tap + CONTACT)).toBeLessThan(BLUR_FROM * 1.25);
+      const landed = disc(choreography, tap + CONTACT, 'a');
+      expect(landed?.omega).toBe(0);
+      if (landed) seated.push(landed.orientation.clone());
+    }
+    const [first, ...rest] = seated;
+    for (const orientation of rest) expect(orientation.angleTo(first ?? orientation)).toBeLessThan(0.002);
+  });
+
+  it('never blurs a hovered label or the resting shelf', () => {
+    const { choreography } = arrive();
+    choreography.attend('c', 3000);
+    choreography.attend(null, 4200);
+    for (const id of IDS) expect(fastest(choreography, id, 3000, 4200 + 9000)).toBeLessThanOrEqual(BLUR_FROM + 1e-9);
+  });
+});
+
 describe('the keys', () => {
   it('press, hold and release with their cues', () => {
     const { choreography, fired, run } = arrive();
@@ -320,18 +408,40 @@ describe('the leave', () => {
     expect(choreography.sample(4600).moving).toBe(false);
   });
 
-  it('finishes an insert the visitor asked for before the shelf goes home; its seated moment still fires', () => {
+  it('commits an insert under way on a leave: it seats sooner, its seated moment still fires, the shelf goes at once', () => {
     const { choreography, fired, run } = arrive();
     choreography.setLoaded('b', 3000, true);
-    run(3300);
-    choreography.conceal(3300);
+    run(3100);
+    choreography.conceal(3100);
     run(6000);
     const seated = fired.filter((moment) => moment.seated);
-    expect(seated.map((moment) => [moment.disc, moment.at])).toEqual([['b', 3000 + BOTTOM]]);
-    // The others go home once it is down.
-    const firstSink = cues(fired, 'disc-sink')[0]?.at ?? 0;
-    expect(firstSink).toBeGreaterThan(3000 + CONTACT);
-    expect(choreography.lidDegrees(6000)).toBe(0);
+    expect(seated.map((moment) => moment.disc)).toEqual(['b']);
+    expect(seated[0]?.at ?? Number.POSITIVE_INFINITY).toBeLessThan(3000 + BOTTOM);
+    // The shelf did not wait for it: the first disc is down the slot before it would have landed as planned.
+    expect(cues(fired, 'disc-sink')[0]?.at ?? Number.POSITIVE_INFINITY).toBeLessThan(3000 + CONTACT);
+    // And the lid is shut by the time the camera is back in the room (its flight is 1100 ms).
+    expect(choreography.lidDegrees(3100 + 1150)).toBe(0);
+  });
+
+  it('takes a disc across the back on its way home from the player straight down the slot on a leave', () => {
+    const { choreography, fired, run } = arrive();
+    choreography.setLoaded('a', 3000, true);
+    run(6000);
+    choreography.setLoaded('b', 6000, true);
+    // Braked, stood up and backed into the plane behind the shelf: across it, on its way to its slot.
+    const leave = 6000 + DISC_MOTION.swap.brakeMs + DISC_MOTION.swap.standMs + DISC_MOTION.swap.backMs + 100;
+    run(leave);
+    expect(choreography.phaseOf('a', leave)).toBe('exiting');
+    choreography.conceal(leave);
+    const phases = new Set<string>();
+    for (let t = leave; t <= leave + 1150; t += FRAME) {
+      run(t);
+      phases.add(choreography.phaseOf('a', t) ?? 'none');
+    }
+    // It never went into its slot first, it went down the slot before any disc of the shelf, and the lid is shut.
+    expect(phases.has('floating')).toBe(false);
+    expect(cues(fired, 'disc-sink').find((moment) => moment.at >= leave)?.disc).toBe('a');
+    expect(choreography.lidDegrees(leave + 1150)).toBe(0);
   });
 
   it('turns back mid-leave: the lid swings open from where it is and every disc retraces its way to its slot', () => {
@@ -382,6 +492,45 @@ describe('a new layout mid-motion', () => {
     sample.discs.forEach((entry, i) => {
       expect(entry.position.distanceTo(portrait[i]?.position ?? entry.position)).toBeLessThan(0.006);
     });
+  });
+});
+
+describe('a new collection', () => {
+  it('names the discs taking over one that left, index for index, never the loaded one', () => {
+    const placeholders = ['disc-1', 'disc-2', 'disc-3'];
+    expect([...discHeirs(placeholders, ['x', 'y', 'z'], null)]).toEqual([
+      ['x', 'disc-1'],
+      ['y', 'disc-2'],
+      ['z', 'disc-3'],
+    ]);
+    // A disc that stays keeps its id; a gone one only passes on to a newcomer at its index.
+    expect([...discHeirs(['a', 'b', 'c'], ['a', 'q', 'b'], null)]).toEqual([]);
+    expect([...discHeirs(['a', 'b', 'c'], ['a', 'q', 'c', 'r'], null)]).toEqual([['q', 'b']]);
+    expect([...discHeirs(['a', 'b'], ['x', 'y'], 'a')]).toEqual([['y', 'b']]);
+    expect([...discHeirs([], ['x'], null)]).toEqual([]);
+  });
+
+  it('takes the placeholder shelf over in the air: the same discs go on rising, renamed', () => {
+    const context = setup();
+    const { choreography, fired, run } = context;
+    choreography.approach(0, 0);
+    run(LANDING);
+    choreography.reveal(LANDING);
+    run(1500);
+    const before = choreography.sample(1500).discs;
+    const albums = IDS.map((id) => `album-${id}`);
+    choreography.setDiscs(albums, SLOTS, 1500, discHeirs(IDS, albums, null));
+    const after = choreography.sample(1500).discs;
+    expect(after.map((entry) => entry.id)).toEqual(albums);
+    after.forEach((entry, i) => {
+      expect(entry.position.distanceTo(before[i]?.position ?? entry.position)).toBeLessThan(1e-9);
+      expect(entry.visible).toBe(before[i]?.visible);
+    });
+    run(3400);
+    // No second rise: every flip still due fires under its new name, and the shelf comes to rest.
+    expect(cues(fired, 'disc-rise').length).toBe(IDS.length);
+    expect(cues(fired, 'disc-flip').every((moment) => moment.disc?.startsWith('album-'))).toBe(true);
+    expect(choreography.discsOut(3400)).toBe(true);
   });
 });
 

@@ -164,23 +164,35 @@ export function lidMoments(plan: LidPlan): LidMoment[] {
   }
 }
 
-/** When an opening plan first reaches `degrees` (ms), by bisection on the monotonic part of the swing; null if never. */
+/** How finely, and how far ahead, lidReaches looks for the first moment past its angle. */
+const REACH_STEP_MS = 16;
+const REACH_HORIZON_MS = 3000;
+
+/**
+ * When an opening plan first reaches `degrees` (ms), or null if it never does. A swing may first carry on the way the
+ * lid was going (a visitor turning back while it closes) before it turns and opens, so this steps forward until the
+ * lid is past the angle and then bisects that step, rather than trusting the spring's first stop to be the top.
+ */
 export function lidReaches(plan: LidPlan, degrees: number, from: number): number | null {
   if (plan.kind === 'open') return from;
   if (plan.kind !== 'opening' && plan.kind !== 'swing') return null;
   if (lidAt(plan, from).degrees >= degrees) return from;
-  const start = plan.kind === 'opening' ? plan.start + LID.pushMs + LID.popMs : plan.start;
-  const stop =
-    plan.kind === 'opening'
-      ? springFirstStop(LID.popDegrees - LID.openDegrees, LID.swingVelocity, LID.zeta, LID.hz)
-      : springFirstStop(plan.from - LID.openDegrees, plan.velocity, LID.zeta, LID.hz);
-  let high = start + (stop ?? 2) * 1000;
-  if (lidAt(plan, high).degrees < degrees) return null;
-  let low = Math.max(start, from);
-  for (let i = 0; i < 40; i++) {
-    const mid = (low + high) / 2;
-    if (lidAt(plan, mid).degrees >= degrees) high = mid;
+  const begin = Math.max(plan.start, from);
+  let low = begin;
+  let high: number | null = null;
+  for (let at = begin + REACH_STEP_MS; at <= begin + REACH_HORIZON_MS; at += REACH_STEP_MS) {
+    if (lidAt(plan, at).degrees >= degrees) {
+      high = at;
+      break;
+    }
+    low = at;
+  }
+  if (high === null) return null;
+  let past: number = high;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + past) / 2;
+    if (lidAt(plan, mid).degrees >= degrees) past = mid;
     else low = mid;
   }
-  return high;
+  return past;
 }

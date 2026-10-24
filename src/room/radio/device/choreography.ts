@@ -1,8 +1,11 @@
 import { Quaternion, Vector3 } from 'three';
 import { clamp01 } from '../../motion/easing';
 import type { DiscSlot } from '../discLayout';
+import { DISC_RADIUS } from '../discLayout';
 import type { RadioCue, RadioKey, Transport } from '../RadioDeck';
 import { slotOrientation } from '../radioFraming';
+import { DECK } from './deckLayout';
+import { discsTouch } from './discContact';
 import {
   across,
   anticipate,
@@ -11,6 +14,7 @@ import {
   attentionPose,
   backOut,
   backToExit,
+  clonePose,
   DISC_MOTION,
   type DiscPose,
   drop,
@@ -33,6 +37,7 @@ import {
   riseLane,
   riseOrder,
   riseStagger,
+  SLIT_X,
   seatPose,
   settle,
   sink,
@@ -40,11 +45,23 @@ import {
   slotPose,
   standUp,
   still,
+  toSlit,
   underShelf,
 } from './discMotion';
+import { BLUR_FROM } from './discShader';
 import { type KeyPress, keyMoving, keyTravel, releaseStart } from './keyMotion';
 import { closeFrom, LID_DISC_GATE_DEGREES, type LidPlan, lidAt, lidMoments, lidReaches, openFrom } from './lidMotion';
-import { type SpinSegment, type SpinTrack, Spring, spinAt, spinChanging, spinThen, uprightTarget } from './springs';
+import {
+  type SpinSegment,
+  type SpinTrack,
+  Spring,
+  spinAt,
+  spinChanging,
+  spinThen,
+  uprightTarget,
+  uprightTurn,
+} from './springs';
+import { hurry, hurryWithin, peakSpeed, warpSegments } from './timeWarp';
 
 /**
  * The CD player's storyboard as data (docs/ROOM.md › The CD player): events in (the approach, the landing, the
@@ -125,14 +142,28 @@ export function bumpWeight(bump: Bump, t: number): number {
 }
 
 interface Insert {
+  /** When it is in front of the radio (its flight done) and starts over the seat; null when it was never out. */
+  readonly flown: number;
+  readonly slideStart: number | null;
   readonly dropStart: number;
   readonly contact: number;
   /** ▷II's press bottom: the sound may start. */
   readonly bottom: number;
 }
 
+/** A disc's way out of the radio, kept so a disc picked on it (and then let go) can still turn into its slot. */
+interface Climb {
+  /** Up out of the slot and across to its column in front of its own slot (the same segments as in its plan). */
+  readonly way: readonly PhasedSegment[];
+  /** Its turn into the slot from there. */
+  readonly intoMs: number;
+  /** Its place in the rise, for the flip's sound. */
+  readonly order: number;
+}
+
 interface DiscTrack {
-  readonly id: string;
+  /** Renamed only when a new collection's disc takes it over ({@link discHeirs}). */
+  id: string;
   index: number;
   slot: DiscSlot;
   readonly character: IdleCharacter;
@@ -140,6 +171,7 @@ interface DiscTrack {
   rest: Rest;
   spin: SpinTrack;
   insert: Insert | null;
+  climb: Climb | null;
   /** When it set off home on the leave (its turn, then the glide), for a visitor turning back. */
   setOff: number | null;
   readonly attention: Spring;
@@ -191,9 +223,11 @@ const ATTENTION_SPRING = { zeta: 0.7, hz: 4 } as const;
 const TILT_SPRING = { zeta: 0.8, hz: 6 } as const;
 const LEAN_SPRING = { zeta: 0.8, hz: 3 } as const;
 const PARALLAX_SPRING = { zeta: 0.9, hz: 1.5 } as const;
-const UPRIGHT_SPRING = { zeta: 0.8, hz: 3 } as const;
-/** Resting discs settle their spin to label-upright gently, over about REST_MS. */
-const REST_SPIN_SPRING = { zeta: 0.85, hz: 0.9 } as const;
+/**
+ * A label winds to upright (attention, a pick, homing, out of the player) in about this long (ms), slower when that
+ * would spin it into the blur (never past BLUR_FROM, so the print stays sharp), faster only to be upright on time.
+ */
+const UPRIGHT_TURN_MS = 320;
 const MAX_TILT = (7 * Math.PI) / 180;
 const LEAN_ANGLE = (3 * Math.PI) / 180;
 const LEAN_PART = 0.006;
@@ -207,6 +241,48 @@ const SPIN_UP_MS = { insert: 900, paused: 350, stopped: 600 } as const;
 const SPIN_DOWN_MS = { paused: 700, stopped: 1100 } as const;
 /** How finely the way of a disc leaving the player is searched for the moment it is clear (ms). */
 const PLAN_STEP_MS = 10;
+/** A disc picked while others are still coming up tries to set off this much later each time its way meets one. */
+const RISE_WAIT_STEP_MS = 30;
+/** And keeps this far clear of them (m). */
+const RISE_MARGIN = 0.002;
+/** A disc re-laid out mid-motion waits at most this long in its old slot for its glide to be clear (ms). */
+const RELAYOUT_MAX_WAIT_MS = 3000;
+/** How far (m) such a glide may bow towards the camera to pass in front of a disc in its way. */
+const RELAYOUT_BOWS = [0.03, 0.06] as const;
+/** A disc hurrying on a leave (DISC_MOTION.commit, the shelf paced up) never moves faster than this (m/ms: the slide's own peak). */
+const COMMIT_MAX_SPEED = 0.004;
+/** And its label winds to upright this briskly, so that it lies still on the spindle by the press. */
+const COMMIT_SPIN_SPRING = { zeta: 0.9, hz: 6 } as const;
+/** A leave too long for DISC_MOTION.leave.lidStartBy is paced up in steps of this. */
+const PACE_STEP = 0.05;
+
+/**
+ * Which discs of a new collection take over a disc already there: a new id at an index whose disc has left the
+ * collection is that disc renamed (the room's placeholder shelf meeting the app's albums, on a slow player chunk),
+ * so it re-prints where it is rather than vanishing and rising again. The loaded disc leaves with its id.
+ * Returns new id -> the id it takes over.
+ */
+export function discHeirs(
+  before: readonly string[],
+  after: readonly string[],
+  loaded: string | null,
+): Map<string, string> {
+  const known = new Set(before);
+  const staying = new Set(after);
+  const heirs = new Map<string, string>();
+  after.forEach((id, index) => {
+    const previous = before[index];
+    if (previous === undefined || previous === loaded || known.has(id) || staying.has(previous) || heirs.has(id)) {
+      return;
+    }
+    heirs.set(id, previous);
+  });
+  return heirs;
+}
+
+/** The discs moving in front of the shelf (where a disc going in flies): those coming up, and those called back. */
+const IN_FRONT: ReadonlySet<DiscPhase> = new Set(['rising', 'homing']);
+const RISING: ReadonlySet<DiscPhase> = new Set(['rising']);
 const Z = new Vector3(0, 0, 1);
 const X = new Vector3(1, 0, 0);
 const UP = new Vector3(0, 1, 0);
@@ -255,18 +331,26 @@ export class Choreography {
     return lidAt(this.#lidPlanAt(t), t).degrees;
   }
 
-  /** The collection in display order with its slots; new discs wait inside the radio, the others re-lay. */
-  setDiscs(ids: readonly string[], slots: readonly DiscSlot[], t: number): void {
+  /**
+   * The collection in display order with its slots; new discs wait inside the radio, the others re-lay.
+   * `heirs` (new id -> the id it takes over, from {@link discHeirs}) renames a disc in place instead.
+   */
+  setDiscs(
+    ids: readonly string[],
+    slots: readonly DiscSlot[],
+    t: number,
+    heirs: ReadonlyMap<string, string> = new Map(),
+  ): void {
     const next = new Map<string, DiscTrack>();
     ids.forEach((id, index) => {
       const slot = slots[index];
       if (!slot || next.has(id)) return;
-      const existing = this.#discs.get(id);
+      const heir = heirs.get(id);
+      const existing = this.#discs.get(id) ?? (heir === undefined ? undefined : this.#rename(heir, id));
       if (existing) {
         const moved = existing.slot.position.distanceTo(slot.position) > 1e-6;
         existing.index = index;
-        existing.slot = slot;
-        if (moved) this.#relaySlot(existing, t);
+        this.#relaySlot(existing, slot, moved, t);
         next.set(id, existing);
       } else {
         next.set(id, this.#newTrack(id, index, slot, t));
@@ -280,16 +364,36 @@ export class Choreography {
     if (this.#presence === 'present' && this.#riseScheduled) this.#scheduleRise(t);
   }
 
-  /** The viewport or insets changed: every disc ends up in its new slot, those in motion once their move is done. */
+  /** The disc `from` goes on as `to`, wherever it is in its film, its future moments with it. */
+  #rename(from: string, to: string): DiscTrack | undefined {
+    const track = this.#discs.get(from);
+    if (!track || from === this.#loaded) return undefined;
+    const owner = (name: string) => (name === from ? to : name === `spin:${from}` ? `spin:${to}` : name);
+    this.#moments = this.#moments.map((moment) =>
+      moment.disc === from || owner(moment.owner) !== moment.owner
+        ? { ...moment, owner: owner(moment.owner), ...(moment.disc === from ? { disc: to } : {}) }
+        : moment,
+    );
+    if (this.#attended === from) this.#attended = to;
+    // In place: its film's segments may hold the track itself.
+    track.id = to;
+    return track;
+  }
+
+  /**
+   * The viewport or insets changed: every disc ends up in its new slot. Resting ones cut there with the camera; those
+   * in motion glide over once their move is done, each one only when its glide is clear of every other disc.
+   */
   relayout(slots: readonly DiscSlot[], t: number): void {
+    const late: DiscTrack[] = [];
     this.#order.forEach((id, index) => {
       const track = this.#discs.get(id);
       const slot = slots[index];
       if (!track || !slot) return;
       const moved = track.slot.position.distanceTo(slot.position) > 1e-6 || track.slot.tilt !== slot.tilt;
-      track.slot = slot;
-      if (moved) this.#relaySlot(track, t);
+      if (this.#relaySlot(track, slot, moved, t)) late.push(track);
     });
+    this.#glideLate(late);
   }
 
   /** The camera set off for the radio at `clickAt`; the device acts on it at `t` (later if it was still loading). */
@@ -320,15 +424,28 @@ export class Choreography {
     if (!turningBack) return;
     // Turning back mid-leave: every disc on its way home retraces its way so far, as if the film ran backwards
     // (so no two meet, as they did not on the way), and is back in its slot as long after as it set off before.
+    // The film runs once the lid is back past 80 deg: a disc on its way down the slit would otherwise come back up
+    // through a lid that is only just reopening. Until then each holds where it is, clear of a lid that only opens.
+    const gate = Math.max(t, lidReaches(plan, LID_DISC_GATE_DEGREES, t) ?? t);
     for (const track of this.#discs.values()) {
       if (track.id === this.#loaded || track.rest !== 'stowed' || !track.segments.some((s) => s.end > t)) continue;
-      const setOff = track.setOff ?? t;
+      // One out of the player on the short way (no slot it set off from) goes on down the slit, and rises again
+      // with the others.
+      const setOff = track.setOff;
+      if (setOff === null) continue;
       track.setOff = null;
       this.#cancel(track.id, t);
       const way = track.segments;
       const back = Math.max(0, t - setOff);
+      // One that had not set off yet (it was still arriving, or waiting its turn) carries on with its arrival.
+      const hold = gate - t;
       track.segments =
-        back > 0 ? [{ start: t, end: t + back, at: (at: number) => poseOn(way, 2 * t - at), phase: 'rising' }] : [];
+        back > 0
+          ? [
+              ...(hold > 0 ? [{ ...still(poseOn(way, t), t, gate), phase: 'rising' as const }] : []),
+              { start: gate, end: gate + back, at: (at: number) => poseOn(way, 2 * t + hold - at), phase: 'rising' },
+            ]
+          : way.filter((segment) => segment.end > t && segment.end <= setOff);
       track.rest = 'floating';
       track.spin = this.#labelSpin(track, t);
     }
@@ -343,7 +460,12 @@ export class Choreography {
     if (!this.#options.reducedMotion()) this.#scheduleRise(t);
   }
 
-  /** The camera is asked to leave: an insert under way lands, then the discs go home one by one and the lid shuts. */
+  /**
+   * The camera is asked to leave, and the radio packs up while it is still on screen: a disc going in commits (what is
+   * left of its way plays sooner), one leaving the player takes the short way down the slit, and the shelf sets off
+   * home at once (a disc still arriving gets there first), paced so that the lid starts down within
+   * DISC_MOTION.leave.lidStartBy of the request.
+   */
   conceal(t: number): void {
     if (!this.atRadio) return;
     this.#presence = 'leaving';
@@ -362,67 +484,175 @@ export class Choreography {
       }
       return;
     }
-    // The insert the visitor asked for finishes as planned (its seated moment still fires); the shelf waits for it.
-    const loaded = this.#loaded === null ? undefined : this.#discs.get(this.#loaded);
-    const insertDown = loaded?.insert ? loaded.insert.contact + DISC_MOTION.pick.bounceMs : t;
-    // Discs still on their way to their slots get there first: they go home from where they rest.
-    let arriving = t;
-    for (const track of this.#discs.values()) {
-      if (track.id === this.#loaded || track.rest !== 'floating') continue;
-      for (const segment of track.segments) if (segment.end > t) arriving = Math.max(arriving, segment.end);
+    const { leave } = DISC_MOTION;
+    // Out of the player first, each in turn (the furthest on first), and down the slit before any disc of the shelf;
+    // one already behind the shelf on its way home gets there sooner.
+    let lastSink = Number.NEGATIVE_INFINITY;
+    let closeAt = t;
+    const slit = new Set<DiscTrack>();
+    const leaving = [...this.#discs.values()]
+      .filter((track) => track.id !== this.#loaded && this.#outOfPlayer(track, t))
+      .sort((a, b) => unseatStart(a) - unseatStart(b));
+    for (const track of leaving) {
+      lastSink = this.#downTheSlit(track, t, lastSink + leave.sinkMs);
+      closeAt = Math.max(closeAt, lastSink + leave.lidAfterSinkMs);
+      slit.add(track);
     }
-    const begin = Math.max(t, insertDown, arriving);
-    let closeAt = begin;
+    const behind = [...this.#discs.values()]
+      .filter((track) => track.id !== this.#loaded && !slit.has(track) && this.#phaseAt(track, t) === 'exiting')
+      .sort((a, b) => unseatStart(a) - unseatStart(b));
+    for (const track of behind) {
+      if (!this.#acrossTheBack(track, t)) {
+        this.#hurryHome(track, t);
+        continue;
+      }
+      lastSink = this.#acrossToSlit(track, t, lastSink + leave.sinkMs, slit.size);
+      closeAt = Math.max(closeAt, lastSink + leave.lidAfterSinkMs);
+      slit.add(track);
+    }
+    // The insert the visitor asked for commits, once the well is clear of the disc going down the slit.
+    const loaded = this.#loaded === null ? undefined : this.#discs.get(this.#loaded);
+    if (loaded) {
+      this.#commit(loaded, t);
+      if (loaded.insert) closeAt = Math.max(closeAt, loaded.insert.contact);
+    }
+    // Discs still on their way to their slots get there first: they go home from where they rest.
     const going: DiscTrack[] = [];
+    const ready = new Map<DiscTrack, number>();
     for (const track of this.#discs.values()) {
-      if (track.id === this.#loaded) continue;
+      if (track.id === this.#loaded || slit.has(track)) continue;
       if (this.#phaseAt(track, t) === 'stowed' && !track.segments.some((segment) => segment.end > t)) {
         // Still inside the radio (a rise that had not started): it stays there.
         this.#cancel(track.id, t);
         track.segments = [];
         track.rest = 'stowed';
-      } else {
-        going.push(track);
+        continue;
       }
+      going.push(track);
+      // In its slot, that is: it may set off home while it still settles there.
+      let inSlot = t;
+      if (track.rest === 'floating') {
+        for (const segment of track.segments) {
+          if (segment.end > t && segment.phase !== 'floating') inSlot = Math.max(inSlot, segment.end);
+        }
+      }
+      ready.set(track, inSlot);
     }
     // The nearest home first, so no disc passes a slot still taken (and so none passes a disc turning over in its
     // slot: the ones before it are already on their way to the slot); each waits for the last to be down the slot.
-    const order = riseOrder(going.map((track) => track.slot)).reverse();
-    let lastSink = Number.NEGATIVE_INFINITY;
-    order.forEach((index, k) => {
-      const track = going[index];
-      if (!track) return;
-      // Each in turn, from its slot (one still arriving gets there first).
-      const start = begin + DISC_MOTION.leave.stagger * k;
+    const order = riseOrder(going.map((track) => track.slot))
+      .reverse()
+      .map((index) => going[index] as DiscTrack);
+    const arrivals = order.map((track) => track.segments.filter((segment) => segment.end > t));
+    const inSlots = order.map((track) => ready.get(track) ?? t);
+    for (const track of order) {
       this.#cancel(track.id, t);
-      const arrival = track.segments.filter((segment) => segment.end > t);
-      const waitFrom = arrival.at(-1)?.end ?? t;
-      // It floats on in its slot until its turn, and goes from exactly where it floats then.
-      track.segments = [...arrival, { ...still(slotPose(track.slot), waitFrom, start), phase: 'floating' }];
-      track.setOff = start;
-      const lane = leaveLane(k);
-      const out = outOf(this.#drawnPose(track, start), track.slot, lane, start, DISC_MOTION.leave.outMs);
-      const hover = hoverPose(track.slot, lane);
-      const side = across(out.at(out.end), hover.position, out.end, DISC_MOTION.leave.acrossMs);
-      const sinkAt = Math.max(side.end, lastSink + DISC_MOTION.leave.sinkGap);
-      lastSink = sinkAt;
-      const waitPose = side.at(side.end);
-      const down = sink(waitPose, sinkAt);
-      track.segments.push(
-        { ...out, phase: 'returning' },
-        { ...side, phase: 'returning' },
-        { ...still(waitPose, side.end, sinkAt), phase: 'returning' },
-        { ...down, phase: 'returning' },
-      );
-      track.rest = 'stowed';
       track.insert = null;
       track.spin = this.#decaySpin(track, t, 0);
-      this.#addMoment({ at: sinkAt, owner: track.id, cue: 'disc-sink', order: k, disc: track.id });
+    }
+    const deadline = t + leave.lidStartBy;
+    let pace = 1;
+    let sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink);
+    while (Math.max(closeAt, sinks.at(-1) ?? t) > deadline && pace > leave.minPace) {
+      pace = Math.max(leave.minPace, pace - PACE_STEP);
+      sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink);
+    }
+    sinks.forEach((at, k) => {
+      const track = order[k] as DiscTrack;
+      track.rest = 'stowed';
+      this.#addMoment({ at, owner: track.id, cue: 'disc-sink', order: k + slit.size, disc: track.id });
       // The lid starts down as the last disc starts down the slot: it falls slowly at first, and is still behind
       // the slot's plane when the disc is in (the sweep checks it).
-      closeAt = Math.max(closeAt, down.start + DISC_MOTION.leave.lidAfterSinkMs);
+      closeAt = Math.max(closeAt, at + leave.lidAfterSinkMs);
     });
     this.#setLid(t, closeFrom(this.#lidPlanAt(closeAt), closeAt), closeAt);
+  }
+
+  /**
+   * The shelf's way home at `pace` (1 as drawn; their moves shorter below it, never faster than COMMIT_MAX_SPEED, the
+   * slot's own timing kept): each disc in `order` floats on in its slot after its `arrival` until its turn, out into
+   * its lane, across over the slot and down it, no sooner than `after` the last disc went down (planned at `t`). Its
+   * turn comes once it is `inSlot`, a stagger after the one before (so none passes a disc still on its way to its slot
+   * nearer the slot), and once its way home meets none of the discs still on theirs (a disc hurrying home from the
+   * player). Returns when each starts down the slot.
+   */
+  #packUp(
+    order: readonly DiscTrack[],
+    arrivals: readonly (readonly PhasedSegment[])[],
+    inSlot: readonly number[],
+    t: number,
+    pace: number,
+    after: number,
+  ): number[] {
+    const { leave } = DISC_MOTION;
+    let lastSink = after;
+    let start = Number.NEGATIVE_INFINITY;
+    return order.map((track, k) => {
+      const arrival = arrivals[k] ?? [];
+      const ahead = arrivals.slice(k + 1).map((way) => way.filter((segment) => segment.phase !== 'floating'));
+      const allIn = Math.max(t, ...ahead.flatMap((way) => way.map((segment) => segment.end)));
+      start = Math.max(inSlot[k] ?? t, start + leave.stagger * pace);
+      // It floats on in its slot until its turn (or settles there until then), and goes from exactly where it is.
+      track.segments = [...arrival];
+      let home = this.#wayHome(track, arrival, t, start, pace, leaveLane(k), lastSink);
+      while (start < allIn && !clearOfWays(home.way, ahead, start)) {
+        start += RISE_WAIT_STEP_MS;
+        home = this.#wayHome(track, arrival, t, start, pace, leaveLane(k), lastSink);
+      }
+      track.segments = home.segments;
+      track.setOff = start;
+      lastSink = home.sinkAt;
+      return home.sinkAt;
+    });
+  }
+
+  /**
+   * One disc's way home from `start` at `pace` in `lane` (its `arrival` kept until then, no sooner down the slot than
+   * a gap after `after`): all its segments, the part from `start`, and when it starts down the slot.
+   */
+  #wayHome(
+    track: DiscTrack,
+    arrival: readonly PhasedSegment[],
+    t: number,
+    start: number,
+    pace: number,
+    lane: number,
+    after: number,
+  ): { segments: PhasedSegment[]; way: PhasedSegment[]; sinkAt: number } {
+    const { leave } = DISC_MOTION;
+    const from = this.#drawnPose(track, start);
+    const kept = arrival
+      .filter((segment) => segment.start < start)
+      .map((segment) => (segment.end > start ? { ...segment, end: start } : segment));
+    const waitFrom = kept.at(-1)?.end ?? t;
+    const out = outOf(
+      from,
+      track.slot,
+      lane,
+      start,
+      pacedMs(leave.outMs, pace, (ms) => outOf(from, track.slot, lane, start, ms)),
+    );
+    const hover = hoverPose(track.slot, lane);
+    const outEnd = out.at(out.end);
+    const side = across(
+      outEnd,
+      hover.position,
+      out.end,
+      pacedMs(leave.acrossMs, pace, (ms) => across(outEnd, hover.position, out.end, ms)),
+    );
+    const sinkAt = Math.max(side.end, after + leave.sinkGap);
+    const waitPose = side.at(side.end);
+    const way: PhasedSegment[] = [
+      { ...out, phase: 'returning' },
+      { ...side, phase: 'returning' },
+      { ...still(waitPose, side.end, sinkAt), phase: 'returning' },
+      { ...sink(waitPose, sinkAt), phase: 'returning' },
+    ];
+    return {
+      segments: [...kept, { ...still(slotPose(track.slot), waitFrom, start), phase: 'floating' }, ...way],
+      way,
+      sinkAt,
+    };
   }
 
   /** A new loaded disc. `animate` false (the stage cannot be seen, the device woke up late) seats it at once. */
@@ -462,48 +692,50 @@ export class Choreography {
     const eye = this.#options.eye();
     // A disc called back in front goes home before this one leaves the shelf (their ways would cross), and it leaves
     // so as to be in front of the radio a beat before the well is clear of the disc going out: until then it floats
-    // on in its slot, and anticipates as it sets off.
+    // on in its slot, and anticipates as it sets off. While other discs are still coming up it also waits (in its
+    // slot, or in its column) until its way to the seat is clear of theirs.
     const wellClear = this.#wellClear(incoming, t);
     const anticipationMs = fromRise ? 0 : pick.anticipationMs;
-    const setOff = Math.max(
+    const earliest = Math.max(
       arrived + anticipationMs,
       this.#homingDone(incoming, t),
       wellClear - DISC_MOTION.swap.aimMs - pick.flightMs,
     );
-    const wait = Math.max(0, setOff - arrived - anticipationMs);
-    const from = wait > 0 ? this.#drawnPose(incoming, arrived + wait) : live;
-    const waitPose = fromRise ? live : slotPose(incoming.slot);
-    // Coming out of the radio is the wind-up: a disc picked on its way flies on from its column.
-    const antic = fromRise ? still(from, arrived + wait, arrived + wait) : anticipate(from, eye, arrived + wait);
-    const departure = antic.end;
-    const ready = antic.at(antic.end);
-    const fly = insertFlight(ready, eye, departure, pick.flightMs);
-    // It slides over the seat once every disc leaving the player (behind the shelf) is clear of its way.
-    const slideStart = Math.max(fly.end, wellClear);
-    const over = slide(0, slideStart);
-    const dropStart = over.end;
-    const fall = drop(approachPoint(), dropStart);
-    const contact = dropStart + pick.dropMs;
+    const plan = (setOff: number) =>
+      this.#insertPlan(incoming, { arriving, arrived, live, fromRise, wellClear, eye, anticipationMs }, setOff);
+    const riseDone = this.#riseDone(incoming, t);
+    let way = plan(earliest);
+    for (let setOff = earliest; setOff < riseDone && !this.#clearOfTheRise(incoming, way.segments, t); ) {
+      setOff = Math.min(riseDone, setOff + RISE_WAIT_STEP_MS);
+      way = plan(setOff);
+    }
+    const { flown, slideStart, dropStart, contact } = way;
+    incoming.segments = way.segments;
+    incoming.rest = 'seated';
+    // The label winds to upright in flight and lies still on the spindle until ▷II goes down.
+    // It starts at once (on a tap the attention and the pick are one moment), so it can turn slowly enough to keep
+    // its print, and may turn back to the upright behind it when that is the gentler way.
+    incoming.spin = [
+      this.#uprightTurn(incoming.spin, t, UPRIGHT_TURN_MS, { withinMs: contact - t, mayTurnBack: true }),
+    ];
+    this.#addMoment({ at: t, owner: incoming.id, cue: 'disc-pick', disc: incoming.id });
+    this.#seatAt(incoming, { flown, slideStart, dropStart, contact }, t, true);
+  }
+
+  /**
+   * The disc lands on the spindle at `contact` (it sounds, if still to come, and the shelf dips in sympathy), and the
+   * radio presses its own ▷II once it is down: slowly in, to the bottom (the sound starts), held, up.
+   */
+  #seatAt(track: DiscTrack, way: Omit<Insert, 'bottom'>, t: number, sympathy: boolean): void {
+    const { pick } = DISC_MOTION;
+    const { contact } = way;
     const pressDown = contact + pick.pressAfter;
     const bottom = pressDown + pick.pressDownMs;
-    incoming.segments = [
-      ...arriving,
-      ...(wait > 0 ? [{ ...still(waitPose, arrived, arrived + wait), phase: 'floating' as const }] : []),
-      { ...antic, phase: 'inserting' },
-      { ...fly, phase: 'inserting' },
-      { ...still(fly.at(fly.end), fly.end, slideStart), phase: 'inserting' },
-      { ...over, phase: 'inserting' },
-      { ...fall, phase: 'dropping' },
-    ];
-    incoming.rest = 'seated';
-    incoming.insert = { dropStart, contact, bottom };
-    // The label winds to upright in flight and lies still on the spindle until ▷II goes down.
-    incoming.spin = [this.#uprightFrom(incoming.spin, antic.end, UPRIGHT_SPRING)];
-    this.#addMoment({ at: t, owner: incoming.id, cue: 'disc-pick', disc: incoming.id });
-    this.#addMoment({ at: contact, owner: incoming.id, cue: 'disc-seat', disc: incoming.id });
-    // At contact the shelf dips in sympathy.
-    for (const other of this.#discs.values()) {
-      if (other !== incoming)
+    track.insert = { ...way, bottom };
+    if (contact > t) this.#addMoment({ at: contact, owner: track.id, cue: 'disc-seat', disc: track.id });
+    if (sympathy) {
+      for (const other of this.#discs.values()) {
+        if (other === track) continue;
         other.bumps.push({
           start: contact,
           duration: SYMPATHY_MS,
@@ -511,14 +743,102 @@ export class Choreography {
           attack: SYMPATHY_MS / 2,
           release: SYMPATHY_MS / 2,
         });
+      }
     }
-    // The radio presses its own ▷II once the disc is down: slowly in, to the bottom (the sound starts), held, up.
-    this.press('play-pause', pressDown, bottom + pick.pressHoldMs, {
-      owner: incoming.id,
-      inMs: pick.pressDownMs,
-    });
-    this.#addMoment({ at: bottom, owner: incoming.id, seated: true, disc: incoming.id });
-    if (this.#transport === 'playing') this.#spinUp(incoming, bottom, SPIN_UP_MS.insert);
+    this.press('play-pause', pressDown, bottom + pick.pressHoldMs, { owner: track.id, inMs: pick.pressDownMs });
+    this.#addMoment({ at: bottom, owner: track.id, seated: true, disc: track.id });
+    if (this.#transport === 'playing') this.#spinUp(track, bottom, SPIN_UP_MS.insert);
+  }
+
+  /** A disc's way into the player if it sets off at `setOff` (from its slot, or on from its column). */
+  #insertPlan(
+    incoming: DiscTrack,
+    way: {
+      readonly arriving: readonly PhasedSegment[];
+      readonly arrived: number;
+      readonly live: DiscPose;
+      readonly fromRise: boolean;
+      readonly wellClear: number;
+      readonly eye: Vector3;
+      readonly anticipationMs: number;
+    },
+    setOff: number,
+  ): {
+    segments: PhasedSegment[];
+    flown: number;
+    slideStart: number;
+    dropStart: number;
+    contact: number;
+  } {
+    const { pick } = DISC_MOTION;
+    const { arriving, arrived, live, fromRise, wellClear, eye } = way;
+    const wait = Math.max(0, setOff - arrived - way.anticipationMs);
+    // A disc picked on its way up waits in its column, where it is (it never got to its slot); one on the shelf
+    // floats on in its slot and sets off from where it floats then.
+    const from = !fromRise && wait > 0 ? this.#drawnPose(incoming, arrived + wait) : live;
+    const waitPose = fromRise ? live : slotPose(incoming.slot);
+    // Coming out of the radio is the wind-up: a disc picked on its way flies on from its column.
+    const antic = fromRise ? still(from, arrived + wait, arrived + wait) : anticipate(from, eye, arrived + wait);
+    const departure = antic.end;
+    const fly = insertFlight(antic.at(antic.end), eye, departure, pick.flightMs);
+    // It slides over the seat once every disc leaving the player (behind the shelf) is clear of its way.
+    const slideStart = Math.max(fly.end, wellClear);
+    const over = slide(0, slideStart);
+    const dropStart = over.end;
+    const fall = drop(approachPoint(), dropStart);
+    const segments: PhasedSegment[] = [
+      ...arriving,
+      ...(wait > 0
+        ? [
+            {
+              ...still(waitPose, arrived, arrived + wait),
+              phase: fromRise ? ('rising' as const) : ('floating' as const),
+            },
+          ]
+        : []),
+      { ...antic, phase: 'inserting' },
+      { ...fly, phase: 'inserting' },
+      { ...still(fly.at(fly.end), fly.end, slideStart), phase: 'inserting' },
+      { ...over, phase: 'inserting' },
+      { ...fall, phase: 'dropping' },
+    ];
+    return { segments, flown: fly.end, slideStart, dropStart, contact: dropStart + pick.dropMs };
+  }
+
+  /** When every other disc still coming up is in its slot (`t` if none is). */
+  #riseDone(incoming: DiscTrack, t: number): number {
+    let done = t;
+    for (const track of this.#discs.values()) {
+      if (track === incoming) continue;
+      for (const segment of track.segments) {
+        if ((segment.phase === 'rising' || segment.phase === 'stowed') && segment.end > t && segment.end < Infinity) {
+          done = Math.max(done, segment.end);
+        }
+      }
+    }
+    return done;
+  }
+
+  /** True when a disc following `segments` from `t` meets none of the discs still coming up (or in `phases`). */
+  #clearOfTheRise(
+    incoming: DiscTrack,
+    segments: readonly PhasedSegment[],
+    t: number,
+    phases: ReadonlySet<DiscPhase> = RISING,
+  ): boolean {
+    const end = segments.at(-1)?.end ?? t;
+    const reach = 2 * DISC_RADIUS * DISC_MOTION.pick.scale + RISE_MARGIN;
+    for (let at = t; at < end; at += PLAN_STEP_MS) {
+      const pose = poseOn(segments, at);
+      for (const track of this.#discs.values()) {
+        if (track === incoming) continue;
+        const segment = activeSegment(track.segments, at);
+        if (!segment || !phases.has(segment.phase)) continue;
+        const other = segment.at(at);
+        if (other.position.distanceTo(pose.position) < reach && discsTouch(pose, other, RISE_MARGIN)) return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -528,7 +848,6 @@ export class Choreography {
   #backIntoPlayer(track: DiscTrack, t: number): boolean {
     const phase = this.#phaseAt(track, t);
     if (phase !== 'seated' && phase !== 'dropping' && phase !== 'unseating' && phase !== 'exiting') return false;
-    const { pick } = DISC_MOTION;
     const way = track.segments;
     const out = way.find((segment) => segment.phase === 'unseating');
     let contact: number;
@@ -544,17 +863,11 @@ export class Choreography {
     }
     this.#cancel(track.id, t);
     track.rest = 'seated';
-    const pressDown = contact + pick.pressAfter;
-    const bottom = pressDown + pick.pressDownMs;
-    track.insert = { dropStart: t, contact, bottom };
     const live = spinAt(track.spin, t);
     track.spin = [
       { kind: 'ramp', t0: t, phi0: live.phi, omega0: live.omega, omega1: 0, duration: 200, ease: 'out-cubic' },
     ];
-    if (contact > t) this.#addMoment({ at: contact, owner: track.id, cue: 'disc-seat', disc: track.id });
-    this.press('play-pause', pressDown, bottom + pick.pressHoldMs, { owner: track.id, inMs: pick.pressDownMs });
-    this.#addMoment({ at: bottom, owner: track.id, seated: true, disc: track.id });
-    if (this.#transport === 'playing') this.#spinUp(track, bottom, SPIN_UP_MS.insert);
+    this.#seatAt(track, { flown: t, slideStart: null, dropStart: t, contact }, t, false);
     return true;
   }
 
@@ -632,7 +945,7 @@ export class Choreography {
     for (const track of this.#discs.values()) {
       if (track.id === this.#attended || !this.#isFloating(track.id, t)) continue;
       // A resting (upright) disc picks its idle spin back up; every floating one settles again when the float rests.
-      if (now < 1 || spinSegmentAt(track.spin, t).kind === 'settle') track.spin = this.#idleSpin(track, t);
+      if (now < 1 || isUprightWindDown(spinSegmentAt(track.spin, t))) track.spin = this.#idleSpin(track, t);
       track.spin = this.#restSpin(track.spin, t, t + ATTENTIVE_MS);
     }
   }
@@ -717,8 +1030,11 @@ export class Choreography {
       }
       if (track.bumps.some((bump) => t > bump.start && t < bump.start + bump.duration)) moving = true;
       // A floating disc's idle spin (and its settling when the float rests) is ambient; the attended disc winding
-      // to upright, a spin-up or a brake need every frame.
-      if (spinChanging(track.spin, t) && (phase !== 'floating' || id === this.#attended)) moving = true;
+      // to upright, a spin-up or a brake need every frame, and so does every spin change when there is no float
+      // (reduced motion, the slow tier): no ambient frame would ever bring its label to rest upright.
+      if (spinChanging(track.spin, t) && (phase !== 'floating' || id === this.#attended || this.#calm())) {
+        moving = true;
+      }
       const orientation = pose.orientation.multiply(new Quaternion().setFromAxisAngle(Z, spin.phi));
       discs.push({
         id,
@@ -779,6 +1095,7 @@ export class Choreography {
       rest: this.atRadio && this.#options.reducedMotion() ? 'floating' : 'stowed',
       spin: [{ kind: 'coast', t0: t, phi0: 0, omega: 0 }],
       insert: null,
+      climb: null,
       setOff: null,
       attention: new Spring(0, ATTENTION_SPRING.zeta, ATTENTION_SPRING.hz),
       lean: new Spring(0, LEAN_SPRING.zeta, LEAN_SPRING.hz),
@@ -819,13 +1136,13 @@ export class Choreography {
       const enter = into(side.at(side.end), track.slot, side.end, intoMs);
       const rest = settle(enter.at(enter.end), track.slot, enter.end);
       this.#cancel(track.id, t);
-      track.segments = [
+      const way: PhasedSegment[] = [
         { ...still(hidden, t, begin), phase: 'stowed' },
         { ...up, phase: 'rising' },
         { ...side, phase: 'rising' },
-        { ...enter, phase: 'rising' },
-        { ...rest, phase: 'floating' },
       ];
+      track.segments = [...way, { ...enter, phase: 'rising' }, { ...rest, phase: 'floating' }];
+      track.climb = { way, intoMs, order: k };
       track.rest = 'floating';
       // Spinning on the way up; across, the spin decays to the idle rate.
       const idle = this.#calm() ? 0 : track.character.spin;
@@ -855,6 +1172,25 @@ export class Choreography {
       return;
     }
     const { swap, pick } = DISC_MOTION;
+    if (phase === 'stowed' || phase === 'rising') {
+      // Picked on its way up and let go before it left for the player: it goes on into its slot, from its column
+      // (out of the radio first if it was still on its way there), or from wherever it waited.
+      const way = this.#wayUp(track, t);
+      const column = way.at(-1);
+      const intoMs = track.climb?.intoMs ?? DISC_MOTION.into.warmMs;
+      const enter = column
+        ? into(column.at(column.end), track.slot, column.end, intoMs)
+        : into(live, track.slot, t, intoMs);
+      const rest = settle(enter.at(enter.end), track.slot, enter.end);
+      track.segments = [...way, { ...enter, phase: 'rising' }, { ...rest, phase: 'floating' }];
+      track.rest = 'floating';
+      track.insert = null;
+      const idle = this.#calm() ? 0 : track.character.spin;
+      track.spin = this.#restSpin(this.#decaySpin(track, t, idle), t, Math.max(rest.end, this.#restStartAfter(t)));
+      const order = track.climb?.order ?? 0;
+      this.#addMoment({ at: enter.start + intoMs / 2, owner: track.id, cue: 'disc-flip', order, disc: track.id });
+      return;
+    }
     if (phase === 'floating' || phase === 'homing') {
       // It had not left the shelf yet (it was waiting its turn), or is on its way back already: it stays or goes on.
       track.segments = phase === 'homing' ? track.segments.filter((segment) => segment.end > t) : [];
@@ -920,7 +1256,151 @@ export class Choreography {
     track.rest = 'floating';
     track.insert = null;
     this.#addMoment({ at: standAt, owner: track.id, cue: 'disc-unseat', disc: track.id });
-    track.spin = [...track.spin, this.#uprightFrom(track.spin, back.start, UPRIGHT_SPRING)];
+    track.spin = [...track.spin, this.#uprightTurn(track.spin, back.start, UPRIGHT_TURN_MS)];
+  }
+
+  /**
+   * The visitor left while `track` was on its way into the player: it commits (DISC_MOTION.commit). What is left of
+   * its flight plays at once, it waits flat in front of the radio until the well is clear, then slides in and drops:
+   * each along its own path, only sooner, never faster than COMMIT_MAX_SPEED nor into a disc moving in front of the
+   * shelf. Its landing, its sounds and the radio's press move with it.
+   */
+  #commit(track: DiscTrack, t: number): void {
+    const insert = track.insert;
+    if (!insert || insert.slideStart === null || insert.contact <= t) return;
+    const { commit, pick } = DISC_MOTION;
+    const film = track.segments.filter((segment) => segment.end > t);
+    const path = (at: number) => poseOn(film, at).position;
+    let before: PhasedSegment[] = [];
+    let ready = t;
+    if (insert.flown > t) {
+      const span = insert.flown - t;
+      for (let duration = commit.preMs; ; duration += RISE_WAIT_STEP_MS) {
+        const warp = hurryWithin(path, t, t, span, duration, COMMIT_MAX_SPEED);
+        before = warpSegments(film, warp);
+        ready = warp.realEnd;
+        if (warp.realEnd - t >= span || this.#clearOfTheRise(track, before, t, IN_FRONT)) break;
+      }
+    }
+    const filmFrom = Math.max(t, insert.slideStart);
+    const slideAt = filmFrom > t ? Math.max(ready, this.#wellClear(track, t)) : t;
+    const hold: PhasedSegment[] =
+      slideAt > ready ? [{ ...still(poseOn(film, filmFrom), ready, slideAt), phase: 'inserting' }] : [];
+    const settled = insert.contact + pick.bounceMs;
+    const post = hurryWithin(path, slideAt, filmFrom, settled - filmFrom, commit.postMs, COMMIT_MAX_SPEED);
+    track.segments = [...before, ...hold, ...warpSegments(film, post)];
+    this.#cancel(track.id, t);
+    for (const other of this.#discs.values()) {
+      other.bumps = other.bumps.filter((bump) => bump.start !== insert.contact);
+    }
+    track.spin = [this.#uprightFrom(track.spin, t, COMMIT_SPIN_SPRING)];
+    const way = { flown: ready, slideStart: slideAt, dropStart: post.real(insert.dropStart) };
+    this.#seatAt(track, { ...way, contact: post.real(insert.contact) }, t, true);
+  }
+
+  /** Leaving the player and not yet behind the shelf: landing, on the spindle, standing up, or backing off the seat. */
+  #outOfPlayer(track: DiscTrack, t: number): boolean {
+    const phase = this.#phaseAt(track, t);
+    if (phase === 'dropping' || phase === 'seated' || phase === 'unseating') {
+      return track.segments.some((segment) => segment.phase === 'unseating' && segment.end > t);
+    }
+    const back = track.segments.find((segment) => segment.phase === 'exiting');
+    return phase === 'exiting' && back !== undefined && activeSegment(track.segments, t) === back;
+  }
+
+  /**
+   * The short way home out of the player as the visitor leaves: it lands if it was landing, brakes (in
+   * DISC_MOTION.slit.brakeMs at most), stands up, backs straight into the slit's plane (under the lanes the shelf waits
+   * in) once the disc before it is down the slit (`after`), and goes down it. Returns when it starts down.
+   */
+  #downTheSlit(track: DiscTrack, t: number, after: number): number {
+    const { slit } = DISC_MOTION;
+    const phase = this.#phaseAt(track, t);
+    const stand = track.segments.find((segment) => segment.phase === 'unseating');
+    let kept: PhasedSegment[] = [];
+    let spin = track.spin;
+    if (stand && (phase === 'dropping' || phase === 'seated')) {
+      const drop = track.segments.filter((segment) => segment.phase === 'dropping' && segment.end > t);
+      const landed = Math.max(t, drop.at(-1)?.end ?? t);
+      const standAt = Math.max(landed, Math.min(stand.start, t + slit.brakeMs));
+      this.#moments = this.#moments.filter(
+        (moment) => moment.owner !== track.id || moment.cue !== 'disc-unseat' || moment.at <= t,
+      );
+      this.#addMoment({ at: standAt, owner: track.id, cue: 'disc-unseat', disc: track.id });
+      const live = spinAt(track.spin, t);
+      const duration = Math.max(PLAN_STEP_MS, Math.min(slit.brakeMs, standAt - t));
+      spin = [{ kind: 'ramp', t0: t, phi0: live.phi, omega0: live.omega, omega1: 0, duration, ease: 'out-cubic' }];
+      const up = standUp(standAt);
+      kept = [...drop, { ...still(seatPose(), landed, standAt), phase: 'seated' }, { ...up, phase: 'unseating' }];
+      spin = [...spin, this.#uprightTurn(spin, up.end, UPRIGHT_TURN_MS)];
+    } else if (stand && phase === 'unseating') {
+      kept = track.segments.filter((segment) => segment.end > t && segment.end <= stand.end);
+    }
+    track.spin = spin;
+    return this.#intoTheSlit(track, kept, t, after, 'unseating', 0);
+  }
+
+  /** Behind the shelf, across its plane on its way home from the player (not yet turning into its slot). */
+  #acrossTheBack(track: DiscTrack, t: number): boolean {
+    const exits = track.segments.filter((segment) => segment.phase === 'exiting');
+    return exits.length > 2 && activeSegment(track.segments, t) === exits[1];
+  }
+
+  /**
+   * Across the back on its way home from the player as the visitor leaves: it goes on across that plane (behind every
+   * disc on the shelf, so it passes none) to over the slot instead, at its height and never faster than
+   * COMMIT_MAX_SPEED, into the slot's plane once the disc before it is down the slot (`after`), and down it, the
+   * `order`-th to. Returns when it starts down.
+   */
+  #acrossToSlit(track: DiscTrack, t: number, after: number, order: number): number {
+    const from = this.#poseAt(track, t);
+    const over = { x: SLIT_X, y: from.position.y };
+    const ms = speedCappedMs(4 * PLAN_STEP_MS, DISC_MOTION.swap.acrossMs, (duration) =>
+      across(from, over, t, duration),
+    );
+    const side = across(from, over, t, ms);
+    this.#cancel(track.id, t);
+    return this.#intoTheSlit(track, [{ ...side, phase: 'exiting' }], t, after, 'exiting', order);
+  }
+
+  /**
+   * The end of a short way home as the visitor leaves: after `kept`, `track` waits (in `waiting`) until `after`, backs
+   * straight into the slot's plane and goes down it, the `order`-th to. Returns when it starts down.
+   */
+  #intoTheSlit(
+    track: DiscTrack,
+    kept: readonly PhasedSegment[],
+    t: number,
+    after: number,
+    waiting: DiscPhase,
+    order: number,
+  ): number {
+    const last = kept.at(-1);
+    const from = last ? last.at(last.end) : this.#poseAt(track, t);
+    const fromAt = last?.end ?? t;
+    const start = Math.max(fromAt, after);
+    const depth = Math.abs(seatPose().position.z - DECK.slot.z);
+    const duration = DISC_MOTION.slit.backMs * clamp01(Math.abs(from.position.z - DECK.slot.z) / depth);
+    const toward = toSlit(from, start, Math.max(4 * PLAN_STEP_MS, duration));
+    track.segments = [
+      ...kept,
+      ...(start > fromAt ? [{ ...still(from, fromAt, start), phase: waiting }] : []),
+      { ...toward, phase: 'exiting' },
+      { ...sink(toward.at(toward.end), toward.end), phase: 'returning' },
+    ];
+    track.rest = 'stowed';
+    track.insert = null;
+    track.setOff = null;
+    this.#addMoment({ at: toward.end, owner: track.id, cue: 'disc-sink', order, disc: track.id });
+    return toward.end;
+  }
+
+  /** Turning into its slot on its way home from the player as the visitor leaves: the rest of its way plays sooner. */
+  #hurryHome(track: DiscTrack, t: number): void {
+    const film = track.segments.filter((segment) => segment.end > t);
+    const end = film.at(-1)?.end ?? t;
+    const path = (at: number) => poseOn(film, at).position;
+    track.segments = warpSegments(film, hurryWithin(path, t, t, end - t, DISC_MOTION.commit.ms, COMMIT_MAX_SPEED));
   }
 
   /** The first moment every disc leaving the player is out of the way of `incoming` sliding in over the seat. */
@@ -946,14 +1426,8 @@ export class Choreography {
    * the seat is clear of the discs still coming up behind it (the sweep checks it). Not the turn into its slot.
    */
   #wayUp(track: DiscTrack, t: number): PhasedSegment[] {
-    const way: PhasedSegment[] = [];
-    let rising = 0;
-    for (const segment of track.segments) {
-      if (segment.phase === 'rising') rising++;
-      if (rising > 2) break;
-      if (segment.end > t) way.push(segment);
-    }
-    return way;
+    // Only while it is still the disc's plan (a leave or a turn back replaces it).
+    return track.climb?.way.filter((segment) => segment.end > t && track.segments.includes(segment)) ?? [];
   }
 
   /** When every disc called back in front of the shelf is home (an incoming disc waits for that), `t` if none. */
@@ -1006,9 +1480,20 @@ export class Choreography {
     ];
   }
 
-  /** The spin winding down to the nearest label-upright angle (attention, homing). */
+  /** The spin winding down to label-upright (attention, homing; a slow idle spin may turn back to it). */
   #labelSpin(track: DiscTrack, t: number): SpinTrack {
-    return [this.#uprightFrom(track.spin, t, UPRIGHT_SPRING)];
+    return [this.#uprightTurn(track.spin, t, UPRIGHT_TURN_MS, { mayTurnBack: true })];
+  }
+
+  /** A turn to label-upright from the live spin at `t` that stays out of the spin blur (springs.uprightTurn). */
+  #uprightTurn(
+    spin: SpinTrack,
+    t: number,
+    nominalMs: number,
+    bounds: { readonly withinMs?: number; readonly mayTurnBack?: boolean } = {},
+  ): SpinSegment {
+    const live = spinAt(spin, t);
+    return uprightTurn(t, live.phi, live.omega, { nominalMs, maxSpeed: BLUR_FROM, ...bounds });
   }
 
   #uprightFrom(spin: SpinTrack, t: number, spring: { readonly zeta: number; readonly hz: number }): SpinSegment {
@@ -1032,7 +1517,8 @@ export class Choreography {
   /** The spin, settling to label-upright when the float comes to rest at `at`. */
   #restSpin(spin: SpinTrack, now: number, at: number): SpinTrack {
     const kept = spin.filter((segment) => segment.t0 <= now || segment.t0 < at);
-    return [...kept, this.#uprightFrom(kept, at, REST_SPIN_SPRING)];
+    // Gently, ahead only (a resting disc does not turn back), and never into the blur.
+    return [...kept, this.#uprightTurn(kept, at, REST_MS)];
   }
 
   #restStartAfter(t: number): number {
@@ -1040,23 +1526,115 @@ export class Choreography {
     return rest?.from ?? t;
   }
 
-  /** The slot moved: a disc at rest glides over now, a disc on its way there once it has arrived. */
-  #relaySlot(track: DiscTrack, t: number): void {
-    if (track.rest !== 'floating') return;
-    const goal = slotPose(track.slot);
+  /**
+   * The disc's slot is now `slot`. The camera re-frames the radio in this same frame (the rig holds its new pose), so a
+   * disc at rest is drawn at its new slot at once, with the picture: a glide would drift the shelf across a picture that
+   * has already cut, and a straight glide between two layouts crosses the neighbours. True when the disc is on its way
+   * to the old slot and has to glide over once there (#glideLate).
+   */
+  #relaySlot(track: DiscTrack, slot: DiscSlot, moved: boolean, t: number): boolean {
+    track.slot = slot;
+    if (!moved || track.rest !== 'floating') return false;
     const last = track.segments.at(-1);
-    if (last && last.end > t) {
-      // Its planned move ends where the old slot was: from there, on to the new one.
-      if (last.phase === 'floating' || last.phase === 'rising') {
-        const end = last.at(last.end);
-        goal.orientation.copy(slotFacing(track.slot, labelAway(end.orientation)));
-        track.segments.push({ ...ease(end, goal, last.end, DISC_MOTION.relayoutMs), phase: last.phase });
+    return last !== undefined && last.end > t;
+  }
+
+  /**
+   * Glides each disc still on its way to an old slot over to its new one once there, first come first served: a glide
+   * waits (in the old slot) in RISE_WAIT_STEP_MS steps until it is clear of every other disc's way, including the
+   * discs still waiting in their old slots, so a shelf re-laid out mid-rise never has two discs pass through each other.
+   * Two discs can each sit in the other's way (one's new slot is where the other waits): the first of them then steps
+   * out of the shelf towards the camera, lets the other by, and glides on from there.
+   */
+  #glideLate(late: DiscTrack[]): void {
+    const endOf = (track: DiscTrack) => track.segments.at(-1)?.end ?? 0;
+    type Turn = { readonly track: DiscTrack; readonly tries: number };
+    const queue: Turn[] = [...late].sort((a, b) => endOf(a) - endOf(b)).map((track) => ({ track, tries: 0 }));
+    const waiting = new Set(late);
+    const eye = this.#options.eye();
+    for (let next = queue.shift(); next; next = queue.shift()) {
+      const { track, tries } = next;
+      const last = track.segments.at(-1);
+      if (!last) continue;
+      waiting.delete(track);
+      const from = last.at(last.end);
+      const goal = slotPose(track.slot);
+      goal.orientation.copy(slotFacing(track.slot, labelAway(from.orientation)));
+      const others = [...this.#discs.values()].filter((other) => other !== track);
+      const ways = others.map((other) => this.#wayAndRest(other, waiting.has(other)));
+      // Once every other disc's planned move is over the shelf stands still: a glide blocked then stays blocked.
+      const settled = Math.max(last.end, ...others.map(endOf));
+      const horizon = Math.min(last.end + RELAYOUT_MAX_WAIT_MS, settled + RISE_WAIT_STEP_MS);
+      const forward = eye.clone().sub(from.position.clone().lerp(goal.position, 0.5)).normalize();
+      const depth = RELAYOUT_BOWS.at(-1) ?? 0;
+      // Stepped aside: across in front of the shelf, then straight back into the new slot.
+      const frontRoute = (start: number): PhasedSegment[] => {
+        const front = clonePose(goal);
+        front.position.addScaledVector(forward, depth);
+        return [
+          { ...ease(from, front, start, DISC_MOTION.relayoutMs), phase: 'floating' },
+          { ...ease(front, goal, start + DISC_MOTION.relayoutMs, DISC_MOTION.relayoutMs / 2), phase: 'floating' },
+        ];
+      };
+      const found = firstClear(last.end, horizon, (start) => {
+        if (tries === 2) {
+          const way = frontRoute(start);
+          return clearOfWays(way, ways, start) ? way : undefined;
+        }
+        // Straight over, or bowed towards the camera to pass in front of a disc in the way (a disc is thin that way).
+        for (const bow of [undefined, ...RELAYOUT_BOWS.map((size) => forward.clone().multiplyScalar(size))]) {
+          const glide: PhasedSegment = { ...ease(from, goal, start, DISC_MOTION.relayoutMs, bow), phase: 'floating' };
+          if (clearOfWays([glide], ways, start)) return [glide];
+        }
+        return undefined;
+      });
+      const blockedByWaiting = !found && queue.some((turn) => waiting.has(turn.track));
+      if (blockedByWaiting && tries === 0) {
+        waiting.add(track);
+        queue.push({ track, tries: 1 });
+        continue;
       }
-      return;
+      if (blockedByWaiting && tries === 1) {
+        // Out of the shelf's plane towards the camera, out of everyone's way, to wait there for its own.
+        const aside = clonePose(from);
+        aside.position.addScaledVector(forward, depth);
+        const step = firstClear(last.end, horizon, (start) => {
+          const out: PhasedSegment = { ...ease(from, aside, start, DISC_MOTION.relayoutMs / 2), phase: 'floating' };
+          return clearOfWays([out], ways, start) ? [out] : undefined;
+        });
+        if (step) {
+          this.#goOn(track, last.end, step);
+          waiting.add(track);
+          queue.push({ track, tries: 2 });
+          continue;
+        }
+      }
+      // Nothing clear even once the shelf stands still (a disc resting in the way): over in front of it once it does,
+      // or for a disc that never had to step aside, straight over as soon as its move ends.
+      const fallback: PhasedSegment[] =
+        tries === 2
+          ? frontRoute(horizon)
+          : [{ ...ease(from, goal, last.end, DISC_MOTION.relayoutMs), phase: 'floating' }];
+      this.#goOn(track, last.end, found ?? fallback);
     }
-    if (this.#phaseAt(track, t) !== 'floating') return;
-    const move = ease(this.#poseAt(track, t), goal, t, DISC_MOTION.relayoutMs);
-    track.segments = [{ ...move, phase: 'floating' }];
+  }
+
+  /** Appends `way` to the disc's segments, holding it still from `end` (where its move ends) until the way sets off. */
+  #goOn(track: DiscTrack, end: number, way: readonly PhasedSegment[]): void {
+    const first = way[0];
+    if (first && first.start > end) {
+      track.segments.push({ ...still(first.at(first.start), end, first.start), phase: 'floating' });
+    }
+    track.segments.push(...way);
+  }
+
+  /** A disc's planned way, then where it stays (its old slot while it waits to glide, else where its way ends). */
+  #wayAndRest(track: DiscTrack, waiting: boolean): PhasedSegment[] {
+    const last = track.segments.at(-1);
+    const end = last?.end ?? Number.NEGATIVE_INFINITY;
+    if (!waiting && track.rest !== 'floating') return [...track.segments];
+    const pose = waiting && last ? last.at(last.end) : slotPose(track.slot);
+    return [...track.segments, { ...still(pose, end), phase: 'floating' }];
   }
 
   #leanNeighbours(t: number, reduced: boolean): void {
@@ -1172,6 +1750,55 @@ export class Choreography {
 }
 
 /** True when a disc in this orientation shows its data side to the camera (its label faces away). */
+/** The first way `at(start)` offers for a start from `from` on, in RISE_WAIT_STEP_MS steps up to `until`. */
+function firstClear(
+  from: number,
+  until: number,
+  at: (start: number) => PhasedSegment[] | undefined,
+): PhasedSegment[] | undefined {
+  for (let start = from; start <= until; start += RISE_WAIT_STEP_MS) {
+    const move = at(start);
+    if (move) return move;
+  }
+  return undefined;
+}
+
+/** True when a disc following `segments` from `t` meets none of the discs following `ways`. */
+function clearOfWays(
+  segments: readonly PhasedSegment[],
+  ways: readonly (readonly PhasedSegment[])[],
+  t: number,
+  margin = RISE_MARGIN,
+): boolean {
+  const end = segments.at(-1)?.end ?? t;
+  for (let at = t; at < end; at += PLAN_STEP_MS) {
+    const pose = poseOn(segments, at);
+    for (const way of ways) {
+      const segment = activeSegment(way, at);
+      if (!segment) continue;
+      const other = segment.at(at);
+      const reach = DISC_RADIUS * (pose.scale + other.scale) + margin;
+      if (other.position.distanceTo(pose.position) < reach && discsTouch(pose, other, margin)) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * How long a move drawn in `ms` takes at `pace`: shorter below 1, but never so short that `move` (planned for a
+ * duration) goes faster than COMMIT_MAX_SPEED, nor longer than as drawn. The leave hurries; it never jumps.
+ */
+function pacedMs(ms: number, pace: number, move: (duration: number) => PoseSegment): number {
+  return pace >= 1 ? ms * pace : speedCappedMs(ms * pace, ms, move);
+}
+
+/** The shortest duration from `shortest` to `longest` in which `move` (planned for one) is no faster than COMMIT_MAX_SPEED. */
+function speedCappedMs(shortest: number, longest: number, move: (duration: number) => PoseSegment): number {
+  const segment = move(shortest);
+  const peak = peakSpeed((at) => segment.at(at).position, hurry(segment.start, segment.start, shortest, shortest), 4);
+  return Math.min(longest, Math.max(shortest, (shortest * peak) / COMMIT_MAX_SPEED));
+}
+
 function labelAway(orientation: Quaternion): boolean {
   return Z.clone().applyQuaternion(orientation).z < 0;
 }
@@ -1190,6 +1817,11 @@ function clamp(value: number): number {
   return Math.max(-1, Math.min(1, value));
 }
 
+/** When a disc leaving the player stands up (the one that does first goes down the slit first). */
+function unseatStart(track: DiscTrack): number {
+  return track.segments.find((segment) => segment.phase === 'unseating')?.start ?? Number.POSITIVE_INFINITY;
+}
+
 function activeSegment(segments: readonly PhasedSegment[], t: number): PhasedSegment | undefined {
   for (const segment of segments) if (t >= segment.start && t < segment.end) return segment;
   return undefined;
@@ -1204,6 +1836,11 @@ function poseOn(segments: readonly PhasedSegment[], t: number): DiscPose {
   const first = segments[0];
   if (!first) throw new Error('No way to retrace');
   return first.at(first.start);
+}
+
+/** A spin winding to label-upright: a resting disc picks its idle spin back up from one when the float wakes. */
+function isUprightWindDown(segment: SpinSegment): boolean {
+  return segment.kind === 'turn' || segment.kind === 'settle';
 }
 
 function spinSegmentAt(track: SpinTrack, t: number): SpinSegment {

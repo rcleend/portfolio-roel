@@ -22,7 +22,8 @@ import { AVERAGE_BINS, AVERAGE_ROWS, DISC_FRAGMENT, DISC_VERTEX } from './discSh
 import { AVERAGE_SAMPLE_SIZE, radialAverage } from './radialAverage';
 
 interface Disc {
-  readonly id: string;
+  /** Renamed only when a new collection's disc takes it over (`discHeirs`). */
+  id: string;
   readonly mesh: Mesh;
   readonly material: ShaderMaterial;
   row: number;
@@ -94,8 +95,19 @@ export class Discs {
     return this.#compiled;
   }
 
-  /** The collection: new discs get a mesh, gone ones are disposed; returns the discs whose print must be prepared. */
-  setDiscs(art: readonly DiscArt[]): string[] {
+  /**
+   * The collection: new discs get a mesh, gone ones are disposed; returns the discs whose print must be prepared.
+   * `heirs` (new id -> the id it takes over, from `discHeirs`) hands a disc's mesh on to its new id.
+   */
+  setDiscs(art: readonly DiscArt[], heirs: ReadonlyMap<string, string> = new Map()): string[] {
+    for (const [to, from] of heirs) {
+      const disc = this.#discs.get(from);
+      if (!disc || this.#discs.has(to)) continue;
+      this.#discs.delete(from);
+      disc.id = to;
+      disc.mesh.name = `RadioDisc:${to}`;
+      this.#discs.set(to, disc);
+    }
     const keep = new Set(art.map((disc) => disc.id));
     for (const [id, disc] of this.#discs) {
       if (keep.has(id)) continue;

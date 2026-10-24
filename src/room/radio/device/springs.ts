@@ -58,6 +58,16 @@ export function springFirstStop(x0: number, v0: number, zeta: number, hz: number
 }
 
 /**
+ * The fastest an underdamped spring released at rest from offset x goes, as a share of x · ω₀ (rad/s):
+ * exp(−ζ / √(1 − ζ²) · atan(√(1 − ζ²) / ζ)); for ζ ≥ 1 the critically damped e⁻¹, an upper bound.
+ */
+export function springPeakShare(zeta: number): number {
+  if (zeta >= 1) return Math.exp(-1);
+  const root = Math.sqrt(1 - zeta * zeta);
+  return Math.exp((-zeta / root) * Math.atan(root / zeta));
+}
+
+/**
  * A scalar that springs towards a target and can be retargeted at any time from its live value and velocity.
  * Its value is a pure function of time between retargets.
  */
@@ -142,6 +152,18 @@ export type SpinSegment =
       readonly duration: number;
       readonly ease: SpinEase;
     }
+  /**
+   * The angle turns to `target` (a label-upright angle) along a cubic that leaves at `omega0` and arrives at rest
+   * after `duration` (ms), then stays: the slowest way to be upright on time (see uprightTurn).
+   */
+  | {
+      readonly kind: 'turn';
+      readonly t0: number;
+      readonly phi0: number;
+      readonly omega0: number;
+      readonly target: number;
+      readonly duration: number;
+    }
   /** The angle springs to `target` (a label-upright angle). */
   | {
       readonly kind: 'settle';
@@ -197,11 +219,93 @@ export function sampleSpin(segment: SpinSegment, t: number): SpinSample {
         omega: segment.omega0 + delta * easeValue(segment.ease, u),
       };
     }
+    case 'turn': {
+      const duration = segment.duration / 1000;
+      if (seconds >= duration) return { phi: segment.target, omega: 0 };
+      const u = seconds / duration;
+      const delta = segment.target - segment.phi0;
+      // Cubic Hermite from (phi0, omega0) to (target, 0).
+      const h10 = u * u * u - 2 * u * u + u;
+      const h01 = 3 * u * u - 2 * u * u * u;
+      return {
+        phi: segment.phi0 + h10 * duration * segment.omega0 + h01 * delta,
+        omega: turnSpeed(delta, segment.omega0, duration, u),
+      };
+    }
     case 'settle': {
       const s = springAt(segment.phi0 - segment.target, segment.omega0, segment.zeta, segment.hz, seconds);
       return { phi: segment.target + s.x, omega: s.v };
     }
   }
+}
+
+/** The speed (rad/s) of a turn through `delta` (rad) leaving at `omega0`, `duration` s long, at share `u` of it. */
+function turnSpeed(delta: number, omega0: number, duration: number, u: number): number {
+  return (6 * (u - u * u) * delta) / duration + omega0 * (3 * u * u - 4 * u + 1);
+}
+
+/** The fastest (|rad/s|) a turn through `delta` leaving at `omega0` goes over `seconds`: its speed is a parabola in u. */
+export function turnPeakSpeed(delta: number, omega0: number, seconds: number): number {
+  const a = (-6 * delta) / seconds + 3 * omega0;
+  const b = (6 * delta) / seconds - 4 * omega0;
+  let peak = Math.abs(omega0);
+  if (a !== 0) {
+    const u = -b / (2 * a);
+    if (u > 0 && u < 1) peak = Math.max(peak, Math.abs(turnSpeed(delta, omega0, seconds, u)));
+  }
+  return peak;
+}
+
+export interface UprightTurnOptions {
+  /** How long the turn takes when nothing else bounds it (ms). */
+  readonly nominalMs: number;
+  /** The turn never goes faster than this (rad/s) unless `withinMs` forces it; a faster start only slows down. */
+  readonly maxSpeed: number;
+  /** It is upright by then (ms after its start) whatever the speed. */
+  readonly withinMs?: number;
+  /** A slow spin (≤ REVERSIBLE_SPIN) may turn back to the upright behind it when that is the gentler way. */
+  readonly mayTurnBack?: boolean;
+}
+
+/** A spin this slow (rad/s: the idle drift) may stop at once or turn back to upright; a faster one runs on to it. */
+export const REVERSIBLE_SPIN = 1.5;
+/** The hardest a turn brakes a spin (rad/s²): a disc risen at 14 rad/s takes about half a second to stop. */
+export const TURN_MAX_BRAKE = 60;
+const TURN_STEP_MS = 10;
+
+/**
+ * The label wind-down from `phi0` going at `omega0`, starting at `t0` (ms): a 'turn' to the upright angle that can be
+ * reached most gently. Each candidate (the next upright ahead and the turns after it, the one behind when allowed)
+ * gets the nominal duration, lengthened until it is no faster than `maxSpeed` and (past REVERSIBLE_SPIN) brakes no
+ * harder than TURN_MAX_BRAKE, shortened to `withinMs` and to the longest it can take without running past the target
+ * and back (3·Δ/ω₀ for a cubic). The shortest candidate that keeps every bound wins; if none can, the slowest one does.
+ */
+export function uprightTurn(t0: number, phi0: number, omega0: number, options: UprightTurnOptions): SpinSegment {
+  const turn = 2 * Math.PI;
+  const ahead = uprightTarget(phi0, omega0);
+  const forward = Math.abs(omega0) < 0.5 ? 0 : Math.sign(omega0);
+  const targets = [ahead, ...[1, 2, 3].map((k) => ahead + (forward || 1) * k * turn)];
+  if (forward === 0) targets.push(ahead - turn);
+  else if (options.mayTurnBack && Math.abs(omega0) <= REVERSIBLE_SPIN) targets.push(ahead - forward * turn);
+  const slow = Math.abs(omega0) <= REVERSIBLE_SPIN;
+  const cap = Math.max(options.maxSpeed, Math.abs(omega0));
+  let best: { target: number; ms: number; peak: number; keeps: boolean } | null = null;
+  for (const target of targets) {
+    const delta = target - phi0;
+    let longest = options.withinMs ?? Number.POSITIVE_INFINITY;
+    if (omega0 !== 0 && delta * omega0 >= 0) longest = Math.min(longest, (3000 * delta) / omega0);
+    const shortest = slow ? 0 : (2000 * Math.abs(omega0)) / TURN_MAX_BRAKE;
+    let ms = Math.max(options.nominalMs, shortest);
+    while (ms < longest && turnPeakSpeed(delta, omega0, ms / 1000) > cap) ms += TURN_STEP_MS;
+    ms = Math.max(1, Math.min(ms, longest));
+    const peak = turnPeakSpeed(delta, omega0, ms / 1000);
+    const keeps = peak <= cap + 1e-9 && ms >= shortest - 1e-9;
+    const better =
+      !best || (keeps && !best.keeps) || (keeps === best.keeps && (keeps ? ms < best.ms : peak < best.peak));
+    if (better) best = { target, ms, peak, keeps };
+  }
+  if (!best) throw new Error('An upright turn needs a target');
+  return { kind: 'turn', t0, phi0, omega0, target: best.target, duration: best.ms };
 }
 
 /**
@@ -235,6 +339,7 @@ export function spinChanging(track: SpinTrack, t: number): boolean {
     case 'decay':
       return Math.abs(sampleSpin(segment, t).omega - segment.omega1) > 0.05;
     case 'ramp':
+    case 'turn':
       return t < segment.t0 + segment.duration;
     case 'settle': {
       const sample = sampleSpin(segment, t);
