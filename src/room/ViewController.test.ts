@@ -40,6 +40,9 @@ function setup() {
     releasePointer,
     revealScreen: () => log.push('reveal'),
     concealScreen: () => log.push('conceal'),
+    approachRadio: () => log.push('approach radio'),
+    revealRadio: () => log.push('reveal radio'),
+    concealRadio: () => log.push('conceal radio'),
   });
   const land = () => arrivals.shift()?.();
   return { surface, views, land, releasePointer, log };
@@ -145,5 +148,58 @@ describe('ViewController', () => {
     land();
     land();
     expect(log).toEqual(['move tv→room', 'move room→pc', 'conceal', 'move pc→room']);
+  });
+
+  it('wakes the radio once the camera is under way, reveals it on landing and closes it before leaving', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('radio');
+    expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+    land();
+    expect(log.at(-1)).toBe('reveal radio');
+    views.request('room');
+    expect(log.slice(-2)).toEqual(['conceal radio', 'move radio→room']);
+  });
+
+  it('closes the radio and never reveals it when the visitor turns back on the way', () => {
+    const { views, land, log } = setup();
+    views.request('radio');
+    views.request('room');
+    land();
+    land();
+    expect(log).toEqual(['move tv→radio', 'approach radio', 'conceal radio', 'move radio→room']);
+  });
+
+  it('hides the computer screen before flying from the computer to the radio', () => {
+    const { views, land, log } = setup();
+    views.request('pc');
+    land();
+    views.request('radio');
+    expect(log.slice(-3)).toEqual(['conceal', 'move pc→radio', 'approach radio']);
+  });
+
+  it('keeps a game the app paused paused across visits to the radio and the computer', () => {
+    const { surface, views, land } = setup();
+    surface.pause();
+    for (const view of ['room', 'radio', 'pc', 'radio', 'tv'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+    }
+    expect(surface.resume).not.toHaveBeenCalled();
+    expect(surface.paused).toBe(true);
+  });
+
+  it('owns its own pause across the radio and resumes only at the TV', () => {
+    const { surface, views, land } = setup();
+    for (const view of ['room', 'radio', 'pc', 'radio'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+      expect(surface.paused).toBe(true);
+    }
+    expect(surface.pause).toHaveBeenCalledTimes(1);
+    views.request('tv');
+    land();
+    expect(surface.resume).toHaveBeenCalledTimes(1);
   });
 });

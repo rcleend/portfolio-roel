@@ -69,6 +69,15 @@ describe('view hints', () => {
     expect(loadViewHintProgress(null)).toEqual(fresh);
   });
 
+  it('leaves the radio to its own hints', () => {
+    for (const progress of [fresh, recordView(fresh, 'radio')]) {
+      expect(hintFor(progress, 'radio', false)).toBeNull();
+      expect(hintFor(progress, 'radio', true)).toBeNull();
+    }
+    // Sitting at the radio is looking around: the TV's hint retires, the way back is still taught.
+    expect(recordView(fresh, 'radio')).toEqual({ ...fresh, lookedAround: true });
+  });
+
   it('loads a record saved before the computer existed', () => {
     const storage = memoryStorage({ [VIEW_HINT_STORAGE_KEY]: '{"lookedAround":true,"returned":true}' });
     expect(loadViewHintProgress(storage)).toEqual({ ...fresh, lookedAround: true, returned: true });
@@ -76,8 +85,8 @@ describe('view hints', () => {
 
   it('speaks the right verb for the device', () => {
     expect(hintText('look-around', false)).toBe('Click outside the TV to look around');
-    expect(hintText('return', false)).toBe('Click the computer or the TV to look closer');
-    expect(hintText('return', true)).toBe('Tap the computer or the TV to look closer');
+    expect(hintText('return', false)).toBe('Click the computer, the radio or the TV to look closer');
+    expect(hintText('return', true)).toBe('Tap the computer, the radio or the TV to look closer');
     expect(hintText('leave-computer', false)).toBe('Click outside the computer to look around');
   });
 });

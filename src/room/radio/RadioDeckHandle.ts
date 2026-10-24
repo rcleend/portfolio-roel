@@ -1,0 +1,299 @@
+import { type FramingInsets, NO_INSETS } from '../camera/CameraRig';
+import type { ControlsLayer } from './ControlsLayer';
+import type { CreateRadioDevice, RadioDevice, RadioHost } from './deviceContract';
+import { discSlots, labelSizeFor, largestDiscDiameter, MAX_DISCS, MIN_DISCS } from './discLayout';
+import type { DeckState, DiscArt, RadioCueEvent, RadioDeck, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
+import { deviceMemory, isSoftwareRenderer, rendererName, saveData } from './rendererInfo';
+
+/** Loads the device chunk; a seam for tests. */
+export type DeviceLoader = CreateRadioDevice;
+
+const loadDevice: DeviceLoader = (host, link) =>
+  import('./device/RadioDevice').then((module) => module.createRadioDevice(host, link));
+
+/** Five plain silver discs until the app hands over its collection. */
+export const DEFAULT_DISCS: readonly DiscArt[] = [1, 2, 3, 4, 5].map((n) => ({ id: `disc-${n}`, label: null }));
+export const DEFAULT_DECK_STATE: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
+const NO_RECT = { left: 0, top: 0, width: 0, height: 0 };
+const EMPTY_LAYOUT: RadioLayout = {
+  discs: [],
+  keys: { 'play-pause': NO_RECT, stop: NO_RECT, previous: NO_RECT, next: NO_RECT },
+};
+
+/** A set of listeners and the way to call them. */
+class Emitter<T> {
+  readonly #listeners = new Set<(value: T) => void>();
+
+  on(listener: (value: T) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  emit(value: T): void {
+    for (const listener of this.#listeners) listener(value);
+  }
+
+  clear(): void {
+    this.#listeners.clear();
+  }
+}
+
+/**
+ * The room's public face of the CD player (`room.radio`). It exists from `createRoom` on, before the models have
+ * loaded, so the app can hand over its discs and state at once: they are remembered and passed to the device once
+ * it exists. It owns the listeners, `live`, `available` and the label size, and starts the device's lazy import on
+ * a prefetch or the approach; the device lays the discs and keys out on the page and publishes that here.
+ */
+export class RadioDeckHandle implements RadioDeck {
+  #discs: readonly DiscArt[] = DEFAULT_DISCS;
+  #state: DeckState = DEFAULT_DECK_STATE;
+  #keyboard: string | null = null;
+  #pointer: string | null = null;
+  #attention: string | null = null;
+  #insets: FramingInsets = NO_INSETS;
+  #isAvailable = true;
+  #size: 256 | 384 | 512 = 384;
+  #current: RadioLayout = EMPTY_LAYOUT;
+  #host: RadioHost | null = null;
+  #device: RadioDevice | null = null;
+  #loading = false;
+  #wanted = false;
+  #intentShown = false;
+  /** An approach the device has not seen yet (it was still loading): its start time. */
+  #pendingApproach: number | null = null;
+  readonly #availability = new Emitter<boolean>();
+  readonly #attentions = new Emitter<string | null>();
+  readonly #intents = new Emitter<RadioIntent>();
+  readonly #seats = new Emitter<string>();
+  readonly #cues = new Emitter<RadioCueEvent>();
+  readonly #layouts = new Emitter<RadioLayout>();
+
+  readonly #layer: ControlsLayer;
+  readonly #reducedMotion: MediaQueryList;
+  readonly #loadDeviceChunk: DeviceLoader;
+
+  constructor(layer: ControlsLayer, reducedMotion: MediaQueryList, loadDeviceChunk: DeviceLoader = loadDevice) {
+    this.#layer = layer;
+    this.#reducedMotion = reducedMotion;
+    this.#loadDeviceChunk = loadDeviceChunk;
+  }
+
+  get available(): boolean {
+    return this.#isAvailable;
+  }
+
+  get labelSize(): 256 | 384 | 512 {
+    return this.#size;
+  }
+
+  get controls(): HTMLElement {
+    return this.#layer.element;
+  }
+
+  get live(): boolean {
+    return this.#layer.live;
+  }
+
+  get layout(): RadioLayout {
+    return this.#current;
+  }
+
+  /** The device once it is loaded, cut and prepared (for stats and background work); null before. */
+  get prepared(): RadioDevice | null {
+    return this.#device;
+  }
+
+  onAvailableChange(listener: (available: boolean) => void): () => void {
+    return this.#availability.on(listener);
+  }
+
+  onAttentionChange(listener: (disc: string | null) => void): () => void {
+    return this.#attentions.on(listener);
+  }
+
+  onIntent(listener: (intent: RadioIntent) => void): () => void {
+    return this.#intents.on(listener);
+  }
+
+  onSeated(listener: (disc: string) => void): () => void {
+    return this.#seats.on(listener);
+  }
+
+  onCue(listener: (event: RadioCueEvent) => void): () => void {
+    return this.#cues.on(listener);
+  }
+
+  onLiveChange(listener: (live: boolean) => void): () => void {
+    return this.#layer.onLiveChange(listener);
+  }
+
+  onLayoutChange(listener: (layout: RadioLayout) => void): () => void {
+    return this.#layouts.on(listener);
+  }
+
+  prefetch(reason: 'idle' | 'intent'): void {
+    // Save-Data: only a visitor reaching for the radio pays for it.
+    if (!this.#isAvailable || (reason === 'idle' && saveData())) return;
+    if (reason === 'intent' && !this.#intentShown) {
+      this.#intentShown = true;
+      this.#device?.intent();
+    }
+    this.#wanted = true;
+    this.#load();
+  }
+
+  setDiscs(discs: readonly DiscArt[]): void {
+    if (discs.length < MIN_DISCS || discs.length > MAX_DISCS) {
+      throw new RangeError(`The radio holds ${MIN_DISCS}–${MAX_DISCS} discs, not ${discs.length}`);
+    }
+    const recount = discs.length !== this.#discs.length;
+    this.#discs = [...discs];
+    if (recount) this.#host?.rig.setRadioFraming(discs.length, this.#insets);
+    this.#device?.setDiscs(this.#discs);
+  }
+
+  setState(state: DeckState): void {
+    const disc = state.loaded;
+    const inserted = disc !== null && disc !== this.#state.loaded;
+    this.#state = state;
+    if (this.#device) this.#device.setState(state);
+    // Nothing to animate the insert with: the disc is on the spindle as soon as it is asked for.
+    else if (disc !== null && inserted) queueMicrotask(() => this.#state.loaded === disc && this.#seats.emit(disc));
+  }
+
+  press(key: RadioKey): void {
+    this.#device?.press(key);
+  }
+
+  setAttention(disc: string | null): void {
+    this.#keyboard = disc;
+    this.#device?.setKeyboardAttention(disc);
+    this.#updateAttention();
+  }
+
+  setControlInsets(insets: FramingInsets): void {
+    const { top, right, bottom, left } = insets;
+    const was = this.#insets;
+    if (top === was.top && right === was.right && bottom === was.bottom && left === was.left) return;
+    this.#insets = { top, right, bottom, left };
+    this.#host?.rig.setRadioFraming(this.#discs.length, this.#insets);
+    this.#device?.relayout();
+  }
+
+  /** The room has loaded: the label size is fixed now, from the discs' size at the radio. */
+  attach(host: RadioHost): void {
+    this.#host = host;
+    host.rig.setRadioFraming(this.#discs.length, this.#insets);
+    const { size, renderer } = host.stage;
+    const slots = discSlots(this.#discs.length, size.width / size.height);
+    this.#size = labelSizeFor(
+      largestDiscDiameter(slots, host.rig.viewpoint('radio'), size),
+      size.pixelRatio,
+      deviceMemory(),
+      isSoftwareRenderer(rendererName(renderer.getContext())),
+    );
+    if (this.#wanted) this.#load();
+  }
+
+  /** The viewport changed: the rig re-posed already; the device re-lays the discs and the layout. */
+  resize(): void {
+    this.#device?.relayout();
+  }
+
+  /** The view state's `approachRadio`: the camera has set off for the radio. */
+  approach(now: number): void {
+    this.prefetch('intent');
+    if (this.#device) this.#device.approach(now);
+    else this.#pendingApproach = now;
+  }
+
+  /** The view state's `revealRadio`: landed. */
+  reveal(): void {
+    this.#layer.reveal();
+    this.#device?.reveal();
+  }
+
+  /** The view state's `concealRadio`: hidden now, before the camera moves; the device closes up. */
+  conceal(): void {
+    this.#pendingApproach = null;
+    this.#layer.conceal();
+    this.#device?.conceal();
+  }
+
+  dispose(): void {
+    this.#device?.dispose();
+    this.#device = null;
+    this.#host = null;
+    for (const emitter of [
+      this.#availability,
+      this.#attentions,
+      this.#intents,
+      this.#seats,
+      this.#cues,
+      this.#layouts,
+    ]) {
+      emitter.clear();
+    }
+  }
+
+  #load(): void {
+    const host = this.#host;
+    if (!host || this.#loading || this.#device || !this.#isAvailable) return;
+    this.#loading = true;
+    this.#loadDeviceChunk(host, {
+      reducedMotion: this.#reducedMotion,
+      discCount: () => this.#discs.length,
+      events: {
+        intent: (intent) => this.#intents.emit(intent),
+        seated: (disc) => this.#seats.emit(disc),
+        cue: (event) => this.#cues.emit(event),
+        pointerAttention: (disc) => {
+          this.#pointer = disc;
+          this.#updateAttention();
+        },
+        layout: (layout) => {
+          this.#current = layout;
+          this.#layouts.emit(layout);
+        },
+      },
+    }).then(
+      (device) => {
+        this.#loading = false;
+        if (this.#host !== host) return device.dispose();
+        this.#device = device;
+        device.setDiscs(this.#discs);
+        device.setState(this.#state);
+        device.setKeyboardAttention(this.#keyboard);
+        if (this.#intentShown) device.intent();
+        if (this.#pendingApproach !== null || host.views.view === 'radio') {
+          device.approach(this.#pendingApproach ?? performance.now());
+        }
+        this.#pendingApproach = null;
+        if (this.#layer.live) device.reveal();
+      },
+      (error: unknown) => {
+        this.#loading = false;
+        this.unavailable(error);
+      },
+    );
+  }
+
+  /** The radio cannot work (its asset or its code failed): it is scenery again, warned once. */
+  unavailable(error: unknown): void {
+    if (!this.#isAvailable) return;
+    console.warn('The CD player could not load (radio-closeup.glb or its code); the radio stays scenery.', error);
+    this.#isAvailable = false;
+    this.#pointer = null;
+    this.#updateAttention();
+    this.#availability.emit(false);
+    // Flying to (or at) a radio that cannot open: back to the room.
+    if (this.#host?.views.view === 'radio') this.#host.views.request('room');
+  }
+
+  #updateAttention(): void {
+    const next = this.#pointer ?? this.#keyboard;
+    if (next === this.#attention) return;
+    this.#attention = next;
+    this.#attentions.emit(next);
+  }
+}

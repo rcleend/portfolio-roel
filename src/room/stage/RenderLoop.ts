@@ -21,6 +21,7 @@ export class RenderLoop {
   private handle: number | null = null;
   private disposed = false;
   private rendered = 0;
+  private lastFrame = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly draw: (now: number) => void,
@@ -34,6 +35,11 @@ export class RenderLoop {
 
   get idle(): boolean {
     return this.handle === null;
+  }
+
+  /** The frame timestamp of the last draw, for anything pacing itself against frames of every cause. */
+  get lastFrameTime(): number {
+    return this.lastFrame;
   }
 
   invalidate(): void {
@@ -65,6 +71,7 @@ export class RenderLoop {
     }
     this.draw(now);
     this.rendered++;
+    this.lastFrame = now;
     if (this.steps.size > 0) this.invalidate();
   };
 }

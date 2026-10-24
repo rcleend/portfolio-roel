@@ -1,4 +1,4 @@
-import type { Object3D, Vector2, Vector3 } from 'three';
+import type { Object3D, Raycaster, Vector2, Vector3 } from 'three';
 
 /** Where a pointer ray met an interactable. */
 export interface InteractionHit {
@@ -10,7 +10,7 @@ export interface InteractionHit {
 }
 
 /**
- * Anything in the room the viewer can point at and click: the TV or the computer.
+ * Anything in the room the viewer can point at and click: the TV, the computer or the radio.
  * Register one with RoomInteraction and it gets hover
  * cursors, clicks and (optionally) a full pointer gesture, without touching the TV logic.
  */
@@ -23,6 +23,11 @@ export interface Interactable {
    * (e.g. the TV glass, so dragging across the bezel still lands on the nearest pixel).
    */
   readonly gestureSurface?: Object3D;
+  /**
+   * Custom ray test used instead of ray-casting `object`'s meshes, for props whose clickable parts change with the view
+   * or appear later (the radio's discs and keys). Interactables with it are never cut into pick chunks.
+   */
+  intersect?(raycaster: Raycaster): { readonly hit: InteractionHit; readonly distance: number } | null;
   /** CSS cursor while the pointer is over it. */
   cursor(hit: InteractionHit): string;
   /** A click or tap that was not consumed as a gesture. */

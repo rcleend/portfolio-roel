@@ -3,7 +3,7 @@ import type { Viewpoint } from './cameraPath';
 import { type PagePoint, type PageViewport, projectToPage } from './pageProjection';
 
 /** Props the visitor can fly to from the room view. */
-export type RoomTarget = 'tv' | 'pc';
+export type RoomTarget = 'tv' | 'pc' | 'radio';
 
 export interface PropAnchor {
   readonly target: RoomTarget;

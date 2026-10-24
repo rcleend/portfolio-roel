@@ -19,6 +19,8 @@ const ROOM_FILES = {
 type RoomFileKey = keyof typeof ROOM_FILES;
 
 export interface RoomAssets {
+  /** The loader the room was read with (meshopt ready), for the files the room fetches later. */
+  readonly loader: GLTFLoader;
   /** Baked, unlit environment (walls, furniture, posters) plus the lava animation clip. */
   readonly room: GLTF;
   /** The CRT television at close-up detail; holds the replaceable screen mesh. */
@@ -47,5 +49,5 @@ export async function loadRoomAssets(baseUrl: string, onProgress: (fraction: num
     load('radio'),
     load('ps2'),
   ]);
-  return { room, tv: tv.scene, devices: [pc.scene, radio.scene, ps2.scene] };
+  return { loader, room, tv: tv.scene, devices: [pc.scene, radio.scene, ps2.scene] };
 }

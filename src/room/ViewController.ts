@@ -14,11 +14,18 @@ export interface ViewControllerOptions {
   readonly revealScreen: () => void;
   /** The camera is about to leave the computer: hide its live screen. */
   readonly concealScreen: () => void;
+  /** The camera is on its way to the radio: wake it and open its lid as the camera arrives. */
+  readonly approachRadio: () => void;
+  /** The camera landed at the radio: its controls go live. */
+  readonly revealRadio: () => void;
+  /** The camera is about to leave the radio (or turn back on the way there): hide its controls, close it up. */
+  readonly concealRadio: () => void;
 }
 
 /**
  * Applies the view policy from viewState.ts to the real world: pauses and resumes the game,
- * gates its input, shows and hides the computer's screen, moves the camera and tells listeners.
+ * gates its input, shows and hides the computer's screen and the radio's controls, moves the
+ * camera and tells listeners.
  */
 export class ViewController {
   private state: ViewState = INITIAL_VIEW_STATE;
@@ -97,6 +104,15 @@ export class ViewController {
         return;
       case 'concealScreen':
         this.options.concealScreen();
+        return;
+      case 'approachRadio':
+        this.options.approachRadio();
+        return;
+      case 'revealRadio':
+        this.options.revealRadio();
+        return;
+      case 'concealRadio':
+        this.options.concealRadio();
         return;
     }
   }

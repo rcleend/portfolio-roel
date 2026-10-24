@@ -16,7 +16,7 @@ import './FlatHost.css';
  * a CSS television with scanlines and vignette. Keyboard and gamepad reach
  * the game only while the screen has focus. The tube stays dark until
  * `powered`, then runs a CSS power-on (line, snap open, bloom) before telling
- * the app to start the game.
+ * the app to start the game. There is no room, so no radio: `muted` is unused.
  */
 export function FlatHost({ surface, powered, insets, events }: HostProps) {
   const screenRef = useRef<HTMLDivElement>(null);
