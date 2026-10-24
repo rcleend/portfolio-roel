@@ -18,7 +18,8 @@ export const QUIET = 'quiet';
  * What the screen is doing, as far as work ahead of need goes:
  * - `moving`: the camera flies or the TV turns on or off. Nothing runs: a unit invisible on a
  *   still frame is a dropped frame in motion.
- * - `playing`: the game runs on the TV, or the visitor uses the computer's live screen. A CPU
+ * - `playing`: the game runs on the TV, the visitor uses the computer's live screen, or the radio's
+ *   discs float. A CPU
  *   unit runs only when the idle period left can hold it, judged by how long its task's previous
  *   unit took (a task's units are alike) or, for a task's first, the longest unit run so far; so
  *   no frame is late. On a device too slow for that, the work waits for a quiet moment or for the

@@ -154,6 +154,8 @@ class Device implements RadioDevice {
   #blinkTimer: ReturnType<typeof setTimeout> | null = null;
   #labelWork = new Set<string>();
   #skinShown = false;
+  /** The skin's upload is queued and has not run yet. */
+  #skinQueued = false;
   #skinIntent = false;
   #skinBitmap: ImageBitmap | null = null;
   #skinPixels = 0;
@@ -208,7 +210,7 @@ class Device implements RadioDevice {
         context.loop.animate(this.#ambientFrame);
       },
     });
-    // Primary touch devices cannot hover: the skin is prepared at idle instead of on intent.
+    // Primary touch devices cannot hover: the skin is prepared on the first visit instead of on intent.
     if (window.matchMedia('(hover: none)').matches) this.#skinIntent = true;
     skin.then((bitmap) => {
       if (this.#disposed) {
@@ -316,6 +318,7 @@ class Device implements RadioDevice {
     const now = performance.now();
     this.#choreography.reveal(now);
     this.#choreography.setLabelsReady(this.#discs.labelsReady, now);
+    this.#maybeUploadSkin();
     this.#kick();
   }
 
@@ -678,14 +681,23 @@ class Device implements RadioDevice {
     );
   }
 
-  /** The 2K skin goes up after an intent, in one unit of background work, never while anything moves. */
+  /**
+   * The 2K skin goes up after an intent, in one unit of background work, and only while the camera rests at the
+   * radio and nothing there moves (the discs' float counts): its upload is the longest unit the radio has (a 2048²
+   * texture with mipmaps, ≈ 13 ms on a laptop, 80 ms on a phone six times slower), and in the room view the intent
+   * (a hover, a focus) is the moment just before the click that starts a flight.
+   */
   #maybeUploadSkin(): void {
     const bitmap = this.#skinBitmap;
-    if (this.#skinShown || !bitmap || !this.#skinIntent || this.#slow) return;
-    this.#skinShown = true;
+    if (this.#skinShown || this.#skinQueued || !bitmap || !this.#skinIntent || this.#slow) return;
+    if (!this.#restingAtRadio()) return;
+    this.#skinQueued = true;
     this.#context.background.add(
       uploadUnit(() => {
-        if (this.#disposed) return;
+        this.#skinQueued = false;
+        // Left before a quiet moment came: the next visit queues it again.
+        if (this.#disposed || !this.#restingAtRadio()) return;
+        this.#skinShown = true;
         const texture = skinTexture(bitmap, this.#context.anisotropy);
         this.#context.renderer.initTexture(texture);
         const old = new Set<Texture>();
@@ -702,6 +714,11 @@ class Device implements RadioDevice {
         this.#context.loop.invalidate();
       }),
     );
+  }
+
+  #restingAtRadio(): boolean {
+    const { views } = this.#context;
+    return views.view === 'radio' && !views.moving;
   }
 
   /** Samples the first flight to the radio's frame times: a slow machine gets the slow tier for the page load. */

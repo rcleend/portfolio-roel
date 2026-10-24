@@ -91,7 +91,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     if (views.moving || power === 'powering-on' || power === 'powering-off' || radio.prepared?.moving === true) {
       return 'moving';
     }
-    return (views.atTv && power === 'on' && !surface.paused) || overlay.live ? 'playing' : 'quiet';
+    // The game at the TV, the computer's live screen, or the radio's discs floating: only units that fit a frame.
+    const playing = (views.atTv && power === 'on' && !surface.paused) || overlay.live || radio.prepared?.ambient;
+    return playing ? 'playing' : 'quiet';
   });
   // The TV view's own textures are on the GPU with the first frame; the rest wait until the visitor
   // first looks around, so a visitor who stays at the TV never allocates them (about 120 MB).
