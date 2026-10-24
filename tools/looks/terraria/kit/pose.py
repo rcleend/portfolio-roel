@@ -60,6 +60,8 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
     for hip in HIPS:
         check_joint(legs, hip, f'{where}: legs {pose.legs}')
 
+    front = [Stroke(part, dye, body) for part, dye in outfit.front]
+
     def props(layer: str) -> List[Stroke]:
         return [Stroke(prop.art, Dye(), body) for prop in pose.props if prop.layer == layer]
 
@@ -75,8 +77,9 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
         *(Stroke(part, dye, body) for part, dye in outfit.headgear),
         *props('held'),
         *props('grip'),
+        *(front if near.raised else ()),
         Stroke(near_art, top, body),
-        *(Stroke(part, dye, body) for part, dye in outfit.front),
+        *(() if near.raised else front),
         *props('front'),
     ]
 

@@ -26,9 +26,15 @@ HIPS = ((14, 32), (18, 32))
 
 
 class Arm(NamedTuple):
-    """An arm in one pose, and the middle of its hand, where it holds things."""
+    """An arm in one pose, and the middle of its hand, where it holds things.
+
+    `raised` marks a near arm lifted over the shoulder, which Terraria draws over the shoulder instead of
+    under it (its compShoulderOverFrontArm): whatever the outfit wears over the near shoulder, the hood,
+    then goes under the arm, so a raised sleeve never melts into it.
+    """
     art: Art
     hand: Point
+    raised: bool = False
 
 
 # ── Legs ───────────────────────────────────────────────────────────────────────────────────────────
@@ -194,28 +200,28 @@ FAR_ARMS: Dict[str, Arm] = {
     # Terraria's back-arm cells for the walk: the far hand swings out in front of the torso and back
     # behind it, a pixel at a time, always opposite the near hand.
     'walk out': Arm(art('far arm walking, out in front', 17, 23, '''
+                     #xo+#...
+                     .#xo+#..
+                     .#xo+#..
+                     ..#xo+#.
+                     ..#xox#.
+                     ...KSSSK
+                     ...KsLSK
+                     ...KsssK
+                     ....KKK.
+'''), (22, 29)),
+    'walk': Arm(art('far arm walking', 17, 23, '''
+                     #xo+#..
                      #xo+#..
                      .#xo+#.
                      .#xo+#.
-                     ..#xo+#
-                     ..#xox#
+                     .#xo+#.
+                     .#xox#.
                      ..KSSSK
                      ..KsLSK
                      ..KsssK
                      ...KKK.
-'''), (22, 28)),
-    'walk': Arm(art('far arm walking', 17, 23, '''
-                     #xo+#.
-                     #xo+#.
-                     .#xo+#
-                     .#xo+#
-                     .#xo+#
-                     .#xox#
-                     ..KSSK
-                     ..KsSK
-                     ..KsSK
-                     ...KK.
-'''), (21, 29)),
+'''), (21, 30)),
     'walk in': Arm(art('far arm walking, tucked in', 17, 23, '''
                      #xo+#.
                      #xo+#.
@@ -249,8 +255,14 @@ FAR_ARMS: Dict[str, Arm] = {
                      .#xox#
                      ..###.
 '''), (21, 24)),
-    # Raised up and forward, the jump's far arm: behind the head, only the sleeve along the face and the
-    # hand in front of the quiff clear it, as Terraria's back arm does.
+    # Out at the shoulder behind the torso, to type on a keyboard in front of him (props.TYPE_HAND).
+    'type': Arm(art('far arm typing', 17, 23, '''
+                     #xo+##.
+                     #xoxx+#
+                     .#####.
+'''), (23, 25)),
+    # Thrown straight up beside the face for the STRATEGIST's skill: only the sleeve along the face and the
+    # hand over the quiff clear the head.
     'up': Arm(art('far arm raised', 19, 11, '''
                      ....KKKK.
                      ...KsLLsK
@@ -266,7 +278,35 @@ FAR_ARMS: Dict[str, Arm] = {
                      #xo+#....
                      #xo+#....
 '''), (24, 13)),
+    # Terraria's airborne back arm (its cell 2,3): raised behind the head, so all of it but the hand is hidden
+    # and the hand peeks out just ahead of the glasses, with a sliver of sleeve along the jaw.
+    'air': Arm(art('far arm up behind the head', 18, 16, '''
+                     ...KKK.
+                     ..KsLsK
+                     ..KsssK
+                     ..KSsSK
+                     ..#xox#
+                     .#xo+#.
+                     #xo+#..
+                     #xo+#..
+                     .###...
+'''), (22, 18)),
+    # Thrown forward and down, open, as a hit knocks him back.
+    'flung': Arm(art('far arm flung forward', 18, 22, '''
+                     #xo#.....
+                     #xo+#....
+                     .#xo+#...
+                     ..#xo+#..
+                     ...#xo+#.
+                     ....#xox#
+                     ....KSsLK
+                     ....KssSK
+                     .....KKK.
+'''), (24, 29)),
 }
+# Falling, the far hand sinks a pixel from where it rose: the one change Terraria's single airborne frame gets.
+FAR_ARMS['air low'] = Arm(FAR_ARMS['air'].art.moved(0, 1), (22, 19))
+
 
 # ── Near arm ───────────────────────────────────────────────────────────────────────────────────────
 # Standing, every hero wears his own sleeve (outfits.py); these are the other poses, in a cut every
@@ -274,54 +314,80 @@ FAR_ARMS: Dict[str, Arm] = {
 NEAR_ARMS: Dict[str, Arm] = {
     # Terraria's front-arm cells for the walk: bent at the elbow with the forearm toward the viewer, so the
     # fist sits at the elbow's front, and swung a pixel at a time from the back to the front.
-    'walk back': Arm(art('near arm walking, back', 5, 21, '''
-                     .....##....
-                     ....#**#...
-                     ...#o+*+#..
-                     ...#o++*#..
-                     ..#o+*#....
-                     .#o+*#KKKK.
-                     .#o+*sLLsK.
-                     .#o+*sssSK.
-                     .#xoxSSSSK.
-                     ..###KKKK..
+    'walk back': Arm(art('near arm walking, back', 4, 21, '''
+                     ......##.......
+                     .....#**#......
+                     ....#o+*+#.....
+                     ...#o+*+#......
+                     ..#o+*#........
+                     .#o+*#KKKK.....
+                     .#o+*KsLLsK....
+                     .#o+*KsssSK....
+                     .#xoxKSSSSK....
+                     ..###.KKKK.....
 '''), (11, 28)),
-    'walk': Arm(art('near arm walking', 6, 21, '''
-                     ....##.....
-                     ...#**#....
-                     ..#o+*+#...
-                     ..#o++*#...
-                     .#o+*#.....
-                     .#o+*KKKK..
-                     .#o+*sLLsK.
-                     .#o+*sssSK.
-                     .#xoxSSSSK.
-                     ..###KKKK..
+    'walk': Arm(art('near arm walking', 4, 21, '''
+                     ......##.......
+                     .....#**#......
+                     ....#o+*+#.....
+                     ...#o+*+#......
+                     ...#o+*#.......
+                     ..#o+*#KKKK....
+                     ..#o+*KsLLsK...
+                     ..#o+*KsssSK...
+                     ..#xoxKSSSSK...
+                     ...###.KKKK....
 '''), (12, 28)),
-    'walk forward': Arm(art('near arm walking, forward', 7, 21, '''
-                     ...##......
-                     ..#**#.....
-                     .#o+*+#....
-                     .#o++*#....
-                     .#o+*#.....
-                     .#o+*KKKK..
-                     .#o+*sLLsK.
-                     .#o+*sssSK.
-                     .#xoxSSSSK.
-                     ..###KKKK..
+    'walk forward': Arm(art('near arm walking, forward', 4, 21, '''
+                     ......##.......
+                     .....#**#......
+                     ....#o+*+#.....
+                     ....#o++#......
+                     ...#o+*#.......
+                     ...#o+*#KKKK...
+                     ...#o+*KsLLsK..
+                     ...#o+*KsssSK..
+                     ...#xoxKSSSSK..
+                     ....###.KKKK...
 '''), (13, 28)),
-    'walk front': Arm(art('near arm walking, in front', 8, 21, '''
-                     ..##.......
-                     .#**#......
-                     #o+*+#.....
-                     #o++*#.....
-                     .#o+*#.....
-                     .#o+*KKKK..
-                     .#o+*sLLsK.
-                     .#o+*sssSK.
-                     .#xoxSSSSK.
-                     ..###KKKK..
-'''), (14, 28)),
+    'walk front': Arm(art('near arm walking, in front', 4, 21, '''
+                     ......##.......
+                     .....#**#......
+                     .....#o+*#.....
+                     ....#o++*#.....
+                     ....#o+*+#.....
+                     ....#o+*+*KKKK.
+                     ....#o+*+KsLLsK
+                     ....#o+*+KsssSK
+                     ....#xox#KSSSSK
+                     .....###..KKKK.
+'''), (15, 28)),
+    # Terraria's airborne front arm (its cell 2,1): folded up behind the head with the fist at eye level on the
+    # back of the hair, two pixels below the top of the skull, so nothing rises above the head.
+    'air': Arm(art('near arm up behind the head', 7, 15, '''
+                     .KKKK.
+                     KsLLsK
+                     KssssK
+                     KSssSK
+                     #xoxo#
+                     .#o+*#
+                     .#o+*#
+                     .#o+*#
+                     ..###.
+'''), (9, 17), raised=True),
+    # Thrown back and down, open, as a hit knocks him back.
+    'flung': Arm(art('near arm flung back', 2, 21, '''
+                     .......##.
+                     ......#**#
+                     .....#o+*#
+                     ....#o+*#.
+                     ...#o+*#..
+                     ..#o+*#...
+                     .#xox#....
+                     KsLsK.....
+                     KsssSK....
+                     .KKKK.....
+'''), (4, 29)),
     # Terraria's swing, its item-use frames 1 to 4: straight up past the back of the head (also the jump's
     # near arm), up and forward over the face, straight out at the shoulder, and down and forward.
     'up': Arm(art('near arm raised', 4, 10, '''
@@ -339,7 +405,7 @@ NEAR_ARMS: Dict[str, Arm] = {
                      ...#o+*+#
                      ....#**#.
                      .....##..
-'''), (7, 12)),
+'''), (7, 12), raised=True),
     'reach': Arm(art('near arm reaching up', 8, 10, '''
                      .........KKKK.
                      ........KsLLsK
@@ -355,7 +421,7 @@ NEAR_ARMS: Dict[str, Arm] = {
                      .#o+*+#.......
                      ..#**#........
                      ...##.........
-'''), (18, 12)),
+'''), (18, 12), raised=True),
     'forward': Arm(art('near arm forward', 8, 21, '''
                      ..##............
                      .#**########....
@@ -399,33 +465,72 @@ NEAR_ARMS: Dict[str, Arm] = {
                      .###....KSSSK
                      .........KKK.
 '''), (17, 25)),
-    # Strumming the Strat: the arm down and forward with the hand over the strings, high for the upstroke,
-    # low through the downstroke.
-    'strum high': Arm(art('near arm strumming high', 8, 21, '''
-                     ..##.......
-                     .#**#......
-                     #o+*+#.....
-                     #o++*+#....
-                     .#o+*+*#...
-                     ..#o+*xKKK.
-                     ...#xoKsLsK
-                     ....#KsssSK
-                     .....KSSSSK
-                     ......KKKK.
-'''), (16, 28)),
-    'strum low': Arm(art('near arm strumming low', 8, 21, '''
+    # Drinking, as Terraria drinks a potion (useStyle 2): the arm out at the shoulder with the forearm folded
+    # up, so the fist meets the mouth.
+    'drink': Arm(art('near arm drinking', 8, 19, '''
+                     ............KKKK.
+                     ...........KsLLsK
+                     ..##.......KsssSK
+                     .#**#######KSSSSK
+                     #o+*+***++*xKKKK.
+                     #o++*+++++ox#....
+                     #o+*#######......
+                     .###.............
+'''), (21, 21)),
+    # Strumming the Strat as Terraria plays its guitars (useStyle 12): the arm held down and forward across
+    # the body while its stretch pumps Full, 3/4, 1/4, None and back, so the hand sweeps up off the strings
+    # toward the elbow and back down through them.
+    'strum full': Arm(art('near arm strumming, full stretch', 8, 21, '''
+                     ..##..........
+                     .#**#.........
+                     #o+*+#........
+                     #o++*+#.......
+                     .#o+*+*#......
+                     ..#o+*+*#.....
+                     ...#o+*+*#....
+                     ....#o+*+*#...
+                     .....#xox#KK..
+                     ........KsLLsK
+                     ........KsssSK
+                     ........KSSSSK
+                     .........KKKK.
+'''), (18, 31)),
+    'strum 3/4': Arm(art('near arm strumming, three-quarter stretch', 8, 21, '''
+                     ..##.........
+                     .#**#........
+                     #o+*+#.......
+                     #o++*+#......
+                     .#o+*+*#.....
+                     ..#o+*+*#....
+                     ...#o+*+*#...
+                     ....#xox#KK..
+                     .......KsLLsK
+                     .......KsssSK
+                     .......KSSSSK
+                     ........KKKK.
+'''), (17, 30)),
+    'strum 1/4': Arm(art('near arm strumming, quarter stretch', 8, 21, '''
                      ..##........
                      .#**#.......
                      #o+*+#......
                      #o++*+#.....
                      .#o+*+*#....
                      ..#o+*+*#...
-                     ...#o+*+*#..
-                     ....#o+*o#..
-                     .....#xoxKK.
-                     ......#KsLsK
+                     ...#xox#KK..
+                     ......KsLLsK
                      ......KsssSK
                      ......KSSSSK
                      .......KKKK.
-'''), (17, 31)),
+'''), (16, 29)),
+    'strum none': Arm(art('near arm strumming, folded', 8, 21, '''
+                     ..##.......
+                     .#**#......
+                     #o+*+#.....
+                     #o++*+#....
+                     .#o+*+#KK..
+                     ..#xox#sLLsK
+                     ...###KsssSK
+                     .....KSSSSK
+                     ......KKKK.
+'''), (15, 27)),
 }

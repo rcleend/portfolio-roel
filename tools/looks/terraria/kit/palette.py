@@ -40,8 +40,6 @@ RAMPS: Dict[str, Tuple[str, ...]] = {
     'rosewood': ('#1f120c', '#3b2418'),
     'maple': ('#5a3a17', '#b98a4c', '#e0bb7c'),
     'chrome': ('#4a4d57', '#aeb3bf', '#f2f4f8'),
-    # A yellow sticky note, its lower edge in shade where it curls off the pad.
-    'note': ('#6b4e0a', '#d9a514', '#ffd23f', '#fff08a'),
     # Light the props give off: the strum's flash and the North Star's glint.
     'flash': ('#ffffff', '#fff6c2', '#ffd75e'),
     # ── Shots, outline first, their brightest tone the glowing core ──

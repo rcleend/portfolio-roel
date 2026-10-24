@@ -39,6 +39,10 @@ def frames(image: Image.Image, meta: Dict[str, Any], name: str) -> List[Image.Im
     return [image.crop((i * w, row * h, (i + 1) * w, (row + 1) * h)) for i in range(meta['animations'][row]['frames'])]
 
 
+def opaque_above(frame: Image.Image, row: int) -> int:
+    return sum(1 for alpha in frame.crop((0, 0, frame.width, row)).getchannel('A').getdata() if alpha)
+
+
 class Sheets(unittest.TestCase):
     def test_the_committed_sheets_are_what_the_generator_writes(self) -> None:
         result = subprocess.run([sys.executable, str(TOOL / 'generate.py'), '--check'], capture_output=True, text=True)
@@ -69,6 +73,36 @@ class Sheets(unittest.TestCase):
             left, top, right, bottom = frames(image, meta, 'idle')[0].getbbox()
             self.assertLessEqual(bottom - top, 31, hero)
             self.assertLess(abs((left + right) / 2 - meta['origin']['x']), 4, hero)
+
+
+class Poses(unittest.TestCase):
+    def test_nothing_rises_above_his_head_in_the_air_or_when_hit_so_only_victory_cheers(self) -> None:
+        # Above the top of his skull, three rows under the crown of his hair or cap, a frame may show no more
+        # than the standing one does: the hair or cap, never a raised fist.
+        for hero in HEROES:
+            image, meta = load(hero, 'sheet')
+            standing = frames(image, meta, 'idle')[0]
+            for animation in meta['animations']:
+                if animation['name'] not in ('jump', 'fall', 'hurt'):
+                    continue
+                crowns = animation['anchors']['head']
+                for index, frame in enumerate(frames(image, meta, animation['name'])):
+                    skull = crowns[index][1] + 3
+                    self.assertEqual(opaque_above(frame, skull), opaque_above(standing, skull),
+                                     f"{hero} {animation['name']}[{index}] raises something above his head")
+
+    def test_every_attack_moves_on_every_frame(self) -> None:
+        for hero in HEROES:
+            image, meta = load(hero, 'sheet')
+            strip = frames(image, meta, 'attack')
+            for index, (before, after) in enumerate(zip(strip, strip[1:] + strip[:1])):
+                self.assertNotEqual(before.tobytes(), after.tobytes(), f'{hero} attack[{index}] is held')
+
+    def test_the_designer_ends_his_skill_with_the_potion_at_his_lips(self) -> None:
+        _, meta = load('artsy', 'sheet')
+        skill = next(animation for animation in meta['animations'] if animation['name'] == 'skill')
+        (hx, hy), (mx, my) = skill['anchors']['hand'][-1], skill['anchors']['mouth'][-1]
+        self.assertLessEqual(max(abs(hx - mx), abs(hy - my)), 2)
 
 
 class Head(unittest.TestCase):
