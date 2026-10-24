@@ -28,20 +28,24 @@ describe('the lineup cast', () => {
     expect(TERRARIA_DESIGNS).toContain(customersScaleHero());
   });
 
-  it("stands the game's customer shouting, then won over", () => {
+  it("stands the game's customer shouting, then won over, each facing right and then left", () => {
     expect(customerStandsFor('game')).toEqual([
-      { concept: null, pose: 'shout', scale: false },
-      { concept: null, pose: 'happy', scale: false },
+      { concept: null, pose: 'shout', facing: 'right', scale: false },
+      { concept: null, pose: 'shout', facing: 'left', scale: false },
+      { concept: null, pose: 'happy', facing: 'right', scale: false },
+      { concept: null, pose: 'happy', facing: 'left', scale: false },
     ]);
   });
 
   it.each(CUSTOMER_CONCEPTS.map((concept) => [concept.id, concept] as const))(
-    "stands the %s concept shouting and won over after the game's shouting customer, for scale",
+    "stands the %s concept shouting and won over, both ways, after the game's shouting customer, for scale",
     (id, concept) => {
       expect(customerStandsFor(id)).toEqual([
-        { concept: null, pose: 'shout', scale: true },
-        { concept, pose: 'shout', scale: false },
-        { concept, pose: 'happy', scale: false },
+        { concept: null, pose: 'shout', facing: 'right', scale: true },
+        { concept, pose: 'shout', facing: 'right', scale: false },
+        { concept, pose: 'shout', facing: 'left', scale: false },
+        { concept, pose: 'happy', facing: 'right', scale: false },
+        { concept, pose: 'happy', facing: 'left', scale: false },
       ]);
     },
   );

@@ -32,6 +32,8 @@ interface Figure {
   readonly sheet: SpriteSheet;
   /** What it plays: a hero idles; a customer holds one of its moods. */
   readonly animation: string;
+  /** Mirrored to face left, as the game draws a customer facing a hero on its left. */
+  readonly flipX: boolean;
   readonly label: string;
   readonly color: string;
   readonly caption: string | null;
@@ -44,7 +46,8 @@ interface Figure {
  * Terraria designs (art/looks/terraria/designs.ts) beside the game's ENGINEER
  * for scale, `{"cast":"revised"}` their revision, a design's variant named
  * under it; `{"cast":"game"}` the three heroes as the game draws them;
- * `{"cast":"customers"}` a customer shouting and won over beside the
+ * `{"cast":"customers"}` a customer shouting and won over, each facing right
+ * and then mirrored to face left as the game shows it, beside the
  * Terraria ENGINEER, the game's customer unless `customer` names a Terraria
  * concept (art/looks/terraria/customer-concepts/), which then stands beside
  * the game's for scale too. The designs and concepts load with whoever opens
@@ -81,6 +84,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
         return {
           sheet: terrariaDesignSheet(assets, stand.design),
           animation: 'idle',
+          flipX: false,
           label: hero.className,
           color: accent,
           caption: stand.design.variant,
@@ -88,9 +92,10 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
       }
       const look = looks.characters[stand.hero];
       const lookName = look.lookId.toUpperCase();
+      const idle = { sheet: look.sheet, animation: 'idle', flipX: false } as const;
       return stand.scale
-        ? { sheet: look.sheet, animation: 'idle', label: lookName, color: palette.steel, caption: null }
-        : { sheet: look.sheet, animation: 'idle', label: hero.className, color: accent, caption: lookName };
+        ? { ...idle, label: lookName, color: palette.steel, caption: null }
+        : { ...idle, label: hero.className, color: accent, caption: lookName };
     });
   }
 
@@ -100,6 +105,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
     const hero: Figure = {
       sheet: terrariaDesignSheet(assets, design),
       animation: 'idle',
+      flipX: false,
       label: getCharacter(design.hero).className,
       color: classThemes[design.hero].accent,
       caption: null,
@@ -107,11 +113,11 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
     const lookName = looks.customer.lookId.toUpperCase();
     const customers = customerStandsFor(customer).map((stand): Figure => {
       const sheet = stand.concept ? customerConceptSheet(assets, stand.concept) : looks.customer.sheet;
-      if (stand.scale) return { sheet, animation: stand.pose, label: lookName, color: palette.steel, caption: null };
+      const posed = { sheet, animation: stand.pose, flipX: stand.facing === 'left' };
+      if (stand.scale) return { ...posed, label: lookName, color: palette.steel, caption: null };
       const happy = stand.pose === 'happy';
       return {
-        sheet,
-        animation: stand.pose,
+        ...posed,
         label: happy ? 'HAPPY' : 'UNHAPPY',
         color: happy ? palette.green : palette.red,
         caption: stand.concept ? null : lookName,
@@ -131,7 +137,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
     const { text } = this.#services;
     this.#figures.forEach((figure, index) => {
       const x = standX(index, this.#figures.length, gfx.width);
-      gfx.sprite(figure.sheet, figure.animation, this.#time, x, FEET_Y);
+      gfx.sprite(figure.sheet, figure.animation, this.#time, x, FEET_Y, { flipX: figure.flipX });
       gfx.text(figure.label, x, FEET_Y + LABEL_GAP, { ...text.hud, fill: figure.color }, { align: 'center' });
       if (figure.caption) {
         gfx.text(figure.caption, x, FEET_Y + CAPTION_GAP, { ...text.hud, fill: palette.steel }, { align: 'center' });

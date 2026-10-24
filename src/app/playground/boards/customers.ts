@@ -45,7 +45,7 @@ export const customersBoard: Board = {
   id: 'customers-terraria',
   title: 'Terraria customers',
   summary:
-    'Three Terraria concepts for the Unhappy Customer, shouting and won over, beside a Terraria hero and the classic customer, on the select screen and on each stage.',
+    'Three Terraria concepts for the Unhappy Customer, shouting and won over, each facing right and then left as the game mirrors it, beside a Terraria hero and the classic customer, on the select screen and on each stage.',
   rows: LINEUP_BACKDROPS.map(({ id, title }) => ({ subject: customersSubject(id, title), title })),
   compares: 'customer',
   shares: [],

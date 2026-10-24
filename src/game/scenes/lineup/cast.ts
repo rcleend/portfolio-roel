@@ -1,5 +1,6 @@
 import { type CharacterId, characters } from '@/content';
 import {
+  CONCEPT_POSES,
   type ConceptPose,
   CUSTOMER_CONCEPTS,
   type CustomerConcept,
@@ -16,14 +17,26 @@ export interface Stand {
   readonly scale: boolean;
 }
 
+/** Which way a figure faces: sheets draw it facing right, and the game mirrors it to face left. */
+export type Facing = 'right' | 'left';
+
 /** One customer in the customers cast. */
 export interface CustomerStand {
   /** The concept drawn, or `null` for the customer as the game draws it. */
   readonly concept: CustomerConcept | null;
   readonly pose: ConceptPose;
+  readonly facing: Facing;
   /** Stands beside the concept to show the size it must fit, rather than as one of the cast. */
   readonly scale: boolean;
 }
+
+/**
+ * A customer faces the player, so in play it is mirrored about as often as
+ * not: walking at a hero on its left, and still facing them once won over.
+ * Each mood stands both ways, so whatever a sheet draws (a screen, a sign)
+ * is seen the way the game will show it.
+ */
+const FACINGS: readonly Facing[] = ['right', 'left'];
 
 /** The hero whose game sprite stands beside the designs: the one the showcase plays by default. */
 const SCALE_HERO: CharacterId = 'hackerman';
@@ -47,16 +60,15 @@ export function customersScaleHero(): TerrariaDesign {
 
 /**
  * The customers who stand after that hero, left to right: the customer
- * shouting and then won over, a concept after the game's shouting customer it
- * would replace.
+ * shouting and then won over, each facing right and then left, a concept
+ * after the game's shouting customer it would replace.
  */
 export function customerStandsFor(customer: LineupCustomer): readonly CustomerStand[] {
   const concept = CUSTOMER_CONCEPTS.find((candidate) => candidate.id === customer) ?? null;
-  const moods: CustomerStand[] = [
-    { concept, pose: 'shout', scale: false },
-    { concept, pose: 'happy', scale: false },
-  ];
-  return concept ? [{ concept: null, pose: 'shout', scale: true }, ...moods] : moods;
+  const moods = CONCEPT_POSES.flatMap((pose) =>
+    FACINGS.map((facing): CustomerStand => ({ concept, pose, facing, scale: false })),
+  );
+  return concept ? [{ concept: null, pose: 'shout', facing: 'right', scale: true }, ...moods] : moods;
 }
 
 /** The centre of stand `index` of `count`, spread evenly across `width`. */
