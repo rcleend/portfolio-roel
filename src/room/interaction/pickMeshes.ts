@@ -106,35 +106,41 @@ function* split(triangles: Uint32Array, centres: Float32Array): Generator<void, 
   const leaves: Uint32Array[] = [];
   const parts = [triangles];
   let visited = 0;
+  // A unit ends every TRIANGLES_PER_UNIT triangles visited, inside a large part or across small ones.
+  const unitDone = (): boolean => ++visited % TRIANGLES_PER_UNIT === 0;
   for (let part = parts.pop(); part; part = parts.pop()) {
     if (part.length <= PICK_CHUNK_TRIANGLES) {
       leaves.push(part);
       continue;
     }
-    const below = partition(part, centres);
+    const below = yield* partition(part, centres, unitDone);
     // Every centre at one point: nothing left to separate.
     if (below === 0 || below === part.length) leaves.push(part);
     // Upper half first onto the stack, so the lower half comes off it first.
     else parts.push(part.subarray(below), part.subarray(0, below));
-    visited += part.length;
-    if (visited >= TRIANGLES_PER_UNIT) {
-      visited = 0;
-      yield;
-    }
   }
   return leaves;
 }
 
-/** Moves the triangles whose centres lie below the middle of the longest extent to the front; returns how many. */
-function partition(triangles: Uint32Array, centres: Float32Array): number {
+/**
+ * Moves the triangles whose centres lie below the middle of the longest extent to the front; returns how many.
+ * Yields whenever `unitDone()`, counting every triangle either pass visits: the first parts hold the whole mesh.
+ */
+function* partition(
+  triangles: Uint32Array,
+  centres: Float32Array,
+  unitDone: () => boolean,
+): Generator<void, number, void> {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
-  for (const triangle of triangles) {
+  for (let i = 0; i < triangles.length; i++) {
+    const triangle = triangles[i] as number;
     for (let axis = 0; axis < 3; axis++) {
       const value = centres[triangle * 3 + axis] as number;
       if (value < (min[axis] as number)) min[axis] = value;
       if (value > (max[axis] as number)) max[axis] = value;
     }
+    if (unitDone()) yield;
   }
   const extents = max.map((value, axis) => value - (min[axis] as number));
   const axis = extents.indexOf(Math.max(...extents));
@@ -142,9 +148,11 @@ function partition(triangles: Uint32Array, centres: Float32Array): number {
   let below = 0;
   for (let i = 0; i < triangles.length; i++) {
     const triangle = triangles[i] as number;
-    if ((centres[triangle * 3 + axis] as number) >= middle) continue;
-    triangles[i] = triangles[below] as number;
-    triangles[below++] = triangle;
+    if ((centres[triangle * 3 + axis] as number) < middle) {
+      triangles[i] = triangles[below] as number;
+      triangles[below++] = triangle;
+    }
+    if (unitDone()) yield;
   }
   return below;
 }

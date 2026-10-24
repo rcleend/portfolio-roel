@@ -41,8 +41,9 @@ export class Television {
     this.led = new PowerLed(scene, ledPlacement(model), loop);
   }
 
+  /** Powering on from the moment the LED lights, before the tube itself reacts. */
   get powerState(): PowerState {
-    return this.crt.powerState;
+    return this.startingUp ? 'powering-on' : this.crt.powerState;
   }
 
   /** Where the game picture sits in screen-mesh UV space. */

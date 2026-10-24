@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type IdleBudget, type IdleScheduler, type IdleTask, IdleWork } from './IdleWork';
+import { type IdleBudget, type IdleMoment, type IdleScheduler, type IdleTask, IdleWork, QUIET } from './IdleWork';
 
-/** Idle callbacks run by hand, each with as many milliseconds as the test gives it. */
+/** The page's clock, moved on only by the work the tests pretend to do. */
+let now = 0;
+
+/** Idle callbacks run by hand, each with as many milliseconds of idle time as the test gives it. */
 class ManualIdle implements IdleScheduler {
   private readonly callbacks = new Map<number, (budget: IdleBudget) => void>();
   private next = 1;
@@ -19,41 +22,52 @@ class ManualIdle implements IdleScheduler {
     return this.callbacks.size;
   }
 
-  /** Runs the pending callback with a budget of `units` units of work. */
-  idle(units = 1): void {
+  /** Runs the pending callback in an idle period of `ms` milliseconds. */
+  idle(ms = 10): void {
     const [handle, run] = [...this.callbacks][0] ?? [];
     if (handle === undefined || !run) throw new Error('No idle callback is waiting');
     this.callbacks.delete(handle);
-    let left = units;
-    run({ timeRemaining: () => (--left > 0 ? 10 : 0) });
+    const end = now + ms;
+    run({ timeRemaining: () => Math.max(0, end - now) });
   }
 }
 
-/** A task that logs `name:unit` for each of its `units` units. */
-function* logging(log: string[], name: string, units: number): IdleTask {
+/** A task that logs `name:unit` for each of its units, each taking `ms` milliseconds. */
+function* logging(log: string[], name: string, units: number, ms = 1): IdleTask {
   for (let unit = 1; unit <= units; unit++) {
+    now += ms;
     log.push(`${name}:${unit}`);
     if (unit < units) yield;
   }
 }
 
+/** A task whose second unit waits for a quiet moment (an upload, say). */
+function* uploading(log: string[], name: string): IdleTask {
+  log.push(`${name}:cpu`);
+  yield QUIET;
+  log.push(`${name}:quiet`);
+}
+
 describe('IdleWork', () => {
   let idle: ManualIdle;
-  let busy: boolean;
+  let moment: IdleMoment;
   let work: IdleWork;
   const log: string[] = [];
 
   beforeEach(() => {
     vi.useFakeTimers();
+    now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
     idle = new ManualIdle();
-    busy = false;
-    work = new IdleWork(() => busy, idle);
+    moment = 'quiet';
+    work = new IdleWork(() => moment, idle);
     log.length = 0;
   });
 
   afterEach(() => {
     work.dispose();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('only collects tasks until it is started', () => {
@@ -66,44 +80,117 @@ describe('IdleWork', () => {
     expect(work.pending).toBe(false);
   });
 
-  it('runs tasks in order, as many units as an idle period has room for and at least one', () => {
-    work.start();
-    work.add(logging(log, 'a', 2));
-    work.add(logging(log, 'b', 2));
-    idle.idle(0);
-    expect(log).toEqual(['a:1']);
-    idle.idle(2);
-    expect(log).toEqual(['a:1', 'a:2', 'b:1']);
-    idle.idle(5);
-    expect(log).toEqual(['a:1', 'a:2', 'b:1', 'b:2']);
-    expect(idle.waiting).toBe(0);
+  describe('while nothing plays', () => {
+    it('runs tasks in order, as many units as an idle period has room for and at least one', () => {
+      work.start();
+      work.add(logging(log, 'a', 2, 3));
+      work.add(logging(log, 'b', 2, 3));
+      idle.idle(0);
+      expect(log).toEqual(['a:1']);
+      idle.idle(5);
+      expect(log).toEqual(['a:1', 'a:2', 'b:1']);
+      idle.idle(50);
+      expect(log).toEqual(['a:1', 'a:2', 'b:1', 'b:2']);
+      expect(idle.waiting).toBe(0);
+    });
+
+    it('runs the units kept for a quiet moment too', () => {
+      work.start();
+      work.add(uploading(log, 'a'));
+      idle.idle();
+      expect(log).toEqual(['a:cpu', 'a:quiet']);
+    });
   });
 
-  it('waits while something is moving, then carries on', () => {
-    work.start();
-    work.add(logging(log, 'a', 2));
-    busy = true;
-    idle.idle();
-    expect(log).toEqual([]);
-    expect(idle.waiting).toBe(0);
-    vi.advanceTimersByTime(250);
-    busy = false;
-    idle.idle();
-    expect(log).toEqual(['a:1']);
+  describe('while something moves', () => {
+    it('waits, then carries on', () => {
+      work.start();
+      work.add(logging(log, 'a', 2));
+      moment = 'moving';
+      idle.idle();
+      expect(log).toEqual([]);
+      expect(idle.waiting).toBe(0);
+      vi.advanceTimersByTime(250);
+      moment = 'quiet';
+      idle.idle();
+      expect(log).toEqual(['a:1', 'a:2']);
+    });
+
+    it('stops within an idle period as soon as something starts moving', () => {
+      work.start();
+      work.add(
+        (function* (): IdleTask {
+          log.push('a:1');
+          moment = 'moving';
+          yield;
+          log.push('a:2');
+        })(),
+      );
+      idle.idle(50);
+      expect(log).toEqual(['a:1']);
+    });
   });
 
-  it('stops within an idle period as soon as something starts moving', () => {
-    work.start();
-    work.add(
-      (function* () {
-        log.push('a:1');
-        busy = true;
-        yield;
-        log.push('a:2');
-      })(),
-    );
-    idle.idle(5);
-    expect(log).toEqual(['a:1']);
+  describe('while something plays', () => {
+    beforeEach(() => {
+      moment = 'playing';
+      work.start();
+    });
+
+    it("starts a unit only in an idle period that can hold it, judged by its task's previous unit", () => {
+      work.add(logging(log, 'a', 4, 6));
+      // Before any unit is timed, none starts in a sliver of idle time.
+      idle.idle(3);
+      expect(log).toEqual([]);
+      idle.idle(5);
+      expect(log).toEqual(['a:1']);
+      // Its unit took 6 ms: 5 ms of idle time is no longer enough for the next.
+      idle.idle(5);
+      expect(log).toEqual(['a:1']);
+      idle.idle(12);
+      expect(log).toEqual(['a:1', 'a:2', 'a:3']);
+    });
+
+    it("judges a task's first unit by the longest unit timed so far", () => {
+      work.add(logging(log, 'a', 1, 6));
+      idle.idle(6);
+      work.add(logging(log, 'b', 3, 2));
+      idle.idle(5);
+      expect(log).toEqual(['a:1']);
+      // The first needs the 6 ms a's unit took; the rest only the 2 ms b's own took.
+      idle.idle(6);
+      expect(log).toEqual(['a:1', 'b:1', 'b:2', 'b:3']);
+    });
+
+    it('keeps a unit for a quiet moment: the tasks behind it go first', () => {
+      work.add(uploading(log, 'a'));
+      work.add(logging(log, 'b', 1));
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1']);
+      expect(idle.waiting).toBe(0);
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1']);
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1', 'a:quiet']);
+    });
+
+    it('does not let a unit kept for a quiet moment raise the bar for the others', () => {
+      moment = 'quiet';
+      work.add(
+        (function* (): IdleTask {
+          yield QUIET;
+          now += 40;
+        })(),
+      );
+      idle.idle();
+      moment = 'playing';
+      work.add(logging(log, 'b', 1, 2));
+      idle.idle(5);
+      expect(log).toEqual(['b:1']);
+    });
   });
 
   it('drops a cancelled task, and keeps going past one that throws', () => {

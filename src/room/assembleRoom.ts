@@ -11,7 +11,7 @@ import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
 import { locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
-import { IdleWork } from './stage/IdleWork';
+import { type IdleMoment, IdleWork } from './stage/IdleWork';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
 import { addRoomLighting } from './stage/roomLighting';
@@ -20,6 +20,7 @@ import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { locateTv, type TvModel } from './tv/tvModel';
 import type { ViewController } from './ViewController';
+import type { RoomView } from './viewState';
 
 export interface RoomSceneOptions {
   readonly stage: RoomStage;
@@ -71,12 +72,20 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   scene.add(fade.mesh);
   const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
-  // Never on a frame in motion: a flight, or the CRT turning on or off.
-  const background = new IdleWork(
-    () => views.moving || television.powerState === 'powering-on' || television.powerState === 'powering-off',
-  );
-  // First in the queue: the first look around the room would otherwise upload them mid-flight.
-  background.add(uploadTextures(scene, stage.renderer));
+  const background = new IdleWork((): IdleMoment => {
+    const power = television.powerState;
+    if (views.moving || power === 'powering-on' || power === 'powering-off') return 'moving';
+    return (views.atTv && power === 'on' && !surface.paused) || overlay.live ? 'playing' : 'quiet';
+  });
+  // The TV view's own textures are on the GPU with the first frame; the rest wait until the visitor
+  // first looks around, so a visitor who stays at the TV never allocates them (about 120 MB).
+  let uploadQueued = false;
+  const queueUploads = (view: RoomView): void => {
+    if (uploadQueued || view === 'tv') return;
+    uploadQueued = true;
+    background.add(uploadTextures(scene, stage.renderer));
+  };
+  const stopUploads = views.onChange(queueUploads);
   const monitor = new Monitor({
     model: pcModel,
     scene,
@@ -151,6 +160,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   rig.jumpTo(views.view);
   // Asked for the computer before the room had loaded: the camera is already there.
   if (views.view !== 'tv') monitor.prepare('tv', views.view);
+  queueUploads(views.view);
 
   return {
     rig,
@@ -167,6 +177,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     refreshCursor: () => interaction.refreshCursor(),
     dispose() {
       background.dispose();
+      stopUploads();
       stopResize();
       stopRender();
       for (const stop of unregister) stop();

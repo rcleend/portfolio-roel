@@ -1,6 +1,6 @@
 import { type Camera, type Intersection, type Mesh, Raycaster, Vector2 } from 'three';
 import { meshesOf } from '../assets/modelQueries';
-import type { IdleWork } from '../stage/IdleWork';
+import { type IdleTask, type IdleWork, QUIET } from '../stage/IdleWork';
 import type { Interactable, InteractionHit } from './Interactable';
 import { pickedMesh, pickMeshes, pickMeshesInSteps } from './pickMeshes';
 
@@ -67,8 +67,17 @@ export class RoomInteraction {
     };
     this.interactables.set(interactable.id, registered);
     const cancelCut = background?.add(
-      (function* () {
-        registered.meshes = yield* pickMeshesInSteps(interactable.object);
+      (function* (): IdleTask {
+        // Picking matters in the room view, where nothing plays: no unit goes between the game's frames.
+        const steps = pickMeshesInSteps(interactable.object);
+        for (;;) {
+          yield QUIET;
+          const step = steps.next();
+          if (step.done) {
+            registered.meshes = step.value;
+            return;
+          }
+        }
       })(),
     );
     return () => {

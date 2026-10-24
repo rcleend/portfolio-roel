@@ -1,5 +1,5 @@
 import { type Material, Mesh, type Object3D, type Texture } from 'three';
-import type { IdleTask } from './IdleWork';
+import { type IdleTask, QUIET } from './IdleWork';
 
 /** The one renderer call this needs: upload a texture now rather than on the next frame that uses it. */
 export interface TextureUploader {
@@ -16,11 +16,12 @@ export function forEachTexture(material: Material | Material[], visit: (texture:
 }
 
 /**
- * Uploads every texture of the meshes under `root`, one per unit of background work. three
- * uploads a texture the first time a frame draws it, and the TV view draws only part of the
- * attic: without this, the first look around the room would upload four 2048² atlases in the
- * middle of its flight (≈ 25 ms each), and on a phone the first flight to the computer two more.
- * A texture already on the GPU costs a bind.
+ * Uploads every texture of the meshes under `root` that no frame has drawn yet, one per unit of
+ * background work. three uploads a texture the first time a frame draws it: a view that never
+ * showed a mesh leaves its texture for the first flight that does. On a phone, whose portrait
+ * room view crops the computer out, the first flight to the computer would upload two 2048²
+ * atlases on its way (27-36 ms each on a phone six times slower than a laptop). A texture already
+ * on the GPU costs a bind.
  */
 export function* uploadTextures(root: Object3D, renderer: TextureUploader): IdleTask {
   const textures = new Set<Texture>();
@@ -28,7 +29,7 @@ export function* uploadTextures(root: Object3D, renderer: TextureUploader): Idle
     if (object instanceof Mesh) forEachTexture(object.material, (texture) => textures.add(texture));
   });
   for (const texture of textures) {
-    yield;
+    yield QUIET;
     renderer.initTexture(texture);
   }
 }
