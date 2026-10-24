@@ -18,6 +18,7 @@ export const palette = {
   gold: '#ffc83d',
   orange: '#ff7a1a',
   red: '#e2352d',
+  scarlet: '#ff3a4a',
   green: '#3ddc84',
   steel: '#8a90a8',
   steelDark: '#454a63',

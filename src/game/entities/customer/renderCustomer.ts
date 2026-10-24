@@ -2,6 +2,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
 import type { CustomerAnimation } from '../../art/looks/contracts';
+import { palette } from '../../palette';
 import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
@@ -117,7 +118,7 @@ function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boole
     gfx.fillRect(x, top, PIP.w, PIP.h, '#3a2240');
     if (fill <= 0) continue;
     const w = fill >= 1 ? PIP.w : Math.ceil(PIP.w * fill);
-    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : '#ff3a4a');
+    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : palette.scarlet);
     gfx.fillRect(x, top, w, 1, calm ? '#ffd0ef' : '#ff9a9a');
   }
 }
