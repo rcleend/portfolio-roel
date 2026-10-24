@@ -1,97 +1,131 @@
 import { describe, expect, it } from 'vitest';
-import { AMBIENT_INTERVAL_MS, AmbientPacer } from './AmbientPacer';
+import { AmbientPacer } from './AmbientPacer';
 
-function fakeTime() {
-  let now = 0;
-  const timers: { at: number; run: () => void }[] = [];
+/**
+ * A display that shows a frame every `hz`-th of a second, and the room's render loop on it: animation frame
+ * callbacks run at each display frame in the order they were asked for, and a draw asked for during one display
+ * frame happens on the next (that is when the browser runs the loop's callback). `work` is how late, after the
+ * display frame, the callbacks get to run (a busy main thread), and `tick` jitters the display frame times a little.
+ */
+function display(hz: number, options: { readonly work?: number; readonly jitter?: number } = {}) {
+  const period = 1000 / hz;
+  let index = 0;
+  let callbacks: ((now: number) => void)[] = [];
+  let drawRequested = false;
+  let lastDrawn = Number.NEGATIVE_INFINITY;
+  const drawn: number[] = [];
+  const timeOf = (frame: number) => frame * period + (options.jitter ?? 0) * Math.sin(frame * 12.9898) + (options.work ?? 0);
+  const request = (callback: (now: number) => void) => {
+    callbacks.push(callback);
+    return callback;
+  };
   return {
-    now: () => now,
-    setTimer: (run: () => void, ms: number) => {
-      const timer = { at: now + ms, run };
-      timers.push(timer);
-      return timer;
+    drawn,
+    request,
+    cancel: (handle: unknown) => {
+      callbacks = callbacks.filter((callback) => callback !== handle);
     },
-    clearTimer: (handle: unknown) => {
-      timers.splice(timers.indexOf(handle as never), 1);
+    lastFrame: () => lastDrawn,
+    /** The render loop's invalidate: draw on the next display frame. */
+    invalidate: () => {
+      drawRequested = true;
     },
-    advance(ms: number) {
-      const end = now + ms;
-      for (;;) {
-        timers.sort((x, y) => x.at - y.at);
-        const next = timers[0];
-        if (!next || next.at > end) break;
-        timers.shift();
-        now = next.at;
-        next.run();
+    run(ms: number) {
+      const end = ms / period;
+      for (; index < end; index++) {
+        const now = timeOf(index);
+        // The loop's own callback (asked for in the previous frame) runs first, then whoever asked after it.
+        if (drawRequested) {
+          drawRequested = false;
+          lastDrawn = now;
+          drawn.push(now);
+        }
+        const due = callbacks;
+        callbacks = [];
+        for (const callback of due) callback(now);
       }
-      now = end;
     },
   };
 }
 
+function pacerOn(screen: ReturnType<typeof display>, wanted: () => boolean = () => true) {
+  return new AmbientPacer({
+    wanted,
+    lastFrame: screen.lastFrame,
+    frame: screen.invalidate,
+    request: screen.request,
+    cancel: screen.cancel,
+  });
+}
+
+const fps = (drawn: readonly number[], from: number, to: number) => drawn.filter((t) => t >= from && t < to).length / ((to - from) / 1000);
+const gaps = (drawn: readonly number[]) => drawn.slice(1).map((t, i) => t - (drawn[i] ?? 0));
+
 describe('AmbientPacer', () => {
-  it('asks for at most 30 frames a second while wanted, then rests', () => {
-    const time = fakeTime();
-    let wanted = true;
-    let frames = 0;
-    let last = Number.NEGATIVE_INFINITY;
-    const pacer = new AmbientPacer({
-      wanted: () => wanted,
-      lastFrame: () => last,
-      now: time.now,
-      frame: () => {
-        frames++;
-        last = time.now();
-      },
-      setTimer: time.setTimer,
-      clearTimer: time.clearTimer,
-    });
-    pacer.sync();
-    expect(pacer.running).toBe(true);
-    time.advance(1000);
-    expect(frames).toBeLessThanOrEqual(31);
-    expect(frames).toBeGreaterThanOrEqual(29);
-    wanted = false;
-    time.advance(AMBIENT_INTERVAL_MS);
-    expect(pacer.running).toBe(false);
-    const rested = frames;
-    time.advance(2000);
-    expect(frames).toBe(rested);
+  it.each([
+    [60, 30],
+    [120, 30],
+    [90, 30],
+    [144, 28.8],
+  ])('draws the drift at %i Hz on every frame a full 33 ms on: %f a second', (hz, expected) => {
+    const screen = display(hz, { jitter: 0.15 });
+    pacerOn(screen).sync();
+    screen.run(5000);
+    expect(fps(screen.drawn, 1000, 5000)).toBeCloseTo(expected, 0);
+    // Steady: one interval, never a skipped frame's double gap.
+    expect(Math.max(...gaps(screen.drawn).slice(1))).toBeLessThan(1000 / 30 + 1000 / hz);
   });
 
-  it('skips its frame when another cause drew one in the last 30 ms', () => {
-    const time = fakeTime();
-    let frames = 0;
-    const pacer = new AmbientPacer({
-      wanted: () => true,
-      // Frames at 60/s for another reason (a choreography step).
-      lastFrame: () => time.now() - 5,
-      now: time.now,
-      frame: () => frames++,
-      setTimer: time.setTimer,
-      clearTimer: time.clearTimer,
-    });
+  it('never goes over 30 a second, whatever the display', () => {
+    for (const hz of [60, 75, 90, 100, 120, 144, 165, 240]) {
+      const screen = display(hz);
+      pacerOn(screen).sync();
+      screen.run(3000);
+      expect(fps(screen.drawn, 500, 3000)).toBeLessThanOrEqual(30.5);
+      expect(fps(screen.drawn, 500, 3000)).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  it('keeps 30 a second when the main thread runs the frame callbacks late', () => {
+    const screen = display(60, { work: 12 });
+    pacerOn(screen).sync();
+    screen.run(4000);
+    expect(fps(screen.drawn, 1000, 4000)).toBeCloseTo(30, 0);
+  });
+
+  it('adds nothing while frames are drawn for another reason', () => {
+    const screen = display(60);
+    const pacer = pacerOn(screen);
     pacer.sync();
-    time.advance(1000);
-    expect(frames).toBe(0);
+    // Something else (a spring) draws every display frame: the drift rides along.
+    const busy = () => {
+      screen.invalidate();
+      screen.request(busy);
+    };
+    screen.request(busy);
+    screen.run(1000);
+    expect(fps(screen.drawn, 200, 1000)).toBeCloseTo(60, 0);
     pacer.stop();
     expect(pacer.running).toBe(false);
   });
 
-  it('never starts when not wanted (hidden stage, reduced motion, slow tier, not at the radio)', () => {
-    const time = fakeTime();
-    const pacer = new AmbientPacer({
-      wanted: () => false,
-      lastFrame: () => 0,
-      now: time.now,
-      frame: () => {
-        throw new Error('no frame');
-      },
-      setTimer: time.setTimer,
-      clearTimer: time.clearTimer,
-    });
+  it('stops watching the display when no longer wanted, and never starts when not wanted', () => {
+    let wanted = true;
+    const screen = display(60);
+    const pacer = pacerOn(screen, () => wanted);
     pacer.sync();
-    time.advance(500);
+    screen.run(1000);
+    wanted = false;
+    screen.run(1100);
     expect(pacer.running).toBe(false);
+    const rested = screen.drawn.length;
+    screen.run(3000);
+    expect(screen.drawn).toHaveLength(rested);
+    const idle = display(60);
+    const never = pacerOn(idle, () => false);
+    never.sync();
+    idle.run(500);
+    expect(never.running).toBe(false);
+    expect(idle.drawn).toHaveLength(0);
   });
 });

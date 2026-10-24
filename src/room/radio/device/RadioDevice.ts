@@ -211,7 +211,6 @@ class Device implements RadioDevice {
     this.#pacer = new AmbientPacer({
       wanted: () => this.#ambientWanted(),
       lastFrame: () => context.loop.lastFrameTime,
-      now: () => performance.now(),
       frame: () => {
         context.loop.animate(this.#ambientFrame);
       },
