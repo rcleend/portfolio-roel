@@ -173,9 +173,11 @@ export function PcExperience({ display, onLeave, onFocusStage }: PcExperiencePro
     if (!move || move.mode === shownIn || !pane) return;
     beforeMove.current = null;
     pane.scrollTop = move.share * scrollRange(pane);
-    // Focus was in the pane that went, or in the window that is now the pop-out's ghost.
+    // Focus was in the pane that went, or in the window that is now the pop-out's ghost. Not while
+    // closing: a pane mounted during the shrink back goes with the window a moment later.
     const dialog = shownIn === 'pop-out' ? elements.popOutWindow.current : elements.glassWindow.current;
-    if (isWindowShown(state) && !dialog?.contains(document.activeElement)) pane.focus({ preventScroll: true });
+    const open = state.phase === 'opening' || state.phase === 'reader';
+    if (open && !dialog?.contains(document.activeElement)) pane.focus({ preventScroll: true });
   });
   useLayoutEffect(() => carryOver(documentReady, mode), [documentReady, mode]);
 

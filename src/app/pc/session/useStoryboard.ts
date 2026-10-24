@@ -188,9 +188,12 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
     timers.clear();
     cancelMotion();
     elements.cursor.current?.hide(0);
-    const focused = [elements.root.current, elements.popOut.current].some((element) =>
-      element?.contains(document.activeElement),
-    );
+    const active = document.activeElement;
+    // In the screen, or stranded on the page by an element of it that unmounted (a pane mid-resize).
+    const focused =
+      !active ||
+      active === document.body ||
+      [elements.root.current, elements.popOut.current].some((element) => element?.contains(active));
     lit.current = false;
     options.announce('');
     dispatch({ type: 'away' });
@@ -209,7 +212,11 @@ export function useStoryboard(options: StoryboardOptions): StoryboardControls {
     readerMemory.opened = true;
     elements.cursor.current?.setBusy(false);
     light(true);
-    for (const cue of board.current?.afterOpen ?? []) timers.at(cue.at, () => runCue(cue));
+    const visit = board.current?.visit;
+    if (!visit) return;
+    // What follows the opening depends on where the window opens: a resize or a rotation during the
+    // startup may have moved it between the glass and the pop-out since the landing.
+    for (const cue of storyboard({ visit, reducedMotion, mode }).afterOpen) timers.at(cue.at, () => runCue(cue));
   });
 
   const onReading = useEffectEvent(() => {
