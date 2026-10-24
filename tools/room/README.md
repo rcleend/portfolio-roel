@@ -14,6 +14,7 @@ ROOM_SOURCE=/absolute/path/to/attic-room.blend pnpm build:room
 pnpm verify:room
 pnpm shot:room --only room-view,tv-desktop,room-phone --out .context/room-review
 pnpm shot:room --only pc-desktop,pc-phone,pc-flight,pc-handoff --out .context/room-review
+pnpm shot:room --only radio-desktop,radio-phone,radio-arrival,radio-insert --out .context/room-review
 ```
 
 `BLENDER_BIN` overrides the Blender executable. `ROOM_BUILD_DIR` overrides the default
@@ -55,6 +56,25 @@ to `bake.py`. This is an offline authoring job.
    to WebP and geometry to Meshopt with 16-bit UVs/positions, runs the glTF validator
    and asset-contract checks, then updates `public/room`, its hash manifest and the
    generated loading-progress weights in `src/room/assets/roomAssetSizes.json`.
+4. `build-radio.mjs` (`pnpm build:radio`, also the last step of `pnpm build:room`): the CD
+   player's lazy close-up, from the restyled `ROOM_BUILD_DIR/room-source.blend` (never saved).
+   `radio_closeup.py --stage skin` re-runs `bake.py`'s own preparation and unwrap for the
+   radio (`configure_bake`, `prepare_scene`, `unwrap` at the shipped 1024 layout, so the UVs
+   are identical) and bakes its atlas at 2048² into `radio-skin-2k.png` plus a UV probe.
+   `--stage closeup` splits the lid off the radio, measures the well (its floor plane, the
+   rim heights, the slot), models the parts an open lid reveals (liner, turntable and nubs,
+   pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens the
+   lid to 84° about its hinge, bakes them into one 512² atlas in the same lit scene, returns the
+   lid to its closed pose and exports `radio-closeup-raw.glb` with the measurements in
+   `radio-closeup.json`. `radio-closeup.mjs` then proves the skin's UVs match the shipped
+   `radio-base.glb` (≤ 2/65535; measured 0.5), finds the lid, the rocker's halves and the side
+   keys in the shipped base as triangle lists, writes them with the base's geometry and UV
+   fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED into
+   the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and validates it,
+   and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles` in the manifest
+   (the first-load `files`, `totalBytes` and size table are untouched). About 45 s with
+   `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte; Metal skin bakes
+   differ between runs by a few pixels.
 
 Individual stages can be run for iteration:
 
@@ -84,12 +104,18 @@ the square rotated rug, desktop node names and geometry budget, seven animated w
 meshes and the 48-second clip. It also checks
 both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z
 with planar UVs (the computer's flat live screen and projector UVs depend on it), removal of
-the pillow/wall posters/ceiling beams and the unchanged TV aperture position. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
+the pillow/wall posters/ceiling beams and the unchanged TV aperture position. For the radio
+it checks the lazy files' bytes and hashes, the close-up's size (≤ 80 KB), validator result,
+single 512² atlas and triangle budget, its fingerprints of the current `radio-base.glb` (a room
+rebuild without `pnpm build:radio` fails here), that the cut lid is one component spanning the
+lid and the rocker one piece, the side keys mirror each other, the lid clears the antenna through
+0–90°, and that the skin is exactly 2048² and ≤ 280 KB. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
 
-Use `pnpm e2e room.spec.ts touch.spec.ts pc-monitor.spec.ts no-webgl.spec.ts` to exercise
-room/TV/computer navigation, power-on, keyboard/touch input, the computer's live screen and
+Use `pnpm e2e room.spec.ts touch.spec.ts pc-monitor.spec.ts radio-deck.spec.ts no-webgl.spec.ts` to exercise
+room/TV/computer/radio navigation, power-on, keyboard/touch input, the computer's live screen and
 fallback behavior. `pnpm shot:room --only perf` checks render-on-demand and reduced-motion
-behavior and compares the computer's flights with the TV's. Validate the build with `pnpm check` and
+behavior and compares the computer's flights with the TV's; `--only radio-perf` does the same for
+the radio (also at 6× CPU, and with `ROOM_SHOTS_GL=swiftshader`). Validate the build with `pnpm check` and
 `pnpm build` before publishing a new asset revision.
 
 See [the art direction study](../../docs/ROOM-ART-DIRECTION.md) for the reference findings

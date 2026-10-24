@@ -92,6 +92,20 @@ shadow maps or a postprocessing stack for that appearance.
   under the desk remains; no second system unit is added. Desktop cables and floppy
   disks are removed. The existing screen mapping and desk interaction are preserved.
   One shared 2K PC atlas preserves keycap and curved-mouse detail in the close-up.
+- **CD player:** clicking the radio, its cabinet or the lava lamp sits the camera over the
+  CFD-V31L at a 24° pitch; its lid opens and the collection rises out of the disc slot.
+  What an open lid reveals did not exist in the source model, so the lid underside (ribs,
+  clamp puck, latch hook), hinge barrels, well liner, dark turntable with three ball-clamp
+  nubs, pickup sled with its blue lens on two rails and the slot's lips and screws are new
+  geometry in the radio's own language, baked open in the room's own Cycles scene, lights,
+  AgX and exposure. They stay dark at night, as the bake says: the lamp-lit seated disc is
+  the bright subject in a dark well. Visitors who reach for the radio on a capable screen
+  get its atlas re-baked at 2K on the identical UVs. The discs are drawn, not baked: the
+  bake's own three sources (the lilac ambient, the lava lamp, the moon) by name, a silver
+  foil that reflects the dark room and draws the lamp's spoke and rainbow across its tracks,
+  matte ink under a varnish glint and a smoky hub, so plain silver discs already read as
+  CDs in the night palette rather than as stickers. Nothing added carries a mark; the
+  model's own prints stay as shipped.
 - **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
   The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
   settle under gravity into a supported pile reaching the bottom; three original
@@ -127,6 +141,10 @@ extend each island's own color to limit dark seams when textures are filtered.
 | Decoded texture pixels | 47.72 million | 44.84 million |
 | Total asset triangles | 245,893 | 336,666 |
 | Room-view draw calls | 55 | 57 |
+
+The CD player adds nothing to that first load: `radio-closeup.glb` (56 KB, 2,366 triangles,
+one 512² atlas) and `radio-skin-2k.webp` (179 KB) are lazy files fetched only when the radio
+is prepared, the skin only on screens where the radio lands wider than 900 render pixels.
 
 Texture allocation stays below revision 5 despite the sharper front-facing atlases, because
 static devices no longer ship separate normal/roughness maps. More geometry goes to
