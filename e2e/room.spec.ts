@@ -10,6 +10,9 @@ const TV_IN_ROOM_VIEW = { x: 1202, y: 529 };
 const PC_IN_ROOM_VIEW = { x: 375, y: 455 };
 /** Bare wall beside the window, outside every prop in the room and at the computer. */
 const WALL = { x: 40, y: 450 };
+/** The radio and the cabinet it stands on in the 1440 × 900 room view (`room.anchors` puts the radio at 814, 447). */
+const RADIO_IN_ROOM_VIEW = { x: 805, y: 446 };
+const CABINET_IN_ROOM_VIEW = { x: 780, y: 545 };
 
 test('opens on the TV, powers it on and only then boots the game', async ({ page }) => {
   const errors = trackErrors(page);
@@ -193,7 +196,7 @@ test('teaches the room gestures, then retires the hints', async ({ page }) => {
   await expect(hint).toHaveText(/Click outside the TV to look around/);
   await page.mouse.click(WALL.x, WALL.y);
   await page.clock.runFor(2_000);
-  await expect(hint).toHaveText(/Click the computer or the TV to look closer/);
+  await expect(hint).toHaveText(/Click the computer, the radio or the TV to look closer/);
   await expect(hint).toHaveAttribute('data-visible', 'true');
   await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
   await page.clock.runFor(2_500);
@@ -201,7 +204,7 @@ test('teaches the room gestures, then retires the hints', async ({ page }) => {
   await expect(hint).toHaveAttribute('data-visible', 'true');
   await page.mouse.click(WALL.x, WALL.y);
   await page.clock.runFor(2_000);
-  await expect(hint).toHaveText(/Click the computer or the TV to look closer/);
+  await expect(hint).toHaveText(/Click the computer, the radio or the TV to look closer/);
   await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
   await page.clock.runFor(2_500);
   // Got up from the computer once: that line has retired.
@@ -211,4 +214,57 @@ test('teaches the room gestures, then retires the hints', async ({ page }) => {
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await page.clock.runFor(6_000);
   await expect(hint).toHaveAttribute('data-visible', 'false');
+});
+
+test('the radio and the cabinet it stands on fly to the CD player; Escape and the wall get up again', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const host = hostElement(page);
+  await page.mouse.click(WALL.x, WALL.y);
+  await page.waitForTimeout(1300);
+  await page.mouse.move(RADIO_IN_ROOM_VIEW.x, RADIO_IN_ROOM_VIEW.y);
+  expect(await page.evaluate(() => document.querySelector('[data-host] canvas')?.getAttribute('style'))).toContain(
+    'zoom-in',
+  );
+  await page.mouse.click(RADIO_IN_ROOM_VIEW.x, RADIO_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'radio');
+  await expect(host).toHaveAttribute('aria-label', /At the CD player/);
+  expect(await paused(page)).toBe(true);
+  await page.waitForTimeout(1400);
+  await host.focus();
+  await page.keyboard.press('Escape');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  await page.mouse.click(CABINET_IN_ROOM_VIEW.x, CABINET_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'radio');
+  await page.waitForTimeout(1400);
+  await page.mouse.click(WALL.x, 120);
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
+  await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('the keyboard reaches the radio from the room view', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const host = hostElement(page);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  for (let press = 0; press < 3; press++) await page.keyboard.press('Tab');
+  const radio = page.getByRole('button', { name: 'Play some music' });
+  await expect(radio).toBeFocused();
+  await expect(radio).toHaveCSS('clip-path', 'none');
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'radio');
+  await expect(host).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Look closer' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(host).toHaveAttribute('data-view', 'room');
 });

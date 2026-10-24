@@ -1,11 +1,13 @@
 {
-  "$comment": "kB (1000 bytes) of gzip as scripts/bundle-report.mjs measures it (Node's zlib, default level). Baseline: the same measurement of the build at 2494ded; Vite's own report shows those files as 209.28 / 4.82 / 179.19 kB because Rolldown's compressor differs. Over the spec's budgets (entry +1.0, room +5.0, pcStill 5.0), each pending the captain's word, see docs/PC.md › Budgets: the room's +7.6 kB holds 0.6 kB for cutting large meshes into chunks for pointer picking (src/room/interaction/pickMeshes.ts) and 2 kB for doing the room's work ahead of need without making a frame late (src/room/stage/IdleWork.ts and what it schedules: picking, the monitor's glass finish and still, uploads deferred until the room is seen, CPU canvases on a software GPU), for framing room around the computer and for telling the app when the camera lands; the entry's +1.06 kB and pcStill's 5.15 kB hold that landing signal and the still's preparation in idle units.",
+  "$comment": "PENDING: rewritten after measuring the integrated build.",
   "baseline": { "entryJs": 208.79, "entryCss": 4.81, "room": 177.03 },
   "budgets": {
-    "entryJs": 209.85,
-    "entryCss": 5.31,
-    "room": 184.65,
+    "entryJs": 210.45,
+    "entryCss": 5.46,
+    "room": 189.42,
     "pcStill": 5.15,
-    "PcExperience": 25
+    "PcExperience": 25,
+    "radioDevice": 22.3,
+    "RadioExperience": 15
   }
 }

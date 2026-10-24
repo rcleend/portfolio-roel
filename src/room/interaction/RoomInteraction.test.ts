@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { BoxGeometry, Mesh, MeshBasicMaterial, PerspectiveCamera, SphereGeometry } from 'three';
+import { BoxGeometry, Mesh, MeshBasicMaterial, Object3D, PerspectiveCamera, SphereGeometry, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { IdleTask } from '../stage/IdleWork';
 import { PICK_CHUNK_TRIANGLES } from './pickMeshes';
@@ -120,6 +120,62 @@ describe('room target picking', () => {
     const tested = raycast.mock.contexts as Mesh[];
     expect(tested.length).toBeGreaterThan(1);
     expect(tested.every((mesh) => (mesh.geometry.index?.count ?? 0) <= PICK_CHUNK_TRIANGLES * 3)).toBe(true);
+    interaction.dispose();
+  });
+
+  it('uses a custom ray test where one is given: never cut, nearest wins, gestures follow it', () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const tasks: IdleTask[] = [];
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss: () => {},
+      idleCursor: () => 'default',
+      isEnabled: () => true,
+      background: queue(tasks),
+    });
+    // A mesh at z 0 the custom ray test would hide behind: nearer wins either way.
+    const box = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
+    box.updateMatrixWorld();
+    const boxClicks = vi.fn();
+    interaction.register({ id: 'box', object: box, cursor: () => 'default', activate: boxClicks });
+    const anchor = new Object3D();
+    let distance = 2;
+    const intersect = vi.fn(() => ({ hit: { object: anchor, point: new Vector3(), uv: null }, distance }));
+    const activate = vi.fn();
+    const moves: unknown[] = [];
+    const big = new Mesh(new SphereGeometry(1, 96, 64), new MeshBasicMaterial());
+    interaction.register({
+      id: 'radio',
+      object: big,
+      intersect,
+      cursor: () => 'pointer',
+      activate,
+      pointerDown: () => true,
+      pointerMove: (hit) => moves.push(hit?.object ?? null),
+      pointerUp: vi.fn(),
+    });
+    // Only the box is queued for cutting; the custom target's meshes are never collected.
+    expect(tasks).toHaveLength(1);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 100 }));
+    expect(canvas.style.cursor).toBe('pointer');
+    distance = 9;
+    canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 100 }));
+    expect(canvas.style.cursor).toBe('default');
+    distance = 2;
+    vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100 }),
+    );
+    canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 100 }));
+    // While it owns the gesture its moves are ray-tested by its own test too.
+    expect(moves.at(-1)).toBe(anchor);
+    expect(intersect.mock.calls.length).toBeGreaterThanOrEqual(4);
+    expect(boxClicks).not.toHaveBeenCalled();
+    expect(activate).not.toHaveBeenCalled();
     interaction.dispose();
   });
 

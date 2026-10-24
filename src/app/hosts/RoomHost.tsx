@@ -2,6 +2,7 @@ import { type KeyboardEvent, useCallback, useEffect, useEffectEvent, useLayoutEf
 import type { Room, RoomView } from '@/room';
 import { RoomHotspots } from '../overlays/room-hotspots/RoomHotspots';
 import { PcSlot } from '../pc/PcSlot';
+import { RadioSlot } from '../radio/RadioSlot';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import type { HostProps } from './types';
@@ -17,8 +18,9 @@ declare global {
 
 const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
   tv: "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks. The same content is in the résumé after this game.",
-  room: 'Paused, looking around the attic. Click the computer to read the résumé or the TV to play. Tab to reach them, or press Enter to return to the TV.',
+  room: 'Paused, looking around the attic. Click the computer to read the résumé, the radio to play music, or the TV to play. Tab to reach them, or press Enter to return to the TV.',
   pc: 'At the computer. Press Escape to return to the room.',
+  radio: 'At the CD player. Choose a CD to play it; press Escape to return to the room.',
 };
 
 /**
@@ -32,7 +34,7 @@ export function RoomHost(props: HostProps) {
   return <AtticStage {...props} onUnavailable={() => setUnavailable(true)} />;
 }
 
-function AtticStage({ surface, powered, insets, events, onUnavailable }: HostProps & { onUnavailable(): void }) {
+function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: HostProps & { onUnavailable(): void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const screensRef = useRef<HTMLDivElement>(null);
   // One gate per surface; the room only ever sees the gated view.
@@ -95,15 +97,15 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
     room?.setFramingInsets({ top, right, bottom, left });
   }, [room, top, right, bottom, left]);
 
-  // Stable, so a view change never re-renders the computer's screen through its props.
+  // Stable, so a view change never re-renders the computer's screen or the radio's controls through their props.
   const focusStage = useCallback((): void => stageRef.current?.focus({ preventScroll: true }), []);
-  const leaveComputer = useCallback(() => room?.showRoom(), [room]);
+  const showRoom = useCallback(() => room?.showRoom(), [room]);
 
-  // Escape belongs to the game at the TV; at the computer it gets up again (also mid-flight, or
-  // after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
+  // Escape belongs to the game at the TV; at the computer or the radio it gets up again (also mid-flight,
+  // or after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (!room) return;
-    if (room.view === 'pc') {
+    if (room.view === 'pc' || room.view === 'radio') {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       room.showRoom();
@@ -117,8 +119,8 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
     }
   };
 
-  // The screens, hotspots and the PC slot are siblings of the stage, never children: events from
-  // their portals must not bubble into the stage's handlers, and focus inside them leaves the
+  // The screens, hotspots and the PC and radio slots are siblings of the stage, never children: events
+  // from their portals must not bubble into the stage's handlers, and focus inside them leaves the
   // stage, which is what takes the keyboard away from the game.
   return (
     <>
@@ -153,7 +155,15 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
         view={view}
         settled={settled}
         powered={tvOn}
-        onLeave={leaveComputer}
+        onLeave={showRoom}
+        onFocusStage={focusStage}
+      />
+      <RadioSlot
+        deck={room?.radio ?? null}
+        view={view}
+        powered={tvOn}
+        muted={muted}
+        onLeave={showRoom}
         onFocusStage={focusStage}
       />
     </>

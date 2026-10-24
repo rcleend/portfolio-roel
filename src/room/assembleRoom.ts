@@ -11,6 +11,9 @@ import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
 import { locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
+import type { RadioDeckHandle } from './radio/RadioDeckHandle';
+import { RadioInteractable } from './radio/RadioInteractable';
+import { locateRadio, RADIO_GEOMETRY, type RadioModel } from './radio/radioModel';
 import { type IdleMoment, IdleWork } from './stage/IdleWork';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
@@ -30,6 +33,8 @@ export interface RoomSceneOptions {
   readonly reducedMotion: MediaQueryList;
   /** The computer's live screen, created before the room loaded. */
   readonly overlay: ScreenOverlay;
+  /** The CD player's public face, created before the room loaded. */
+  readonly radio: RadioDeckHandle;
   /** Where the props now sit in the settled room view; called on every viewport change. */
   readonly onAnchorsChange: (anchors: readonly PropAnchor[]) => void;
 }
@@ -40,9 +45,13 @@ export interface RoomScene {
   readonly television: Television;
   readonly tvInput: TvInteractable;
   readonly monitor: Monitor;
+  /** The radio and its surroundings; null when the assets lack it. */
+  readonly radioModel: RadioModel | null;
   readonly lava: LavaLamp;
   /** Work ahead of need on idle time; `start()` it once the first frame is drawn. */
   readonly background: IdleWork;
+  /** Texture anisotropy the room uses (≤ 4). */
+  readonly anisotropy: number;
   register(interactable: Interactable): () => void;
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
@@ -52,9 +61,9 @@ export interface RoomScene {
 
 const MAX_ANISOTROPY = 4;
 
-/** Puts the loaded attic together: lighting, TV, computer, camera, lava and pointer interaction. */
+/** Puts the loaded attic together: lighting, TV, computer, radio, camera, lava and pointer interaction. */
 export function assembleRoom(options: RoomSceneOptions): RoomScene {
-  const { stage, assets, surface, views, reducedMotion, overlay } = options;
+  const { stage, assets, surface, views, reducedMotion, overlay, radio } = options;
   const { scene, loop, camera } = stage;
   scene.add(assets.room.scene, assets.tv, ...assets.devices);
   const removeLighting = addRoomLighting(scene);
@@ -68,13 +77,20 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const desk = assets.room.scene.getObjectByName('02_Desk');
   if (!pcRoot || !desk) throw new Error('Room assets lack the computer or its desk');
   const pcModel = locatePc(pcRoot, desk);
+  const radioModel = locateRadio(
+    assets.devices.find((device) => device.getObjectByName('Radio_Imported_Part_00_base')),
+    assets.room.scene,
+  );
   const fade = new ScreenFade();
   scene.add(fade.mesh);
-  const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade);
+  const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade, radioModel);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
   const background = new IdleWork((): IdleMoment => {
     const power = television.powerState;
-    if (views.moving || power === 'powering-on' || power === 'powering-off') return 'moving';
+    // A flight, the CRT turning on or off, or the radio's lid and discs in motion.
+    if (views.moving || power === 'powering-on' || power === 'powering-off' || radio.prepared?.moving === true) {
+      return 'moving';
+    }
     return (views.atTv && power === 'on' && !surface.paused) || overlay.live ? 'playing' : 'quiet';
   });
   // The TV view's own textures are on the GPU with the first frame; the rest wait until the visitor
@@ -124,7 +140,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       if (views.view !== 'room') views.request('room');
     },
     idleCursor: () => (views.view === 'room' || views.moving ? 'default' : 'zoom-out'),
-    onPointer: (ndc) => rig.setParallaxPointer(ndc),
+    onPointer: (ndc) => {
+      rig.setParallaxPointer(ndc);
+      radio.prepared?.setPointer(ndc);
+    },
     // Cutting the desk for picking would add 9 ms (50 ms on a slow phone) to the first frame.
     background,
     // At the computer, a click on its bezel or keyboard must not take the keys from its screen
@@ -132,16 +151,30 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     // moves focus then.
     keepsFocus: () => overlay.live,
   });
-  // The radio cabinet and the lava lamp are scenery for now: clicking them does nothing.
   const unregister = [
     interaction.register(tvInput),
     interaction.register(new PcInteractable('pc', pcModel.root, views)),
     interaction.register(new PcInteractable('desk', pcModel.desk, views)),
   ];
+  // The radio, its cabinet and the lava lamp: one target that flies to the CD player.
+  if (radioModel) {
+    unregister.push(
+      interaction.register(
+        new RadioInteractable({
+          root: radioModel.root,
+          bodyBounds: radioModel.bodyBounds,
+          cabinet: radioModel.cabinet,
+          views,
+          deck: radio,
+        }),
+      ),
+    );
+  }
 
   const anchorTargets: readonly AnchorTarget[] = [
     { target: 'tv', point: tvPictureCentre(tvModel) },
     { target: 'pc', point: planeCentre(pcModel.picture) },
+    ...(radioModel ? [{ target: 'radio', point: RADIO_GEOMETRY.anchor.clone() } as const] : []),
   ];
   const publishAnchors = (): void => {
     options.onAnchorsChange(propAnchors(anchorTargets, rig.viewpoint('room'), stage.size));
@@ -150,6 +183,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     rig.resize(stage.size);
     television.setPixelRatio(stage.size.pixelRatio);
     monitor.setPose(rig.viewpoint('pc'), stage.size);
+    radio.resize();
     publishAnchors();
   };
   syncSize();
@@ -168,8 +202,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     television,
     tvInput,
     monitor,
+    radioModel,
     lava,
     background,
+    anisotropy,
     register: (interactable) => interaction.register(interactable),
     setFramingInsets(insets) {
       rig.setFramingInsets(insets);

@@ -58,6 +58,23 @@ test('a chip on the edge reaches the computer the portrait room view crops out',
   await expect(pad).toHaveAttribute('data-visible', 'true');
 });
 
+test('a tap on the radio in the portrait room view flies to the CD player', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const host = hostElement(page);
+  await page.touchscreen.tap(195, 90);
+  await page.waitForTimeout(1300);
+  const radio = await page.evaluate(() => window.__room?.anchors.find((anchor) => anchor.target === 'radio'));
+  if (!radio?.inFrame) throw new Error('The radio is not in the portrait room view');
+  await page.touchscreen.tap(radio.x, radio.y);
+  await expect(host).toHaveAttribute('data-view', 'radio');
+  await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
+  await page.waitForTimeout(1400);
+  // The wall above the open radio is outside it: back to the room.
+  await page.touchscreen.tap(30, 30);
+  await expect(host).toHaveAttribute('data-view', 'room');
+});
+
 test.describe('landscape', () => {
   test.use({ viewport: { width: 844, height: 390 } });
 

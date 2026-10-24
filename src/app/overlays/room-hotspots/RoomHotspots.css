@@ -65,7 +65,7 @@
   transform: translateX(-50%);
 }
 
-/* The computer, cropped out of the portrait room view: a visible chip on its side of the screen. */
+/* A prop cropped out of the portrait room view (the computer, or the radio where it is): a visible chip on its side of the screen. */
 .room-hotspots__chip {
   position: absolute;
   min-width: 44px;
@@ -74,8 +74,9 @@
 }
 
 /*
- * Raised off the computer's own height: in the portrait room view the radio and the lava lamp stand
- * there, at the computer's edge, and a chip on them would read as their label. The wall above is bare.
+ * Raised off the prop's own height: in the portrait room view the radio and the lava lamp stand at the
+ * computer's height, at its edge, and a chip on them would read as their label (and take their taps).
+ * The wall above is bare.
  */
 .room-hotspots__chip[data-edge="left"],
 .room-hotspots__chip[data-edge="right"] {

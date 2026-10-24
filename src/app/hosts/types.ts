@@ -29,4 +29,6 @@ export interface HostProps {
   readonly powered: boolean;
   readonly insets: Insets;
   readonly events: HostEvents;
+  /** The site's sound preference (the sound toggle): the radio's music and mechanics follow it. */
+  readonly muted: boolean;
 }

@@ -1,6 +1,6 @@
 # Room host (`src/room`)
 
-The three.js attic that presents a `GameSurface` on a CRT television.
+The three.js attic that presents a `GameSurface` on a CRT television, a computer the app fills with its own DOM and a CD player the app plays music through.
 It is vanilla three.js (no React) and imports nothing from outside `src/room` except the `GameSurface` / `PointerSink` types.
 The contract with the rest of the app is the `createRoom` API below; everything else is internal.
 
@@ -30,11 +30,14 @@ await room.ready;          // assets loaded and the first frame drawn (TV dark, 
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
 game.start();              // or surface.resume(); the boot scene's first frame lands on a live tube
 
-room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc', as the camera sets off
+room.radio.setDiscs(discs);  // also usable before `ready`: the CD player's discs and, below, its state
+room.radio.setState(deck);   // the app owns albums, tracks and sound (app/radio/RadioSlot.tsx, see docs/RADIO.md)
+
+room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc' | 'radio', as the camera sets off
 room.onSettle((view) => showChip(view));       // as it comes to rest
 room.setFramingInsets({ top: 0, right: 0, bottom: touchPadHeight, left: 0 }); // keep the TV clear of overlays
-room.onAnchorsChange((anchors) => placeHotspots(anchors)); // where the TV and the computer sit in the room view
-// room.showRoom() / room.focusTv() / room.focusPc() for navigation.
+room.onAnchorsChange((anchors) => placeHotspots(anchors)); // where the TV, the computer and the radio sit in the room view
+// room.showRoom() / room.focusTv() / room.focusPc() / room.focusRadio() for navigation.
 // room.dispose() on unmount.
 ```
 
@@ -47,11 +50,13 @@ What the room does to the game, so the app does not have to:
 | Click/tap the TV in the room view, or `focusTv()` | camera flies back; on landing `resume()` (only if the room paused it) and `setInputEnabled(true)` | hidden |
 | Click/tap the computer or the desk in the room view, or `focusPc()` | camera cranes onto the desk, straight in front of the monitor; the game stays paused with input disabled | revealed on the landing frame (`pc.live` turns true), fading in over 160 ms |
 | Click/tap outside the computer (wall, window, desk…), Escape on the stage, or `showRoom()` while at or flying to the computer | camera pulls back to the room; the game stays paused | hidden synchronously, before the flight's first frame |
+| Click/tap the radio, its cabinet or the lava lamp in the room view, or `focusRadio()` | camera flies to the CD player (§ The CD player); the game stays paused with input disabled; the lid opens and the discs rise | hidden; `radio.controls` goes live on the landing frame |
+| Click/tap outside the radio (cabinet, lamp, wall…), Escape on the stage, or `showRoom()` while at or flying to the radio | `radio.controls` hidden synchronously; the discs sink home, the lid closes, the camera pulls back; the game stays paused | hidden |
 | Pointer over the picture while settled on the TV and powered on | `pointer.move(x, y)` in native pixels, `down()` / `up()`, `leave()` when it leaves the picture | — |
 
 A game the app paused itself (a menu, a hidden tab) is never resumed by the room.
-At the computer, its own parts (glass border, bezel, keyboard, mouse) do nothing when clicked: the visitor is using it. The radio cabinet and the lava lamp are scenery.
-The app reaches the props without the mouse through hotspot buttons pinned at `room.anchors` (hidden until keyboard focus) and, whenever the portrait room view crops the computer out, a visible "◂ COMPUTER" chip on that edge (`app/overlays/room-hotspots`). Enter or Space on the room stage returns to the TV; Escape on the stage leaves the computer. Escape remains available to the game's menus at the TV.
+At the computer, its own parts (glass border, bezel, keyboard, mouse) do nothing when clicked: the visitor is using it; at the radio, so does its body.
+The app reaches the props without the mouse through hotspot buttons pinned at `room.anchors` (hidden until keyboard focus; "Play some music" only while `radio.available`) and, whenever the portrait room view crops the computer or the radio out, a visible edge chip ("◂ COMPUTER", "RADIO ▸") on that edge (`app/overlays/room-hotspots`); a chip that would cover a prop in view moves up clear of it. Enter or Space on the room stage returns to the TV; Escape on the stage leaves the computer or the radio. Escape remains available to the game's menus at the TV.
 The PAUSE on-screen display shows whenever the tube is on and `surface.paused` is true (checked on every drawn frame, since `GameSurface` has no pause event); the TV draws it, not the game.
 
 ### Public API
@@ -71,7 +76,7 @@ interface CreateRoomOptions {
 
 interface Room {
   readonly ready: Promise<void>;
-  readonly view: RoomView;                 // 'tv' | 'room' | 'pc', at or flying to
+  readonly view: RoomView;                 // 'tv' | 'room' | 'pc' | 'radio', at or flying to
   readonly settled: boolean;               // the camera rests at `view`
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
   powerOn(): Promise<void>;
@@ -79,15 +84,18 @@ interface Room {
   focusTv(): void;
   showRoom(): void;
   focusPc(): void;                         // straight in front of the monitor; the game stays paused
+  focusRadio(): void;                      // the CD player on the cabinet; the game stays paused
   onViewChange(listener: (view: RoomView) => void): () => void;   // as the camera sets off
   onSettle(listener: (view: RoomView) => void): () => void;       // as it comes to rest
   setFramingInsets(insets: FramingInsets): void;   // CSS px covered by overlays
   registerInteractable(interactable: Interactable): () => void;
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
-  readonly anchors: readonly PropAnchor[]; // the TV and the computer in the settled room view
+  readonly radio: RadioDeck;               // the CD player (src/room/radio/RadioDeck.ts); usable before `ready`
+  readonly anchors: readonly PropAnchor[]; // the TV, the computer and the radio in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
   readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, lava, programs, pcTexturePixels,
-                                           // backgroundPending (work still waiting for idle moments)
+                                           // backgroundPending (work still waiting for idle moments), radioReady,
+                                           // radioTexturePixels, radioLidDegrees, radioAmbient
   dispose(): void;
 }
 
@@ -111,17 +119,20 @@ interface StillRequest {
   cpuCanvas: boolean;                      // a software GPU: make canvases painted ahead CPU ones
 }
 
-interface PropAnchor {                     // RoomTarget = 'tv' | 'pc'
+interface PropAnchor {                     // RoomTarget = 'tv' | 'pc' | 'radio'
   target: RoomTarget;
   x: number; y: number;                    // CSS px; clamped 24 px inside the nearest edge when out of frame
   inFrame: boolean;
   edge: 'left' | 'right' | 'top' | 'bottom' | null;
 }
 
-interface Interactable {                   // registered: the TV, the computer and its desk; extensible to other props
+interface Interactable {                   // registered: the TV, the computer and its desk, the radio; extensible
   readonly id: string;
   readonly object: Object3D;               // ray-cast target with its descendants as registered
   readonly gestureSurface?: Object3D;      // ray target while it owns a drag
+  intersect?(raycaster: Raycaster): { hit: InteractionHit; distance: number } | null;
+                                           // its own ray test, used instead of casting at `object` (and never cut
+                                           // into pick chunks): proxies, a mesh filtered by region, moving parts
   cursor(hit: InteractionHit): string;
   activate(hit: InteractionHit): void;     // click / tap
   pointerDown?(hit): boolean;              // return true to own the gesture (no activate follows)
@@ -173,6 +184,35 @@ room/
     PowerLed.ts         emissive LED + halo beside the power button
     TvInteractable.ts   the TV as an Interactable: focus button in the room, pointer surface on the TV
     screenMapping.ts    pure: picture rect in UV space, UV → native pixel
+  radio/                eager glue (room chunk): what the room needs before and without the device
+    RadioDeck.ts        the public RadioDeck types
+    RadioDeckHandle.ts  room.radio: listeners, live, available, label size; remembers discs/state until the device
+                        exists and loads it (lazy import) on a prefetch or the approach
+    deviceContract.ts   the seam to the lazy device (types only): RadioHost, RadioLink, RadioDevice
+    radioModel.ts       finds the radio, its cabinet and the lamp in the assets; the measured lid and hinge
+    radioFraming.ts     pure: the 24° viewpoint over the radio and its discs, lens, lamp truck, portrait crop
+    discLayout.ts       pure: the disc slots (arc or stack) for a count and aspect; label size
+    RadioInteractable.ts the radio, its cabinet and the lava lamp as one click target (the table below)
+    ControlsLayer.ts    the app's controls slot over the room, shown only while live
+    rendererInfo.ts     renderer string, device memory and Save-Data probes
+    device/             the `radioDevice` chunk, loaded on demand
+      RadioDevice.ts    createRadioDevice: download, parse, cut, prepare; the device (state, gestures, cues, frames)
+      choreography.ts   pure: every disc, the lid and the keys as functions of time; cues as timed moments
+      discMotion.ts     pure: rise, glide and flip, settle, flight, drop and bounce, unseat, idle, attention
+      lidMotion.ts      pure: push, pop, the damped swing and the close as timed plans
+      keyMotion.ts      pure: rocker tilt and side-key travel, hold and spring release, key shading
+      springs.ts        pure: closed-form damped springs and spin tracks
+      deckLayout.ts     pure: the deck's measured seat, slot and keys; the layout on the page
+      Discs.ts          the disc meshes, labels (one upload per idle unit), radial averages, analytic picking
+      discGeometry.ts   one 512-triangle disc (label face, data face, edge, hole wall)
+      discShader.ts     the discs' one program: foil, diffraction, label, spin blur; JS mirrors for tests
+      radialAverage.ts  a label's 64-bin radial average (the label at play speed)
+      Lcd.ts            the segment display: canvas, warm-up flicker, fades, blink
+      lcdSegments.ts    pure: glyphs and the readout's frame
+      closeUpAsset.ts   radio-closeup.glb: extras, fingerprints, cut lists, pivots; the 2K skin
+      cutParts.ts       pure: cut triangle lists out of an indexed mesh (shared attributes)
+      deviceTier.ts     pure: 2K skin and slow tier rules
+      AmbientPacer.ts   the idle float at ≤ 30 frames per second
   pc/
     pcModel.ts          finds the glass, shell front, keyboard and desk; the picture's border and radius constants
     pcFraming.ts        pure: the straight-on viewpoint in front of the monitor
@@ -192,7 +232,7 @@ room/
     RoomInteraction.ts  DOM pointer events → ray hits → hover cursor, click, gestures
     pickMeshes.ts       what a pointer ray tests: large meshes cut into compact chunks, in the background
   motion/easing.ts      easing curves (the room may not import engine runtime code)
-  lab/                  dev lab: MockGameSurface, MockPcScreen + main.ts (served by room-lab.html)
+  lab/                  dev lab: MockGameSurface, MockPcScreen, MockRadioApp + main.ts (served by room-lab.html)
 ```
 
 ## Assets
@@ -204,7 +244,7 @@ ROOM_SOURCE=/path/to/original/attic-room.blend pnpm build:room
 pnpm verify:room
 ```
 
-It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6. Existing attribution remains in `CREDITS.txt`.
+It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6, then the radio's lazy `radio-closeup.glb` and `radio-skin-2k.webp` (`lazyFiles`; § The CD player). Existing attribution remains in `CREDITS.txt`, which now also records the close-up.
 The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
 The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and additive glow remain dynamic. There is no runtime studio environment capture.
 The night rig keeps blue window highlights, tungsten desk light and amber lava glow, with substantially reduced ambient/fill illumination for deep shadows and stronger local contrast. The pillow, ceiling beams and wall posters are removed. The folded rug is square at the original width and rotated 15° clockwise; its raised corner is nearest the TV. Desk drawer fronts share the white enamel, and the oak floor has more natural grain. Changing the baked mood requires rebuilding all atlases.
@@ -278,19 +318,115 @@ The room owns the monitor as a device and knows nothing about what the app shows
 - **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour. The bezel's emitter has the picture's rounded corners, so the corners catch the same light as the border along the edges.
 - **Glass finish.** An edge shadow (23 % in the corners, 8 % at the edge midpoints, nothing over the central 70 %) and a 6.5 % warm sheen of the desk lamp at the top left, the top of their tuning range, so the screen reads as a tube's curved glass.
 
+## The CD player (`radio/`)
+
+The radio on the cabinet is the room's third device. The room owns the machine — the lid, the keys, the discs floating over it and seated in its well, the LCD and the OPR LED, the camera and what the pointer does to them — and knows nothing about albums, tracks or sound: the app drives it declaratively (`room.radio.setDiscs`, `setState`) and hears back through intents, cues and `seated` (`RadioDeck.ts` is the contract; `app/radio/RadioSlot.tsx` the app side, see docs/RADIO.md).
+
+### Who loads what
+
+| What | Where | When |
+| --- | --- | --- |
+| Glue: `RadioDeckHandle` (`room.radio`), `ControlsLayer`, `radioModel`, `radioFraming`, `discLayout`, `RadioInteractable` | room chunk | first load; the radio's pose is computed with the others, the label size fixed when the room is ready |
+| The device (`radio/device/**`, the `radioDevice` chunk), `radio-closeup.glb` (56 KB), `radio-skin-2k.webp` (179 KB, fetched and decoded off-thread only on capable devices) | lazy | `prefetch('idle')` from the app, `prefetch('intent')` when the pointer reaches a radio target in the room view or the hotspot gets focus, or the approach; Save-Data: intent only |
+| Preparation, one `IdleWork` unit at a time, never while anything moves (the device's own motion included) | — | parse the close-up; check its fingerprint of `radio-base.glb` and cut the lid and the three keys out of the base meshes (lists precomputed by the build: shared attributes, same material or a clone, same program); build the well, lid underside, LCD, LED and discs; upload the close-up atlas; one label and its radial average per unit; the 2K skin's upload only after an intent (or at idle where `(hover: none)`) |
+| The disc program | — | compiled with `renderer.compileAsync` at the approach, never at idle: the first room view and the computer keep their 7 programs; the radio adds one |
+
+Nothing of the radio is requested before the first room view (`e2e/radio-deck.spec.ts`). A close-up that fails to load, a fingerprint that does not match (a room rebuild without `pnpm build:radio`) or a chunk that fails makes the radio scenery again: `available` turns false (warned once), the hotspot hides, the interactable answers nothing and a camera at or flying to the radio returns to the room.
+
+### Views and interaction
+
+`viewState` gains `'radio'` with three effects: `approachRadio` after `moveCamera` (the device schedules the lid from `FLIGHT_MS`/`REDUCED_FADE_MS`), `revealRadio` on arrival (`radio.controls` goes live) and `concealRadio` prepended to every request that leaves it (controls hidden synchronously, before the camera moves). `RadioInteractable` is one click target for the radio, its cabinet (`04_Drawer_surfaces`, hits between x 0.30 and 1.40 only: the mesh also holds the floor books and the mains cable) and the lava lamp (a proxy box), through the new optional `Interactable.intersect` (its own ray test; never cut into pick chunks):
+
+| View | Floating disc | Disc in the well | ▷II / ■ halves, ⏮ / ⏭ | Radio body | Cabinet, lamp |
+| --- | --- | --- | --- | --- | --- |
+| tv, pc | — | — | — | nothing (the room's miss) | nothing |
+| room | — | — | — | `zoom-in`, click flies to the radio; the pointer over it prefetches | same |
+| radio | `pointer`: hover attends, click picks (touch: attention on down, pick on up over the same disc) | `pointer`: ▷II ghost press | `pointer`: pressed while held (the device owns the gesture) | `default`, nothing | `zoom-out`, the room |
+
+At the radio the device's parts win over the body (a box 3 mm bigger than it), which wins over the surroundings. Discs are picked analytically (the ray against each disc's plane, the hole counting as disc); keys and lid by three's raycast on the cut meshes.
+
+### Camera and layout
+
+- **Viewpoint** (`radioFraming.ts`): the radio's facing pitched 24° down, framing the body (portrait: its CD half, x 0.93–1.245 above y 1.02), the open lid's corners and a 66 mm ring around every disc slot into the viewport minus the control insets with a 5 % margin. A 30° lens widens a degree at a time while the eye is further than 1.25 m, up to 50°. When the lava lamp would show inside the left 2 % band the eye and target truck right by exactly that much (wide and landscape-phone screens), never dolly.
+- **Slots** (`discLayout.ts`): an arc over the well for aspects ≥ 0.9 (one row up to six discs, two for 7–12), a stack of two or three columns on portrait screens. Even discs stand 12 mm proud and odd ones sit back (the design had it the other way round: with the lamp truck at 21:9 the proud odd discs overlapped their neighbours on screen).
+- **Flights** use the house arc (lift 0.16) and the device legs' look-at lead (`deviceLegProgress`, renamed from `pcLegProgress`); a leg with the computer at either end keeps the crane.
+
+Frames with five discs (pinned ±3 px, ±1° by `radioFraming.test.ts`; the phone sizes include the 64 px transport bar or rail):
+
+| Viewport | Lens | Eye → target | Truck | Radio centre | Disc Ø (CSS px) | Rocker | LCD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2560 × 1440 | 30° | 0.983 m | 0 | 43.7 % | 336–349 | 73 × 119 | 165 × 47 |
+| 3440 × 1440 | 30° | 0.983 m | 0.17 m | 33.2 % | 331–358 | 74 × 119 | 163 × 47 |
+| 1920 × 1080 | 30° | 0.983 m | 0 | 43.7 % | 252–261 | 54 × 89 | 124 × 35 |
+| 1440 × 900 | 30° | 0.983 m | 0 | 43 % | 210–218 | 45 × 75 | 103 × 29 |
+| 1366 × 768 | 30° | 0.983 m | 0 | 43.7 % | 179–186 | 38 × 63 | 88 × 25 |
+| 1280 × 720 | 30° | 0.983 m | 0 | 43.7 % | 168–174 | 36 × 59 | 82 × 23 |
+| 1024 × 768 | 30° | 1.165 m | 0 | 42.6 % | 150–154 | 33 × 53 | 74 × 21 |
+| 820 × 1180 (bar) | 33° | 1.213 m | 0 | 37.1 % | 196–206 | 42 × 66 | 95 × 26 |
+| 768 × 1024 (bar) | 33° | 1.223 m | 0 | 38.1 % | 169–177 | 35 × 58 | 82 × 22 |
+| 844 × 390 (rail) | 30° | 0.983 m | 0.064 m | 36.6 % | 90–95 | 20 × 33 | 44 × 13 |
+| 667 × 375 (rail) | 30° | 0.983 m | 0 | 39.7 % | 88–90 | 19 × 31 | 43 × 12 |
+| 390 × 844 (bar) | 35° | 1.245 m | 0 | 32.2 % | 128–135 | 27 × 44 | 62 × 17 |
+| 375 × 667 (bar) | 34° | 1.23 m | 0 | 34.7 % | 106–111 | 23 × 36 | 51 × 14 |
+| 360 × 640 (bar) | 34° | 1.235 m | 0 | 34.8 % | 101–106 | 21 × 34 | 49 × 14 |
+
+`discLayout.test.ts` holds the slots to their invariants for 1–12 discs on these viewports: no two discs overlap on screen, the seated disc stays ≥ 15 px clear of a disc at attention, every slot clears the body by 20 mm and the open lid's plate (80–88°, the swing's whole overshoot) by 10 mm, and the size floors (≥ 160 px at 1280 × 720 … ≥ 80 on landscape phones for six discs, ≥ 64 for 7–12). Two documented limits: on 21:9 with more than ten discs neighbours may kiss by up to 4.5 px, and 7–12 discs on landscape phones are ≥ 62 px. The lid's full swept volume (0–84°) cannot clear the arc's slots for two to four discs, so the rule the motion relies on is the 80° gate: no disc rises before the lid is past 80°, from where its plate is behind every slot.
+
+### Motion
+
+Everything that moves is a pure function of time (`choreography.ts` over `discMotion`, `lidMotion`, `keyMotion`, `springs`): poses are segments with closed-form ends, spins are tracks with closed-form angles, cues are moments the frame step fires once when it passes them (never timers), and an interruption retargets from the live pose. The timings are the radio design's; the ones the tests pin, from the click at t = 0 with the camera landing at 1100 ms:
+
+| | t (ms) |
+| --- | --- |
+| Arrival: `power-on` (LCD warm-up flicker, LED); lid push −0.6°, pop to 5°, damped swing (ζ 0.72, 1.4 Hz, v₀ 220°/s) | 0; 700, 780, 840 |
+| The lid at 72° / its peak 87.2° / within ±0.3° of 84° | 1079 / 1309 / 1621 |
+| Discs rise centre-out (stagger clamp(240 / (N − 1), 30, 60) ms) once landed and the lid is past 80°: 220 ms up through the slot, a 440 ms glide with the flip, a 6 mm settle | 1137 →; all settled by L + 1.2 s |
+| Pick: anticipation; flight; drop; contact (`disc-seat`); ghost press of ▷II; press bottom (`seated`), spin-up to 7.5 rev/s over 900 ms | 0, 90, 650, 770, 840, 890 |
+| Leave: controls hidden; discs return edge-in (45 ms stagger) and sink; the lid closes from where it is (340 ms) and latches | 0, 45k, ≈ 660 → ≈ 1000 |
+
+Where the build departs from the design's motion, because the design's own invariants required it: the flying disc stays upright for its first 30 % and only then lies flat, and the approach point is straight above the seat, so it passes ≥ 15 mm in front of every neighbour; neighbours lean 30 mm away from the eye (not along the path) and the disc floating above the seat also lifts 25 mm while the pick passes under it; the seat and its approach follow the well floor's measured 5.7° tilt; the side keys travel along the panel's measured normal.
+
+Reduced motion: the existing fade-cut-fade lands on the open lid with the discs in their slots; a pick seats the disc in one frame, draws ▷II pressed for 120 ms and fires `seated` in a microtask; only state-change cues sound; no step outlives 300 ms. The slow tier (a software renderer, or a first flight to the radio whose median frame exceeds 34 ms) keeps the choreography and drops the ambient float, the 2K skin and the blink.
+
+### Look
+
+- **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries the bake's three sources by name (the lilac ambient, the lava lamp as a point light, the moon from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark lilac room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that brightens under attention. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise and the flip) diffracts the lamp and the moon in the first two orders; its rainbow spoke stays put while the disc turns. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
+- **Labels**: the app's prints at `labelSize` (256, 384 or 512 from the discs' size at the radio; 256 with little memory or software GL), uploaded one per idle unit; a disc whose print is late rises plain silver and updates in place.
+- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the baked surfaces' own program; painted only when the readout or the blink phase changes (one frame each). The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
+- **Well and lid**: the close-up's parts, baked open in the room's Cycles scene; dark at night as the bake says, so the lamp-lit seated disc is the bright subject.
+
+### Frames and budgets
+
+| State (lab, Apple GPU Metal, 1440 × 900 @2) | Frames/s |
+| --- | ---: |
+| At the radio, resting | 0 |
+| A disc paying attention, waking, coming to rest (`AmbientPacer`) | 29–30 |
+| Playing, resting | 1 (the clock) |
+| Flights room ↔ radio vs room ↔ TV (headless, uncapped) | 131–140 vs 130–138 (0.98×); 6× CPU: 1.01×; SwiftShader: 4–13 vs 6–14 (0.92×), zero ambient frames |
+
+`stats.programs` is 7 after the first room view and at the computer, 8 once the radio has been visited. GPU memory: labels N × labelSize² × 4/3 pixels, the 512² close-up atlas, the LCD, and where it applies the 2K skin, which replaces the radio's 1K atlas (`stats.radioTexturePixels` counts all four: 5.5 M with five 384² labels and the skin). Bundle (`bundle-budgets.json`): the eager glue adds 4.7 kB gzip to the room chunk and the device is 22.0 kB, both above the design's estimates (+2.5 and 16 kB); see the budget file's note.
+
+### Assets
+
+`pnpm build:radio` (after `pnpm build:room`, which runs it too) bakes the 2K skin on the shipped radio's UVs and the parts an open lid reveals in the restyled room's own Cycles scene (`tools/room/radio_closeup.py`, two Blender processes), then proves, compresses and publishes them (`tools/room/radio-closeup.mjs`): the skin's UVs match `radio-base.glb` to 0.5/65535, the close-up carries the base's geometry and UV fingerprints, the triangle lists that cut the lid, the rocker's halves and the side keys, and the measured hinge, rocker pivot, key travel, seat, slot, well, LCD and LED. `radio-base.glb` and every first-load file stay byte-identical; both new files are `lazyFiles` in `manifest.json`. `pnpm verify:room` checks the contract (sizes ≤ 80 KB and ≤ 280 KB, the fingerprints, the cut parts' shapes, the lid's 9 mm clearance from the antenna through 0–90°). See [the rebuild guide](../tools/room/README.md).
+
 ## Dev lab and screenshots
 
 ```sh
 pnpm dev                     # then open /room-lab.html  (?clean hides the panel, ?autopower=0 keeps the TV off,
-                             #   ?view=pc flies to the computer after power-on, ?mockpc=1 puts a test card on it)
+                             #   ?view=pc or ?view=radio flies there after power-on, ?mockpc=1 puts a test card on
+                             #   the computer, ?mockradio=1 hands the radio five numbered discs and a fake player)
 node scripts/room-shots.mjs  # headless Chromium (Metal ANGLE) → .shots/room/*.png
 node scripts/room-shots.mjs --only power-on,perf
 node scripts/room-shots.mjs --only pc-desktop,pc-phone,pc-flight,pc-handoff
+node scripts/room-shots.mjs --only radio-desktop,radio-wide,radio-phone,radio-arrival,radio-insert,radio-swap,radio-press
+node scripts/room-shots.mjs --only radio-perf   # also ROOM_SHOTS_GL=swiftshader
 ```
 
 `MockGameSurface` draws an animated test card at 320 × 240 with corner labels, a white edge ring and a crosshair at the reported pointer pixel, so mapping, pause/resume and the CRT look can be checked without the game.
 `MockPcScreen` paints the computer's still and its live screen from one test card (a 50 px grid, an edge ring, labelled corners and colour ramps), so registration and the hand-off can be measured; the lab's status line shows the view, `live`, frames, draw calls, programs and the still's pixels.
-The shot script uses Playwright's fake clock for frame-exact power-on and crane-flight frames, probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view and per flight.
+`MockRadioApp` answers the radio like the app does (picks load and play, the keys act, a fake clock runs on the LCD) and logs every intent, cue and `seated` with its time; the lab's radio button and ▷II / ■ / ⏭ press through it.
+The shot script uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
 Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a browser.
 
 ## Known gaps
@@ -303,3 +439,4 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 - Under software GL the room is fill-bound everywhere (flights 5–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. The first frame under SwiftShader comes about 60 ms later than before the computer (it did in the previous round too).
 - The first look around uploads the room's atlases the TV view never drew in the middle of its flight (as before the computer: a few frames over 34 ms at 6×, a 277 ms task at the reduced-motion cut). Uploading them ahead at the TV would cost every visitor ~120 MB of GPU memory and, on weak or software GPUs, frames of the game; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap enough for both and cut texture memory by about four, a room-wide follow-up.
 - Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
+- The radio: a room rebuild changes `radio-base.glb`'s fingerprint, so `verify:room` fails (and the radio stays scenery at runtime) until `pnpm build:radio` runs; Metal bakes of the 2K skin differ between runs by a few pixels (mean 0.05/255), the close-up is reproducible byte for byte. The rocker pivots 7 mm behind its face, so while pressed it slides 0.5 mm across the panel and a few sub-pixel specks of the neighbouring keys' bevels can show in a close crop. The well is dark at night, as baked. The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.

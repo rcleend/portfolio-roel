@@ -7,9 +7,28 @@ import { getBounds, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import validator from 'gltf-validator';
 import { MeshoptDecoder } from 'meshoptimizer';
+import sharp from 'sharp';
+import {
+  components,
+  decodeTriangles,
+  findComponent,
+  geometrySha256,
+  RADIO_PARTS,
+  radioMeshes,
+  uvSha256,
+} from './radio-geometry.mjs';
 import { assetSizes } from './runtime-manifest.mjs';
 
 const FILES = ['room.glb', 'tv-high.glb', 'pc-base.glb', 'radio-base.glb', 'ps2-base.glb'];
+/** The radio's lazy close-up files (manifest.lazyFiles): never part of the first load. */
+const LAZY_FILES = ['radio-closeup.glb', 'radio-skin-2k.webp'];
+const CLOSEUP_MAX_BYTES = 80_000;
+const CLOSEUP_MAX_TRIANGLES = 4000;
+const CLOSEUP_ATLAS = 512;
+const SKIN_SIZE = 2048;
+const SKIN_MAX_BYTES = 280_000;
+/** The open lid must never come closer than this to the antenna behind it. */
+const LID_ANTENNA_CLEARANCE = 0.003;
 
 /** Asset-level regression checks for the contracts consumed by the room runtime. */
 export async function verifyRoomAssets(directory, manifest) {
@@ -217,6 +236,138 @@ function verifyFlatRegisteredScreen(screen, primitive) {
   assert.ok(deviation <= 0.002, `pc-base.glb: screen UVs are ${deviation.toFixed(4)} off a planar projection`);
 }
 
+/**
+ * The radio close-up's contract (tools/room/radio-closeup.mjs): its lazy files match manifest.lazyFiles, it was
+ * built against exactly this radio-base.glb (geometry and UV fingerprints, per-mesh counts), its cut lists select
+ * whole parts (one lid, one rocker, two mirrored side keys), the lid swings clear of the antenna, and the 2K skin
+ * is the size it claims.
+ */
+export async function verifyRadioCloseup(directory, manifest) {
+  await MeshoptDecoder.ready;
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  assert.ok(Array.isArray(manifest.lazyFiles), 'manifest.lazyFiles is missing: run pnpm build:radio');
+  const bytes = {};
+  for (const name of LAZY_FILES) {
+    const entry = manifest.lazyFiles.find((file) => file.name === name);
+    assert.ok(entry, `Missing lazy manifest entry: ${name}`);
+    bytes[name] = await readFile(join(directory, name));
+    assert.equal(bytes[name].length, entry.bytes, `${name}: stale byte count`);
+    assert.equal(createHash('sha256').update(bytes[name]).digest('hex'), entry.sha256, `${name}: stale hash`);
+  }
+  const baseBytes = await readFile(join(directory, 'radio-base.glb'));
+  const baseEntry = manifest.files.find((file) => file.name === 'radio-base.glb');
+  assert.ok(
+    baseEntry && baseEntry.sha256 === createHash('sha256').update(baseBytes).digest('hex'),
+    'radio-base.glb differs from the first-load manifest',
+  );
+
+  const closeupBytes = bytes['radio-closeup.glb'];
+  assert.ok(closeupBytes.length <= CLOSEUP_MAX_BYTES, `radio-closeup.glb is ${closeupBytes.length} B`);
+  const result = await validator.validateBytes(new Uint8Array(closeupBytes), { uri: 'radio-closeup.glb' });
+  assert.equal(result.issues.numErrors, 0, `radio-closeup.glb: ${JSON.stringify(result.issues.messages)}`);
+  assert.equal(result.issues.numWarnings, 0, `radio-closeup.glb: ${JSON.stringify(result.issues.messages)}`);
+  const closeup = (await io.readBinary(new Uint8Array(closeupBytes))).getRoot();
+  const textures = closeup.listTextures();
+  assert.equal(textures.length, 1, 'radio-closeup.glb must carry exactly one atlas');
+  assert.deepEqual(textures[0].getSize(), [CLOSEUP_ATLAS, CLOSEUP_ATLAS], 'radio-closeup.glb: atlas size');
+  let triangles = 0;
+  for (const mesh of closeup.listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      triangles += primitive.getIndices().getCount() / 3;
+      assert.ok(primitive.getMaterial()?.getExtension('KHR_materials_unlit'), 'radio-closeup.glb: outside the bake');
+    }
+  }
+  assert.ok(triangles <= CLOSEUP_MAX_TRIANGLES, `radio-closeup.glb has ${triangles} triangles`);
+  const nodes = closeup.listNodes().map((node) => node.getName());
+  for (const name of ['Radio_CD_Well', 'Radio_CD_LidInner']) assert.ok(nodes.includes(name), `Missing ${name}`);
+  const extras = closeup.listScenes()[0]?.getExtras() ?? {};
+  assert.equal(extras.radioCloseup, 1, 'radio-closeup.glb: missing its extras');
+
+  const base = radioMeshes(await io.readBinary(new Uint8Array(baseBytes)));
+  assert.equal(extras.base.geometrySha256, geometrySha256(base), 'The close-up was cut from another radio-base.glb');
+  assert.equal(extras.base.uvSha256, uvSha256(base), 'The 2K skin was proven on other UVs than radio-base.glb has');
+  for (const mesh of base) {
+    assert.deepEqual(
+      extras.base.meshes[mesh.name],
+      { vertices: mesh.vertices, triangles: mesh.indices.length / 3 },
+      `${mesh.name}: counts differ from the close-up's`,
+    );
+  }
+  const byName = new Map(base.map((mesh) => [mesh.name, mesh]));
+  /** The welded components the listed triangles of a part form, on their own. */
+  const partComponents = (names) => {
+    const mesh = byName.get(extras.parts[names[0]].mesh);
+    const listed = names.flatMap((name) => decodeTriangles(extras.parts[name]));
+    const indices = new Uint32Array(listed.length * 3);
+    listed.forEach((t, i) => {
+      indices.set(mesh.indices.subarray(t * 3, t * 3 + 3), i * 3);
+    });
+    return components({ ...mesh, indices });
+  };
+  const [lid, ...strayLid] = partComponents(['lid']);
+  assert.equal(strayLid.length, 0, 'The lid cut is not one welded component');
+  const span = (bounds, axis) => bounds[1][axis] - bounds[0][axis];
+  assert.ok(
+    lid.triangles.length >= 1000 && span(lid.bounds, 0) >= 0.18 && span(lid.bounds, 2) >= 0.18,
+    'The lid cut is not the lid',
+  );
+  const [rocker, ...strayRocker] = partComponents(['rockerTop', 'rockerBottom']);
+  assert.equal(strayRocker.length, 0, 'The rocker halves are not one component');
+  const centre = (bounds) => bounds[0].map((value, axis) => (value + bounds[1][axis]) / 2);
+  const keys = ['previous', 'next'].map((name) => {
+    const found = partComponents([name]);
+    assert.equal(found.length, 1, `The ${name} key cut is not one component`);
+    return centre(found[0].bounds);
+  });
+  const middle = centre(rocker.bounds);
+  assert.ok(
+    Math.abs(keys[0][0] + keys[1][0] - 2 * middle[0]) <= 0.001 && Math.abs(keys[0][1] - keys[1][1]) <= 0.001,
+    'The side keys are not mirrored about the rocker',
+  );
+
+  // Swing the lid 0–90° about its hinge: it must keep clear of the antenna behind it.
+  const antenna = findComponent(byName.get(RADIO_PARTS.antenna.mesh), RADIO_PARTS.antenna.bounds).bounds;
+  const lidMesh = byName.get(extras.parts.lid.mesh);
+  const lidVertices = new Set(
+    decodeTriangles(extras.parts.lid).flatMap((t) => [...lidMesh.indices.subarray(t * 3, t * 3 + 3)]),
+  );
+  const [, hy, hz] = extras.hinge.point;
+  let clearance = Infinity;
+  for (let degrees = 0; degrees <= 90; degrees++) {
+    const angle = (degrees * Math.PI) / 180;
+    for (const v of lidVertices) {
+      const x = lidMesh.world[v * 3];
+      const dy = lidMesh.world[v * 3 + 1] - hy;
+      const dz = lidMesh.world[v * 3 + 2] - hz;
+      const point = [
+        x,
+        hy + dy * Math.cos(angle) + dz * Math.sin(angle),
+        hz - dy * Math.sin(angle) + dz * Math.cos(angle),
+      ];
+      const outside = point.map((value, axis) => Math.max(antenna[0][axis] - value, 0, value - antenna[1][axis]));
+      clearance = Math.min(clearance, Math.hypot(...outside));
+    }
+  }
+  assert.ok(
+    clearance >= LID_ANTENNA_CLEARANCE,
+    `The opening lid comes ${(clearance * 1000).toFixed(1)} mm from the antenna`,
+  );
+
+  const skin = await sharp(bytes['radio-skin-2k.webp']).metadata();
+  assert.equal(skin.format, 'webp');
+  assert.ok(skin.width === SKIN_SIZE && skin.height === SKIN_SIZE, 'radio-skin-2k.webp must be exactly 2048²');
+  assert.ok(bytes['radio-skin-2k.webp'].length <= SKIN_MAX_BYTES, 'radio-skin-2k.webp exceeds 280 KB');
+  return {
+    closeupBytes: closeupBytes.length,
+    closeupTriangles: triangles,
+    skinBytes: bytes['radio-skin-2k.webp'].length,
+    lidTriangles: lid.triangles.length,
+    lidAntennaClearanceMm: Math.round(clearance * 10000) / 10,
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const directory = resolve(process.argv[2] ?? 'public/room');
   const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8'));
@@ -225,4 +376,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     assert.deepEqual(runtime, assetSizes(manifest), 'Loading progress weights do not match the asset revision');
   }
   console.log(JSON.stringify(await verifyRoomAssets(directory, manifest), null, 2));
+  console.log(JSON.stringify({ radio: await verifyRadioCloseup(directory, manifest) }, null, 2));
 }

@@ -38,8 +38,10 @@ await mkdir(outDir, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function openLab(viewport, query = '') {
+async function openLab(viewport, query = '', { clock = false } = {}) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: viewport.dpr ?? 2 });
+  // A fake clock installed later would restart performance.now(), and the radio's timelines with it.
+  if (clock) await page.clock.install();
   page.on('console', (msg) => {
     if (msg.type() === 'error' || msg.type() === 'warning') console.log(`[page ${msg.type()}] ${msg.text()}`);
   });
@@ -85,6 +87,173 @@ async function pcState(page) {
     const { programs, pcTexturePixels, pixelRatio } = room.stats;
     return { placement: room.pc.placement, live: room.pc.live, programs, pcTexturePixels, pixelRatio };
   });
+}
+
+/** The lab with its mock collection, the screen on a still, and the radio's device prepared ahead of need. */
+async function radioLab(viewport, options = {}) {
+  const page = await openLab(viewport, '&autopower=0&mockradio=1', { clock: options.clock ?? false });
+  if (options.reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' });
+  await poweredStill(page);
+  await page.waitForFunction(() => window.__roomLab.room.stats.radioReady, null, { timeout: 30_000 });
+  await page.waitForFunction(() => !window.__roomLab.room.stats.backgroundPending, null, { timeout: 30_000 });
+  return page;
+}
+
+/** Flies to the radio and waits for the landing and the lid, past the emergence. */
+async function atRadio(page) {
+  await page.evaluate(() => window.__roomLab.room.focusRadio());
+  await page.waitForFunction(() => window.__roomLab.room.radio.live);
+  await sleep(1800);
+}
+
+/** Clicks the floating disc at `index` (slot order) and waits for the insert, the press and the spin-up. */
+async function pickDisc(page, index, wait = 2600) {
+  const disc = await page.evaluate((i) => window.__roomLab.room.radio.layout.discs[i], index);
+  await page.mouse.click(disc.x, disc.y);
+  await sleep(wait);
+}
+
+/** The pointer on the floating disc at `index`, a little off its centre: it pays attention and tilts. */
+async function hoverDisc(page, index) {
+  const disc = await page.evaluate((i) => window.__roomLab.room.radio.layout.discs[i], index);
+  await page.mouse.move(disc.x + disc.radius * 0.35, disc.y - disc.radius * 0.3, { steps: 6 });
+  await sleep(1200);
+}
+
+async function radioState(page) {
+  return page.evaluate(() => {
+    const { room, radio } = window.__roomLab;
+    const { programs, drawCalls, radioTexturePixels, radioLidDegrees, radioAmbient, pixelRatio } = room.stats;
+    return {
+      view: room.view,
+      live: room.radio.live,
+      lcd: radio?.deckState.lcd,
+      programs,
+      drawCalls,
+      radioTexturePixels,
+      radioLidDegrees: Math.round(radioLidDegrees * 10) / 10,
+      radioAmbient,
+      pixelRatio,
+    };
+  });
+}
+
+/**
+ * Captures `times` (ms after `start` runs) on Playwright's paused fake clock (installed when the page opened),
+ * stepping 16 ms at a time so every animation frame lands, and writes them as one labelled strip of `columns` tiles
+ * (optionally cropped to `clip`).
+ */
+async function strip(page, name, times, start, { clip, columns = 4, scale = 0.25 } = {}) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
+  const advance = async (ms) => {
+    for (let t = 0; t < ms; t += 16) await page.clock.runFor(Math.min(16, ms - t));
+  };
+  await advance(600);
+  await start();
+  const frames = [];
+  let at = 0;
+  for (const t of times) {
+    await advance(t - at);
+    at = t;
+    frames.push({ t, png: await page.screenshot(clip ? { clip } : {}) });
+  }
+  const { width, height } = await sharp(frames[0].png).metadata();
+  const tw = Math.round(width * scale);
+  const th = Math.round(height * scale);
+  const tiles = await Promise.all(
+    frames.map(async (frame, i) => ({
+      input: await sharp(frame.png)
+        .resize(tw, th)
+        .composite([
+          {
+            input: Buffer.from(
+              `<svg width="84" height="22"><rect width="84" height="22" fill="black"/><text x="5" y="16" font-family="Menlo" font-size="14" fill="white">+${frame.t}</text></svg>`,
+            ),
+            top: 0,
+            left: 0,
+          },
+        ])
+        .png()
+        .toBuffer(),
+      left: (i % columns) * tw,
+      top: Math.floor(i / columns) * th,
+    })),
+  );
+  const path = join(outDir, `${name}.png`);
+  await sharp({
+    create: { width: columns * tw, height: Math.ceil(frames.length / columns) * th, channels: 3, background: '#000' },
+  })
+    .composite(tiles)
+    .png()
+    .toFile(path);
+  console.log(`wrote ${path}`);
+  return page.evaluate(() =>
+    (window.__roomLab.radio?.log ?? []).map((entry) => `${Math.round(entry.at)} ${entry.event} ${entry.detail ?? ''}`),
+  );
+}
+
+/** Frames rendered per second over `ms` of real time while `during` holds. */
+async function rate(page, ms = 1000) {
+  return page.evaluate(async (span) => {
+    const { room } = window.__roomLab;
+    const start = room.stats.framesRendered;
+    const began = performance.now();
+    await new Promise((r) => setTimeout(r, span));
+    return Math.round(((room.stats.framesRendered - start) / ((performance.now() - began) / 1000)) * 10) / 10;
+  }, ms);
+}
+
+/** Frame rate over the first second of a flight (each lasts 1.1 s), then waits for the landing and settling. */
+async function flightRate(page, action, settle = 600) {
+  const value = await page.evaluate(async (name) => {
+    const { room } = window.__roomLab;
+    const start = room.stats.framesRendered;
+    const began = performance.now();
+    room[name]();
+    await new Promise((r) => setTimeout(r, 1000));
+    return (room.stats.framesRendered - start) / ((performance.now() - began) / 1000);
+  }, action);
+  await sleep(settle);
+  return Math.round(value * 10) / 10;
+}
+
+/** The radio's frame rates and costs per state, as `label: value` lines. */
+async function radioPerf(page, label) {
+  const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  await page.evaluate(() => window.__roomLab.room.showRoom());
+  await sleep(1800);
+  const legs = { tv: [], radio: [] };
+  for (let round = 0; round < 2; round++) {
+    legs.tv.push(await flightRate(page, 'focusTv'), await flightRate(page, 'showRoom'));
+    legs.radio.push(await flightRate(page, 'focusRadio', 1800), await flightRate(page, 'showRoom'));
+  }
+  await page.evaluate(() => window.__roomLab.room.focusRadio());
+  await page.waitForFunction(() => window.__roomLab.room.radio.live);
+  await sleep(1800);
+  await page.mouse.move(4, 4);
+  await sleep(7500);
+  const rest = await rate(page);
+  await hoverDisc(page, 0);
+  const attentive = await rate(page);
+  await page.mouse.move(4, 4);
+  await sleep(1500);
+  const floating = await rate(page);
+  await pickDisc(page, 1, 2600);
+  const playing = await rate(page, 2000);
+  await sleep(7000);
+  const playingRest = await rate(page, 2000);
+  const result = {
+    'flights room ↔ tv (frames/s)': legs.tv.join(', '),
+    'flights room ↔ radio (frames/s)': legs.radio.join(', '),
+    'radio legs / tv legs (median)': (median(legs.radio) / median(legs.tv)).toFixed(2),
+    'at the radio, at rest': rest,
+    'a disc paying attention (ambient)': attentive,
+    'pointer gone, idle settling': floating,
+    'just picked, spinning up': playing,
+    'playing, at rest (clock ticks)': playingRest,
+    stats: JSON.stringify(await radioState(page)),
+  };
+  for (const [key, value] of Object.entries(result)) console.log(`${label} ${key}: ${value}`);
 }
 
 /** Mean absolute difference (0–255, all channels) of two same-sized PNG screenshots. */
@@ -344,6 +513,111 @@ const scenarios = {
     await page.evaluate(() => window.__roomLab.room.showRoom());
     await sleep(1600);
     await shot(page, 'room-off');
+    await page.close();
+  },
+  async 'radio-desktop'() {
+    const page = await radioLab({ width: 1440, height: 900 });
+    await atRadio(page);
+    await pickDisc(page, 1);
+    await hoverDisc(page, 3);
+    await shot(page, 'radio-desktop');
+    console.log('radio-desktop:', JSON.stringify(await radioState(page)));
+    await page.close();
+  },
+  async 'radio-wide'() {
+    const page = await radioLab({ width: 3440, height: 1440, dpr: 1 });
+    await atRadio(page);
+    await pickDisc(page, 1);
+    await hoverDisc(page, 3);
+    await shot(page, 'radio-wide');
+    console.log('radio-wide:', JSON.stringify(await radioState(page)));
+    await page.close();
+  },
+  async 'radio-phone'() {
+    const page = await radioLab({ width: 390, height: 844, dpr: 3 });
+    await atRadio(page);
+    await pickDisc(page, 1);
+    await page.mouse.move(2, 2);
+    await sleep(600);
+    await shot(page, 'radio-phone');
+    console.log('radio-phone:', JSON.stringify(await radioState(page)));
+    await page.close();
+  },
+  async 'radio-arrival'() {
+    const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
+    await page.evaluate(() => window.__roomLab.room.showRoom());
+    await sleep(1800);
+    const times = [0, 200, 400, 600, 760, 840, 1000, 1100, 1300, 1600, 1900, 2200];
+    const log = await strip(page, 'radio-arrival', times, () =>
+      page.evaluate(() => window.__roomLab.room.focusRadio()),
+    );
+    console.log('radio-arrival log:', log.join(' | '));
+    await page.close();
+  },
+  async 'radio-insert'() {
+    const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
+    await atRadio(page);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+    await page.mouse.move(disc.x, disc.y);
+    await sleep(800);
+    const times = [0, 90, 200, 350, 500, 650, 720, 770, 840, 890, 1100, 1500];
+    const log = await strip(page, 'radio-insert', times, async () => {
+      await page.mouse.down();
+      await page.mouse.up();
+    });
+    console.log('radio-insert log:', log.slice(-8).join(' | '));
+    await page.close();
+  },
+  async 'radio-swap'() {
+    const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
+    await atRadio(page);
+    await pickDisc(page, 1, 3000);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[3]);
+    await page.mouse.move(disc.x, disc.y);
+    await sleep(800);
+    const times = [0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1400, 1700, 2100];
+    const log = await strip(page, 'radio-swap', times, async () => {
+      await page.mouse.down();
+      await page.mouse.up();
+    });
+    console.log('radio-swap log:', log.slice(-10).join(' | '));
+    await page.close();
+  },
+  async 'radio-press'() {
+    const page = await radioLab({ width: 1440, height: 900, dpr: 2 }, { clock: true });
+    await atRadio(page);
+    const key = await page.evaluate(() => window.__roomLab.room.radio.layout.keys['play-pause']);
+    const size = Math.max(key.width, key.height) * 2.4;
+    const clip = {
+      x: Math.round(key.left + key.width / 2 - size / 2),
+      y: Math.round(key.top + key.height / 2 - size / 2),
+      width: Math.round(size),
+      height: Math.round(size),
+    };
+    const times = [0, 25, 50, 80, 110, 140, 180, 260];
+    const log = await strip(
+      page,
+      'radio-press',
+      times,
+      () => page.evaluate(() => window.__roomLab.radio.press('play-pause')),
+      {
+        clip,
+        scale: 2,
+      },
+    );
+    console.log('radio-press log:', log.slice(-4).join(' | '));
+    await page.close();
+  },
+  async 'radio-perf'() {
+    const gl = process.env.ROOM_SHOTS_GL === 'swiftshader' ? 'swiftshader' : 'metal';
+    const page = await radioLab({ width: 1440, height: 900, dpr: 2 });
+    await radioPerf(page, gl);
+    if (gl === 'metal') {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+      await radioPerf(page, 'metal 6×');
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    }
     await page.close();
   },
   async 'room-phone'() {

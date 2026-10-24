@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { pcViewpoint } from '../pc/pcFraming';
 import {
   craneControl,
+  deviceLegProgress,
+  flightShape,
   fovForAspect,
   interpolateViewpoint,
-  pcLegProgress,
   uniformProgress,
   type Viewpoint,
 } from './cameraPath';
@@ -73,33 +74,55 @@ describe('interpolateViewpoint', () => {
   });
 });
 
-describe('pcLegProgress', () => {
+describe('deviceLegProgress', () => {
   it('turns the look-at onto the glass by 82 % of an arrival, then only settles', () => {
-    expect(pcLegProgress(0, 'arriving')).toEqual({ position: 0, target: 0, fov: 0 });
-    expect(pcLegProgress(0.82, 'arriving').target).toBe(1);
-    expect(pcLegProgress(0.81, 'arriving').target).toBeLessThan(1);
-    expect(pcLegProgress(0.9, 'arriving').target).toBe(1);
-    expect(pcLegProgress(0.9, 'arriving').position).toBeLessThan(1);
-    expect(pcLegProgress(1, 'arriving')).toEqual({ position: 1, target: 1, fov: 1 });
+    expect(deviceLegProgress(0, 'arriving')).toEqual({ position: 0, target: 0, fov: 0 });
+    expect(deviceLegProgress(0.82, 'arriving').target).toBe(1);
+    expect(deviceLegProgress(0.81, 'arriving').target).toBeLessThan(1);
+    expect(deviceLegProgress(0.9, 'arriving').target).toBe(1);
+    expect(deviceLegProgress(0.9, 'arriving').position).toBeLessThan(1);
+    expect(deviceLegProgress(1, 'arriving')).toEqual({ position: 1, target: 1, fov: 1 });
   });
 
   it('stands up first when departing, then looks round', () => {
-    expect(pcLegProgress(0.18, 'departing').target).toBe(0);
-    expect(pcLegProgress(0.18, 'departing').position).toBeGreaterThan(0);
-    expect(pcLegProgress(0.19, 'departing').target).toBeGreaterThan(0);
-    expect(pcLegProgress(1, 'departing')).toEqual({ position: 1, target: 1, fov: 1 });
+    expect(deviceLegProgress(0.18, 'departing').target).toBe(0);
+    expect(deviceLegProgress(0.18, 'departing').position).toBeGreaterThan(0);
+    expect(deviceLegProgress(0.19, 'departing').target).toBeGreaterThan(0);
+    expect(deviceLegProgress(1, 'departing')).toEqual({ position: 1, target: 1, fov: 1 });
   });
 
   it.each(['arriving', 'departing'] as const)('never overshoots while %s', (leg) => {
-    let previous = pcLegProgress(0, leg);
+    let previous = deviceLegProgress(0, leg);
     for (let i = 1; i <= 100; i++) {
-      const progress = pcLegProgress(i / 100, leg);
+      const progress = deviceLegProgress(i / 100, leg);
       for (const part of ['position', 'target', 'fov'] as const) {
         expect(progress[part]).toBeGreaterThanOrEqual(previous[part]);
         expect(progress[part]).toBeLessThanOrEqual(1);
       }
       previous = progress;
     }
+  });
+});
+
+describe('flightShape', () => {
+  it('leads with the look-at to a device and stands up first from one', () => {
+    expect(flightShape('room', 'radio')).toEqual({ lead: 'arriving', crane: null });
+    expect(flightShape('radio', 'room')).toEqual({ lead: 'departing', crane: null });
+    expect(flightShape('radio', 'tv')).toEqual({ lead: 'departing', crane: null });
+    expect(flightShape('tv', 'room')).toEqual({ lead: null, crane: null });
+    expect(flightShape('room', 'tv')).toEqual({ lead: null, crane: null });
+  });
+
+  it('keeps the crane on every leg with the computer at one end', () => {
+    expect(flightShape('room', 'pc')).toEqual({ lead: 'arriving', crane: 'arriving' });
+    expect(flightShape('pc', 'room')).toEqual({ lead: 'departing', crane: 'departing' });
+    expect(flightShape('radio', 'pc')).toEqual({ lead: 'arriving', crane: 'arriving' });
+    expect(flightShape('pc', 'radio')).toEqual({ lead: 'arriving', crane: 'departing' });
+  });
+
+  it('takes the house arc mid-flight, whatever was left behind', () => {
+    expect(flightShape(null, 'room')).toEqual({ lead: null, crane: null });
+    expect(flightShape(null, 'radio')).toEqual({ lead: 'arriving', crane: null });
   });
 });
 
@@ -117,7 +140,7 @@ describe('the crane onto the desk', () => {
     const control = craneControl(pc.position, other.position);
     let clearance = Number.POSITIVE_INFINITY;
     for (let i = 0; i <= 1000; i++) {
-      const { position } = interpolateViewpoint(start, end, pcLegProgress(i / 1000, leg), { control });
+      const { position } = interpolateViewpoint(start, end, deviceLegProgress(i / 1000, leg), { control });
       const overChair =
         position.x > CHAIR_BACK.minX &&
         position.x < CHAIR_BACK.maxX &&

@@ -21,6 +21,7 @@
     "sync:room": "node scripts/sync-room-assets.mjs",
     "shot:room": "node scripts/room-shots.mjs",
     "build:room": "node tools/room/build.mjs",
+    "build:radio": "node tools/room/build-radio.mjs",
     "verify:room": "node tools/room/verify.mjs",
     "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
   },

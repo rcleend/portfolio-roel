@@ -61,25 +61,29 @@ export class RoomInteraction {
     if (this.interactables.has(interactable.id))
       throw new Error(`Interactable "${interactable.id}" is already registered`);
     const { background } = this.options;
+    // A custom ray test owns its own targets: nothing to collect, nothing to cut.
+    const custom = interactable.intersect !== undefined;
     const registered: Registered = {
       interactable,
-      meshes: background ? meshesOf(interactable.object) : pickMeshes(interactable.object),
+      meshes: custom ? [] : background ? meshesOf(interactable.object) : pickMeshes(interactable.object),
     };
     this.interactables.set(interactable.id, registered);
-    const cancelCut = background?.add(
-      (function* (): IdleTask {
-        // Picking matters in the room view, where nothing plays: no unit goes between the game's frames.
-        const steps = pickMeshesInSteps(interactable.object);
-        for (;;) {
-          yield QUIET;
-          const step = steps.next();
-          if (step.done) {
-            registered.meshes = step.value;
-            return;
-          }
-        }
-      })(),
-    );
+    const cancelCut = custom
+      ? undefined
+      : background?.add(
+          (function* (): IdleTask {
+            // Picking matters in the room view, where nothing plays: no unit goes between the game's frames.
+            const steps = pickMeshesInSteps(interactable.object);
+            for (;;) {
+              yield QUIET;
+              const step = steps.next();
+              if (step.done) {
+                registered.meshes = step.value;
+                return;
+              }
+            }
+          })(),
+        );
     return () => {
       cancelCut?.();
       if (this.hovered === interactable) this.hovered = null;
@@ -180,11 +184,10 @@ export class RoomInteraction {
   private pick(): { interactable: Interactable; hit: InteractionHit } | null {
     this.raycaster.setFromCamera(this.ndc, this.options.camera);
     let best: { interactable: Interactable; hit: InteractionHit; distance: number } | null = null;
-    for (const { interactable, meshes } of this.interactables.values()) {
-      const intersection = this.raycaster.intersectObjects(meshes, false)[0];
-      if (intersection && (!best || intersection.distance < best.distance)) {
-        best = { interactable, hit: toHit(intersection), distance: intersection.distance };
-      }
+    for (const registered of this.interactables.values()) {
+      const found = this.cast(registered);
+      if (found && (!best || found.distance < best.distance))
+        best = { interactable: registered.interactable, ...found };
     }
     return best;
   }
@@ -192,12 +195,19 @@ export class RoomInteraction {
   private hitOn(interactable: Interactable): InteractionHit | null {
     this.raycaster.setFromCamera(this.ndc, this.options.camera);
     const surface = interactable.gestureSurface;
-    const intersection = (
-      surface
-        ? this.raycaster.intersectObject(surface, true)
-        : this.raycaster.intersectObjects(this.interactables.get(interactable.id)?.meshes ?? [], false)
-    )[0];
-    return intersection ? toHit(intersection) : null;
+    if (surface) {
+      const intersection = this.raycaster.intersectObject(surface, true)[0];
+      return intersection ? toHit(intersection) : null;
+    }
+    const registered = this.interactables.get(interactable.id);
+    return registered ? (this.cast(registered)?.hit ?? null) : null;
+  }
+
+  /** The nearest hit of the current ray on one interactable: its own ray test, or its meshes. */
+  private cast({ interactable, meshes }: Registered): { hit: InteractionHit; distance: number } | null {
+    if (interactable.intersect) return interactable.intersect(this.raycaster);
+    const intersection = this.raycaster.intersectObjects(meshes, false)[0];
+    return intersection ? { hit: toHit(intersection), distance: intersection.distance } : null;
   }
 }
 

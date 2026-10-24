@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_VIEW_STATE, type RoomView, reduceView, type ViewState } from './viewState';
+import {
+  APPROACH_EFFECTS,
+  INITIAL_VIEW_STATE,
+  LEAVING_EFFECTS,
+  type RoomView,
+  reduceView,
+  type ViewState,
+} from './viewState';
 
 const settled = (view: RoomView): ViewState => ({ view, moving: false });
 const moving = (view: RoomView): ViewState => ({ view, moving: true });
@@ -100,5 +107,79 @@ describe('reduceView', () => {
     }
     state = reduceView(state, { type: 'request', view: 'tv' }).state;
     expect(reduceView(state, { type: 'arrived' }).effects).toEqual(['resumeGame', 'enableInput', 'notifySettled']);
+  });
+
+  describe('the radio', () => {
+    it.each([settled('tv'), settled('room'), moving('tv'), moving('room')])(
+      'flies to the radio from %o with the game paused, waking it once the camera is under way',
+      (state) => {
+        const { state: next, effects } = reduceView(state, { type: 'request', view: 'radio' });
+        expect(next).toEqual(moving('radio'));
+        expect(effects).toEqual(['disableInput', 'pauseGame', 'moveCamera', 'approachRadio', 'notify']);
+      },
+    );
+
+    it.each([settled('pc'), moving('pc')])(
+      'hides the computer screen first when flying from %o to the radio',
+      (state) => {
+        expect(reduceView(state, { type: 'request', view: 'radio' }).effects).toEqual([
+          'concealScreen',
+          'disableInput',
+          'pauseGame',
+          'moveCamera',
+          'approachRadio',
+          'notify',
+        ]);
+      },
+    );
+
+    it('lets the controls go live only once the camera has landed', () => {
+      expect(reduceView(moving('radio'), { type: 'arrived' })).toEqual({
+        state: settled('radio'),
+        effects: ['revealRadio', 'notifySettled'],
+      });
+    });
+
+    it.each([
+      [settled('radio'), 'room'],
+      [moving('radio'), 'room'],
+      [settled('radio'), 'pc'],
+      [moving('radio'), 'pc'],
+    ] as const)('closes up the radio before the camera leaves %o for %s', (state, view) => {
+      const { state: next, effects } = reduceView(state, { type: 'request', view });
+      expect(next).toEqual(moving(view));
+      expect(effects).toEqual(['concealRadio', 'disableInput', 'pauseGame', 'moveCamera', 'notify']);
+      expect(effects.indexOf('concealRadio')).toBeLessThan(effects.indexOf('moveCamera'));
+    });
+
+    it.each([settled('radio'), moving('radio')])('closes up the radio before flying from %o to the TV', (state) => {
+      const { state: next, effects } = reduceView(state, { type: 'request', view: 'tv' });
+      expect(next).toEqual(moving('tv'));
+      expect(effects).toEqual(['concealRadio', 'moveCamera', 'notify']);
+    });
+
+    it.each([settled('radio'), moving('radio')])(
+      'ignores a request for the radio while at or flying to it (%o)',
+      (state) => {
+        expect(reduceView(state, { type: 'request', view: 'radio' })).toEqual({ state, effects: [] });
+      },
+    );
+
+    it('never reveals the controls after a landing at the radio was interrupted', () => {
+      const flying = reduceView(settled('room'), { type: 'request', view: 'radio' }).state;
+      const back = reduceView(flying, { type: 'request', view: 'room' });
+      expect(back.effects).toContain('concealRadio');
+      expect(reduceView(back.state, { type: 'arrived' }).effects).not.toContain('revealRadio');
+    });
+
+    it('approaches only after the camera starts moving', () => {
+      const { effects } = reduceView(settled('room'), { type: 'request', view: 'radio' });
+      expect(effects.indexOf('approachRadio')).toBeGreaterThan(effects.indexOf('moveCamera'));
+    });
+
+    it('keeps the leaving and approaching effects in tables', () => {
+      expect(LEAVING_EFFECTS).toEqual({ tv: [], room: [], pc: ['concealScreen'], radio: ['concealRadio'] });
+      expect(APPROACH_EFFECTS).toEqual({ tv: [], room: [], pc: [], radio: ['approachRadio'] });
+    });
   });
 });

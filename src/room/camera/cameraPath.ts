@@ -23,8 +23,29 @@ export type FlightPath = { readonly lift: number } | { readonly control: Vector3
 
 /** Rise above the higher eye before settling onto the desk, so the camera clears the chair back. */
 const CRANE_RISE = 0.05;
-/** Share of a computer leg the look-at needs to turn; the rest is a pure dolly. */
+/** Share of a device leg the look-at needs to turn; the rest is a pure dolly. */
 const LOOK_LEAD = 0.82;
+
+/** A flight to a device view (the computer, the radio) or from a settled one. */
+export type DeviceLeg = 'arriving' | 'departing';
+
+/** The views a visitor sits down at: flights to them lead with the look-at, flights from them stand up first. */
+export type FlightEnd = 'tv' | 'room' | 'pc' | 'radio';
+
+/**
+ * How a flight moves. `lead`: arriving at the computer or the radio the look-at leads; leaving a settled one, the
+ * camera stands up first (arriving wins when both apply). `crane`: which end of the flight is the computer, whose
+ * legs crane over the chair; every other leg, the radio's included, takes the house arc. `from` is null mid-flight.
+ */
+export function flightShape(
+  from: FlightEnd | null,
+  to: FlightEnd,
+): { lead: DeviceLeg | null; crane: DeviceLeg | null } {
+  const device = (view: FlightEnd | null) => view === 'pc' || view === 'radio';
+  const lead: DeviceLeg | null = device(to) ? 'arriving' : device(from) ? 'departing' : null;
+  const crane: DeviceLeg | null = to === 'pc' ? 'arriving' : from === 'pc' ? 'departing' : null;
+  return { lead, crane };
+}
 
 /**
  * Pose at `progress` between two viewpoints. Pulling back from the TV rises like a dolly on a
@@ -62,12 +83,11 @@ export function craneControl(pcEye: Vector3, otherEye: Vector3): Vector3 {
 }
 
 /**
- * Eased progress of a flight to or from the computer at linear time `t`. Arriving, the look-at
- * leads and is already on the glass for the last 18 % of the flight, so the hand-off to the live
- * screen happens on a pure settle with no rotation; departing, the camera stands up first and
- * then looks round.
+ * Eased progress of a flight to or from a device (the computer, the radio) at linear time `t`. Arriving, the
+ * look-at leads and is already on its target for the last 18 % of the flight, so the hand-off to the live screen
+ * or controls happens on a pure settle with no rotation; departing, the camera stands up first and then looks round.
  */
-export function pcLegProgress(t: number, leg: 'arriving' | 'departing'): FlightProgress {
+export function deviceLegProgress(t: number, leg: DeviceLeg): FlightProgress {
   const eased = easeInOutCubic(t);
   const look = leg === 'arriving' ? Math.min(1, t / LOOK_LEAD) : Math.max(0, (t - (1 - LOOK_LEAD)) / LOOK_LEAD);
   return { position: eased, target: easeInOutCubic(look), fov: eased };

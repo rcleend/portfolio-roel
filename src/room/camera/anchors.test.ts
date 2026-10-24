@@ -1,5 +1,7 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
+import { RADIO_VIEWPORTS } from '../radio/radioFixtures';
+import { RADIO_GEOMETRY } from '../radio/radioModel';
 import { type AnchorTarget, EDGE_BAND, propAnchors } from './anchors';
 import type { Viewpoint } from './cameraPath';
 import { roomViewpoint } from './roomFraming';
@@ -83,5 +85,13 @@ describe('propAnchors', () => {
       height: 400,
     });
     expect(nearEdge).toMatchObject({ inFrame: false, edge: 'right', x: 400 - EDGE_BAND });
+  });
+
+  it.each(RADIO_VIEWPORTS)('has the radio in the room view at $width × $height', ({ width, height }) => {
+    const [radio] = propAnchors([{ target: 'radio', point: RADIO_GEOMETRY.anchor }], roomViewpoint(width / height), {
+      width,
+      height,
+    });
+    expect(radio).toMatchObject({ target: 'radio', inFrame: true, edge: null });
   });
 });

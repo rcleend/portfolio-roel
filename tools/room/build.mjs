@@ -34,3 +34,5 @@ await run(blender, [
   process.env.ROOM_BAKE_DEVICE ?? 'CPU',
 ]);
 await run(process.execPath, ['tools/room/optimize.mjs', '--work', work]);
+// The radio's close-up is cut from radio-base.glb: rebuild it on the new base (docs/ROOM.md › The CD player).
+await run(process.execPath, ['tools/room/build-radio.mjs']);

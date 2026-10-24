@@ -49,9 +49,11 @@ export type ViewHintKind = 'look-around' | 'return' | 'leave-computer';
 /**
  * The hint to show for the current view, or null once the visitor has outgrown it. Leaving the
  * computer is taught to mouse users only: on touch screens the reader fills the screen and has
- * its own close button.
+ * its own close button. At the radio its own controls teach it.
  */
 export function hintFor(progress: ViewHintProgress, view: RoomView, touch: boolean): ViewHintKind | null {
+  // The radio teaches its own gestures (its controls show their hints).
+  if (view === 'radio') return null;
   if (view === 'pc') return touch || progress.leftComputer ? null : 'leave-computer';
   if (view === 'tv') return progress.lookedAround ? null : 'look-around';
   return progress.returned ? null : 'return';
@@ -63,7 +65,7 @@ export function hintText(kind: ViewHintKind, touch: boolean): string {
     case 'look-around':
       return `${verb} outside the TV to look around`;
     case 'return':
-      return `${verb} the computer or the TV to look closer`;
+      return `${verb} the computer, the radio or the TV to look closer`;
     case 'leave-computer':
       return `${verb} outside the computer to look around`;
   }
