@@ -101,6 +101,13 @@ describe('the looks boards', () => {
     expect(ids(customerBoard)).toEqual(offer.customer);
   });
 
+  it('call the Terraria look "before" only beside its revision', () => {
+    const name = (board: typeof lookBoard, id: string) =>
+      boardTiles(board, {}).find((tile) => tile.choice.id === id)?.choice.name;
+    expect(name(characterBoard, 'terraria')).toBe('Terraria · before');
+    expect(name(customerBoard, 'terraria')).toBe('Terraria');
+  });
+
   it('are on the page after the title boards, the Terraria Roels after the characters and the Terraria customers last, each subject focusable once', () => {
     expect(PLAYGROUND_BOARDS).toEqual([
       lockupBoard,
