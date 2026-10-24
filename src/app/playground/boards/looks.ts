@@ -28,12 +28,14 @@ const LOOKS: Readonly<Record<LookId, Choice>> = {
   'terraria-revised': {
     id: 'terraria-revised',
     name: 'Terraria · revised',
-    description: 'Swept hair, cleaner glasses and a cap with one spot, over the same bodies and moves.',
+    description:
+      "Terraria's hairstyle 143, its lock flicking a pixel as he runs and comes down (still under a cap), flatter glasses and the DESIGNER's cap with one spot.",
   },
   'terraria-hooded': {
     id: 'terraria-hooded',
     name: 'Terraria · hood up',
-    description: 'The revised ENGINEER with his hood pulled up, moving with his head and shoulders.',
+    description:
+      'The revised ENGINEER with his hood pulled up, moving with his head and shoulders, his hair still under it.',
   },
 };
 

@@ -1,6 +1,7 @@
 """The committed Terraria sheets keep the look's promises (docs/LOOKS.md): crisp, on the feet line, one head.
 
-The look's heroes and the revision's looks beside them (kit/revision.py) are held to the same promises.
+The look's heroes and the revision's looks beside them (kit/revision.py) are held to the same promises, and the
+revision's hair, the one part that moves on the head, to moving only at its loose ends and a pixel at a time.
 
     python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria
 """
@@ -11,7 +12,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from PIL import Image
 
@@ -22,10 +23,10 @@ if str(TOOL) not in sys.path:
 
 from generate import animations  # noqa: E402
 from kit import revision  # noqa: E402
-from kit.art import CLOTH  # noqa: E402
-from kit.body import EYES, HEAD  # noqa: E402
+from kit.art import CLOTH, Art  # noqa: E402
+from kit.body import EYES, HAIR_MOTION, HEAD  # noqa: E402
 from kit.outfits import CAP as LOOK_CAP, OUTFITS, Outfit  # noqa: E402
-from kit.pose import Pose, strokes  # noqa: E402
+from kit.pose import Pose, Stroke, strokes  # noqa: E402
 
 HEROES = ('hackerman', 'artsy', 'strategy')
 
@@ -44,7 +45,7 @@ SHEETS = (
     *(Sheet(f'{look}/characters/{hero}', hero, outfit, ('sheet',))
       for look, heroes in revision.LOOKS.items() for hero, outfit in heroes.items()),
 )
-# The revision's sheets.
+# The revision's sheets, whose hair moves.
 REVISED = tuple(sheet for sheet in SHEETS if not sheet.folder.startswith('terraria/'))
 # What the game shows on the ground: the moves it only plays planted, and the ground frames of the rest.
 PLANTED = ('idle', 'run', 'attack', 'skill')
@@ -174,25 +175,40 @@ class Poses(unittest.TestCase):
                 self.assertLessEqual(min(max(abs(x - mx), abs(y - my)) for x, y in cork), 2, where)
 
 
+def every_frame(sheet: Sheet):
+    """Each frame of the sheet's animations as (where, animation, index, pose, strokes it paints)."""
+    for animation in animations(sheet.hero):
+        for index, frame in enumerate(animation.frames):
+            where = f'{sheet.folder} {animation.name}[{index}]'
+            yield where, animation, index, frame.pose, strokes(sheet.outfit, frame.pose, where)
+
+
+def carried_by(pose: Pose) -> Tuple[int, int]:
+    """Where the pose's body has moved everything it carries: the torso, the head and all on it."""
+    return pose.body[0], pose.body[1] - pose.lift
+
+
 class Head(unittest.TestCase):
     def test_every_frame_paints_the_same_head_moved_only_with_the_body(self) -> None:
+        # The glasses too, so they stay registered on his face; only the eye changes, and the hair's loose ends.
         for sheet in SHEETS:
             outfit, hero = sheet.outfit, sheet.hero
-            names = {HEAD.name, outfit.hair.name, outfit.glasses.name, *(part.name for part, _ in outfit.headgear)}
+            names = {HEAD.name, outfit.glasses.name, *(part.name for part, _ in outfit.headgear)}
             names |= {outfit.ear.name} if outfit.ear else set()
             standing = {s.art.name: s.art for s in strokes(outfit, animations(hero)[0].frames[0].pose, hero)}
-            for animation in animations(hero):
-                for index, frame in enumerate(animation.frames):
-                    where = f'{sheet.folder} {animation.name}[{index}]'
-                    pose = frame.pose
-                    body = (pose.body[0], pose.body[1] - pose.lift)
-                    painted = strokes(outfit, pose, where)
-                    for stroke in painted:
-                        if stroke.art.name in names:
-                            self.assertEqual(stroke.art, standing[stroke.art.name], where)
-                            self.assertEqual(stroke.at, body, f'{where} {stroke.art.name}')
-                    eyes = [stroke.art for stroke in painted if stroke.art in EYES.values()]
-                    self.assertEqual(len(eyes), 1, where)
+            for where, _, _, pose, painted in every_frame(sheet):
+                hair = outfit.hair[pose.hair]
+                for stroke in painted:
+                    if stroke.art.name in names:
+                        self.assertEqual(stroke.art, standing[stroke.art.name], where)
+                    if stroke.art.name in names or stroke.art == hair:
+                        self.assertEqual(stroke.at, carried_by(pose), f'{where} {stroke.art.name}')
+                eyes = [stroke.art for stroke in painted if stroke.art in EYES.values()]
+                self.assertEqual(len(eyes), 1, where)
+                self.assertEqual(sum(stroke.art == hair for stroke in painted), 1, where)
+                # Painted over the hair, no strand ever covers the glasses.
+                order = [stroke.art for stroke in painted]
+                self.assertLess(order.index(hair), order.index(outfit.glasses), where)
 
     def test_props_appear_only_while_attacking_or_using_a_skill(self) -> None:
         for hero in HEROES:
@@ -207,10 +223,14 @@ class Head(unittest.TestCase):
 HEAD_LAYERS = {'hair', 'ear', 'glasses', 'headgear', 'front'}
 
 
-def painted(outfit: Outfit) -> Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]]:
-    """The standing frame in design space: the drawing on top at each pixel, by name, and its tone."""
+def painted(outfit: Outfit, pose: Pose = Pose()) -> Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]]:
+    """The pose in design space (standing by default): the drawing on top at each pixel, by name, and its tone."""
+    return on_top(strokes(outfit, pose, 'painted'))
+
+
+def on_top(painting: List[Stroke]) -> Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]]:
     top: Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]] = {}
-    for stroke in strokes(outfit, Pose(), 'standing'):
+    for stroke in painting:
         for x, y, tone in stroke.art.pixels:
             top[(x + stroke.at[0], y + stroke.at[1])] = (stroke.art.name, tone)
     return top
@@ -231,21 +251,21 @@ class Revision(unittest.TestCase):
     def test_the_fringe_rests_on_the_glasses_without_sticking_up_from_the_rim(self) -> None:
         # The look's fringe stood single dark strands on the rim, which read as the frame sticking up. Over the
         # revision's rim is forehead, or fringe at least two pixels wide in mid tones, so the rim's top edge stays
-        # one clean line.
-        for sheet in REVISED:
+        # one clean line, however the hair moves.
+        for sheet, state in ((sheet, state) for sheet in REVISED for state in HAIR_MOTION):
+            where = f'{sheet.folder} {state}'
             outfit = sheet.outfit
-            top = painted(outfit)
+            top = painted(outfit, Pose(hair=state))
             rim = [point for point, (drawing, _) in top.items() if drawing == outfit.glasses.name]
             row = min(y for _, y in rim)
             hair = {point: tone for point, (drawing, (ramp, tone)) in top.items()
-                    if drawing == outfit.hair.name and ramp == 'hair'}
+                    if drawing == outfit.hair[state].name and ramp == 'hair'}
             for x in sorted(x for x, y in rim if y == row):
                 above = (x, row - 1)
                 if above not in hair:
                     continue
-                self.assertGreaterEqual(hair[above], RESTING, f'{sheet.folder}: dark hair on the rim at {above}')
-                self.assertTrue({(x - 1, row - 1), (x + 1, row - 1)} & hair.keys(),
-                                f'{sheet.folder}: lone strand at {above}')
+                self.assertGreaterEqual(hair[above], RESTING, f'{where}: dark hair on the rim at {above}')
+                self.assertTrue({(x - 1, row - 1), (x + 1, row - 1)} & hair.keys(), f'{where}: lone strand at {above}')
 
     def test_the_designer_cap_keeps_only_its_front_spot(self) -> None:
         # The cap's glossy tones (highlight and accent) on its crown, above the brim, make one spot.
@@ -264,6 +284,133 @@ class Revision(unittest.TestCase):
         for x, y in changed:
             self.assertEqual(cap[(x, y)], CLOTH['o'], f'({x}, {y}) is not the base tone')
             self.assertLessEqual(x, 16, f'({x}, {y}) changed on the front half of the crown')
+
+
+# The revision's hair moves only at its loose ends: the front lock, falling past the face ahead of the glasses,
+# and the nape (or under the cap, the tuft) behind their arm. The crown and the fringe on the glasses between
+# them never move, so the head keeps its shape and the rim its clean top edge.
+def loose_end(point: Tuple[int, int]) -> Optional[str]:
+    x, y = point
+    if x >= 21:
+        return 'lock'
+    if x <= 15 and y >= 15:
+        return 'nape'
+    return None
+
+
+def ends(drawing: Art) -> Dict[str, set]:
+    """The pixels of each loose end of a hair drawing."""
+    found: Dict[str, set] = {'lock': set(), 'nape': set()}
+    for x, y, _ in drawing.pixels:
+        end = loose_end((x, y))
+        if end:
+            found[end].add((x, y))
+    return found
+
+
+def apart(one: set, other: set) -> int:
+    """How far apart two shapes are, in pixels: the farthest any pixel of either is from the other's nearest."""
+    def reach(points: set, to: set) -> int:
+        return max(min(max(abs(x - u), abs(y - v)) for u, v in to) for x, y in points)
+    return max(reach(one, other), reach(other, one))
+
+
+# Where his bare head's hair moves: through the run, as Terraria's hairstyle 143 does through the walk, and as he
+# comes down, is hit or cheers. Rising it rests, as Terraria's airborne frame draws it; the poses with props, and
+# standing, keep it at rest too, so the head is as still as the look's while he attacks, casts or blinks.
+MOVING = ('run', 'fall', 'hurt', 'victory')
+# The revision's sheets with nothing on the head. Under a cap or a hood Terraria draws a hairstyle's hat version
+# (Player_HairAlt_143), which it never redraws through the walk, so there the hair is still.
+BARE = tuple(sheet for sheet in REVISED if not sheet.outfit.headgear)
+
+
+class Hair(unittest.TestCase):
+    def test_the_look_hair_never_moves_on_his_head(self) -> None:
+        for hero, outfit in OUTFITS.items():
+            self.assertEqual({outfit.hair[state] for state in HAIR_MOTION}, {outfit.hair['rest']}, hero)
+
+    def test_the_revised_hair_moves_only_at_its_loose_ends(self) -> None:
+        for sheet, state in ((sheet, state) for sheet in REVISED for state in HAIR_MOTION):
+            where = f'{sheet.folder} {state}'
+            rest = {(x, y): tone for x, y, tone in sheet.outfit.hair['rest'].pixels}
+            moved = {(x, y): tone for x, y, tone in sheet.outfit.hair[state].pixels}
+            changed = {point for point in rest.keys() | moved.keys() if rest.get(point) != moved.get(point)}
+            self.assertEqual({point for point in changed if not loose_end(point)}, set(), where)
+            # A pixel off, as Terraria moves 143's lock: no end strays further from where it rests.
+            at_rest, now = ends(sheet.outfit.hair['rest']), ends(sheet.outfit.hair[state])
+            for end in ('lock', 'nape'):
+                if at_rest[end] or now[end]:
+                    self.assertLessEqual(apart(at_rest[end], now[end]), 1, f'{where} {end}')
+
+    def test_every_edge_of_the_hair_is_outlined_however_it_moves(self) -> None:
+        # As Terraria outlines hair: wherever a loose end goes, the hair meets the background only in its outline
+        # or its shadow, never in a lit tone, so a lock thrown off the face leaves no gap open between them.
+        for sheet, state in ((sheet, state) for sheet in REVISED for state in HAIR_MOTION):
+            top = painted(sheet.outfit, Pose(hair=state))
+            name = sheet.outfit.hair[state].name
+            for (x, y), (drawing, (ramp, tone)) in top.items():
+                if drawing != name or ramp != 'hair' or tone <= 1:
+                    continue
+                open_to = [(x + dx, y + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if (x + dx, y + dy) not in top]
+                self.assertEqual(open_to, [], f'{sheet.folder} {state}: hair at {(x, y)} is not outlined')
+
+    def test_under_a_cap_or_a_hood_the_hair_never_moves(self) -> None:
+        covered = [sheet for sheet in REVISED if sheet not in BARE]
+        self.assertEqual({sheet.folder for sheet in covered},
+                         {'terraria-revised/characters/artsy', 'terraria-hooded/characters/hackerman'})
+        for sheet in covered:
+            self.assertEqual({sheet.outfit.hair[state] for state in HAIR_MOTION}, {sheet.outfit.hair['rest']},
+                             sheet.folder)
+
+    def test_the_bare_hair_moves_as_he_runs_comes_down_is_hit_and_cheers_and_only_then(self) -> None:
+        for sheet in BARE:
+            for animation in animations(sheet.hero):
+                states = {frame.pose.hair for frame in animation.frames}
+                where = f'{sheet.folder} {animation.name}'
+                if animation.name in MOVING:
+                    self.assertNotEqual(states, {'rest'}, where)
+                    drawings = {sheet.outfit.hair[state] for state in states | {'rest'}}
+                    self.assertGreater(len(drawings), 1, f'{where}: the hair is drawn the same in all of it')
+                else:
+                    self.assertEqual(states, {'rest'}, where)
+
+    def test_every_loose_end_moves_a_pixel_at_a_time_so_nothing_pops(self) -> None:
+        # From each frame to the next (round the loop for the moves that loop), no pixel of the lock or the nape
+        # lands more than a pixel from where that end was.
+        for sheet in REVISED:
+            for animation in animations(sheet.hero):
+                hair = [ends(sheet.outfit.hair[frame.pose.hair]) for frame in animation.frames]
+                pairs = list(zip(hair, hair[1:])) + ([(hair[-1], hair[0])] if animation.loop else [])
+                for index, (before, after) in enumerate(pairs):
+                    for end in ('lock', 'nape'):
+                        if before[end] or after[end]:
+                            self.assertLessEqual(apart(before[end], after[end]), 1,
+                                                 f'{sheet.folder} {animation.name}[{index}] {end}')
+
+    def test_every_cut_from_one_move_to_another_moves_a_loose_end_a_pixel_at_most(self) -> None:
+        # The game cuts from any frame to the start of another move (a jump from the run, a landing from the fall,
+        # the hit from anything), so any two drawings the moves use are a pixel apart at most, at every end.
+        for sheet in BARE:
+            used = sorted({frame.pose.hair for animation in animations(sheet.hero) for frame in animation.frames})
+            for one, other in ((one, other) for one in used for other in used if one < other):
+                before, after = ends(sheet.outfit.hair[one]), ends(sheet.outfit.hair[other])
+                for end in ('lock', 'nape'):
+                    self.assertLessEqual(apart(before[end], after[end]), 1, f'{sheet.folder} {one} to {other} {end}')
+
+    def test_the_hood_moves_with_his_head_and_shoulders_and_the_hair_stays_inside_it(self) -> None:
+        # Drawn with the body in every frame, it sits on the shoulders as the standing hood does, and whatever the
+        # hair does under it, only the fringe and the lock show, in its opening and under its lip at the front.
+        hood = next(sheet for sheet in REVISED if sheet.folder.startswith('terraria-hooded/'))
+        hoods = [part for part, _ in hood.outfit.headgear]
+        self.assertEqual([part.name for part in hoods], [revision.HOOD.name])
+        for where, _, _, pose, painting in every_frame(hood):
+            at = carried_by(pose)
+            self.assertEqual([stroke.at for stroke in painting if stroke.art in hoods], [at], where)
+            shown = [(x - at[0], y - at[1]) for (x, y), (drawing, _) in on_top(painting).items()
+                     if drawing == hood.outfit.hair[pose.hair].name]
+            self.assertTrue(shown, where)
+            self.assertGreaterEqual(min(x for x, _ in shown), 16, f'{where}: hair shows behind the hood')
+            self.assertGreaterEqual(min(y for _, y in shown), 15, f'{where}: hair shows over the hood')
 
 
 def figures_of(points: set) -> List[set]:

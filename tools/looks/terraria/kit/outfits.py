@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Dict, NamedTuple, Optional, Tuple
 
 from .art import Art, Dye, art, full
-from .body import CAPPED_HAIR, EAR, GLASSES, HAIR, NECK
+from .body import CAPPED_HAIR, EAR, GLASSES, HAIR, NECK, Hair, still
 
 #                    01234567890123456789012345678901
 # ── ENGINEER: a black hoodie ─────────────────────────────────────────────────────────────────────
@@ -140,7 +140,8 @@ BELT = full('belt', 31, '''
 class Outfit(NamedTuple):
     """One hero's clothes. Torso and headgear are drawn in order over the body; `front` over the near arm."""
     torso: Tuple[Tuple[Art, Dye], ...]
-    hair: Art
+    # His hair in every state of its motion (body.HAIR_MOTION); the look's never moves on his head.
+    hair: Hair
     headgear: Tuple[Tuple[Art, Dye], ...]
     front: Tuple[Tuple[Art, Dye], ...]
     # What the sleeves, trousers and shoes are dyed in.
@@ -160,7 +161,7 @@ class Outfit(NamedTuple):
 
 def outfit(
     *, torso: Tuple[Tuple[Art, Dye], ...], top: str, legs: str, shoes: str, hang: Art,
-    hair: Art = HAIR, headgear: Tuple[Tuple[Art, Dye], ...] = (), front: Tuple[Tuple[Art, Dye], ...] = (),
+    hair: Hair = still(HAIR), headgear: Tuple[Tuple[Art, Dye], ...] = (), front: Tuple[Tuple[Art, Dye], ...] = (),
     near: str = '', glasses: Art = GLASSES, ear: Optional[Art] = EAR,
 ) -> Outfit:
     return Outfit(torso, hair, headgear, front, top, legs, shoes, hang, near or top, glasses, ear)
@@ -174,7 +175,7 @@ OUTFITS: Dict[str, Outfit] = {
     ),
     'artsy': outfit(
         torso=((KNIT, Dye('knit')),), top='knit', legs='trousers-brown', shoes='sneakers-light', hang=KNIT_HANG,
-        hair=CAPPED_HAIR, headgear=((CAP, Dye('knit')),),
+        hair=still(CAPPED_HAIR), headgear=((CAP, Dye('knit')),),
     ),
     # A white shirt rather than a blazer: a dark jacket sinks into menu navy and into the DESIGNER's knit.
     'strategy': outfit(

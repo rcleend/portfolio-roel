@@ -12,8 +12,8 @@ import { lookRegistry } from '../registry';
  * game, in the Terraria look and in its revision's looks beside it:
  * registeredLooks.test.ts holds every look to the hero contract, this to the
  * poses the game holds. Pixels (crisp alpha, feet on the line, one head in
- * every frame) are checked by the generator's own tests and, in the
- * browser, by e2e/looks.spec.ts.
+ * every frame, hair that moves only at its loose ends) are checked by the
+ * generator's own tests and, in the browser, by e2e/looks.spec.ts.
  */
 const TERRARIA_LOOKS: readonly LookId[] = ['terraria', 'terraria-revised', 'terraria-hooded'];
 

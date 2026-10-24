@@ -1,13 +1,36 @@
 """The body every hero shares: one head, hair, ear, eye and glasses, so the three are one man in three outfits.
 
 The head is drawn once and never redrawn: across every frame of every hero only the eye changes, to
-blink or to wince, so the likeness never wobbles. Light falls from the front and above.
+blink or to wince, and the loose ends of a hair that moves, so the likeness never wobbles. Light falls
+from the front and above.
 """
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Mapping
 
 from .art import Art, full
+
+# The states a head of hair passes through as he moves (moves.py picks one per frame), named for what its
+# loose ends do, the way Terraria redraws a hairstyle per frame of its walk:
+# - rest: as drawn, and as Terraria draws it in the air;
+# - bounce: the front lock flipped up a pixel, as each push-off of Terraria's walk flips hairstyle 143's;
+# - float: the lock up and the nape lifted off the ear too, the loose hair floating as he comes down;
+# - flung: the lock flared forward, left behind as a hit knocks his head back.
+HAIR_MOTION = ('rest', 'bounce', 'float', 'flung')
+# A hair's drawing in each of those states.
+Hair = Mapping[str, Art]
+
+
+def still(drawing: Art) -> Hair:
+    """Hair that never moves on the head, as most of Terraria's hairstyles: the same drawing in every state."""
+    return {state: drawing for state in HAIR_MOTION}
+
+
+def moving(**drawings: Art) -> Hair:
+    """Hair drawn in every state of HAIR_MOTION, by state."""
+    if set(drawings) != set(HAIR_MOTION):
+        raise ValueError(f'hair is drawn in {sorted(drawings)}, not in {HAIR_MOTION}')
+    return {state: drawings[state] for state in HAIR_MOTION}
 
 #                    01234567890123456789012345678901
 # A slim, long-ish face: the forehead slopes back at the top, a one-pixel nose bump sits a row below the
