@@ -1,6 +1,6 @@
-"""The Terraria Roels' revision: new head layers over the same bodies, drawn beside the designs the look plays.
+"""The Terraria Roels' revision: new head layers over the same bodies, played as looks of their own beside the look.
 
-The captain compares the two in the playground before either replaces the other, so the look's own parts
+The captain compares them in the playground before either replaces the other, so the look's own parts
 (body.py, outfits.py) stay as they are and the revision only swaps layers on top of them:
 - the hair, after the Terraria player hairstyle he picked (hairstyle 143 of the character creator): a round
   mop a pixel behind the skull, its fringe swept forward over the brow and parted near the front, where a
@@ -13,11 +13,12 @@ The captain compares the two in the playground before either replaces the other,
   over the revised head, lit down its side and dark inside its opening, the fringe and its lock falling out
   at the front.
 Every frame of every animation is composed from these exactly as the look's are (pose.py), so each design is
-a full sheet and the same head in all of its frames.
+a full sheet with the same head in all of its frames, written as its own look: `terraria-revised` for the
+three heroes and `terraria-hooded` for the hood, which covers only the ENGINEER (docs/LOOKS.md).
 """
 from __future__ import annotations
 
-from typing import Dict, NamedTuple
+from typing import Dict
 
 from .art import Art, Dye, full
 from .outfits import OUTFITS, Outfit
@@ -106,24 +107,20 @@ HOOD = full('hood up', 10, '''
 ''')
 
 
-class Design(NamedTuple):
-    """A revised design: the hero whose moves it plays, in an outfit of the revision's layers."""
-    hero: str
-    outfit: Outfit
-
-
 def revised(hero: str, **layers: object) -> Outfit:
     """The hero's outfit with the revision's head: its hair, ear and glasses, and any other layer named."""
     return OUTFITS[hero]._replace(**{'hair': HAIR, 'ear': EAR, 'glasses': GLASSES, **layers})
 
 
-# By the folder each sheet is written to (revised/<design>/), the heroes in the select order, then the hood.
-DESIGNS: Dict[str, Design] = {
-    'hackerman': Design('hackerman', revised('hackerman')),
-    'artsy': Design('artsy', revised('artsy', hair=CAPPED_HAIR, headgear=((CAP, Dye('knit')),))),
-    'strategy': Design('strategy', revised('strategy')),
+# By look (src/game/art/looks/<look>/characters/<hero>/), each by hero in the select order.
+LOOKS: Dict[str, Dict[str, Outfit]] = {
+    'terraria-revised': {
+        'hackerman': revised('hackerman'),
+        'artsy': revised('artsy', hair=CAPPED_HAIR, headgear=((CAP, Dye('knit')),)),
+        'strategy': revised('strategy'),
+    },
     # With the hood over his head, none lies on his shoulders, and it covers his ear.
-    'hackerman-hooded': Design(
-        'hackerman', revised('hackerman', headgear=((HOOD, Dye('hoodie')),), front=(), ear=None),
-    ),
+    'terraria-hooded': {
+        'hackerman': revised('hackerman', headgear=((HOOD, Dye('hoodie')),), front=(), ear=None),
+    },
 }

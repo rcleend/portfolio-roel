@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Review boards for the Terraria look, rendered from the committed sheets (what ships, not the recipe).
+"""Review boards for the Terraria looks, rendered from the committed sheets (what ships, not the recipe).
 
-    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR] [--revised]
+    python3 tools/looks/terraria/review.py [--out DIR] [--refs DIR] [--look ID]
 
-Writes, at whole-pixel zoom on a dark stage with the feet line marked (--revised: for the revision's designs
-in revised/ rather than the look's heroes, named by design):
+Writes, for the heroes of one look (terraria, the default, or the revision's terraria-revised or
+terraria-hooded), at whole-pixel zoom on a dark stage with the feet line marked:
   gif/<hero>-<animation>-x1.gif and -x4.gif   each animation at its own frame rate
   strip/<hero>-<animation>-x1.png and -x4.png its frames left to right
   sheet-<hero>-x2.png                         the whole sheet with its anchors marked
@@ -22,8 +22,8 @@ from typing import List, Tuple
 from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
-ART = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks' / 'terraria'
-LOOK = ART / 'characters'
+LOOKS = HERE.parents[2] / 'src' / 'game' / 'art' / 'looks'
+LOOK = LOOKS / 'terraria' / 'characters'
 STAGE = (43, 53, 80, 255)
 FLOOR = (92, 104, 140, 255)
 MARK = (255, 220, 0, 255)
@@ -121,9 +121,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--out', type=Path, default=Path('/tmp/fm-terraria-roels-2/review'))
     parser.add_argument('--refs', type=Path)
-    parser.add_argument('--revised', action='store_true', help="review the revision's designs instead")
+    parser.add_argument('--look', default='terraria', help='the look to review (terraria, terraria-revised, ...)')
     args = parser.parse_args()
-    folder = ART / 'revised' if args.revised else LOOK
+    folder = LOOKS / args.look / 'characters'
     heroes = sorted(path.name for path in folder.iterdir() if path.is_dir())
     (args.out / 'gif').mkdir(parents=True, exist_ok=True)
     (args.out / 'strip').mkdir(parents=True, exist_ok=True)

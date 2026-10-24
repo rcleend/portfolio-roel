@@ -3,16 +3,19 @@ import { type CharacterId, characters } from '@/content';
 import { parseSpriteSheetSpec, type SpriteAnimationSpec, type SpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
 import { PRIMARY_ATTACKS } from '../../../entities/player/attacks';
 import { HAND } from '../../../entities/player/size';
+import type { LookId } from '../ids';
 import type { ImageSheetSource } from '../module';
 import { lookRegistry } from '../registry';
 
 /**
  * The Terraria heroes as tools/looks/terraria writes them, timed to the
- * game: registeredLooks.test.ts holds every look to the hero contract, this
- * to the poses the game holds. Pixels (crisp alpha, feet on the line, one
- * head in every frame) are checked by the generator's own tests and, in the
+ * game, in the Terraria look and in its revision's looks beside it:
+ * registeredLooks.test.ts holds every look to the hero contract, this to the
+ * poses the game holds. Pixels (crisp alpha, feet on the line, one head in
+ * every frame) are checked by the generator's own tests and, in the
  * browser, by e2e/looks.spec.ts.
  */
+const TERRARIA_LOOKS: readonly LookId[] = ['terraria', 'terraria-revised', 'terraria-hooded'];
 
 // How long the game holds the poses that play once: World strikes a skill for 0.4 s and Player is
 // knocked back for 0.3 s; an attack lasts its cooldown, because held fire strikes it again each shot.
@@ -25,13 +28,14 @@ const ATTACK_VARIANTS = {
   strategy: [],
 } as const;
 
-async function sheets(hero: CharacterId): Promise<{ sheet: SpriteSheetSpec; attack: SpriteSheetSpec }> {
-  const look = await lookRegistry.hero('terraria', hero);
+async function sheets(lookId: LookId, hero: CharacterId): Promise<{ sheet: SpriteSheetSpec; attack: SpriteSheetSpec }> {
+  const look = await lookRegistry.hero(lookId, hero);
   const attack = look.fx.attack as ImageSheetSource | undefined;
-  if (!('json' in look.sheet) || !attack) throw new Error(`terraria/${hero} must ship a sheet and an attack strip`);
+  const where = `${lookId}/${hero}`;
+  if (!('json' in look.sheet) || !attack) throw new Error(`${where} must ship a sheet and an attack strip`);
   return {
-    sheet: parseSpriteSheetSpec(look.sheet.json, `terraria/${hero}/sheet.json`),
-    attack: parseSpriteSheetSpec(attack.json, `terraria/${hero}/attack.json`),
+    sheet: parseSpriteSheetSpec(look.sheet.json, `${where}/sheet.json`),
+    attack: parseSpriteSheetSpec(attack.json, `${where}/attack.json`),
   };
 }
 
@@ -47,21 +51,51 @@ const seconds = (spec: SpriteAnimationSpec): number => spec.frames / spec.fps;
 const skillPoses = (spec: SpriteSheetSpec): SpriteAnimationSpec[] =>
   spec.animations.filter((candidate) => candidate.name === 'skill' || candidate.name.startsWith('skill-'));
 
-describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
+/** Every hero each Terraria look draws: all three, or the ENGINEER alone with his hood up. */
+const drawn = TERRARIA_LOOKS.flatMap((look) =>
+  characters
+    .filter((hero) => lookRegistry.offer.characters[hero.id].includes(look))
+    .map((hero) => [look, hero.id] as const),
+);
+
+describe('the Terraria looks', () => {
+  it('draw all three heroes, and the hood only the ENGINEER', () => {
+    expect(drawn).toEqual([
+      ...characters.map((hero) => ['terraria', hero.id]),
+      ...characters.map((hero) => ['terraria-revised', hero.id]),
+      ['terraria-hooded', 'hackerman'],
+    ]);
+  });
+
+  // The revision redraws only heads, so its looks import the Terraria look's attack strips from its folder
+  // rather than ship copies: retiring or promoting that look has to carry them over.
+  it.each(drawn.filter(([look]) => look !== 'terraria'))(
+    "%s %s plays the Terraria look's own attack strip",
+    async (look, hero) => {
+      const [revised, original] = await Promise.all([
+        lookRegistry.hero(look, hero),
+        lookRegistry.hero('terraria', hero),
+      ]);
+      expect(revised.fx.attack).toEqual(original.fx.attack);
+    },
+  );
+});
+
+describe.each(drawn)('the %s %s', (look, hero) => {
   it('loops idle, run, fall and victory and plays the rest once', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     for (const spec of sheet.animations) expect(spec.loop, spec.name).toBe(LOOPING.includes(spec.name));
   });
 
   it('attacks for exactly one cooldown, and skills and hurts for as long as the game holds them', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     expect(seconds(animation(sheet, 'attack'))).toBeCloseTo(PRIMARY_ATTACKS[hero].cooldown, 1);
     for (const pose of skillPoses(sheet)) expect(seconds(pose), pose.name).toBeCloseTo(SKILL_SECONDS, 2);
     expect(seconds(animation(sheet, 'hurt'))).toBeCloseTo(HURT_SECONDS, 2);
   });
 
   it('marks where every attack frame fires from and every skill frame holds and drinks', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     const attack = animation(sheet, 'attack');
     expect(attack.anchors.muzzle).toHaveLength(attack.frames);
     for (const pose of skillPoses(sheet)) {
@@ -71,7 +105,7 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
   });
 
   it('marks the top of his head on every frame, drawn smaller than his frame as he is', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     for (const spec of sheet.animations) expect(spec.anchors.head, spec.name).toHaveLength(spec.frames);
     // About classic's 31 px above the feet: the HUD and the skills that clear the head need it.
     const [crown] = animation(sheet, 'idle').anchors.head ?? [];
@@ -79,7 +113,7 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
   });
 
   it('fires from close to the hand the game shoots from, so a shot is drawn where it hits', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     const [muzzle] = animation(sheet, 'attack').anchors.muzzle ?? [];
     if (!muzzle) throw new Error('no muzzle');
     const hand = { x: sheet.origin.x + HAND.reach, y: sheet.origin.y - HAND.height };
@@ -88,13 +122,13 @@ describe.each(characters.map((hero) => hero.id))('the Terraria %s', (hero) => {
   });
 
   it('poses UX ELIXIR its own way for the DESIGNER, who drinks it, and shares one pose for every other skill', async () => {
-    const { sheet } = await sheets(hero);
+    const { sheet } = await sheets(look, hero);
     const own = sheet.animations.map((spec) => spec.name).filter((name) => name.startsWith('skill-'));
     expect(own).toEqual(hero === 'artsy' ? ['skill-ux-elixir'] : []);
   });
 
   it('draws a projectile and an impact for spriteAttack, and its variants', async () => {
-    const { attack } = await sheets(hero);
+    const { attack } = await sheets(look, hero);
     expect(attack.animations.map((spec) => spec.name)).toEqual(
       expect.arrayContaining(['projectile', 'impact', ...ATTACK_VARIANTS[hero]]),
     );

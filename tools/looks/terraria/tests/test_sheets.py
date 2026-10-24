@@ -1,6 +1,6 @@
 """The committed Terraria sheets keep the look's promises (docs/LOOKS.md): crisp, on the feet line, one head.
 
-The look's heroes and the revision's designs beside them (kit/revision.py) are held to the same promises.
+The look's heroes and the revision's looks beside them (kit/revision.py) are held to the same promises.
 
     python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria
 """
@@ -16,7 +16,7 @@ from typing import Any, Dict, List, NamedTuple, Tuple
 from PIL import Image
 
 TOOL = Path(__file__).resolve().parents[1]
-ART = TOOL.parents[2] / 'src' / 'game' / 'art' / 'looks' / 'terraria'
+ART = TOOL.parents[2] / 'src' / 'game' / 'art' / 'looks'
 if str(TOOL) not in sys.path:
     sys.path.insert(0, str(TOOL))
 
@@ -31,18 +31,21 @@ HEROES = ('hackerman', 'artsy', 'strategy')
 
 
 class Sheet(NamedTuple):
-    """A committed sheet: its folder under the look's art, the hero whose moves it plays, what he wears."""
+    """A committed sheet: its folder under the looks' art, the hero whose moves it plays, what he wears."""
     folder: str
     hero: str
     outfit: Outfit
-    # The look's heroes ship an attack strip too; the revision's designs only their sheet.
+    # The look's heroes ship an attack strip too; the revision's looks play theirs and ship only a sheet.
     stems: Tuple[str, ...]
 
 
 SHEETS = (
-    *(Sheet(f'characters/{hero}', hero, OUTFITS[hero], ('sheet', 'attack')) for hero in HEROES),
-    *(Sheet(f'revised/{name}', design.hero, design.outfit, ('sheet',)) for name, design in revision.DESIGNS.items()),
+    *(Sheet(f'terraria/characters/{hero}', hero, OUTFITS[hero], ('sheet', 'attack')) for hero in HEROES),
+    *(Sheet(f'{look}/characters/{hero}', hero, outfit, ('sheet',))
+      for look, heroes in revision.LOOKS.items() for hero, outfit in heroes.items()),
 )
+# The revision's sheets.
+REVISED = tuple(sheet for sheet in SHEETS if not sheet.folder.startswith('terraria/'))
 # What the game shows on the ground: the moves it only plays planted, and the ground frames of the rest.
 PLANTED = ('idle', 'run', 'attack', 'skill')
 
@@ -220,27 +223,29 @@ RESTING = 2
 
 class Revision(unittest.TestCase):
     def test_redraws_only_the_head_over_the_heroes_own_bodies(self) -> None:
-        for name, design in revision.DESIGNS.items():
-            look = OUTFITS[design.hero]
+        for sheet in REVISED:
+            look = OUTFITS[sheet.hero]
             for field in set(Outfit._fields) - HEAD_LAYERS:
-                self.assertEqual(getattr(design.outfit, field), getattr(look, field), f'{name} {field}')
+                self.assertEqual(getattr(sheet.outfit, field), getattr(look, field), f'{sheet.folder} {field}')
 
     def test_the_fringe_rests_on_the_glasses_without_sticking_up_from_the_rim(self) -> None:
         # The look's fringe stood single dark strands on the rim, which read as the frame sticking up. Over the
         # revision's rim is forehead, or fringe at least two pixels wide in mid tones, so the rim's top edge stays
         # one clean line.
-        for name, design in revision.DESIGNS.items():
-            top = painted(design.outfit)
-            rim = [point for point, (drawing, _) in top.items() if drawing == design.outfit.glasses.name]
+        for sheet in REVISED:
+            outfit = sheet.outfit
+            top = painted(outfit)
+            rim = [point for point, (drawing, _) in top.items() if drawing == outfit.glasses.name]
             row = min(y for _, y in rim)
             hair = {point: tone for point, (drawing, (ramp, tone)) in top.items()
-                    if drawing == design.outfit.hair.name and ramp == 'hair'}
+                    if drawing == outfit.hair.name and ramp == 'hair'}
             for x in sorted(x for x, y in rim if y == row):
                 above = (x, row - 1)
                 if above not in hair:
                     continue
-                self.assertGreaterEqual(hair[above], RESTING, f'{name}: dark hair on the rim at {above}')
-                self.assertTrue({(x - 1, row - 1), (x + 1, row - 1)} & hair.keys(), f'{name}: lone strand at {above}')
+                self.assertGreaterEqual(hair[above], RESTING, f'{sheet.folder}: dark hair on the rim at {above}')
+                self.assertTrue({(x - 1, row - 1), (x + 1, row - 1)} & hair.keys(),
+                                f'{sheet.folder}: lone strand at {above}')
 
     def test_the_designer_cap_keeps_only_its_front_spot(self) -> None:
         # The cap's glossy tones (highlight and accent) on its crown, above the brim, make one spot.

@@ -49,7 +49,9 @@ test('fails loudly on an unknown look, naming the known ones', async ({ page }) 
   await page.goto(`/?${new URLSearchParams({ host: 'flat', looks: '{"customer":"neon"}' })}`);
   await expect
     .poll(() => errors.join('\n'))
-    .toContain('looks.customer must be one of classic, arcade, portrait, hibit, terraria, got "neon"');
+    .toContain(
+      'looks.customer must be one of classic, arcade, portrait, hibit, terraria, terraria-revised, terraria-hooded, got "neon"',
+    );
 });
 
 /**
@@ -158,7 +160,7 @@ test('opens the Terraria lineup and draws every design crisply, no taller than t
     };
     const classic = Object.values(looks.characters).map((look) => measure(look.sheet).height);
     const designs = [...TERRARIA_DESIGNS, ...REVISED_TERRARIA_DESIGNS].map((design) => ({
-      id: design.id,
+      id: `${design.look}/${design.hero}`,
       ...measure(terrariaDesignSheet(assets, design)),
     }));
     return { classic: Math.min(...classic), designs };

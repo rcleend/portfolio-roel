@@ -4,13 +4,15 @@ A *look* is one visual style for the game's characters: every playable hero, the
 The game can draw any mix of looks — Hackerman in one, the customer in another — and plays exactly the same whatever is chosen: looks change pixels, never timing, damage or hitboxes.
 This document is the contract between whoever draws a look and the code that loads it; docs/ARCHITECTURE.md › Looks describes the code side.
 
-| Look id    | Style                                                              |
-| ---------- | ------------------------------------------------------------------ |
-| `classic`  | the art the game shipped with (pixel art in code, 32 × 40 heroes) |
-| `arcade`   | Neo Geo / Metal Slug: near-black outline, bold cel shading         |
-| `portrait` | slim, realistic, selective coloured outlines                       |
-| `hibit`    | modern high-fidelity pixel art: rich ramps, lavish effects         |
-| `terraria` | Terraria: classic-sized heroes posed limb by limb (heroes only)    |
+| Look id            | Style                                                                          |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `classic`          | the art the game shipped with (pixel art in code, 32 × 40 heroes)              |
+| `arcade`           | Neo Geo / Metal Slug: near-black outline, bold cel shading                     |
+| `portrait`         | slim, realistic, selective coloured outlines                                   |
+| `hibit`            | modern high-fidelity pixel art: rich ramps, lavish effects                     |
+| `terraria`         | Terraria: classic-sized heroes posed limb by limb (heroes only)                |
+| `terraria-revised` | the Terraria heroes revised: swept hair, flat glasses (heroes only)            |
+| `terraria-hooded`  | the revised Terraria ENGINEER with his hood up (Hackerman only)                |
 
 Hero ids: `hackerman`, `artsy`, `strategy`. Skill ids: `full-stack-attack`, `agent-summon`, `ux-elixir`, `power-chord`, `north-star`, `churn-shield`. The customer has no id.
 
@@ -62,7 +64,7 @@ src/game/art/looks/<lookId>/
 | skill `icon`        | 24 × 24 | (0, 0)    | `idle`, a subtle loop on a dark slot                                |
 | `attack`, `fx-*`    | any     | any       | any; for `spriteAttack`: `projectile`, `impact`, optional `muzzle` and variants (`projectile-<v>`, `impact-<v>`, `muzzle-<v>`) |
 
-All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall, or about 30 in a look drawn at classic's size (`terraria`). Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
+All sheets face right; the game mirrors them around the origin. `idle`, `run`, `walk` and `victory` loop; `attack`, `skill` and `hurt` play once (gameplay holds them 0.22–0.4 s). A standing hero is about 54–60 px tall, or about 30 in a look drawn at classic's size (the Terraria looks). Play keeps classic's hitboxes (heroes 12 × 28, customers 14 × 28; the escalated customer is the same sheet drawn at 2×), so taller art stands around the same boxes: everything the game shows above a customer rises with the art, but complaint bubbles still leave from the classic mouth height.
 
 `skill` serves both of a hero's skills. A hero sheet may also pose one of its own hero's skills its own way, as Terraria gives every item its own use: `skill-<skillId>` (`skill-ux-elixir`) plays instead of `skill` whenever that skill is cast, held to the same rules (once, 0.4 s, its first frame the cast, `hand` on every frame). Any other extra animation is rejected at load, naming it. Classic's UX ELIXIR pops its flask only over a hero who does not pose `skill-ux-elixir`; one who does drinks his own potion in it (`caster.posesOwn(skill)` tells a skill visual).
 
@@ -184,10 +186,13 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 - The head is the same pixels in every frame of every hero: only the eye changes, to blink or to wince.
 - `python3 tools/looks/terraria/review.py` writes GIFs and strips of every animation; `python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria` checks that the committed sheets are what the generator writes, crisp, standing on the feet line, with one head, each frame one figure, and no attack or skill frame held.
 
-The playground's **Terraria Roels** board stands the look's heroes idling beside the classic cast (`?scene=lineup`, `art/looks/terraria/designs.ts`), whatever look the game is set to, and beside their revision (`{"cast":"revised"}`).
+### Its revision: `terraria-revised` and `terraria-hooded`
 
-- The revision (`tools/looks/terraria/kit/revision.py`) redraws only head layers over the same bodies: the hair after the Terraria hairstyle the captain picked, glasses with one flat heavy rim and nothing standing on it, the DESIGNER's cap with only its front spot and the hair pushed out behind it, and a fourth design, the ENGINEER with his hood up. The generator writes each as a full sheet in `art/looks/terraria/revised/<design>/`, posed in every animation of its hero and held to the same checks; the game never loads them, and promoting one means making its layers the look's own.
-- `python3 tools/looks/terraria/review.py --revised` writes the same review boards for them.
+The revision (`tools/looks/terraria/kit/revision.py`) redraws only head layers over the same bodies, posed in the same moves: the hair after the Terraria hairstyle the captain picked (143), glasses with one flat heavy rim and nothing standing on it, the DESIGNER's cap with only its front spot and the hair pushed out behind it in a tuft, and the ENGINEER with his hood up. The generator writes the three heroes as `terraria-revised` and the hood as `terraria-hooded`, a look that covers only Hackerman; both play the Terraria look's own attack strips, importing them from its folder, and are held to the same checks.
+
+- The hood moves with his head and shoulders as one drawing.
+- The game ships neither; promoting one means making its layers the look's own. The playground's **Characters** board plays them beside the look, and its **Terraria Roels** board stands their sheets idling beside the classic cast (`?scene=lineup`, `art/looks/terraria/designs.ts`) on every backdrop, whatever look the game is set to: the look's heroes by default, the revision with `{"cast":"revised"}`.
+- `python3 tools/looks/terraria/review.py --look terraria-revised` (or `terraria-hooded`) writes the same review boards for them.
 
 ### Terraria customer concepts
 

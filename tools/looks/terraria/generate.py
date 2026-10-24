@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""The Terraria look's heroes: every animation of the three Roels and their attack sprites.
+"""The Terraria looks' heroes: every animation of the three Roels and their attack sprites.
 
-    python3 tools/looks/terraria/generate.py           # write src/game/art/looks/terraria/
+    python3 tools/looks/terraria/generate.py           # write src/game/art/looks/terraria*/
     python3 tools/looks/terraria/generate.py --check   # fail if the committed files differ from what this writes
 
 Every frame is composed from the hand-placed parts in kit/ (body.py, outfits.py, limbs.py, props.py), posed
 the way Terraria poses its player (pose.py, moves.py, heroes.py), so no frame is ever drawn twice by hand
 and the head is the same pixels in all of them. Writes, per hero, characters/<hero>/sheet.png + .json (the
 eight hero animations and any skill he poses his own way, 64 x 64 frames, feet on the bottom-centre origin)
-and attack.png + .json (its projectile, impact and muzzle strip), both as docs/LOOKS.md describes them.
-Beside them it writes revised/<design>/sheet.png + .json, the revision's designs (kit/revision.py) posed
-in every animation of their hero, which the playground compares with the look's and the game never loads.
+and attack.png + .json (its projectile, impact and muzzle strip), both as docs/LOOKS.md describes them, in
+looks/terraria/. Beside it the revision's looks (kit/revision.py), terraria-revised and terraria-hooded, get
+characters/<hero>/sheet.png + .json, the same moves in the revision's head; their attack is the look's own.
 Python 3.9+ and Pillow only; the same code writes the same bytes, which is what --check relies on.
 """
 from __future__ import annotations
@@ -22,7 +22,9 @@ from typing import Dict, List, Tuple
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-OUT = REPO / 'src' / 'game' / 'art' / 'looks' / 'terraria'
+OUT = REPO / 'src' / 'game' / 'art' / 'looks'
+# The look whose heroes and attack strips this writes; the revision's looks are named in kit/revision.py.
+LOOK = 'terraria'
 
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
@@ -87,20 +89,25 @@ def sheet(design: str, hero: str, outfit: Outfit) -> Tuple[bytes, bytes]:
 def outputs() -> Dict[str, bytes]:
     files: Dict[str, bytes] = {}
     for hero, outfit in OUTFITS.items():
-        where = f'characters/{hero}'
+        where = f'{LOOK}/characters/{hero}'
         files[f'{where}/sheet.png'], files[f'{where}/sheet.json'] = sheet(where, hero, outfit)
         png, json = pack(attacks.strips(hero), attacks.FRAME, attacks.ORIGIN)
         files[f'{where}/attack.png'] = png
         files[f'{where}/attack.json'] = json
-    for name, design in revision.DESIGNS.items():
-        where = f'revised/{name}'
-        files[f'{where}/sheet.png'], files[f'{where}/sheet.json'] = sheet(where, design.hero, design.outfit)
+    for look, heroes in revision.LOOKS.items():
+        for hero, outfit in heroes.items():
+            where = f'{look}/characters/{hero}'
+            files[f'{where}/sheet.png'], files[f'{where}/sheet.json'] = sheet(where, hero, outfit)
     return files
 
 
 def written() -> List[Path]:
-    """Every file this script owns that is already on disk, so --check also catches a stale leftover."""
-    owned = [*OUT.glob('characters/*/*'), *OUT.glob('revised/*/*')]
+    """Every file this script owns that is already on disk, so --check also catches a stale leftover.
+
+    It owns the looks' characters/ folders only: looks/terraria/ also holds files other generators write
+    (the customer concepts, tools/looks/terraria/customer/).
+    """
+    owned = [path for look in (LOOK, *revision.LOOKS) for path in (OUT / look / 'characters').glob('**/*')]
     return sorted(path for path in owned if path.suffix in ('.png', '.json'))
 
 

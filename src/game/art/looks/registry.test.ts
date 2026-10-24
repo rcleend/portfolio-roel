@@ -32,7 +32,7 @@ describe('createLookRegistry', () => {
   it.each([
     [
       { customers: { './neon/customer/index.ts': {} } },
-      'Look registry: looks/neon/customer/index.ts is in a folder for an unknown look "neon" (expected classic, arcade, portrait, hibit, terraria)',
+      'Look registry: looks/neon/customer/index.ts is in a folder for an unknown look "neon" (expected classic, arcade, portrait, hibit, terraria, terraria-revised, terraria-hooded)',
     ],
     [
       { heroes: { './arcade/characters/hackermann/index.ts': {} } },
