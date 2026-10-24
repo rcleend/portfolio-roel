@@ -583,6 +583,57 @@ const scenarios = {
     console.log('radio-swap log:', log.slice(-10).join(' | '));
     await page.close();
   },
+  async 'radio-leave'() {
+    // A pick and then a leave 300 ms later: the insert commits, the shelf packs up and the lid shuts by the landing.
+    const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
+    await atRadio(page);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+    await page.mouse.move(disc.x, disc.y);
+    await sleep(800);
+    const times = [0, 300, 400, 500, 600, 700, 800, 900, 1000, 1150, 1300, 1600];
+    const log = await strip(page, 'radio-leave', times, async () => {
+      await page.mouse.down();
+      await page.mouse.up();
+      for (let t = 0; t < 300; t += 16) await page.clock.runFor(Math.min(16, 300 - t));
+      await page.evaluate(() => window.__roomLab.room.showRoom());
+    });
+    console.log('radio-leave log:', log.slice(-8).join(' | '));
+    console.log('radio-leave:', JSON.stringify(await radioState(page)));
+    await page.close();
+  },
+  async 'radio-leave-timing'() {
+    // When the lid is shut (and still) after a leave `offset` ms into a first pick, against the camera's landing.
+    for (const offset of [0, 150, 300, 600, 900]) {
+      const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
+      await atRadio(page);
+      const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+      await page.mouse.move(disc.x, disc.y);
+      await sleep(400);
+      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
+      for (let t = 0; t < 600; t += 16) await page.clock.runFor(16);
+      await page.mouse.down();
+      await page.mouse.up();
+      for (let t = 0; t < offset; t += 16) await page.clock.runFor(Math.min(16, offset - t));
+      await page.evaluate(() => window.__roomLab.room.showRoom());
+      let shut = null;
+      let settled = null;
+      let previous = Number.NaN;
+      for (let t = 16; t <= 3000 && (shut === null || settled === null); t += 16) {
+        await page.clock.runFor(16);
+        const { lid, isSettled } = await page.evaluate(() => ({
+          lid: window.__roomLab.room.stats.radioLidDegrees,
+          isSettled: window.__roomLab.room.settled,
+        }));
+        if (shut === null && lid < 0.05 && Math.abs(lid - previous) < 0.01) shut = t;
+        if (settled === null && isSettled) settled = t;
+        previous = lid;
+      }
+      console.log(
+        `radio-leave-timing: leave +${offset} ms into a pick -> lid shut at leave+${shut} ms, room settled at leave+${settled} ms`,
+      );
+      await page.close();
+    }
+  },
   async 'radio-press'() {
     const page = await radioLab({ width: 1440, height: 900, dpr: 2 }, { clock: true });
     await atRadio(page);

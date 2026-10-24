@@ -16,7 +16,7 @@ The player was built beside the room's half against a structural copy of these t
 
 | The app | The room |
 | --- | --- |
-| `setDiscs(discs)`: the shelf in display order, plain discs first, then each with its print painted at `labelSize` | lays out the slots, uploads the prints at idle |
+| `setDiscs(discs)`: the shelf in display order, plain discs first, then each with its print painted at `labelSize` | lays out the slots, uploads the prints at idle; a disc whose id is gone hands its place, mesh and motion to the newcomer at its index (`discHeirs`), so the app's albums arriving after the placeholder shelf has risen take it over in the air, with no second rise |
 | `setState({ loaded, transport, lcd })`, called in the same call that answers every pick or press | animates the difference: insert, swap, return, spin up and down, the LCD; never changes the state itself |
 | `press(key)` for DOM keys, the touch bar and media keys | presses the 3D key and emits its cues, no intent |
 | `setAttention(disc)` on a keyboard focus | brings the disc forward (the pointer's own hover wins) |
@@ -26,6 +26,7 @@ The player was built beside the room's half against a structural copy of these t
 | listens to `onSeated` | the disc is on the spindle and ▷II is down: start the sound now (once per insert; in a microtask under reduced motion or out of sight) |
 | listens to `onCue` | mechanical moments, as they happen, with a stereo pan |
 | reads `layout`, `live`, `controls`, `labelSize`, `available` | where the discs and keys are on the page at the settled pose; the controls slot, visible only while the camera rests at the radio |
+| reads `discsOut` (`onDiscsOutChange`) | true while the camera rests at the radio and the whole shelf hangs in its slots, label out (the teaching lines wait for it); false from the request to leave |
 
 `RadioSlot` (`RadioSlot.tsx`) is the only module the room host imports:
 
@@ -90,9 +91,9 @@ Portaled into `deck.controls`, a `<section aria-label="CD player">`. The layer t
 - **CDs**: `role="toolbar" aria-label="CDs"`, one Tab stop, ←/→ and Home/End move between the albums (the shared roving tabindex, `app/a11y/roving.ts`). One button per album sits as a circle over its disc (over the seat for the loaded one), invisible until a keyboard focus rings the disc itself in `#ffc83d` and brings it forward. Labels say "Night Shift by Studio Attic, 2 tracks", with ", in the player" and `aria-current` for the loaded disc. Enter or Space plays it (the loaded one: play/pause).
 - **Transport** on fine pointers: `role="toolbar" aria-label="CD player controls"`, "Previous track", "Play"/"Pause" (the label changes, no `aria-pressed`), "Stop", "Next track", each over its key on the model; `aria-disabled` with an empty player (still focusable: activation says "Choose a CD first.").
 - **Touch bar** on a primary coarse pointer: 48 px keys on the sound toggle's dark plate: back ("Look around the room"), ⏮, ▶/‖, ■, ⏭ and what plays on two lines, the track over the album ("Kettle On", "Night Shift"), along the bottom (64 px plus the safe area), or stacked down a right rail on a landscape phone under 480 px tall. Each key presses its 3D twin too. It reports its strip through `setControlInsets`, and the room frames the radio clear of it.
-- **Caption** (`aria-hidden`): under the disc that has the visitor's attention (over it for the disc in the player, so the keys stay in sight), in the view hint's pixel plate: "Night Shift — Studio Attic", "2 tracks · 1:38", a "placeholder" tag and "Sound is off" when they apply; a 120 ms fade.
+- **Caption** (`aria-hidden`): under the disc that has the visitor's attention (over it for the disc in the player, so the keys stay in sight), in the view hint's pixel plate: "Night Shift — Studio Attic", "2 tracks · 1:38", a "placeholder" tag and "Sound is off" when they apply; a 120 ms fade. It waits until the shelf has risen on this visit (a caption over a disc still on its way would point at empty air); the loaded disc's shows at once.
 - **Hint** (`radioHints.ts`, `localStorage` `reo-leo:radio-hints`): 450 ms after the discs are up (never before: it names them), "Click a CD to play it" ("Tap…" on touch, "Press Enter to play a CD" for a keyboard) until the first pick; then, with a mouse or a keyboard, "Click outside the radio to look around" ("Press Escape to look around") until the visitor has left once. On a phone's bottom bar it shows in the bar, where what plays will be (on two lines if it must); elsewhere in the view hint's plate.
-- **One live region** (`role="status"`, polite): "Playing Kettle On, track 1 of 2, from Night Shift by Studio Attic." (+ " Sound is off."), "Track 2 of 2, Window Seat." (a track chosen while paused or stopped), "Paused.", "Playing.", "Stopped.", "End of the CD.", "This track could not be played.", "Choose a CD first.", "Press play to start the music." The same words within a second are said once; never the clock, a hover or a focus. The CDs' toolbar is described by "Enter plays a CD; Escape returns to the room." for a screen reader landing on it.
+- **One live region** (`role="status"`, polite): "Playing Kettle On, track 1 of 2, from Night Shift by Studio Attic." (+ " Sound is off."), "Track 2 of 2, Window Seat." (a track chosen while paused or stopped), "Paused.", "Playing.", "Stopped.", "End of the CD.", "This track could not be played.", "Choose a CD first.", "The CD is still going in." (a key pressed before the disc is seated; it waits), "Press play to start the music." The same words within a second are said once; never the clock, a hover or a focus. The CDs' toolbar is described by "Enter plays a CD; Escape returns to the room." for a screen reader landing on it.
 - **Keyboard**: arriving moves focus to the CDs (the loaded disc's button, else the first); Escape anywhere in the controls leaves for the room; the controls hiding with focus inside hand it back to the stage.
 
 **Media Session** (`player/mediaSession.ts`): while a disc is loaded, the track's title, the artist, the album and its cover; `playbackState`; play, pause, stop, previous and next as the radio's keys (pressing the 3D key while the visitor is at the radio; at the TV, play only asks to resume on leaving); the position on play, pause, track changes and seeks. Nothing at all with no disc, or without the API.
@@ -154,9 +155,10 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: `RadioSlot`, the room host's radio changes and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB (raised to + 0.75, pending the captain's word: `bundle-budgets.json`) | + 0.71 kB |
+| Entry JS: `RadioSlot`, the room host's radio changes and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB (raised to + 0.75, pending the captain's word: `bundle-budgets.json`) | + 0.75 kB |
 | Entry CSS | + 0.15 kB | + 0.04 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.46 kB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.6 kB |
+| `radioDevice`, the lazy storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 30.2, pending the captain's word: `bundle-budgets.json`) | 29.99 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
