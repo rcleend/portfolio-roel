@@ -119,17 +119,28 @@ const largeUploadsSince = (page: Page, since: number) =>
     since,
   );
 
-/** Waits, at the TV, until the room has nothing left to do ahead of need and the monitor's still is painted. */
-async function untilPrepared(page: Page): Promise<void> {
-  await expect
-    .poll(async () => {
-      const current = await stats(page);
-      return current !== undefined && !current.backgroundPending && current.pcTexturePixels > 0;
-    })
-    .toBe(true);
+/** Waits until the room has nothing left to do ahead of need (in the room view, where nothing plays). */
+async function untilIdle(page: Page): Promise<void> {
+  await expect.poll(async () => (await stats(page))?.backgroundPending).toBe(false);
 }
 
+/** `performance.now()` when `#game` turned running, recorded from the page's own clock. */
+async function recordRunning(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    new MutationObserver((_, observer) => {
+      if (document.getElementById('game')?.dataset.phase !== 'running') return;
+      (window as unknown as { __runningAt: number }).__runningAt = performance.now();
+      observer.disconnect();
+    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
+  });
+}
+
+const runningAt = (page: Page) => page.evaluate(() => (window as unknown as { __runningAt: number }).__runningAt);
+
 const untilReader = (page: Page) => advanceUntil(page, async () => (await pcState(page)) === 'reader');
+/** The focused element's outline style: the document pane's focus ring is its outline. */
+const focusRing = (page: Page) =>
+  page.evaluate(() => (document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : null));
 const mode = (page: Page) =>
   page.evaluate(() => document.querySelector('[data-pc-mode]')?.getAttribute('data-pc-mode'));
 const canvasCursor = (page: Page) =>
@@ -149,6 +160,8 @@ test('sits down at the computer, reads the résumé and gets up again', async ({
   expect(await untilReader(page)).toBeLessThanOrEqual(1900);
   await expect(reader(page)).toBeVisible();
   await expect(pane(page)).toBeFocused();
+  // Opened with the mouse: the document has the keys but shows no focus ring.
+  expect(await focusRing(page)).toBe('none');
   await expect(pane(page)).toContainText(profile.name);
   for (const job of experience) await expect(pane(page)).toContainText(job.role);
   expect(await paused(page)).toBe(true);
@@ -310,6 +323,22 @@ test.describe('in a short window', () => {
     await expect(page.locator('.view-hint')).toBeHidden();
     await expect(page.getByRole('status').filter({ hasText: /outside the computer/ })).toHaveCount(0);
   });
+
+  test('hands the keys back to the stage after a resize while the reader shrinks back', async ({ page }) => {
+    await openRoom(page);
+    await lookAround(page);
+    await sitDown(page);
+    await untilReader(page);
+    await reader(page).getByRole('button', { name: 'Close the résumé' }).click();
+    // Mid-shrink, the window grows past the pop-out's size: the reader would move into the glass.
+    await advance(page, 100);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await advanceUntil(page, async () => (await view(page)) === 'room');
+    await expect(stage(page)).toBeFocused();
+    await advance(page, SETTLE_MS);
+    await page.keyboard.press('Enter');
+    expect(await view(page)).toBe('tv');
+  });
 });
 
 test('says so when the screen fails to load, and still gets up again', async ({ page }) => {
@@ -327,10 +356,25 @@ test('says so when the screen fails to load, and still gets up again', async ({ 
   await page.mouse.click(pc.x, pc.y);
   const message = page.getByRole('alert');
   await expect(message).toContainText('The document could not be opened.');
-  await expect(message.getByRole('link', { name: 'Read the résumé' })).toHaveAttribute('href', '#resume');
+  const link = message.getByRole('link', { name: 'Read the résumé' });
+  await expect(link).toHaveAttribute('href', '#resume');
   await page.keyboard.press('Escape');
   await expect.poll(() => view(page)).toBe('room');
   await expect(message).toBeHidden();
+  const failures = warnings.length;
+
+  // Escape leaves from the message's link and after a click on the box, and hands the keys back to the stage.
+  for (const reach of [() => link.focus(), () => message.click({ position: { x: 4, y: 4 } })]) {
+    await page.waitForTimeout(SETTLE_MS);
+    await page.mouse.click(pc.x, pc.y);
+    await expect(message).toBeVisible();
+    await reach();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => view(page)).toBe('room');
+    await expect(stage(page)).toBeFocused();
+  }
+  // The failure is said once: later visits do not ask again for what cannot load.
+  expect(warnings.length).toBe(failures);
 });
 
 test.describe('with reduced motion', () => {
@@ -373,6 +417,7 @@ test('the keyboard alone reaches the résumé and the game', async ({ page }) =>
   await advanceUntil(page, () => live(page));
   await untilReader(page);
   await expect(pane(page)).toBeFocused();
+  expect(await focusRing(page)).toBe('solid');
 
   const dialog = reader(page);
   for (let press = 0; press < 14; press++) {
@@ -397,29 +442,50 @@ test.describe('on a retina screen', () => {
     await sitDown(page);
     // The room's cross-fade runs on the animation timeline, not the page's clock: wait it out.
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
-    const placement = await page.evaluate(() => window.__room?.pc.placement);
-    if (!placement) throw new Error('No placement');
-    // Inside the picture: its rounded corners and anti-aliased rim are not content.
-    const clip = {
-      x: placement.left + 4,
-      y: placement.top + 4,
-      width: placement.width - 8,
-      height: placement.height - 8,
-    };
-    const shown = await page.screenshot({ clip });
-    await page.locator('[data-pc-screen]').evaluate((element) => {
-      (element as HTMLElement).style.visibility = 'hidden';
-    });
-    const hidden = await page.screenshot({ clip });
-    const [a, b] = await Promise.all([shown, hidden].map((png) => sharp(png).removeAlpha().raw().toBuffer()));
-    if (!a || !b) throw new Error('No screenshots');
-    let total = 0;
-    for (let index = 0; index < a.length; index++) total += Math.abs((a[index] ?? 0) - (b[index] ?? 0));
-    const mean = total / a.length;
-    test.info().annotations.push({ type: 'hand-off mean |Δ|', description: `${mean.toFixed(2)} / 255` });
-    expect(mean).toBeLessThanOrEqual(3);
+    expect(await handOffDifference(page, 'landing')).toBeLessThanOrEqual(3);
+  });
+
+  test('the desktop left behind by the close button is the still the camera pulls back over', async ({ page }) => {
+    await openRoom(page);
+    await lookAround(page);
+    await sitDown(page);
+    await untilReader(page);
+    await reader(page).getByRole('button', { name: 'Close the résumé' }).click();
+    // Inside the 200 ms beat on the desktop, before the camera moves.
+    await advance(page, 100);
+    expect(await pcState(page)).toBe('closing');
+    // The CV icon was double-clicked, and the still never shows it selected.
+    await expect(page.locator('.pc-icon[data-selected="true"]')).toHaveCount(0);
+    expect(await handOffDifference(page, 'closing')).toBeLessThanOrEqual(3);
   });
 });
+
+/**
+ * The mean difference, per channel and out of 255, between the live screen and the still under it,
+ * inside the picture (its rounded corners and anti-aliased rim are not content).
+ */
+async function handOffDifference(page: Page, moment: string): Promise<number> {
+  const placement = await page.evaluate(() => window.__room?.pc.placement);
+  if (!placement) throw new Error('No placement');
+  const clip = {
+    x: placement.left + 4,
+    y: placement.top + 4,
+    width: placement.width - 8,
+    height: placement.height - 8,
+  };
+  const shown = await page.screenshot({ clip });
+  await page.locator('[data-pc-screen]').evaluate((element) => {
+    (element as HTMLElement).style.visibility = 'hidden';
+  });
+  const hidden = await page.screenshot({ clip });
+  const [a, b] = await Promise.all([shown, hidden].map((png) => sharp(png).removeAlpha().raw().toBuffer()));
+  if (!a || !b) throw new Error('No screenshots');
+  let total = 0;
+  for (let index = 0; index < a.length; index++) total += Math.abs((a[index] ?? 0) - (b[index] ?? 0));
+  const mean = total / a.length;
+  test.info().annotations.push({ type: `hand-off mean |Δ| (${moment})`, description: `${mean.toFixed(2)} / 255` });
+  return mean;
+}
 
 test('a warm visit is readable within 0.65 s, where the visitor left off', async ({ page }) => {
   await openRoom(page);
@@ -441,15 +507,9 @@ test('a warm visit is readable within 0.65 s, where the visitor left off', async
 test.describe('performance', () => {
   test('loads nothing for the computer until the game is running', async ({ page }) => {
     // When #game turns running, on the page's own clock: the PC's prefetch may follow within milliseconds.
-    await page.addInitScript(() => {
-      // The development server serves hundreds of modules: room for every one in the resource timeline.
-      performance.setResourceTimingBufferSize(5000);
-      new MutationObserver((_, observer) => {
-        if (document.getElementById('game')?.dataset.phase !== 'running') return;
-        (window as unknown as { __runningAt: number }).__runningAt = performance.now();
-        observer.disconnect();
-      }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
-    });
+    await recordRunning(page);
+    // The development server serves hundreds of modules: room for every one in the resource timeline.
+    await page.addInitScript(() => performance.setResourceTimingBufferSize(5000));
     await page.goto('/?seed=1');
     await waitForRunning(page);
     await page.mouse.click(WALL.x, WALL.y);
@@ -467,15 +527,21 @@ test.describe('performance', () => {
     for (const chunk of chunks) expect(chunk.startTime).toBeGreaterThan(runningAt);
   });
 
-  test('uploads every texture and paints the still before the visitor first leaves the TV', async ({ page }) => {
+  test('uploads nothing while the game plays, and nothing on the way to the computer', async ({ page }) => {
     await recordUploads(page);
+    await recordRunning(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await untilPrepared(page);
+    // Long enough for the still painter to arrive and be prepared between the game's frames.
+    await page.waitForTimeout(2500);
     expect(await view(page)).toBe('tv');
-    const since = await page.evaluate(() => performance.now());
+    expect(await largeUploadsSince(page, await runningAt(page))).toBe(0);
+    // The first look around draws (and uploads) what the TV view never did, as it always has; the
+    // room view's quiet uploads the rest.
     await page.mouse.click(WALL.x, WALL.y);
     await page.waitForTimeout(SETTLE_MS);
+    await untilIdle(page);
+    const since = await page.evaluate(() => performance.now());
     const pc = await anchor(page, 'pc');
     await page.mouse.click(pc.x, pc.y);
     await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
@@ -509,49 +575,73 @@ test.describe('performance', () => {
     expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
   });
 
-  test('keeps every flight to and from the computer free of long tasks at 6× CPU', async ({ page }) => {
+  test('keeps every flight to and from the computer free of long frames at 6× CPU', async ({ page }) => {
     await page.goto('/?seed=1');
     await waitForRunning(page);
     await page.mouse.click(WALL.x, WALL.y);
     await expect(page.locator('.pc-screen')).toBeAttached();
     await page.waitForTimeout(SETTLE_MS);
+    // Flights as the room times them (from the request to the landing), and every frame over 50 ms
+    // with the scripts that made it long, so a failure names the work that caused it.
     await page.evaluate(() => {
-      const tasks: { start: number; duration: number }[] = [];
+      const room = window.__room;
+      if (!room) throw new Error('No room');
+      const log: FlightLog = { flights: [], frames: [] };
+      room.onViewChange(() => log.flights.push({ start: performance.now(), end: Number.POSITIVE_INFINITY }));
+      room.onSettle(() => {
+        const flight = log.flights.at(-1);
+        if (flight) flight.end = performance.now();
+      });
       new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) tasks.push({ start: entry.startTime, duration: entry.duration });
-      }).observe({ type: 'longtask' });
-      (window as unknown as { __tasks: typeof tasks }).__tasks = tasks;
+        for (const entry of list.getEntries() as PerformanceLongAnimationFrameTiming[]) {
+          const scripts = entry.scripts
+            .filter((script) => script.duration > 5)
+            .map((script) => `${script.invoker} ${script.sourceFunctionName} ${Math.round(script.duration)} ms`);
+          log.frames.push({ start: entry.startTime, duration: entry.duration, scripts });
+        }
+      }).observe({ type: 'long-animation-frame' });
+      (window as unknown as { __flightLog: FlightLog }).__flightLog = log;
     });
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
 
-    const flights: { start: number; end: number }[] = [];
-    const now = () => page.evaluate(() => performance.now());
     // A person's click: Playwright's default sends press and release in one task, which no hand does.
     const press = { delay: 80 };
     const pc = await anchor(page, 'pc');
-    let start = await now();
     await page.mouse.click(pc.x, pc.y, press);
-    await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true', { timeout: 10_000 });
-    flights.push({ start, end: await now() });
     await expect(page.locator('[data-pc-state="reader"]')).toBeAttached({ timeout: 10_000 });
     await page.waitForTimeout(300);
-
-    start = await now();
     await page.mouse.click(WALL.x, WALL.y, press);
+    await expect.poll(() => view(page)).toBe('room');
     await page.waitForTimeout(SETTLE_MS);
-    flights.push({ start, end: await now() });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
-    const tasks = await page.evaluate(
-      () => (window as unknown as { __tasks: { start: number; duration: number }[] }).__tasks,
+    const { flights, frames } = await page.evaluate(
+      () => (window as unknown as { __flightLog: FlightLog }).__flightLog,
     );
-    const during = tasks.filter((task) =>
-      flights.some(({ start, end }) => task.start < end && task.start + task.duration > start),
-    );
-    expect(during.filter((task) => task.duration > 50)).toEqual([]);
+    expect(flights.map(({ end }) => Number.isFinite(end))).toEqual([true, true]);
+    const during = frames.flatMap((frame) => {
+      const flight = flights.findIndex(({ start, end }) => frame.start < end && frame.start + frame.duration > start);
+      return flight < 0 ? [] : [{ flight: flight === 0 ? 'to the computer' : 'back to the room', ...frame }];
+    });
+    expect(during).toEqual([]);
   });
 });
+
+/** What the long-frame test records in the page. */
+interface FlightLog {
+  readonly flights: { readonly start: number; end: number }[];
+  readonly frames: { readonly start: number; readonly duration: number; readonly scripts: readonly string[] }[];
+}
+
+/** The Long Animation Frames API's entry, which TypeScript's DOM types do not have yet. */
+interface PerformanceLongAnimationFrameTiming extends PerformanceEntry {
+  readonly scripts: readonly {
+    readonly invoker: string;
+    readonly sourceFunctionName: string;
+    readonly duration: number;
+  }[];
+}
 
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -600,13 +690,33 @@ test.describe('on a phone', () => {
     await recordUploads(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await untilPrepared(page);
-    const since = await page.evaluate(() => performance.now());
     await page.touchscreen.tap(195, 30);
     await page.waitForTimeout(SETTLE_MS);
+    // The portrait room view crops the computer out: what only its flight draws is uploaded here.
+    await untilIdle(page);
+    const since = await page.evaluate(() => performance.now());
     await page.getByRole('button', { name: 'Use the computer' }).tap();
     await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
     expect(await largeUploadsSince(page, since)).toBe(0);
+  });
+
+  test.describe('with reduced motion', () => {
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('shows the computer chip only once the camera has settled in the room view', async ({ page }) => {
+      await openRoom(page);
+      await lookAround(page, () => page.touchscreen.tap(195, 30));
+      const chip = page.getByRole('button', { name: 'Use the computer' });
+      await chip.tap();
+      await advanceUntil(page, () => live(page));
+      await untilReader(page);
+      await reader(page).getByRole('button', { name: 'Close the résumé' }).tap();
+      await advanceUntil(page, async () => (await view(page)) === 'room');
+      // The cut to the room is under way: no chip over the very monitor it points to.
+      await expect(chip).toHaveCount(0);
+      await advance(page, SETTLE_MS);
+      await expect(chip).toBeVisible();
+    });
   });
 
   test.describe('held sideways', () => {
