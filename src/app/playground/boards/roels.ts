@@ -16,14 +16,15 @@ const BACKDROPS: readonly { readonly id: Backdrop; readonly title: string }[] = 
 
 /**
  * The cast the game ships, so it is today's pick, beside the Terraria designs that may replace it: the look's
- * as they are, and the revision drawn to compare with them. Each choice's id is the lineup's cast.
+ * as they are, and the revision drawn to compare with them. The look's are named "before" rather than
+ * "current", which the board already says of the game's pick. Each choice's id is the lineup's cast.
  */
 const CASTS: readonly (Choice & { readonly id: Cast })[] = [
   { id: 'game', name: 'Classic', description: 'The three heroes as the game draws them today.' },
   {
     id: 'terraria',
-    name: 'Terraria · current',
-    description: 'The Terraria designs as they are, a classic hero beside them for scale.',
+    name: 'Terraria · before',
+    description: 'The Terraria designs as they are before the revision, with a classic hero beside them for scale.',
   },
   {
     id: 'revised',
