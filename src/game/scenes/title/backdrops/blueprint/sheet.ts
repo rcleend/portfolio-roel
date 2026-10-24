@@ -83,14 +83,23 @@ export function exposeSheet(steps: Int8Array, exposure: number): Bitmap {
 
 /** The paper's ramp step at (x, y): banded, joined by ordered dither, with grain. */
 export function paperStep(x: number, y: number): number {
-  const shade = paperShade(x, y);
-  const band = Math.floor(shade);
-  const into = (shade - band - (1 - PAPER.ditherWidth)) / PAPER.ditherWidth;
-  const dithered = into > 0 && ditherOn('bayer4', x, y, into) ? band + 1 : band;
+  const dithered = bandedStep(paperShade(x, y), x, y);
   const grain = hash2(x, y, SEED);
   if (grain < PAPER.grain / 2) return dithered + 1;
   if (grain > 1 - PAPER.grain / 2) return dithered - 1;
   return dithered;
+}
+
+/**
+ * A fractional ramp step as the paper bands it at screen pixel (x, y): the
+ * whole step below, with the next one dithered in over the last stretch
+ * before the band's edge. Panels set into the paper band their own shades
+ * with it, so their banding and dither match the sheet's.
+ */
+export function bandedStep(shade: number, x: number, y: number): number {
+  const band = Math.floor(shade);
+  const into = (shade - band - (1 - PAPER.ditherWidth)) / PAPER.ditherWidth;
+  return into > 0 && ditherOn('bayer4', x, y, into) ? band + 1 : band;
 }
 
 /** Fractional ramp step of the paper before banding. */

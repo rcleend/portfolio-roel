@@ -4,17 +4,18 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { Rng } from '@/engine/math/Rng';
 import type { CharacterAnimation } from '../../../art/looks/contracts';
 import type { Looks } from '../../../art/looks/Looks';
+import { INK, shadeOf } from '../../title/backdrops/blueprint/inks';
 import { classThemes } from '../classThemes';
 import { CARD, CARD_INNER, STAGE } from '../layout';
 import { lazy } from '../lazy';
 import { type CardFrameLook, drawCardFrame } from './cardFrame';
 import { type EmblemAnimation, emblemSheets } from './emblems';
+import { drawField } from './field';
 import { createParticles, drawParticles, type Particle } from './particles';
 import { drawPedestal } from './pedestal';
 import { drawSpotlight } from './spotlight';
 import { createStars, drawStars, type Star } from './starfield';
 
-const BACKDROP = { stops: ['#07061c', '#130e42', '#22185f'], bands: 6, dither: 'bayer4' } as const;
 const STAR_COUNT = 34;
 const SEAM_MIN_OFFSET = 4;
 
@@ -57,10 +58,10 @@ interface CardScenery {
 const EMBLEM_Y = CARD.y + 66;
 
 /**
- * The tall character card on the left: bevelled frame around a deep indigo
- * starfield, class particles, a glowing pedestal and the character idling on
- * it. Scenery is generated once per character from a forked RNG, so it is
- * stable while browsing and reproducible under a fixed seed.
+ * The tall character card on the left: bevelled frame around a deep
+ * cyanotype starfield, class particles, a glowing pedestal and the character
+ * idling on it. Scenery is generated once per character from a forked RNG,
+ * so it is stable while browsing and reproducible under a fixed seed.
  */
 export class CardView {
   readonly #looks: Looks;
@@ -87,7 +88,7 @@ export class CardView {
       drawCardFrame(gfx, CARD, options.frameLook);
       const inner = CARD_INNER;
       gfx.withClip(inner.x, inner.y, inner.w, inner.h, () => {
-        gfx.fillRect(inner.x, inner.y, inner.w, inner.h, BACKDROP);
+        drawField(gfx);
         const { switching } = options;
         if (switching) {
           // The previous character keeps idling as it slides away.
@@ -130,6 +131,6 @@ function drawSeam(gfx: Gfx, incoming: number): void {
   const inner = CARD_INNER;
   const edge = incoming > 0 ? inner.x + incoming : inner.x + inner.w + incoming;
   const trail = incoming > 0 ? 1 : -2;
-  gfx.fillRect(edge - 1, inner.y, 2, inner.h, '#ffffff');
-  gfx.fillRect(edge + trail, inner.y, 1, inner.h, '#a99cf0');
+  gfx.fillRect(edge - 1, inner.y, 2, inner.h, shadeOf(INK.hot));
+  gfx.fillRect(edge + trail, inner.y, 1, inner.h, shadeOf(INK.mid));
 }
