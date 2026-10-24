@@ -1,10 +1,14 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
+import { customerLabelArt } from '../../art/fx/customerLabel';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
 import type { CustomerAnimation } from '../../art/looks/contracts';
+import type { GameFonts } from '../../fonts';
+import { palette } from '../../palette';
 import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
+import type { LabelFocus, LabelLayout, LabelScreen } from './label';
 import { REGULAR_CUSTOMER } from './tuning';
 
 /** The bits of the level's rules that change how a customer is drawn. */
@@ -80,6 +84,54 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rul
   }
 }
 
+/** What drawing the labels needs of the render kit. */
+export interface LabelKit extends Pick<RenderKit, 'time' | 'reducedMotion'> {
+  readonly fonts: Pick<GameFonts, 'small'>;
+}
+
+/**
+ * Lays out this frame's labels under the customers' feet ("Unhappy customer"
+ * until won over) on `screen` in `labels`, which remembers the rows they
+ * took. `drawCustomerLabels` then draws them, a layer at a time.
+ */
+export function layOutCustomerLabels(
+  kit: LabelKit,
+  labels: LabelLayout,
+  customers: readonly Customer[],
+  player: LabelFocus,
+  screen: LabelScreen,
+): void {
+  const { sizes } = customerLabelArt(kit.fonts.small);
+  labels.update(customers, sizes, player, screen, kit.time, kit.reducedMotion);
+}
+
+/**
+ * Draws one layer of the labels last laid out in `labels`, `(dx, dy)` from
+ * where the layout put them: 'behind', before any character, the few that
+ * meet one, so a sprite always stands in front of a label it meets;
+ * 'front', after the foreground, all the others, so no post cuts a word out
+ * of them.
+ */
+export function drawCustomerLabels(
+  gfx: Gfx,
+  kit: LabelKit,
+  labels: LabelLayout,
+  layer: 'behind' | 'front',
+  dx = 0,
+  dy = 0,
+): void {
+  const shown = labels.shown;
+  if (shown === 0) return;
+  const front = layer === 'front';
+  const bitmaps = customerLabelArt(kit.fonts.small).bitmaps();
+  for (let index = 0; index < shown; index++) {
+    const label = labels.label(index);
+    if (label.front !== front) continue;
+    const bitmap = bitmaps[label.frame.picture];
+    gfx.image(bitmap.image, label.x + dx, label.y + dy, bitmap.draw);
+  }
+}
+
 /** The animation a customer's mood plays, and how far into it they are at `now`. */
 export function customerPose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
   const age = customer.moodAge(now);
@@ -117,7 +169,7 @@ function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boole
     gfx.fillRect(x, top, PIP.w, PIP.h, '#3a2240');
     if (fill <= 0) continue;
     const w = fill >= 1 ? PIP.w : Math.ceil(PIP.w * fill);
-    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : '#ff3a4a');
+    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : palette.scarlet);
     gfx.fillRect(x, top, w, 1, calm ? '#ffd0ef' : '#ff9a9a');
   }
 }

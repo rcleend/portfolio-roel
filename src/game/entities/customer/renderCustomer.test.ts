@@ -1,11 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { BitmapFont } from '@/engine/gfx/BitmapFont';
 import type { PixelImage } from '@/engine/gfx/canvas';
+import { Gfx } from '@/engine/gfx/Gfx';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
+import { RasterCanvas, rasterContext } from '@/engine/gfx/testing';
+import { smallFont } from '../../art/fonts/small';
+import { customerLabelArt } from '../../art/fx/customerLabel';
 import terrariaJson from '../../art/looks/terraria/customer/sheet.json';
 import type { RenderKit } from '../RenderKit';
-import type { Customer, CustomerMood } from './Customer';
-import { customerPose, overheadLift } from './renderCustomer';
+import { Customer, type CustomerMood } from './Customer';
+import { FEET_GAP, LabelLayout } from './label';
+import { customerPose, drawCustomerLabels, layOutCustomerLabels, overheadLift } from './renderCustomer';
+import { REGULAR_CUSTOMER } from './tuning';
 
 /** Only the size of the image matters until something is drawn. */
 const image = (width: number, height: number) => ({ width, height }) as PixelImage;
@@ -59,5 +66,59 @@ describe('customerPose', () => {
     const still = customerPose(moving({ kind: 'approach' }, 0, 45), 100);
     expect(still.animation).toBe('walk');
     expect(Math.floor(still.time * 6)).toBe(1);
+  });
+});
+
+beforeAll(() => vi.stubGlobal('document', { createElement: () => new RasterCanvas() }));
+afterAll(() => vi.unstubAllGlobals());
+
+const PLAYER = { centerX: 20, feet: 200, body: { x: 13, y: 170, w: 14, h: 30 } };
+const SCREEN = { width: 320, restLeft: 0, restBottom: 240, left: 0, bottom: 240 };
+const FONTS = { small: BitmapFont.fromGlyphData(smallFont) };
+const { sizes } = customerLabelArt(FONTS.small);
+
+function paint(customers: readonly Customer[], time: number, reducedMotion = false) {
+  const ctx = rasterContext(320, 240);
+  const gfx = new Gfx(ctx as unknown as CanvasRenderingContext2D);
+  const kit = { time, reducedMotion, fonts: FONTS };
+  const labels = new LabelLayout();
+  layOutCustomerLabels(kit, labels, customers, PLAYER, SCREEN);
+  drawCustomerLabels(gfx, kit, labels, 'behind');
+  drawCustomerLabels(gfx, kit, labels, 'front');
+  return ctx.paintedBounds();
+}
+
+describe('drawCustomerLabels', () => {
+  it('paints the label just under the feet, centred on the customer', () => {
+    const { width, height } = sizes.unhappy;
+    expect(paint([new Customer(REGULAR_CUSTOMER, 160, 200)], 0)).toEqual({
+      x: 160 - Math.floor(width / 2),
+      y: 200 + FEET_GAP,
+      w: width,
+      h: height,
+    });
+  });
+
+  it('paints the label of a customer close by a row lower', () => {
+    const { width, height } = sizes.unhappy;
+    const customers = [new Customer(REGULAR_CUSTOMER, 120, 200), new Customer(REGULAR_CUSTOMER, 190, 200)];
+    expect(paint(customers, 0)).toEqual({
+      x: 120 - Math.floor(width / 2),
+      y: 200 + FEET_GAP,
+      w: 190 - 120 + width,
+      h: height * 2,
+    });
+  });
+
+  it('pops the happy label in two pixels up and settles it back on its row', () => {
+    const customer = new Customer(REGULAR_CUSTOMER, 160, 200);
+    customer.hit({ damage: 99, direction: 1 }, 5);
+    expect(paint([customer], 5)?.y).toBe(200 + FEET_GAP - 2);
+    expect(paint([customer], 6)?.y).toBe(200 + FEET_GAP);
+    expect(paint([customer], 5, true)?.y).toBe(200 + FEET_GAP);
+  });
+
+  it('paints nothing for nobody', () => {
+    expect(paint([], 0)).toBeNull();
   });
 });
