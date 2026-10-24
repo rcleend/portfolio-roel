@@ -1,5 +1,6 @@
 import type { CharacterId, LevelId, SkillId } from '@/content';
 import type { Scene, Step } from '@/engine/core/Scene';
+import type { CustomerConceptId } from '../art/looks/terraria/customer-concepts/concepts';
 import type { Action } from '../input/bindings';
 import type { TitleBackdropId } from './title/backdrops';
 import type { TitleLockupId } from './title/lockups';
@@ -61,10 +62,15 @@ export interface ShowcaseParams {
 }
 
 export interface LineupParams {
-  /** Who stands in line: the Terraria designs (default), their revision, or the heroes as the game draws them. */
-  readonly cast?: 'terraria' | 'revised' | 'game';
+  /**
+   * Who stands in line: the Terraria designs (default), their revision, the heroes as the game draws them,
+   * or a customer shouting and won over beside a Terraria hero.
+   */
+  readonly cast?: 'terraria' | 'revised' | 'game' | 'customers';
   /** What they stand on: the select screen's blueprint paper (default) or a stage. */
   readonly backdrop?: 'menu' | LevelId;
+  /** The customers cast's customer: a Terraria concept, or the one the game draws (default). */
+  readonly customer?: 'game' | CustomerConceptId;
 }
 
 /** Development scenes, reachable through the harness (`?scene=specimen`, `?scene=showcase`, `?scene=lineup`). */

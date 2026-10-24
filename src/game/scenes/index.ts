@@ -1,5 +1,6 @@
 import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { SceneFactories } from '@/engine/core/Director';
+import { loadCustomerConcepts } from '../art/looks/terraria/customer-concepts/concepts';
 import { loadTerrariaDesigns } from '../art/looks/terraria/designs';
 import type { Action } from '../input/bindings';
 import type { GameServices } from '../services';
@@ -59,5 +60,5 @@ export function isSceneId(value: unknown): value is SceneId {
  * opening the scene it is asked for.
  */
 export async function preloadSceneArt(id: SceneId, assets: AssetStore): Promise<void> {
-  if (id === 'lineup') await loadTerrariaDesigns(assets);
+  if (id === 'lineup') await Promise.all([loadTerrariaDesigns(assets), loadCustomerConcepts(assets)]);
 }

@@ -90,6 +90,26 @@ test.describe('playground', () => {
     expect(errors).toEqual([]);
   });
 
+  test("stands every Terraria customer concept beside the game's customer on every backdrop", async ({ page }) => {
+    const errors = trackErrors(page);
+    const boards = await openPlayground(page, '?zoom=1');
+    const keys = boards['customers-terraria'] ?? [];
+    const lineups = [...new Set(keys.map((key) => key.split('/')[1]))];
+    expect(lineups.length).toBeGreaterThan(1);
+    for (const lineup of lineups) {
+      const game = `[data-board="customers-terraria"] [data-tile="customers-terraria/${lineup}/game"] canvas`;
+      const concepts = keys.filter((key) => key.startsWith(`customers-terraria/${lineup}/`) && !key.endsWith('/game'));
+      expect(concepts).toHaveLength(3);
+      for (const concept of concepts) {
+        const tile = `[data-board="customers-terraria"] [data-tile="${concept}"] canvas`;
+        await page.locator(tile).scrollIntoViewIfNeeded();
+        // Tiles out of view are not drawn, so wait for both to have caught up before comparing.
+        await expect.poll(async () => (await pixels(page, tile)) !== (await pixels(page, game))).toBe(true);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('drives every preview from the keyboard transport', async ({ page }) => {
     const errors = trackErrors(page);
     await openPlayground(page);

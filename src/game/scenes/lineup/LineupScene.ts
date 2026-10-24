@@ -2,6 +2,7 @@ import { getCharacter } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawParallax } from '@/engine/gfx/Parallax';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
+import { customerConceptSheet } from '../../art/looks/terraria/customer-concepts/concepts';
 import { terrariaDesignSheet } from '../../art/looks/terraria/designs';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import { palette } from '../../palette';
@@ -13,8 +14,8 @@ import { classThemes } from '../character-select/classThemes';
 import { drawPlayPlane } from '../level/render/playPlane';
 import type { GameScene, GameStep, LineupParams } from '../params';
 import { arenaStage } from '../showcase/arena';
-import { standsFor, standX } from './cast';
-import { resolveLineup } from './params';
+import { customerStandsFor, customersScaleHero, standsFor, standX } from './cast';
+import { type Lineup, type LineupCustomer, resolveLineup } from './params';
 
 /** Feet on the stages' ground line; the select screen's paper gets a floor line there to compare heights. */
 const FEET_Y = GROUND_Y;
@@ -29,6 +30,10 @@ interface Stage {
 
 interface Figure {
   readonly sheet: SpriteSheet;
+  /** What it plays: a hero idles; a customer holds one of its moods. */
+  readonly animation: string;
+  /** Mirrored to face left, as the game draws a customer facing a hero on its left. */
+  readonly flipX: boolean;
   readonly label: string;
   readonly color: string;
   readonly caption: string | null;
@@ -40,10 +45,15 @@ interface Figure {
  * screen's blueprint paper or on a stage. `{"cast":"terraria"}` (the default) stands the
  * Terraria designs (art/looks/terraria/designs.ts) beside the game's ENGINEER
  * for scale, `{"cast":"revised"}` their revision, a design's variant named
- * under it; `{"cast":"game"}` the three heroes as the game draws them. The
- * designs load with whoever opens the scene (`preloadSceneArt`). Everyone
- * plays their idle on the scene's own clock, so a design blinks as it will in
- * the game; nothing else moves.
+ * under it; `{"cast":"game"}` the three heroes as the game draws them;
+ * `{"cast":"customers"}` a customer shouting and won over, each facing right
+ * and then mirrored to face left as the game shows it, beside the
+ * Terraria ENGINEER, the game's customer unless `customer` names a Terraria
+ * concept (art/looks/terraria/customer-concepts/), which then stands beside
+ * the game's for scale too. The designs and concepts load with whoever opens
+ * the scene (`preloadSceneArt`). Heroes play their idle on the scene's own
+ * clock, so a design blinks as it will in the game, and customers their
+ * moods; nothing else moves.
  */
 export class LineupScene implements GameScene<LineupParams | undefined> {
   readonly #services: GameServices;
@@ -57,16 +67,24 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
   }
 
   enter(params: LineupParams | undefined): void {
-    const { cast, backdrop } = resolveLineup(params);
+    const lineup = resolveLineup(params);
+    const { backdrop } = lineup;
     this.#time = 0;
-    const { assets, looks, levelArt } = this.#services;
+    const { levelArt } = this.#services;
     this.#stage = backdrop === 'menu' ? null : { art: levelArt.get(backdrop), layout: arenaStage(backdrop, []).layout };
-    this.#figures = standsFor(cast).map((stand): Figure => {
+    this.#figures = lineup.cast === 'customers' ? this.#customers(lineup.customer) : this.#heroes(lineup.cast);
+  }
+
+  #heroes(cast: Exclude<Lineup['cast'], 'customers'>): readonly Figure[] {
+    const { assets, looks } = this.#services;
+    return standsFor(cast).map((stand): Figure => {
       const hero = getCharacter(stand.hero);
       const accent = classThemes[stand.hero].accent;
       if (stand.design) {
         return {
           sheet: terrariaDesignSheet(assets, stand.design),
+          animation: 'idle',
+          flipX: false,
           label: hero.className,
           color: accent,
           caption: stand.design.variant,
@@ -74,10 +92,38 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
       }
       const look = looks.characters[stand.hero];
       const lookName = look.lookId.toUpperCase();
+      const idle = { sheet: look.sheet, animation: 'idle', flipX: false } as const;
       return stand.scale
-        ? { sheet: look.sheet, label: lookName, color: palette.steel, caption: null }
-        : { sheet: look.sheet, label: hero.className, color: accent, caption: lookName };
+        ? { ...idle, label: lookName, color: palette.steel, caption: null }
+        : { ...idle, label: hero.className, color: accent, caption: lookName };
     });
+  }
+
+  #customers(customer: LineupCustomer): readonly Figure[] {
+    const { assets, looks } = this.#services;
+    const design = customersScaleHero();
+    const hero: Figure = {
+      sheet: terrariaDesignSheet(assets, design),
+      animation: 'idle',
+      flipX: false,
+      label: getCharacter(design.hero).className,
+      color: classThemes[design.hero].accent,
+      caption: null,
+    };
+    const lookName = looks.customer.lookId.toUpperCase();
+    const customers = customerStandsFor(customer).map((stand): Figure => {
+      const sheet = stand.concept ? customerConceptSheet(assets, stand.concept) : looks.customer.sheet;
+      const posed = { sheet, animation: stand.pose, flipX: stand.facing === 'left' };
+      if (stand.scale) return { ...posed, label: lookName, color: palette.steel, caption: null };
+      const happy = stand.pose === 'happy';
+      return {
+        ...posed,
+        label: happy ? 'HAPPY' : 'UNHAPPY',
+        color: happy ? palette.green : palette.red,
+        caption: stand.concept ? null : lookName,
+      };
+    });
+    return [hero, ...customers];
   }
 
   exit(): void {}
@@ -91,7 +137,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
     const { text } = this.#services;
     this.#figures.forEach((figure, index) => {
       const x = standX(index, this.#figures.length, gfx.width);
-      gfx.sprite(figure.sheet, 'idle', this.#time, x, FEET_Y);
+      gfx.sprite(figure.sheet, figure.animation, this.#time, x, FEET_Y, { flipX: figure.flipX });
       gfx.text(figure.label, x, FEET_Y + LABEL_GAP, { ...text.hud, fill: figure.color }, { align: 'center' });
       if (figure.caption) {
         gfx.text(figure.caption, x, FEET_Y + CAPTION_GAP, { ...text.hud, fill: palette.steel }, { align: 'center' });
