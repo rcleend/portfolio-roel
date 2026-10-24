@@ -61,8 +61,6 @@ export interface Lettering {
   readonly origin: { readonly x: number; readonly y: number };
   /** Cap height of the line. */
   readonly height: number;
-  /** The first letter's own pixels of the face, rasterised alone so a neighbour it touches never counts as it. */
-  readonly first: Mask;
   /** The raised first letter, or `null` when it is set like the rest. */
   readonly initial: RaisedInitial | null;
 }
@@ -113,15 +111,16 @@ export function setLettering(text: string, options: LetteringOptions): Lettering
   const width = Math.ceil(Math.max(pen - LETTER_SPACING + height * SLANT, initialReach) + MARGIN.right);
   const maskHeight = Math.ceil(baseline + MARGIN.bottom);
   const face = chipEdges(Mask.fromShape(width, maskHeight, roughen(union(...placed))), boxes, baseline, rng);
-  const [firstShape] = placed;
-  const firstFace = firstShape ? Mask.fromShape(width, maskHeight, roughen(firstShape)).intersect(face) : face;
+  const [initialShape] = placed;
   return {
     face,
     letters: boxes,
     origin,
     height,
-    first: firstFace,
-    initial: initial ? { face: firstFace, height: initialHeight } : null,
+    initial:
+      initial && initialShape
+        ? { face: Mask.fromShape(width, maskHeight, roughen(initialShape)).intersect(face), height: initialHeight }
+        : null,
   };
 }
 

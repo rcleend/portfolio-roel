@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { profile } from '@/content';
 import { parseHex } from '@/engine/gfx/color';
 import { Gfx } from '@/engine/gfx/Gfx';
+import { type TextStyle, textInk } from '@/engine/gfx/TextStyle';
 import { RasterCanvas, type RasterContext, rasterContext } from '@/engine/gfx/testing';
-import { LOCKUP_INK } from '../../../../art/logos';
+import { condensedType, LOCKUP_INK } from '../../../../art/logos';
 import { palette } from '../../../../palette';
 import { TITLE_LAYOUT } from '../../layout';
 import type { LockupArt } from '../TitleLockup';
@@ -74,36 +76,23 @@ function inkSpans(ctx: RasterContext): { row: Span; header: Span } {
 }
 
 /**
- * The screen column where PRODUCT's P starts its bright face at the top:
- * its leftmost face pixel in its top three rows. The P is found in the top
- * word's shine image (its letter faces alone) as the face holding the
- * word's leftmost pixel, the P's foot, which the slant leaves furthest left.
+ * The widths of the row's runs of inked columns, left to right, and of the
+ * blank runs between them: the row's words, as the eye separates them.
  */
-function faceStartOfP(): number {
-  const [target] = art.glint.targets;
-  if (!target) throw new Error('the lockup has no glint targets');
-  const shine = target.shine as unknown as RasterCanvas;
-  const { data } = shine.getContext();
-  const isFace = (x: number, y: number): boolean =>
-    x >= 0 && y >= 0 && x < shine.width && y < shine.height && (data[(y * shine.width + x) * 4 + 3] as number) > 0;
-  let foot: [number, number] | null = null;
-  for (let x = 0; x < shine.width && !foot; x++) {
-    for (let y = 0; y < shine.height && !foot; y++) if (isFace(x, y)) foot = [x, y];
+function rowRuns(ctx: RasterContext): { words: number[]; spaces: number[] } {
+  const inked = Array.from({ length: width }, (_, px) =>
+    Array.from({ length: height }, (_, py) => inNameRow(ctx, px, py)).includes(true),
+  );
+  const runs: { inked: boolean; width: number }[] = [];
+  for (const column of inked.slice(inked.indexOf(true), inked.lastIndexOf(true) + 1)) {
+    const last = runs.at(-1);
+    if (last?.inked === column) last.width++;
+    else runs.push({ inked: column, width: 1 });
   }
-  if (!foot) throw new Error('the top word has no face');
-  // Flood the P's face from its foot.
-  const letter: [number, number][] = [];
-  const seen = new Set<number>();
-  const queue: [number, number][] = [foot];
-  for (let next = queue.pop(); next; next = queue.pop()) {
-    const [x, y] = next;
-    if (!isFace(x, y) || seen.has(y * shine.width + x)) continue;
-    seen.add(y * shine.width + x);
-    letter.push(next);
-    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-  }
-  const top = Math.min(...letter.map(([, y]) => y));
-  return target.left + Math.min(...letter.filter(([, y]) => y < top + 3).map(([x]) => x));
+  return {
+    words: runs.filter((run) => run.inked).map((run) => run.width),
+    spaces: runs.filter((run) => !run.inked).map((run) => run.width),
+  };
 }
 
 describe('classic lockup', () => {
@@ -116,34 +105,32 @@ describe('classic lockup', () => {
     expect(right - left).toBe(ink.w % 2);
   });
 
-  it("starts the name's cream on the column where PRODUCT's P starts its bright face, at the top", () => {
-    const ctx = render();
-    // The name's letters are its cream; PORTFOLIO's, further right, never come first.
-    let nameStart = Number.POSITIVE_INFINITY;
-    for (let py = 0; py < height; py++) {
-      for (let px = 0; px < width; px++) {
-        if (inNameRow(ctx, px, py) && colourAt(ctx, px, py) === rgb(palette.cream)) nameStart = Math.min(nameStart, px);
-      }
-    }
-    expect(nameStart).toBe(faceStartOfP());
+  it('sets the name and the site as one row, joined by a middle dot and spaced evenly', () => {
+    const style: TextStyle = {
+      font: condensedType(),
+      fill: palette.cream,
+      outline: LOCKUP_INK,
+      shadow: { color: LOCKUP_INK, x: 1, y: 1 },
+    };
+    const words = `${profile.name} · ${profile.site}`.toUpperCase().split(' ');
+    const { words: inked, spaces } = rowRuns(render());
+    expect(inked).toEqual(words.map((word) => textInk(style, word, 0, 0)?.w));
+    expect(new Set(spaces).size).toBe(1);
   });
 
-  it('sets the site flush with the header ink on the right, inside the header on the left', () => {
+  it('ends the row flush with the header ink on the right, inside the header on the left', () => {
     const { row, header } = inkSpans(render());
     expect(row.right).toBe(header.right);
     expect(row.left).toBeGreaterThan(header.left);
   });
 
-  it('keeps the name and the site apart, the middle of the row open', () => {
+  it('leaves paper between the row and PRODUCT in every column', () => {
     const ctx = render();
-    const { row } = inkSpans(ctx);
-    let [gap, widest] = [0, 0];
-    for (let px = row.left; px <= row.right; px++) {
-      const inked = Array.from({ length: height }, (_, py) => inNameRow(ctx, px, py)).includes(true);
-      gap = inked ? 0 : gap + 1;
-      widest = Math.max(widest, gap);
+    for (let px = 0; px < width; px++) {
+      let foot = -1;
+      for (let py = 0; py < height; py++) if (inNameRow(ctx, px, py)) foot = py;
+      if (foot >= 0) expect(colourAt(ctx, px, foot + 1), `column ${px}`).toBeNull();
     }
-    expect(widest).toBeGreaterThan(width / 4);
   });
 
   it('brings the name row in with the top word', () => {

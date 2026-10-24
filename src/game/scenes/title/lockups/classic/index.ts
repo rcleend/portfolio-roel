@@ -21,7 +21,7 @@ const LAYOUT = {
   /** ENGINEER starts this far left of PRODUCT, staggering the slanted lines. */
   bottomLineShift: -12,
   /** Empty rows between the name row's glyph cells and PRODUCT's cap line. */
-  nameGap: 3,
+  rowGap: 6,
   /** The trademark follows the bottom word, its foot a pixel below the baseline. */
   trademarkGap: 7,
 } as const;
@@ -29,28 +29,26 @@ const LAYOUT = {
 /**
  * Metal Slug's lockup (docs/ART-DIRECTION.md › Title): the headline in two
  * rough, rust-banded lines, "PRODUCT" over "ENGINEER", under a row in the
- * "SUPER VEHICLE-001" kicker's face with the name over PRODUCT's P and the
- * site flush right, and a small trademark after the bottom word.
+ * "SUPER VEHICLE-001" kicker's face, the name and the site joined by a
+ * middle dot and flush right, and a small trademark after the bottom word.
  */
 export const classicLockup: TitleLockup<'classic'> = {
   id: 'classic',
   name: 'Classic',
-  description:
-    'PRODUCT over ENGINEER in rusted slab letters, under a row with the name over the P and PORTFOLIO right.',
+  description: 'PRODUCT over ENGINEER in rusted slab letters, under the name · PORTFOLIO in one row, flush right.',
   prepare: lazy(paintClassicLockup),
 };
 
 function paintClassicLockup(): LockupArt {
   const { top, bottom, trademark } = titleLogo();
-  const name = profile.name.toUpperCase();
-  const site = profile.site.toUpperCase();
-  const nameStyle: TextStyle = {
+  const row = `${profile.name} · ${profile.site}`.toUpperCase();
+  const rowStyle: TextStyle = {
     font: condensedType(),
     fill: palette.cream,
     outline: LOCKUP_INK,
     shadow: { color: LOCKUP_INK, x: 1, y: 1 },
   };
-  const nameTop = LAYOUT.topLineY - nameStyle.font.cellHeight - LAYOUT.nameGap;
+  const rowTop = LAYOUT.topLineY - rowStyle.font.cellHeight - LAYOUT.rowGap;
   const trademarkTop = LAYOUT.bottomLineY + bottom.height - trademark.height + 1;
 
   // Measure the header's ink with PRODUCT starting at x = 0, then centre it on screen.
@@ -61,22 +59,18 @@ function paintClassicLockup(): LockupArt {
     rect(LAYOUT.bottomLineShift + bottom.width + LAYOUT.trademarkGap, trademarkTop, trademark.width, trademark.height),
   ].reduce(union);
   const settledTopX = Math.floor((TITLE_LAYOUT.screen.width - header.w) / 2) - header.x;
-  // The name's cream starts where the bright face of PRODUCT's P does in its top rows, the ones nearest the
-  // name (the letters slant, so lower rows start further left); the site's ink ends flush with the header's.
-  const nameFill = inkOf({ font: nameStyle.font, fill: nameStyle.fill }, name);
-  const nameShift = top.faceStart - top.origin.x - nameFill.x;
-  const siteInk = inkOf(nameStyle, site);
-  const siteShift = header.x + header.w - (siteInk.x + siteInk.w);
+  // The row's ink ends flush with the header's on the right.
+  const rowInk = inkOf(rowStyle, row);
+  const rowShift = header.x + header.w - (rowInk.x + rowInk.w);
 
-  // The top word comes in from the right and the bottom word from the left; the name row and trademark ride on them.
+  // The top word comes in from the right and the bottom word from the left; the row and trademark ride on them.
   const place = (travel: number) => {
     const topX = settledTopX + travel;
     const bottomX = settledTopX + LAYOUT.bottomLineShift - travel;
     return {
       topX,
       bottomX,
-      nameX: topX + nameShift,
-      siteX: topX + siteShift,
+      rowX: topX + rowShift,
       trademarkLeft: bottomX + bottom.width + LAYOUT.trademarkGap,
     };
   };
@@ -85,8 +79,7 @@ function paintClassicLockup(): LockupArt {
   return {
     bounds: [
       lineBox(top, settled.topX, LAYOUT.topLineY),
-      textBounds(nameStyle, name, settled.nameX, nameTop),
-      textBounds(nameStyle, site, settled.siteX, nameTop),
+      textBounds(rowStyle, row, settled.rowX, rowTop),
       lineBox(bottom, settled.bottomX, LAYOUT.bottomLineY),
       rect(settled.trademarkLeft, trademarkTop, trademark.width, trademark.height),
     ].reduce(union),
@@ -97,15 +90,14 @@ function paintClassicLockup(): LockupArt {
     draw(gfx: Gfx, travel: number): void {
       const at = place(travel);
       drawLine(gfx, top, at.topX, LAYOUT.topLineY);
-      gfx.text(name, at.nameX, nameTop, nameStyle);
-      gfx.text(site, at.siteX, nameTop, nameStyle);
+      gfx.text(row, at.rowX, rowTop, rowStyle);
       drawLine(gfx, bottom, at.bottomX, LAYOUT.bottomLineY);
       gfx.image(trademark, at.trademarkLeft, trademarkTop);
     },
   };
 }
 
-/** What `text` inks in `style`, outline and shadow included if it has them, set with its first glyph cell at x = 0. */
+/** What `text` inks in `style`, outline and shadow included, set with its first glyph cell at x = 0. */
 function inkOf(style: TextStyle, text: string): Rect {
   const ink = textInk(style, text, 0, 0);
   if (!ink) throw new Error(`Classic lockup: "${text}" inks nothing`);

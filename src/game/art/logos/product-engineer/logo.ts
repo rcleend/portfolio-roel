@@ -1,5 +1,5 @@
 import { Bitmap } from '../raster/Bitmap';
-import type { Mask, PixelBox } from '../raster/Mask';
+import type { PixelBox } from '../raster/Mask';
 import { type InitialScale, type Lettering, SLANT, setLettering } from './lettering';
 import { paintLettering } from './paint';
 import { measureShelf, type Shelf } from './shelf';
@@ -20,13 +20,6 @@ export interface LogoLine {
    * transparent margin: lay lines out by this, not by the image's own box.
    */
   readonly ink: PixelBox;
-  /**
-   * The column where the first letter's face starts at its top: its
-   * leftmost pixel in its top few rows, in `image` pixels. The slant
-   * carries a letter right as it climbs, so this, not the face's leftmost
-   * pixel, is where lettering set above the line lines up with it.
-   */
-  readonly faceStart: number;
   /** Cap height of the line. */
   readonly height: number;
   /** Upright width of the set word, from `origin` to the last letter's right edge. */
@@ -81,29 +74,11 @@ function paintLine(word: string, index: 0 | 1, initial?: InitialScale): LogoLine
     shine: paintShine(lettering),
     origin: lettering.origin,
     ink,
-    faceStart: topLeftColumn(lettering.first),
     height: lettering.height,
     width,
     capWidth: Math.round(width + lettering.height * SLANT),
     shelf: measureShelf(lettering),
   };
-}
-
-/**
- * How many of a letter's top rows its top-left corner is found in: few
- * enough that the slant, a pixel every five rows, barely moves the edge
- * across them, and enough that one row's wobble cannot decide it alone.
- */
-const CORNER_ROWS = 3;
-
-/** The leftmost column `mask` sets in its top `CORNER_ROWS` rows. */
-function topLeftColumn(mask: Mask): number {
-  const box = mask.bounds();
-  if (!box) throw new Error('Title logo: the first letter paints nothing');
-  const rows = Array.from({ length: CORNER_ROWS }, (_, i) => box.y + i);
-  let x = box.x;
-  while (!rows.some((y) => mask.has(x, y))) x++;
-  return x;
 }
 
 const SHINE = '#fff7d0';
