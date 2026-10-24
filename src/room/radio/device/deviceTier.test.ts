@@ -22,18 +22,11 @@ describe('device tiers', () => {
   });
 
   it('is slow on software renderers or when the first flight could not keep up', () => {
-    expect(isSlow('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)))', null)).toBe(true);
-    expect(isSlow('llvmpipe (LLVM 15.0.7, 256 bits)', null)).toBe(true);
-    expect(isSlow('Microsoft Basic Render Driver', null)).toBe(true);
-    expect(isSlow('ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro)', null)).toBe(false);
-    expect(isSlow(null, null)).toBe(false);
+    // Which renderers are software is the stage's to know (softwareGpu.test.ts).
+    expect(isSlow(true, null)).toBe(true);
+    expect(isSlow(false, null)).toBe(false);
     const slowFlight = Array.from({ length: 30 }, (_, i) => i * 40);
-    expect(isSlow(null, slowFlight)).toBe(true);
-    expect(
-      isSlow(
-        null,
-        Array.from({ length: 30 }, (_, i) => i * 20),
-      ),
-    ).toBe(false);
+    expect(isSlow(false, slowFlight)).toBe(true);
+    expect(isSlow(false, Array.from({ length: 30 }, (_, i) => i * 20))).toBe(false);
   });
 });

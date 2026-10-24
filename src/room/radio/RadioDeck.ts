@@ -38,7 +38,11 @@ export interface DeckState {
 /** A disc's print. Square, `labelSize` px; RGB is the ink, alpha its coverage (0 shows bare foil). The room keeps it. */
 export interface DiscArt {
   readonly id: string;
-  /** Null: a plain silver disc until a later `setDiscs` brings the print. */
+  /**
+   * Null: a plain silver disc until a later `setDiscs` brings the print. The room reads a small copy of it back (the
+   * spin blur's radial average), so paint a canvas on the CPU (`getContext('2d', { willReadFrequently: true })`):
+   * reading a GPU canvas would make the main thread wait for the GPU.
+   */
   readonly label: HTMLCanvasElement | ImageBitmap | null;
 }
 

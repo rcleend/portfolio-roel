@@ -7,7 +7,7 @@ import { PowerLed } from '../../tv/PowerLed';
 import type { CreateRadioDevice, DevicePick, DeviceTarget, RadioDevice, RadioDeviceContext } from '../deviceContract';
 import { discSlots } from '../discLayout';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
-import { deviceMemory, rendererName, saveData } from '../rendererInfo';
+import { deviceMemory, saveData } from '../deviceFacts';
 import { AmbientPacer } from './AmbientPacer';
 import { Choreography, type DiscSample, type Moment } from './choreography';
 import { assembleParts, type CloseUpExtras, loadSkin, type RadioParts, skinTexture } from './closeUpAsset';
@@ -86,6 +86,7 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     loader: host.loader,
     assetBaseUrl: host.assetBaseUrl,
     anisotropy: host.anisotropy,
+    software: stage.softwareGpu,
     reducedMotion: link.reducedMotion,
     stage,
     views: host.views,
@@ -99,7 +100,7 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     pixelRatio: context.stage.size.pixelRatio,
     deviceMemory: deviceMemory(),
     saveData: saveData(),
-    slow: isSlow(rendererName(context.renderer.getContext()), null),
+    slow: isSlow(context.software, null),
   });
   // The skin downloads and decodes beside the close-up; it is uploaded only once the visitor reaches for the radio.
   const skin = skinWanted ? loadSkin(new URL(SKIN_FILE, base).href).catch(() => null) : Promise.resolve(null);
@@ -182,7 +183,7 @@ class Device implements RadioDevice {
     this.#context = context;
     this.#parts = parts;
     this.root = root;
-    this.#slow = isSlow(rendererName(context.renderer.getContext()), null);
+    this.#slow = isSlow(context.software, null);
     this.#choreography = new Choreography({
       reducedFadeMs: REDUCED_FADE_MS,
       eye: () => context.pose().position,
@@ -735,7 +736,7 @@ class Device implements RadioDevice {
     this.#context.loop.animate((now) => {
       frames.push(now);
       if (now < end && this.#context.views.moving) return true;
-      if (isSlow(null, frames)) {
+      if (isSlow(false, frames)) {
         this.#slow = true;
         this.#pacer.sync();
       }

@@ -231,6 +231,7 @@ export class Discs {
     this.#averages.needsUpdate = true;
   }
 
+  /** The print's radial average from a 128² copy on the CPU (the print is a CPU canvas: no wait for the GPU). */
   #average(disc: Disc, art: HTMLCanvasElement | ImageBitmap): void {
     const context = this.#scratch.getContext('2d', { willReadFrequently: true });
     if (!context) return;

@@ -1,5 +1,3 @@
-import { isSoftwareRenderer } from '../rendererInfo';
-
 /**
  * What the radio spends on a device (docs/ROOM.md › The CD player), decided from facts, never guessed: the 2K
  * skin where it shows and fits, and a slow tier (no ambient float, short arrivals, the smallest labels) for
@@ -45,9 +43,12 @@ export function flightMedian(frameTimes: readonly number[]): number | null {
     : ((intervals[middle - 1] ?? 0) + (intervals[middle] ?? 0)) / 2;
 }
 
-/** Slow: a software renderer, or a first flight whose median frame took longer than 34 ms. Sticky per page load. */
-export function isSlow(rendererName: string | null, firstFlight: readonly number[] | null): boolean {
-  if (isSoftwareRenderer(rendererName)) return true;
+/**
+ * Slow: a software renderer (the stage's `softwareGpu`, read once when the renderer was made), or a first flight whose
+ * median frame took longer than 34 ms. Sticky per page load.
+ */
+export function isSlow(software: boolean, firstFlight: readonly number[] | null): boolean {
+  if (software) return true;
   if (!firstFlight) return false;
   const median = flightMedian(firstFlight);
   return median !== null && median > SLOW_FRAME_MS;

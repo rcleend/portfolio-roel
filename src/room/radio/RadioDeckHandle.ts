@@ -3,7 +3,7 @@ import type { ControlsLayer } from './ControlsLayer';
 import type { CreateRadioDevice, RadioDevice, RadioHost } from './deviceContract';
 import { discSlots, labelSizeFor, largestDiscDiameter, MAX_DISCS, MIN_DISCS } from './discLayout';
 import type { DeckState, DiscArt, RadioCueEvent, RadioDeck, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
-import { deviceMemory, isSoftwareRenderer, rendererName, saveData } from './rendererInfo';
+import { deviceMemory, saveData } from './deviceFacts';
 
 /** Loads the device chunk; a seam for tests. */
 export type DeviceLoader = CreateRadioDevice;
@@ -184,13 +184,13 @@ export class RadioDeckHandle implements RadioDeck {
   attach(host: RadioHost): void {
     this.#host = host;
     host.rig.setRadioFraming(this.#discs.length, this.#insets);
-    const { size, renderer } = host.stage;
+    const { size, softwareGpu } = host.stage;
     const slots = discSlots(this.#discs.length, size.width / size.height);
     this.#size = labelSizeFor(
       largestDiscDiameter(slots, host.rig.viewpoint('radio'), size),
       size.pixelRatio,
       deviceMemory(),
-      isSoftwareRenderer(rendererName(renderer.getContext())),
+      softwareGpu,
     );
     if (this.#wanted) this.#load();
   }

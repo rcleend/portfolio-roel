@@ -124,7 +124,7 @@ export class MockRadioApp {
 export function paintLabel(size: number, number: number, colour: string): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) return canvas;
   const centre = size / 2;
   const circle = (radius: number) => {

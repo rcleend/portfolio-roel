@@ -31,6 +31,8 @@ export interface RadioHost {
     readonly loop: RenderLoop;
     readonly visible: boolean;
     readonly size: ViewportSize;
+    /** The GPU is software (read once when the renderer was made: asking again would wait for the GPU). */
+    readonly softwareGpu: boolean;
   };
   readonly views: { readonly view: RoomView; readonly moving: boolean; request(view: RoomView): void };
   readonly background: Pick<IdleWork, 'add'>;
@@ -60,6 +62,8 @@ export interface RadioDeviceContext {
   /** Absolute URL of the room's asset folder. */
   readonly assetBaseUrl: string;
   readonly anisotropy: number;
+  /** The GPU is software: the slow tier and the smallest labels. */
+  readonly software: boolean;
   readonly reducedMotion: MediaQueryList;
   /** The stage canvas is on screen and the tab visible; its CSS size and pixel ratio. */
   readonly stage: { readonly visible: boolean; readonly size: ViewportSize };

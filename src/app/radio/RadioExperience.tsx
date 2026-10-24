@@ -66,7 +66,8 @@ const PAGE: DiscPrintsHost = {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
-    const context = canvas.getContext('2d');
+    // On the CPU: the room reads the print back for its spin blur, which from a GPU canvas waits on the GPU.
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     return context ? { canvas, context } : null;
   },
   whenIdle,
