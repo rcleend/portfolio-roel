@@ -45,6 +45,8 @@ export interface Music {
 
 /** The mechanical sounds (FoleyPlayer). */
 export interface Foley {
+  /** Makes what playing needs ahead of the gesture that wakes it (it stays silent). */
+  prepare(): void;
   wake(): void;
   sleepSoon(ms: number): void;
   play(cue: FoleyCue, pan?: number, order?: number): void;
@@ -158,7 +160,10 @@ export class RadioPlayer {
       this.#deck.onSeated((disc) => this.#dispatch({ type: 'seated', disc })),
       this.#deck.onCue((event) => this.#foley.play(event.cue, event.pan, event.order)),
     ];
+    // At the radio: awake. Elsewhere (loaded at idle): made now and kept asleep, so the click that sends the camera
+    // to the radio only resumes it.
     if (this.#view === 'radio') this.#foley.wake();
+    else this.#foley.prepare();
     this.#publish();
     return () => {
       for (const stop of stops) stop();

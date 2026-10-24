@@ -91,6 +91,10 @@ export class Lcd {
     this.mesh.visible = false;
     this.#applyLevel(0);
     parent.add(this.mesh);
+    // What an empty radio greets the visitor with, painted now (the device is made in idle time) rather than in the
+    // click that sends the camera to the radio; it stays hidden until the display lights.
+    this.#shown = lcdFrame({ kind: 'no-disc' });
+    this.#paint(this.#shown);
   }
 
   /** Pixels on the GPU (with mips). */

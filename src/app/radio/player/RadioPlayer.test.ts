@@ -34,6 +34,9 @@ class RecordingFoley implements Foley {
   readonly played: FoleyCue[] = [];
   readonly log: string[] = [];
   muted = false;
+  prepare(): void {
+    this.log.push('prepare');
+  }
   wake(): void {
     this.log.push('wake');
   }
@@ -338,7 +341,7 @@ describe('the camera', () => {
     const world = setup({ view: 'room' });
     world.player.setView('radio');
     world.player.setView('room');
-    expect(world.foley.log).toEqual(['wake', 'sleep 2000']);
+    expect(world.foley.log).toEqual(['prepare', 'wake', 'sleep 2000']);
   });
 
   it('plays the room’s cues as foley', () => {
