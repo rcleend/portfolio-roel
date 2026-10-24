@@ -95,7 +95,10 @@ export class CameraRig {
 
   setFramingInsets(insets: FramingInsets): void {
     this.insets = insets;
-    this.resize(this.viewport);
+    this.region = regionFromInsets(this.viewport, insets);
+    // Only the TV's framing keeps clear of overlays; the room and the computer use the whole viewport.
+    this.poses.tv = this.computeTvPose();
+    this.holdPose();
   }
 
   /** Places the camera at `view` immediately. */
@@ -208,10 +211,14 @@ export class CameraRig {
     this.poses.tv = this.computeTvPose();
     this.poses.room = roomViewpoint(aspect);
     this.poses.pc = pcViewpoint(this.pc, aspect);
-    if (!this.moving) {
-      this.current = cloneViewpoint(this.poses[this.settledView]);
-      this.apply();
-    }
+    this.holdPose();
+  }
+
+  /** A camera at rest takes up its view's new pose; a flight reads its destination every frame. */
+  private holdPose(): void {
+    if (this.moving) return;
+    this.current = cloneViewpoint(this.poses[this.settledView]);
+    this.apply();
   }
 
   private computeTvPose(): Viewpoint {

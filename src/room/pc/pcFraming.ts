@@ -81,8 +81,18 @@ export function pcViewpoint(model: PcFramingModel, aspect: number): Viewpoint {
   };
   let fov = PC_FOV;
   let pose = frame(fov);
-  while (reach(pose) > PC_MAX_DISTANCE && fov < PC_MAX_FOV) {
-    fov += 1;
+  if (reach(pose) > PC_MAX_DISTANCE) {
+    // The narrowest whole-degree lens that brings the eye close enough. A wider lens only ever
+    // brings it closer, so halving the range finds it in 6 framings where widening one degree at a
+    // time took up to 40: on a portrait phone 1 ms of a laptop's main thread, on every resize.
+    let narrowest = PC_FOV + 1;
+    let widest = PC_MAX_FOV;
+    while (narrowest < widest) {
+      const middle = (narrowest + widest) >> 1;
+      if (reach(frame(middle)) > PC_MAX_DISTANCE) narrowest = middle + 1;
+      else widest = middle;
+    }
+    fov = narrowest;
     pose = frame(fov);
   }
   // Aimed at the glass's plane whichever subject set the distance, so the eye-to-glass distance is
