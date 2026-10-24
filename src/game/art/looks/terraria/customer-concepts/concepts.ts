@@ -36,7 +36,8 @@ export const CUSTOMER_CONCEPTS: readonly CustomerConcept[] = [
   {
     id: 'on-the-phone',
     name: 'On the phone',
-    description: 'An office worker, red to the scalp, shouting into a brick phone; won over, a thumbs up.',
+    description:
+      'A middle manager, red to the scalp, yelling into the brick phone at his ear and jabbing a finger at you; won over, a thumbs up.',
     sheet: { png: onThePhonePng, json: onThePhoneJson },
   },
   {
@@ -48,7 +49,7 @@ export const CUSTOMER_CONCEPTS: readonly CustomerConcept[] = [
   {
     id: 'one-star',
     name: 'One star',
-    description: 'An app user brandishing a cracked tablet rating you 1 star; won over, it reads 5.',
+    description: 'An app user brandishing a cracked tablet rating you 1 star; won over, it shows five stars.',
     sheet: { png: oneStarPng, json: oneStarJson },
   },
 ];

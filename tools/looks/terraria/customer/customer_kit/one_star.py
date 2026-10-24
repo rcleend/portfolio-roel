@@ -13,7 +13,7 @@ HEAD = full('head', 13, '''
                      ............KSsssssssK..........
                      ............KSsssssssK..........
                      ............KSsssssssK..........
-                     ............KSSssssssLK.........
+                     ............KSSsssssssK.........
                      .............KSSsssssK..........
                      ..............KSSsssK...........
                      ...............KKKKK............
@@ -25,7 +25,8 @@ FACES = {
                      .................wi.............
                      .................wi.............
                      ................................
-                     ..................MMq...........
+                     ..................MMM...........
+                     ..................MqM...........
 '''),
     'happy': full('face delighted', 16, '''
                      .................O..............
@@ -81,7 +82,7 @@ NECK = full('neck', 22, '''
 # Big headphones worn round the neck, a cup at the throat.
 HEADPHONES = full('headphones', 21, '''
                      ............00......000.........
-                     .............000..01230.........
+                     .............000..01220.........
                      ...............00011220.........
                      ..................0000..........
 ''', legend=tones('gadget', '0123'))
@@ -109,10 +110,26 @@ NEAR_ARMS = {
                      ...#o6*#..
                      ..#o6*#...
                      .#xox#....
-                     KsLsK.....
+                     KsssK.....
                      KsssSK....
                      .KKKK.....
 ''', shoulder=(10, 22), hand=(4, 29)),
+    # Punched up into the air: five stars!
+    'cheer': art('near arm punching the air', 3, 11, '''
+                     .KKK.......
+                     KsLsK......
+                     KsssK......
+                     KSSsK......
+                     .#o6#......
+                     .#o6#......
+                     ..#o6#.....
+                     ..#o6#.....
+                     ...#o6#....
+                     ...#xo6#...
+                     ....#xo6#..
+                     .....#xo+#.
+                     ......###..
+''', shoulder=(10, 22), hand=(5, 13)),
     'hang': art('near arm hanging', 8, 21, '''
                      ..##..
                      .#**#.
@@ -152,35 +169,37 @@ FAR_ARMS = {
 ''', shoulder=(19, 23), hand=(24, 23)),
 }
 
-# The case, the screen and its crack, the stars, and the digit lit in the screen's white.
+# The case, the screen and its crack, the stars, and the digit lit in the screen's white. The game mirrors a
+# customer to face left, and customers face the player, so everything on the screen reads the same both ways:
+# a plain 1 on its foot beside a star, then five stars.
 TABLET_LEGEND = {**tones('gadget', '0123'), **tones('screen', 'abcd'), **tones('star', '5678'), 'n': ('screen', 3)}
 
-# The tablet's screen, cracked from top to bottom, showing the rating they are leaving: 1 star.
+# The screen shows the rating they are leaving, 1 star, the glass shattered from one corner, well clear of the 1.
 TABLET = Prop(art('cracked tablet showing one star', 23, 11, '''
-                     .000000000000.
-                     01111111111110
-                     01aaaaacaaaa10
-                     01aanacaa7aa10
-                     01annaca787a10
-                     01aanca7888710
-                     01aanaca767a10
-                     01annnca6a6a10
-                     01111111111110
-                     .000000000000.
+                     .0000000000000.
+                     011111111111110
+                     01anaaaaaaccc10
+                     01anaaaa7aaca10
+                     01anaaa787aac10
+                     01anaa78887ac10
+                     01anaaa767aca10
+                     01nnnaa6a6aac10
+                     011111111111110
+                     .0000000000000.
 ''', legend=TABLET_LEGEND, grip=(28, 20)))
 
-# Once they are happy the screen is whole again, and so is the rating: 5 stars.
+# Once they are happy the screen is whole again, and so is the rating: five stars.
 TABLET_HAPPY = Prop(art('tablet showing five stars', 23, 11, '''
-                     .000000000000.
-                     01111111111110
-                     01aaaaaaaaaa10
-                     01annnaaa7aa10
-                     01anaaaa787a10
-                     01annaa7888710
-                     01aaanaa767a10
-                     01annaaa6a6a10
-                     01111111111110
-                     .000000000000.
+                     .0000000000000.
+                     011111111111110
+                     01a7aaa7aaa7a10
+                     01787a787a78710
+                     01a7aaa7aaa7a10
+                     01aaa7aaa7aaa10
+                     01aa787a787aa10
+                     01aaa7aaa7aaa10
+                     011111111111110
+                     .0000000000000.
 ''', legend=TABLET_LEGEND, grip=(28, 20)))
 
 FIGURE = Figure(
@@ -198,9 +217,10 @@ FIGURE = Figure(
     effects={},
     hair='hair-app',
     skin={'unhappy': 'skin-fuming', 'happy': 'skin-app'},
+    hands={'unhappy': 'hands-app-warm', 'happy': 'skin-app'},
 )
 
 POSES = {
     'shout': Pose(mood='unhappy', face='rant', near='fling', far='brandish', held=(Held('tablet', 'far'),)),
-    'happy': Pose(mood='happy', face='happy', far='brandish', held=(Held('tablet, five stars', 'far'),)),
+    'happy': Pose(mood='happy', face='happy', near='cheer', far='brandish', held=(Held('tablet, five stars', 'far'),)),
 }

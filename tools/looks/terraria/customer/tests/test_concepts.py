@@ -19,6 +19,7 @@ for path in (TOOL, TOOL.parent):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+from customer_kit import one_star  # noqa: E402
 from customer_kit.art import DESIGN_AT, GROUND, paint  # noqa: E402
 from customer_kit.concepts import CONCEPTS, KEY_POSES  # noqa: E402
 from customer_kit.palette import RAMPS  # noqa: E402
@@ -51,8 +52,12 @@ def body(concept: str, name: str) -> Image.Image:
 def parts(picture: Image.Image) -> List[Set[Tuple[int, int]]]:
     """The picture's opaque pixels in 8-connected parts."""
     alpha = picture.getchannel('A')
-    todo = {(x, y) for y in range(picture.height) for x in range(picture.width) if alpha.getpixel((x, y))}
-    found = []
+    return parts_of({(x, y) for y in range(picture.height) for x in range(picture.width) if alpha.getpixel((x, y))})
+
+
+def parts_of(points: Set[Tuple[int, int]]) -> List[Set[Tuple[int, int]]]:
+    """`points` in 8-connected parts."""
+    todo, found = set(points), []
     while todo:
         part, edge = set(), [todo.pop()]
         while edge:
@@ -139,6 +144,29 @@ class Figures(unittest.TestCase):
             self.assertEqual((unhappy.mood, happy.mood), ('unhappy', 'happy'), concept)
             self.assertNotEqual(module.FIGURE.skin['unhappy'], module.FIGURE.skin['happy'], concept)
             self.assertEqual(happy.effects, (), f'{concept}: a happy customer neither steams nor fumes')
+
+    def test_flush_in_the_face_but_not_the_hands(self) -> None:
+        """Red hands read as gloves and swallow what they hold: they only warm while the face flushes."""
+        for concept, module in CONCEPTS.items():
+            figure = module.FIGURE
+            self.assertNotEqual(figure.hands['unhappy'], figure.skin['unhappy'], concept)
+            self.assertEqual(figure.hands['happy'], figure.skin['happy'], f'{concept}: calm hands match the face')
+
+
+class Screens(unittest.TestCase):
+    def test_read_the_same_when_the_game_mirrors_the_customer(self) -> None:
+        """A customer faces the player, mirrored about half the time, so every glyph on one-star's tablet is
+        symmetric: mirrored, the screen shows the same 1, star or five stars, only in the other order."""
+        for name, prop in one_star.FIGURE.props.items():
+            glyphs = {
+                (x, y) for x, y, (ramp, index) in prop.drawing.pixels if ramp == 'star' or (ramp, index) == ('screen', 3)
+            }
+            self.assertTrue(glyphs, name)
+            for glyph in parts_of(glyphs):
+                left, right = min(x for x, _ in glyph), max(x for x, _ in glyph)
+                mirrored = {(left + right - x, y) for x, y in glyph}
+                self.assertEqual(mirrored, glyph, f'{name}: a glyph at x {left}-{right} reads differently mirrored')
+
 
 
 class Rig(unittest.TestCase):

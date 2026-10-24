@@ -6,7 +6,8 @@
 Writes, at whole-pixel zoom, each concept shouting then won over beside a Terraria Roel:
   lineup-x8.png        on a mid stage, the feet line marked
   silhouettes-x8.png   the same figures filled black, to judge their shapes alone
-  concepts-x1.png      at native size on dark, blueprint and warm stages, the way the screen shows them
+  concepts-x1.png      at native size on dark, blueprint and warm stages, the way the screen shows them: facing
+                       right, then mirrored to face left, as the game draws a customer facing a hero on its left
 With --refs, a folder of Terraria sprite frames (one figure per PNG, at Terraria's own two screen pixels per
 art pixel), those stand first, halved to one pixel per art pixel so every figure shares one size of pixel.
 """
@@ -18,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 HERE = Path(__file__).resolve().parent
 LOOKS = HERE.parents[3] / 'src' / 'game' / 'art' / 'looks' / 'terraria'
@@ -112,7 +113,8 @@ def main(argv: List[str]) -> int:
     zoom(row([silhouette(figure) for figure in figures], (255, 255, 255, 255), floor=False), 8).save(
         args.out / 'silhouettes-x8.png'
     )
-    stages = [row([roel, *concepts], stage, floor=False) for stage in STAGES]
+    facing_left = [ImageOps.mirror(figure) for figure in [roel, *concepts]]
+    stages = [row(figures, stage, floor=False) for stage in STAGES for figures in ([roel, *concepts], facing_left)]
     sheet = Image.new('RGBA', (stages[0].width, sum(stage.height for stage in stages)))
     for index, stage in enumerate(stages):
         sheet.paste(stage, (0, index * stage.height))

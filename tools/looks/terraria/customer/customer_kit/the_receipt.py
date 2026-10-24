@@ -227,6 +227,7 @@ FIGURE = Figure(
     effects={'steam': STEAM},
     hair='hair-curls',
     skin={'unhappy': 'skin-fuming', 'happy': 'skin-shopper'},
+    hands={'unhappy': 'hands-shopper-warm', 'happy': 'skin-shopper'},
 )
 
 POSES = {

@@ -10,28 +10,33 @@ from typing import Dict, Tuple
 
 RAMPS: Dict[str, Tuple[str, ...]] = {
     # ── Shared by every customer ──
-    # Red in the face: the skin flushed to the ears, outlined in a deep red-brown, while they are unhappy.
+    # Red in the face: the skin flushed to the ears, outlined in a deep red-brown, while they are unhappy. Their
+    # hands only warm a step from calm (each customer's `hands-*-warm`), outlined in the same red-brown.
     'skin-fuming': ('#4a1210', '#b83a30', '#e2624f', '#f78a70'),
     'eye': ('#f6f2ea', '#26262e'),
     'mouth': ('#3a0c12', '#f6f2ea', '#c4485a'),
-    # Steam puffing from the ears, and the cross-popping vein of Terraria's anger emote.
+    # Steam puffing from the ears, and the cross-popping vein of Terraria's anger emote, in the emote's own tones.
     'steam': ('#7a7486', '#c9c3d2', '#ece8f2', '#ffffff'),
-    'anger': ('#5a0a18', '#c8301e', '#ff7a1f'),
+    'anger': ('#61001c', '#c52f03', '#ff6a07'),
 
-    # ── ON THE PHONE: an office worker ──
+    # ── ON THE PHONE: a middle manager ──
     'skin-office': ('#3b1d14', '#c98a6a', '#eab08e', '#f8cdb0'),
-    'hair-office': ('#120c0a', '#2a1e18', '#43322a', '#5c483c', '#76604f'),
+    'hands-office-warm': ('#4a1210', '#cc7a5c', '#eca082', '#f9c0a2'),
+    # What is left of his hair: a horseshoe of short brown clumps round the back of his head.
+    'hair-office': ('#1a100a', '#46301f', '#6a4a30', '#8e6a46', '#b48c62'),
     # A pale blue office shirt, outlined in navy so it holds its edge on the blueprint's blue.
     'shirt-blue': ('#1c2a4a', '#5a7fb4', '#8db0dc', '#b9d3f0', '#e2eefa'),
-    # The loosened red tie, and the belt buckle.
-    'tie': ('#3a0810', '#9a1a26', '#d4383e', '#f2706a'),
-    'slacks': ('#131419', '#2a2d37', '#3f434e', '#585d6a'),
-    'loafers': ('#1c100a', '#3c2314', '#61391f', '#8c5631'),
-    # A 1996 brick phone: a gunmetal case light enough to part from dark hair, a lit green display and a black antenna.
-    'phone': ('#141519', '#3b3e47', '#6c707b', '#a3a8b3', '#8fd08a', '#d2f5c4'),
+    # A loud gold tie, off the flush's reds so it never runs into his chin.
+    'tie-gold': ('#3a2404', '#a8700c', '#e0a41c', '#f8d458'),
+    # Grey office slacks, and black oxfords that the belt is cut from, its buckle catching the light.
+    'slacks-grey': ('#1b1d24', '#4a4f5b', '#6b717e', '#8f96a3'),
+    'oxfords': ('#08080c', '#1d1e26', '#33343f', '#7a7d8c'),
+    # A 1996 brick phone in light grey plastic, its display lit green.
+    'phone': ('#17181d', '#5a5e68', '#9196a1', '#c8ccd4', '#5cb856', '#c4f2b4'),
 
     # ── THE RECEIPT: a shopper ──
     'skin-shopper': ('#3d1d16', '#d0927a', '#f0bca0', '#fcd8c2'),
+    'hands-shopper-warm': ('#4a1210', '#d2826a', '#f2a88e', '#fcc8b2'),
     # Big auburn curls.
     'hair-curls': ('#2a0c08', '#5c1e12', '#8c361e', '#b8582c', '#dc8246'),
     # A mustard raincoat, warm against both stages' cool walls and the blueprint's blue.
@@ -48,6 +53,7 @@ RAMPS: Dict[str, Tuple[str, ...]] = {
 
     # ── ONE STAR: an app user ──
     'skin-app': ('#3a1c13', '#c88866', '#e8ac86', '#f7c9a8'),
+    'hands-app-warm': ('#4a1210', '#cc7a5a', '#ec9e7e', '#f9bc9c'),
     'hair-app': ('#160d0a', '#33221a', '#4f362a', '#6c4c3a', '#8a6650'),
     # A hot pink track jacket, and the white of its stripes, which the chunky sneakers are too.
     'track': ('#3e0a26', '#a81c5c', '#de3a82', '#f56fa6', '#ffb0cf'),

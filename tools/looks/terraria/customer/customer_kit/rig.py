@@ -8,8 +8,9 @@ the whole figure, and this rig does the same:
   pose picks, so the same phone follows the arm into any pose.
 - The face (eyes, brows, mouth), the hair and any hat are drawn over the head and move with it, and an
   effect (steam, an anger mark) hangs from a point of the head.
-- The mood dyes the skin: every layer's skin, the hands and the face as well, is flushed while the customer
-  is unhappy and calm once won over.
+- The mood dyes the skin: the face, the scalp and the ears flush while the customer is unhappy and calm once
+  won over. The hands, and whatever skin a held prop shows, only warm a little, so the anger reads as a
+  flush rather than a red-skinned person, a fist stays a fist and what it holds stays legible.
 Every drawing is checked against the joint it hangs from, so a new arm or a new pair of legs always joins
 the body where the standing one does: animating is a matter of adding drawings and poses.
 """
@@ -68,9 +69,11 @@ class Figure(NamedTuple):
     sleeves: Dye
     props: Mapping[str, Prop]
     effects: Mapping[str, Effect]
-    # The skin's ramp in each mood (flushed while unhappy, calm once won over) and the hair's: what every layer's
-    # skin and hair pixels are painted in.
+    # The skin's ramp in each mood (flushed while unhappy, calm once won over): what the head and the torso's
+    # skin pixels are painted in; the hands' ramp in each mood, which the arms and held props are; and the
+    # hair's, which every layer's hair pixels are.
     skin: Mapping[str, str]
+    hands: Mapping[str, str]
     hair: str
 
 
@@ -115,12 +118,12 @@ def hung(drawing: Drawing, joint: str, at: Point, where: str) -> Drawing:
 
 
 def pose(figure: Figure, posed: Pose, where: str) -> Posed:
-    skin = figure.skin.get(posed.mood)
-    if skin is None:
-        raise ValueError(f'{where}: {figure.name} has no skin for the mood {posed.mood!r}')
+    skin, hand = (ramps.get(posed.mood) for ramps in (figure.skin, figure.hands))
+    if skin is None or hand is None:
+        raise ValueError(f'{where}: {figure.name} has no skin or hands for the mood {posed.mood!r}')
 
-    def worn(drawing: Drawing, dye: Dye) -> Stroke:
-        return Stroke(drawing, dye._replace(skin=skin, hair=figure.hair))
+    def worn(drawing: Drawing, dye: Dye, ramp: str = skin) -> Stroke:
+        return Stroke(drawing, dye._replace(skin=ramp, hair=figure.hair))
 
     legs = pick(figure.legs, posed.legs, 'legs', where)
     standing = figure.torso[0].drawing
@@ -154,7 +157,7 @@ def pose(figure: Figure, posed: Pose, where: str) -> Posed:
             raise ValueError(f'{where}: no prop {held.prop!r}; there are {sorted(figure.props)}')
         if prop.layer not in LAYERS:
             raise ValueError(f'{where}: {held.prop} is drawn on {prop.layer!r}, not one of {LAYERS}')
-        props[prop.layer].append(worn(prop.drawing.placed('grip', holders[held.by]), prop.dye))
+        props[prop.layer].append(worn(prop.drawing.placed('grip', holders[held.by]), prop.dye, hand))
 
     effects = []
     for name in posed.effects:
@@ -164,7 +167,7 @@ def pose(figure: Figure, posed: Pose, where: str) -> Posed:
         effects.append(Stroke(effect.drawing.placed(effect.on, head.point(effect.on)), Dye()))
 
     strokes = (
-        worn(far, figure.sleeves),
+        worn(far, figure.sleeves, hand),
         *props['behind'],
         worn(legs, figure.legs_dye),
         *(worn(part.drawing, part.dye) for part in torso),
@@ -172,7 +175,7 @@ def pose(figure: Figure, posed: Pose, where: str) -> Posed:
         worn(face, Dye()),
         *(worn(part.drawing, part.dye) for part in headwear),
         *props['held'],
-        worn(near, figure.sleeves),
+        worn(near, figure.sleeves, hand),
         *props['front'],
         *effects,
     )
