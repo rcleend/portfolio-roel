@@ -2,7 +2,7 @@ import type { CharacterId, SkillId } from '@/content';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { AttackVisual } from '../../entities/shots/AttackVisual';
 import type { SkillVisual } from '../../skills/SkillVisual';
-import type { CharacterAnimation, CustomerAnimation, SkillIconAnimation } from './contracts';
+import type { CustomerAnimation, HeroAnimation, SkillIconAnimation } from './contracts';
 import type { LookId } from './ids';
 import type { LookSelection } from './selection';
 
@@ -20,7 +20,7 @@ export interface Looks {
 
 export interface HeroLook {
   readonly lookId: LookId;
-  readonly sheet: SpriteSheet<CharacterAnimation>;
+  readonly sheet: SpriteSheet<HeroAnimation>;
   readonly attack: AttackVisual;
 }
 

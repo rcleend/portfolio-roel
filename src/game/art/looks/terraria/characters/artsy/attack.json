@@ -1,0 +1,13 @@
+{
+  "frame": { "w": 24, "h": 24 },
+  "origin": { "x": 12, "y": 12 },
+  "animations": [
+    { "name": "projectile", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "impact", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "muzzle", "fps": 15, "loop": false, "frames": 3 },
+    { "name": "projectile-cyan", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "impact-cyan", "fps": 20, "loop": false, "frames": 6 },
+    { "name": "projectile-yellow", "fps": 15, "loop": true, "frames": 4 },
+    { "name": "impact-yellow", "fps": 20, "loop": false, "frames": 6 }
+  ]
+}

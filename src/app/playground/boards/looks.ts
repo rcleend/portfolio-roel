@@ -19,6 +19,11 @@ const LOOKS: Readonly<Record<LookId, Choice>> = {
   },
   portrait: { id: 'portrait', name: 'Portrait', description: 'Slim and realistic, with selective coloured outlines.' },
   hibit: { id: 'hibit', name: 'Hi-bit', description: 'Modern high-fidelity pixel art: rich ramps and lavish effects.' },
+  terraria: {
+    id: 'terraria',
+    name: 'Terraria',
+    description: 'The three Roels as Terraria players, animated the way Terraria animates its own.',
+  },
 };
 
 /** The looks each piece has been drawn in: a look shows up as soon as its folder is registered. */

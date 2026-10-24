@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { characters, type SkillId, skills } from '@/content';
 import { type PixelArtSheet, validatePixelArt } from '@/engine/gfx/PixelArt';
 import { parseSpriteSheetSpec, specImageSize } from '@/engine/gfx/SpriteSheetSpec';
-import { CUSTOMER_SHEET, HERO_SHEET, type SheetContract, SKILL_ICON_SHEET } from './contracts';
+import { CUSTOMER_SHEET, HERO_SHEET, type SheetContract, SKILL_ICON_SHEET, strayHeroAnimations } from './contracts';
 import type { SheetSource } from './module';
 import { lookRegistry } from './registry';
 
@@ -45,6 +45,8 @@ describe('registered looks', () => {
     async (look, id) => {
       const module = await lookRegistry.hero(look, id);
       checkSheet(module.sheet, HERO_SHEET, `${look}/${id}`);
+      // Beyond the eight, a hero sheet may only pose its own hero's skills: anything else would never play.
+      expect(strayHeroAnimations(animationNames(module.sheet), id), `${look}/${id}`).toEqual([]);
       for (const source of Object.values(module.fx)) checkSheet(source, null, `${look}/${id} fx`);
     },
   );
@@ -83,6 +85,12 @@ function checkSheet(source: SheetSource, contract: SheetContract<string> | null,
     expect(spec.origin, name).toEqual(contract.origin);
   }
   expect(pngSize(resolve(ROOT, `.${source.png}`)), name).toEqual(specImageSize(spec));
+}
+
+function animationNames(source: SheetSource): string[] {
+  if ('png' in source)
+    return parseSpriteSheetSpec(source.json, 'sheet.json').animations.map((animation) => animation.name);
+  return Object.keys((source as PixelArtSheet).animations);
 }
 
 /** Width and height from a PNG's IHDR chunk. */

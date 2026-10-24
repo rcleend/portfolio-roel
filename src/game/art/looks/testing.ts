@@ -2,7 +2,7 @@ import { characters, type SkillId, skills } from '@/content';
 import type { PixelImage } from '@/engine/gfx/canvas';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { SpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
-import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS, SKILL_ICON_ANIMATIONS } from './contracts';
+import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS, type HeroAnimation, SKILL_ICON_ANIMATIONS } from './contracts';
 import type { HeroLook, Looks, SkillLooks } from './Looks';
 import { DEFAULT_LOOKS } from './selection';
 
@@ -21,7 +21,10 @@ const CLASSIC_SIZES: LookSizes = { hero: 40, customer: 40, icon: 16 };
  * production code never imports it.
  */
 export function sizedLooks(sizes: LookSizes = CLASSIC_SIZES): Looks {
-  const hero = blankSheet(CHARACTER_ANIMATIONS, sizes.hero, { x: Math.floor(sizes.hero / 2), y: sizes.hero });
+  const hero = blankSheet<HeroAnimation>(CHARACTER_ANIMATIONS, sizes.hero, {
+    x: Math.floor(sizes.hero / 2),
+    y: sizes.hero,
+  });
   const customer = blankSheet(CUSTOMER_ANIMATIONS, sizes.customer, {
     x: Math.floor(sizes.customer / 2),
     y: sizes.customer,

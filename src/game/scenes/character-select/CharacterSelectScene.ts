@@ -194,11 +194,14 @@ export class CharacterSelectScene implements GameScene {
 
   #depart(): void {
     this.#departed = true;
-    // The iris closes on the middle of the hero, however tall the look draws them.
+    // The iris closes on the middle of the hero, however tall the look draws them: their frame, or up to the
+    // head a look drawn smaller than its frame marks.
     const hero = this.#services.looks.characters[this.#character.id].sheet;
+    const head = hero.anchor('idle', 'head', 0);
+    const tall = head ? hero.origin.y - head.y : hero.height;
     const transition = this.#services.settings.reducedMotion
       ? fade()
-      : iris({ x: STAGE.x, y: STAGE.y - Math.round(hero.height / 2), duration: 0.6 });
+      : iris({ x: STAGE.x, y: STAGE.y - Math.round(tall / 2), duration: 0.6 });
     this.#services.director.goTo('levelSelect', {}, transition);
   }
 

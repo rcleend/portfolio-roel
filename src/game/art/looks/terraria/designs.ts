@@ -3,19 +3,18 @@ import type { AssetStore } from '@/engine/assets/AssetStore';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
 import type { ImageSheetSource } from '../module';
-import artsyJson from './designs/artsy.json';
-import artsyPng from './designs/artsy.png';
-import hackermanJson from './designs/hackerman.json';
-import hackermanPng from './designs/hackerman.png';
-import strategyJson from './designs/strategy.json';
-import strategyPng from './designs/strategy.png';
+import artsyJson from './characters/artsy/sheet.json';
+import artsyPng from './characters/artsy/sheet.png';
+import hackermanJson from './characters/hackerman/sheet.json';
+import hackermanPng from './characters/hackerman/sheet.png';
+import strategyJson from './characters/strategy/sheet.json';
+import strategyPng from './characters/strategy/sheet.png';
 
 /**
- * A hero's still default design in the Terraria style, drawn by
- * tools/looks/terraria/generate.py: one standing `idle` frame, 32 × 40 on
- * the feet line. The designs are not a look (docs/LOOKS.md): nothing
- * registers them, and only the development lineup shows them, until they
- * are animated.
+ * A hero's default design in the Terraria style: the Terraria look's own
+ * sheet (characters/<hero>/), drawn by tools/looks/terraria. The development
+ * lineup stands the designs beside the game's heroes, whatever look the game
+ * is set to, so they are loaded here rather than through the look selection.
  */
 export interface TerrariaDesign {
   readonly hero: CharacterId;

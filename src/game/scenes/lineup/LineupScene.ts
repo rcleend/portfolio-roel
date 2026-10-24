@@ -11,7 +11,7 @@ import type { LevelLayout } from '../../world/map/layout';
 import { drawBackdrop } from '../character-select/backdrop';
 import { classThemes } from '../character-select/classThemes';
 import { drawPlayPlane } from '../level/render/playPlane';
-import type { GameScene, LineupParams } from '../params';
+import type { GameScene, GameStep, LineupParams } from '../params';
 import { arenaStage } from '../showcase/arena';
 import { standsFor, standX } from './cast';
 import { resolveLineup } from './params';
@@ -40,14 +40,16 @@ interface Figure {
  * screen's blueprint paper or on a stage. `{"cast":"terraria"}` (the default) stands the
  * Terraria designs (art/looks/terraria/designs.ts) beside the game's ENGINEER
  * for scale; `{"cast":"game"}` the three heroes as the game draws them. The
- * designs load with whoever opens the scene (`preloadSceneArt`). Static: it
- * is for looking at.
+ * designs load with whoever opens the scene (`preloadSceneArt`). Everyone
+ * plays their idle on the scene's own clock, so a design blinks as it will in
+ * the game; nothing else moves.
  */
 export class LineupScene implements GameScene<LineupParams | undefined> {
   readonly #services: GameServices;
   /** `null` stands them on the select screen's paper. */
   #stage: Stage | null = null;
   #figures: readonly Figure[] = [];
+  #time = 0;
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -55,6 +57,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
 
   enter(params: LineupParams | undefined): void {
     const { cast, backdrop } = resolveLineup(params);
+    this.#time = 0;
     const { assets, looks, levelArt } = this.#services;
     this.#stage = backdrop === 'menu' ? null : { art: levelArt.get(backdrop), layout: arenaStage(backdrop, []).layout };
     this.#figures = standsFor(cast).map((stand): Figure => {
@@ -78,14 +81,16 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
 
   exit(): void {}
 
-  update(): void {}
+  update(step: GameStep): void {
+    this.#time += step.dt;
+  }
 
   render(gfx: Gfx): void {
     this.#drawBackdrop(gfx);
     const { text } = this.#services;
     this.#figures.forEach((figure, index) => {
       const x = standX(index, this.#figures.length, gfx.width);
-      gfx.sprite(figure.sheet, 'idle', 0, x, FEET_Y);
+      gfx.sprite(figure.sheet, 'idle', this.#time, x, FEET_Y);
       gfx.text(figure.label, x, FEET_Y + LABEL_GAP, { ...text.hud, fill: figure.color }, { align: 'center' });
       if (figure.caption) {
         gfx.text(figure.caption, x, FEET_Y + CAPTION_GAP, { ...text.hud, fill: palette.steel }, { align: 'center' });

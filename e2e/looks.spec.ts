@@ -48,7 +48,7 @@ test('fails loudly on an unknown look, naming the known ones', async ({ page }) 
   await page.goto(`/?${new URLSearchParams({ host: 'flat', looks: '{"customer":"neon"}' })}`);
   await expect
     .poll(() => errors.join('\n'))
-    .toContain('looks.customer must be one of classic, arcade, portrait, hibit, got "neon"');
+    .toContain('looks.customer must be one of classic, arcade, portrait, hibit, terraria, got "neon"');
 });
 
 /**
@@ -114,7 +114,7 @@ test('loads every registered look and draws every sheet crisply', async ({ page 
 });
 
 /**
- * The Terraria designs are no look yet, so the test above never sees them:
+ * The lineup loads the Terraria designs itself, outside the look selection:
  * draw each one as the lineup does, crisp, and no taller than the classic
  * heroes, whose height the captain asked them not to outgrow.
  */

@@ -41,6 +41,19 @@ describe('Player', () => {
     expect(player.centerX).toBeLessThan(x);
   });
 
+  it('remembers which skill its skill pose is cast for, so a look can pose that skill its own way', () => {
+    const player = new Player('artsy', 100, 200);
+    const world = flat();
+    player.cast('ux-elixir', 0, 0.4);
+    player.update(IDLE_INTENT, DT, world, 0);
+    expect(player.pose(DT)).toMatchObject({ animation: 'skill', skill: 'ux-elixir' });
+    player.update(IDLE_INTENT, DT, world, 0.5);
+    expect(player.pose(0.5)).toMatchObject({ animation: 'idle', skill: null });
+    player.strike('victory', 1, 1);
+    player.update(IDLE_INTENT, DT, world, 1);
+    expect(player.pose(1)).toMatchObject({ animation: 'victory', skill: null });
+  });
+
   it('faces the way it moves and respawns with grace', () => {
     const player = new Player('hackerman', 100, 200);
     const world = flat();
