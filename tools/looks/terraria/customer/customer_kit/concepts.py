@@ -4,11 +4,11 @@ from __future__ import annotations
 from types import ModuleType
 from typing import Dict
 
-from . import on_the_phone, one_star, the_receipt
+from . import on_the_phone_concept, one_star, the_receipt
 
 # By the ids the game's catalogue knows them by (art/looks/terraria/customer-concepts/concepts.ts), in its order.
 CONCEPTS: Dict[str, ModuleType] = {
-    'on-the-phone': on_the_phone,
+    'on-the-phone': on_the_phone_concept,
     'the-receipt': the_receipt,
     'one-star': one_star,
 }

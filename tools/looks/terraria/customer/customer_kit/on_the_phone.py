@@ -1,15 +1,16 @@
 """ON THE PHONE: a middle manager, red to the scalp, yelling into a brick phone pressed to his ear and jabbing a
 finger at you; won over, he holds the call away from his ear and gives you a thumbs up.
 
-Every layer the look's five customer animations pose him in (customer_kit/moves.py) is drawn here, so the
-key poses the concepts show and the animations are one man.
+This is the concept (on_the_phone_concept.py, which the concepts board shows as it was judged) redrawn to be
+animated: every layer the look's five customer animations pose him in (customer_kit/moves.py) is drawn here, with
+short sleeves that bare his forearms, a tie that swings loose and a face shaded to keep its form when it flushes.
 """
 from __future__ import annotations
 
 from typing import Dict
 
 from .art import Drawing, Dye, art, full, tones
-from .rig import Effect, Figure, Held, Loose, Pose, Prop, Worn
+from .rig import Effect, Figure, Loose, Prop, Worn
 from . import dazed
 
 #                    01234567890123456789012345678901
@@ -89,17 +90,6 @@ FACES: Dict[str, Drawing] = {
                      ..................MtttM.........
                      ...................MqqM.........
                      ....................MM..........
-'''),
-    # Merely pleased: the eye open, a grin.
-    'pleased': full('face pleased', 14, '''
-                     ..................OO............
-                     ................................
-                     ..................wi............
-                     ..................wi............
-                     ................................
-                     ...................dddO.........
-                     ..................MtttM.........
-                     ...................MMM..........
 '''),
 }
 
@@ -467,19 +457,6 @@ PHONE_FLUNG = Prop(PHONE.drawing._replace(name='brick phone held by its foot', p
 # Slack in a limp hand, hanging at his side.
 PHONE_DANGLING = Prop(PHONE.drawing._replace(name='brick phone hanging slack', points=(('grip', (16, 19)),)))
 
-# Lowered to his side once the call is over, his fingers round it and the antenna up.
-PHONE_DOWN = Prop(art('brick phone in the hand', 10, 23, '''
-                     0...
-                     0...
-                     0000
-                     0330
-                     0450
-                     KsLK
-                     KssK
-                     0210
-                     0000
-''', legend={**PHONE_LEGEND, **tones('@skin', 'KSsL')}, grip=(11, 29)), layer='front')
-
 # Terraria's anger emote: a vein popping in four arcs round a cross. Terraria draws it in a white bubble, so
 # floating free over a busy street its arcs take their dark red on the outside, the red and orange within.
 VEIN = Effect(art('anger vein', 0, 5, '''
@@ -520,17 +497,10 @@ FIGURE = Figure(
     near_arms=NEAR_ARMS,
     far_arms=FAR_ARMS,
     sleeves=Dye(cloth='shirt-blue'),
-    props={'phone': PHONE, 'phone down': PHONE_DOWN, 'phone flung': PHONE_FLUNG, 'phone dangling': PHONE_DANGLING},
+    props={'phone': PHONE, 'phone flung': PHONE_FLUNG, 'phone dangling': PHONE_DANGLING},
     effects={'vein': VEIN, 'vein small': VEIN_SMALL, **dazed.STARS},
     hair='hair-office',
     skin={'unhappy': 'skin-fuming', 'happy': 'skin-office'},
     hands={'unhappy': 'hands-office-warm', 'happy': 'skin-office'},
     loose=(TIE,),
 )
-
-POSES = {
-    'shout': Pose(
-        mood='unhappy', face='rant', near='phone', far='point', held=(Held('phone', 'near'),), effects=('vein',),
-    ),
-    'happy': Pose(mood='happy', face='happy', near='hang', far='thumbs up', held=(Held('phone down', 'near'),)),
-}
