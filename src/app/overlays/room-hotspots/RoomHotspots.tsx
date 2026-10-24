@@ -7,6 +7,8 @@ export interface RoomHotspotsProps {
   readonly room: Room | null;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
+  /** The camera rests at `view`. */
+  readonly settled: boolean;
   /** Called after every activation, to hand keyboard focus back to the stage. */
   readonly onActivate: () => void;
 }
@@ -26,7 +28,7 @@ const CHIP_ARROWS: Readonly<Record<NonNullable<PropAnchor['edge']>, string>> = {
  * button pinned on its prop, hidden until it has keyboard focus; the computer's becomes an
  * always-visible edge chip whenever the room view crops the computer out (portrait screens).
  */
-export function RoomHotspots({ room, view, onActivate }: RoomHotspotsProps) {
+export function RoomHotspots({ room, view, settled, onActivate }: RoomHotspotsProps) {
   const anchors = useAnchors(room);
   if (!room || view === 'pc') return null;
   const activate = (go: () => void) => () => {
@@ -52,7 +54,12 @@ export function RoomHotspots({ room, view, onActivate }: RoomHotspotsProps) {
   const tv = anchors.find((anchor) => anchor.target === 'tv');
   return (
     <nav className="room-hotspots" aria-label="Look closer">
-      {pc?.edge ? (
+      {/* Only once the camera has landed: in the flight away from the computer it would hang over its monitor. */}
+      {!pc?.edge ? (
+        <button type="button" className="room-hotspots__spot" style={at(pc)} onClick={activate(() => room.focusPc())}>
+          Use the computer
+        </button>
+      ) : settled ? (
         <button
           type="button"
           className="room-hotspots__chip"
@@ -63,11 +70,7 @@ export function RoomHotspots({ room, view, onActivate }: RoomHotspotsProps) {
         >
           <ChipLabel edge={pc.edge} />
         </button>
-      ) : (
-        <button type="button" className="room-hotspots__spot" style={at(pc)} onClick={activate(() => room.focusPc())}>
-          Use the computer
-        </button>
-      )}
+      ) : null}
       <button type="button" className="room-hotspots__spot" style={at(tv)} onClick={activate(() => room.focusTv())}>
         Watch the TV
       </button>

@@ -40,6 +40,8 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
   const status = useRoom(stageRef, screensRef, gated, events.onProgress);
   const room = status.state === 'ready' ? status.room : null;
   const [view, setView] = useState<RoomView>('tv');
+  // Whether the camera rests at `view`: what waits for the landing (the computer chip, its prefetch) reads it.
+  const [settled, setSettled] = useState(true);
   // The computer's prefetch waits for the picture: nothing may compete with the TV turning on.
   const [tvOn, setTvOn] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
@@ -52,6 +54,7 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
   });
   const viewChanged = useEffectEvent((next: RoomView) => {
     setView(next);
+    setSettled(false);
     events.onViewChange(next);
   });
   const unavailable = useEffectEvent(onUnavailable);
@@ -74,9 +77,11 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
     ready();
     if (import.meta.env.DEV) window.__room = room;
     const stop = room.onViewChange(viewChanged);
+    const stopSettle = room.onSettle(() => setSettled(true));
     return () => {
       stop();
-      if (window.__room === room) delete window.__room;
+      stopSettle();
+      if (import.meta.env.DEV && window.__room === room) delete window.__room;
     };
   }, [room]);
 
@@ -140,10 +145,11 @@ function AtticStage({ surface, powered, insets, events, onUnavailable }: HostPro
         onKeyDown={onKeyDown}
       />
       <div ref={screensRef} className="room-host__screens" />
-      <RoomHotspots room={room} view={view} onActivate={focusStage} />
+      <RoomHotspots room={room} view={view} settled={settled} onActivate={focusStage} />
       <PcSlot
         display={room?.pc ?? null}
         view={view}
+        settled={settled}
         powered={tvOn}
         onLeave={() => room?.showRoom()}
         onFocusStage={focusStage}

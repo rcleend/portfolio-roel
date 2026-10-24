@@ -101,13 +101,10 @@
   bottom: max(12px, env(safe-area-inset-bottom));
 }
 
-/*
- * The chip shows once the camera has landed in the room view (a flight takes 1.1 s): during the
- * flight away from the computer it would hang over the very monitor it points to.
- */
+/* The chip mounts as the camera lands in the room view, and fades in. */
 @media (prefers-reduced-motion: no-preference) {
   .room-hotspots__chip {
-    animation: room-hotspots-landed 160ms ease-out 1100ms backwards;
+    animation: room-hotspots-landed 160ms ease-out;
   }
 }
 

@@ -11,6 +11,8 @@ export interface PcSlotProps {
   readonly display: PcDisplay | null;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
+  /** The camera rests at `view`: the screen's idle prefetch never lands in a flight. */
+  readonly settled: boolean;
   /** True once the TV's picture is up: idle prefetch may begin (never while the TV turns on). */
   readonly powered: boolean;
   /** Leave the computer for the room view (close button, Escape in the screen, after the 200 ms beat). */
@@ -36,11 +38,11 @@ function loadExperience(): Promise<Experience> {
  * The computer's screen, as the room host mounts it: nothing on first load
  * but this glue. The desktop's still painter loads at idle once the TV is
  * on (the room paints the glass with it before the first flight); the screen
- * itself loads at idle the first time the visitor looks around the room, or
- * at once on the way to the computer, while the camera's flight hides the
+ * itself loads at idle once the camera has landed in the room view, or at
+ * once on the way to the computer, while the camera's flight hides the
  * download. Renders portals only.
  */
-export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlotProps): ReactNode {
+export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage }: PcSlotProps): ReactNode {
   const [Screen, setScreen] = useState<Experience | 'failed' | null>(null);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function PcSlot({ display, view, powered, onLeave, onFocusStage }: PcSlot
   }, [display, powered]);
 
   const loaded = typeof Screen === 'function';
-  const wanted = view === 'pc' || (view === 'room' && !saveData());
+  const wanted = view === 'pc' || (view === 'room' && settled && !saveData());
   useEffect(() => {
     if (!display || loaded || !wanted) return;
     // A load finishing after this effect is gone still lands: the screen stays mounted once loaded.

@@ -72,6 +72,8 @@ function Lab() {
     <PcSlot
       display={display}
       view={current}
+      // The stand-in monitor has no camera: every view is reached at once.
+      settled
       powered
       onLeave={() => {
         display.log({ type: 'leave' });
