@@ -18,6 +18,8 @@ RAMPS: Dict[str, Tuple[str, ...]] = {
     # Steam puffing from the ears, and the cross-popping vein of Terraria's anger emote, in the emote's own tones.
     'steam': ('#7a7486', '#c9c3d2', '#ece8f2', '#ffffff'),
     'anger': ('#61001c', '#c52f03', '#ff6a07'),
+    # The stars circling a stunned customer's head, in the tones of Terraria's Dazed debuff icon.
+    'dazed': ('#563500', '#f0cb00', '#fff000'),
 
     # ── ON THE PHONE: a middle manager ──
     'skin-office': ('#3b1d14', '#c98a6a', '#eab08e', '#f8cdb0'),

@@ -23,7 +23,8 @@ const LOOKS: Readonly<Record<LookId, Choice>> = {
   terraria: {
     id: 'terraria',
     name: 'Terraria · before',
-    description: 'The three Roels as Terraria players, animated the way Terraria animates its own.',
+    description:
+      'The three Roels as Terraria players and a customer yelling into his phone, animated the way Terraria animates its own.',
   },
   'terraria-revised': {
     id: 'terraria-revised',

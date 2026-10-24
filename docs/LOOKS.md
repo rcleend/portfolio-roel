@@ -10,7 +10,7 @@ This document is the contract between whoever draws a look and the code that loa
 | `arcade`           | Neo Geo / Metal Slug: near-black outline, bold cel shading                     |
 | `portrait`         | slim, realistic, selective coloured outlines                                   |
 | `hibit`            | modern high-fidelity pixel art: rich ramps, lavish effects                     |
-| `terraria`         | Terraria: classic-sized heroes posed limb by limb (heroes only)                |
+| `terraria`         | Terraria: classic-sized heroes and customer posed limb by limb                 |
 | `terraria-revised` | the Terraria heroes revised: swept hair that moves, flat glasses (heroes only) |
 | `terraria-hooded`  | the revised Terraria ENGINEER with his hood up (Hackerman only)                |
 
@@ -178,7 +178,7 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 
 ## The Terraria look
 
-`terraria` draws the three heroes as Terraria players, at classic's size (30 px tall, around the same 12 × 28 hitbox and hand point) in the shared 64 × 64 frames; their skills and the customer are classic's. `tools/looks/terraria/generate.py` composes every frame from hand-placed parts shared the way Terraria shares a player's (far arm, legs and shoes, torso, head, hair, ear, eye, glasses, cap, near arm), so the three are one man in three outfits, and poses them the way Terraria poses its player: a drawing per limb per pose, chosen frame by frame, with the upper body moving as one.
+`terraria` draws the three heroes as Terraria players, at classic's size (30 px tall, around the same 12 × 28 hitbox and hand point) in the shared 64 × 64 frames; their skills are classic's, and its customer is the `on-the-phone` concept animated (below). `tools/looks/terraria/generate.py` composes every frame from hand-placed parts shared the way Terraria shares a player's (far arm, legs and shoes, torso, head, hair, ear, eye, glasses, cap, near arm), so the three are one man in three outfits, and poses them the way Terraria poses its player: a drawing per limb per pose, chosen frame by frame, with the upper body moving as one.
 
 - The limbs follow Terraria's own sprites at about 5/4 of their art-pixel size: standing, the near arm hangs over the back of the torso and only the far hand shows at the front; the near leg is the wide one at the back.
 - `idle` stands still and blinks, as Terraria's player does; `run` is Terraria's 13-frame walk (its leg-sheet frames 7–19, the arm cell it pairs with each, the bob on the first three frames of each stride) at 30 fps; `jump` and `fall` are its one airborne frame, legs split, the near fist folded up behind the head and the far hand peeking out ahead of the face (falling, it sinks a pixel); `hurt` throws the arms open and the body back, then curls into that frame; `victory` raises a fist, the only pose besides the skills with one above the head, and hops, leaving the ground fast and hanging at the top.
@@ -211,6 +211,18 @@ The game mirrors a customer to face left, and a customer faces the player, so a 
 They are not a look: nothing registers them and the game never loads them. `art/looks/terraria/customer-concepts/` holds their sheets (64 × 64 frames on the customer's origin, `mouth` and `head` anchors on both frames) and `concepts.ts` their catalogue; the lineup's customers cast (`?scene=lineup&params={"cast":"customers","customer":"one-star"}`) and the playground's **Terraria customers** board stand them, whatever look the game is set to.
 
 `tools/looks/terraria/customer/generate.py` draws them, apart from the heroes' generator but writing its sheets with the heroes' packer: every customer is a set of layers hung from joints (`customer_kit/rig.py`): the legs on the ground, the torso from the hips, the head from the neck, each arm from its shoulder, each prop by its grip from a hand, and the steam and anger marks from the head. A pose only names a drawing per limb, how far the body and head move, what each hand holds and the mood, which dyes the face's skin and, a step milder, the hands'; animating a concept is adding drawings and poses, never redrawing it. `python3 tools/looks/terraria/customer/review.py --refs <folder of Terraria sprites>` writes an 8× lineup beside Terraria's own figures and a Terraria Roel at one size of art pixel, its black silhouettes and a native-size strip facing both ways; `python3 -m unittest discover -s tools/looks/terraria/customer -t tools/looks/terraria/customer` checks that the committed sheets are what the generator writes, crisp, on the feet line, 28 to 32 px tall, one figure each, outlined in their own darkest tones, calm when won over and flushed in the face but not the hands, that one-star's screens read the same mirrored, and that every limb drawn hangs from its joint.
+
+### The Terraria customer
+
+The look's customer is `on-the-phone` in all five customer animations, posed like the heroes (a drawing per limb chosen frame by frame, the upper body moved as one) and timed to how long the game holds each mood (`entities/customer/Customer.ts`):
+
+- `walk` is a Terraria walker's heavy plod, 8 frames at 12 fps (the 0.67 s classic's takes), leaning a pixel into the stride with a 1 px stomp on each foot, the phone fixed at his ear, the free finger jabbing on every step and the jaw still going, so the gag never pauses. The frame shown 1/6 s in, where the game stands a still customer, stands on both feet.
+- `shout` is one 0.4 s loop for the windup: the first frame is the yell, its `mouth` where the bubble leaves, and Terraria's anger emote pulses behind his head only while he shouts.
+- `hurt` is Terraria's knockback in 0.2 s of the 0.22 s hit: thrown back off his feet, the phone jolted off his ear, eye shut, tie flung up, then landing with the phone back. The hit flash stays the game's white, since a red tint would vanish on his flushed face.
+- `stunned` sways for the 3 s stun, the phone dangling upside down from a limp hand, two of Terraria's Dazed stars (`customer_kit/dazed.py`) circling his head, behind it on the far half of the orbit.
+- `happy` hops twice in the 0.8 s he cheers and loops on as he strolls off: the call held away from his ear, a thumbs up bounced at you, his tie flying.
+
+His phone antenna tops out 32 px over his feet, two over classic's head; `mouth` sits 19 px over his feet, 5 px below where the game releases a complaint. `customer_kit/moves.py` holds the poses, and the concept's own drawings, its key poses on the concepts board, are unchanged. `python3 tools/looks/terraria/customer/generate.py` writes `art/looks/terraria/customer/sheet.png` and `.json` with the concepts; the generator's tests also hold every animation to the outline rule, the feet line and the palette cap, and `art/looks/terraria/customer.test.ts` holds the sheet to the game's timings.
 
 ## Checks
 
