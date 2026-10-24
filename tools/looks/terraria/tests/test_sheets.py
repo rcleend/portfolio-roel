@@ -22,8 +22,9 @@ if str(TOOL) not in sys.path:
 
 from generate import animations  # noqa: E402
 from kit import revision  # noqa: E402
+from kit.art import CLOTH  # noqa: E402
 from kit.body import EYES, HEAD  # noqa: E402
-from kit.outfits import OUTFITS, Outfit  # noqa: E402
+from kit.outfits import CAP as LOOK_CAP, OUTFITS, Outfit  # noqa: E402
 from kit.pose import Pose, strokes  # noqa: E402
 
 HEROES = ('hackerman', 'artsy', 'strategy')
@@ -203,11 +204,11 @@ class Head(unittest.TestCase):
 HEAD_LAYERS = {'hair', 'ear', 'glasses', 'headgear', 'front'}
 
 
-def painted(outfit: Outfit) -> Dict[Tuple[int, int], Tuple[str, int]]:
+def painted(outfit: Outfit) -> Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]]:
     """The standing frame in design space: the drawing on top at each pixel, by name, and its tone."""
-    top: Dict[Tuple[int, int], Tuple[str, int]] = {}
+    top: Dict[Tuple[int, int], Tuple[str, Tuple[str, int]]] = {}
     for stroke in strokes(outfit, Pose(), 'standing'):
-        for x, y, (_, tone) in stroke.art.pixels:
+        for x, y, tone in stroke.art.pixels:
             top[(x + stroke.at[0], y + stroke.at[1])] = (stroke.art.name, tone)
     return top
 
@@ -232,7 +233,8 @@ class Revision(unittest.TestCase):
             top = painted(design.outfit)
             rim = [point for point, (drawing, _) in top.items() if drawing == design.outfit.glasses.name]
             row = min(y for _, y in rim)
-            hair = {point: tone for point, (drawing, tone) in top.items() if drawing == design.outfit.hair.name}
+            hair = {point: tone for point, (drawing, (ramp, tone)) in top.items()
+                    if drawing == design.outfit.hair.name and ramp == 'hair'}
             for x in sorted(x for x, y in rim if y == row):
                 above = (x, row - 1)
                 if above not in hair:
@@ -245,6 +247,18 @@ class Revision(unittest.TestCase):
         spot = {(x, y) for x, y, (ramp, tone) in revision.CAP.pixels if ramp == '@cloth' and tone >= 4 and y < 13}
         self.assertEqual(len(figures_of(spot)), 1)
         self.assertGreater(min(x for x, _ in spot), 16, 'the spot is on the front half of the crown')
+
+    def test_the_designer_cap_is_the_look_cap_with_its_back_spot_painted_over(self) -> None:
+        # The same crown and brim pixel for pixel, so the board shows only the spot gone; what changed is the
+        # back half of the crown, in the knit's base tone.
+        look = {(x, y): tone for x, y, tone in LOOK_CAP.pixels}
+        cap = {(x, y): tone for x, y, tone in revision.CAP.pixels}
+        self.assertEqual(cap.keys(), look.keys())
+        changed = {point for point in cap if cap[point] != look[point]}
+        self.assertTrue(changed)
+        for x, y in changed:
+            self.assertEqual(cap[(x, y)], CLOTH['o'], f'({x}, {y}) is not the base tone')
+            self.assertLessEqual(x, 16, f'({x}, {y}) changed on the front half of the crown')
 
 
 def figures_of(points: set) -> List[set]:
