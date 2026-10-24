@@ -1,5 +1,5 @@
 import { MathUtils, Quaternion, Vector3 } from 'three';
-import { clamp01, easeInCubic, easeInOutCubic, easeOutCubic } from '../../motion/easing';
+import { clamp01, easeInCubic, easeInOutCubic, easeOutCubic, hermiteEase } from '../../motion/easing';
 import { DISC_RADIUS, type DiscSlot } from '../discLayout';
 import { slotOrientation } from '../radioFraming';
 import { ATTENTION, DECK, seatOrientation } from './deckLayout';
@@ -71,14 +71,21 @@ export const DISC_MOTION = {
    */
   stagger: { min: 55, max: 60, span: 240, warm: 55 },
   pick: {
+    /** The wind-up: a quick dip and lean forward, a touch bigger (a centimetre of travel in its 90 ms). */
     anticipationMs: 90,
-    dip: 0.006,
+    dip: 0.008,
     forward: 0.01,
     scale: 1.08,
-    /** Out of the shelf towards the camera (and a little up), then down to the point in front of the radio. */
+    /**
+     * Out of the shelf towards the camera and up, then down in front of the radio. It leaves at `leaveSlope` (the
+     * wind-up was the ease-in) and keeps its pick scale until `shrinkFrom` of the way, so the move towards the camera
+     * reads at once instead of being cancelled by the disc shrinking back.
+     */
     flightMs: 400,
     outward: 0.1,
-    lift: 0.02,
+    lift: 0.035,
+    leaveSlope: 1.6,
+    shrinkFrom: 0.35,
     /** Shares of the flight: upright until the first, flat from the second (low, in front of the radio). */
     flatFrom: 0.4,
     flatBy: 0.9,
@@ -87,6 +94,13 @@ export const DISC_MOTION = {
     /** The point it comes down to, flat: this far in front of the seat, and as high above it as the approach. */
     frontOfSeat: 0.16,
     approachAbove: 0.093,
+    /**
+     * When the well is free it glides through the front point without stopping: the flight's last control point
+     * lies `glideIn` in front of it (so it arrives moving straight back towards the seat) and the slide takes its
+     * speed on, leaving at `glideSlope` and easing out over the seat.
+     */
+    glideIn: 0.08,
+    glideSlope: 1,
     /** Back over the seat, flat, under the discs hanging above it. */
     slideMs: 150,
     dropMs: 110,
@@ -437,49 +451,75 @@ export function frontPoint(side = 0): Vector3 {
 const FLAT = seatOrientation();
 
 /**
- * The flight from the shelf to the front point: out towards the camera and a little up, then down in front of the
- * radio, upright (label to the camera) for its first 40 %, flat by 90 %, so it turns where nothing hangs.
+ * The flight's slope on arrival at the front point that makes its speed there the slide's starting speed: the
+ * cubic's end tangent is 3 · glideIn per unit of `u`, the slide's start is glideSlope · frontOfSeat per slideMs.
  */
-export function insertFlight(from: DiscPose, eye: Vector3, start: number, duration: number, side = 0): PoseSegment {
+export function glideArrivalSlope(): number {
+  const { pick } = DISC_MOTION;
+  return (pick.glideSlope * pick.frontOfSeat * pick.flightMs) / (3 * pick.glideIn * pick.slideMs);
+}
+
+/**
+ * The flight from the shelf to the front point: out towards the camera and up, then down in front of the radio,
+ * upright (label to the camera) for its first 40 %, flat by 90 %, so it turns where nothing hangs. With `glide` the
+ * well is free: it arrives moving straight back towards the seat at the slide's starting speed, one curve from the
+ * shelf over the seat. Without, it lands softly on the front point and waits there.
+ */
+export function insertFlight(
+  from: DiscPose,
+  eye: Vector3,
+  start: number,
+  duration: number,
+  glide: boolean,
+  side = 0,
+): PoseSegment {
   const { pick } = DISC_MOTION;
   const front = frontPoint(side);
   const out = from.position
     .clone()
     .addScaledVector(outOfShelf(from.position, eye), pick.outward)
     .add(new Vector3(0, pick.lift, 0));
-  // Out and down onto the front point from above and in front of it; across (on its own timing) only once it is
-  // out, so it never slides sideways along the shelf.
-  const above = new Vector3(from.position.x, front.y + 0.07, front.z + 0.05);
+  // Out and down onto the front point; across (on its own timing) only once it is out, so it never slides sideways
+  // along the shelf. Gliding, it comes in level from in front of the point; landing, from above and in front of it.
+  const above = glide
+    ? front.clone().addScaledVector(FRONT, pick.glideIn).setX(from.position.x)
+    : new Vector3(from.position.x, front.y + 0.07, front.z + 0.05);
+  const arrival = glide ? glideArrivalSlope() : 0;
   return {
     start,
     end: start + duration,
     at(t) {
       const linear = clamp01((t - start) / duration);
-      // A sine ease: the anticipation was the wind-up, so it leaves at once and lands softly.
-      const u = (1 - Math.cos(Math.PI * linear)) / 2;
+      // The anticipation was the wind-up, so it leaves at once.
+      const u = hermiteEase(linear, pick.leaveSlope, arrival);
       const turn = easeInOutCubic(clamp01((linear - pick.flatFrom) / (pick.flatBy - pick.flatFrom)));
       const position = cubic(from.position, out, above, front, u);
       const acrossShare = clamp01((u - pick.acrossFrom) / (1 - pick.acrossFrom));
       position.x = MathUtils.lerp(from.position.x, front.x, acrossShare * acrossShare * (3 - 2 * acrossShare));
+      const shrink = clamp01((u - pick.shrinkFrom) / (1 - pick.shrinkFrom));
       return {
         position,
         orientation: from.orientation.clone().slerp(FLAT, turn),
-        scale: MathUtils.lerp(from.scale, 1, u),
+        scale: MathUtils.lerp(from.scale, 1, shrink * shrink * (3 - 2 * shrink)),
       };
     },
   };
 }
 
-/** Flat, from the front point back over the seat, under the discs hanging above it. */
-export function slide(side: number, start: number): PoseSegment {
+/**
+ * Flat, from the front point back over the seat, under the discs hanging above it. With `glide` it takes the
+ * flight's speed on and eases out over the seat; without, it sets off from rest.
+ */
+export function slide(side: number, start: number, glide: boolean): PoseSegment {
   const { pick } = DISC_MOTION;
   const from = frontPoint(side);
   const to = approachPoint(side);
+  const leave = glide ? pick.glideSlope : 0;
   return {
     start,
     end: start + pick.slideMs,
     at(t) {
-      const u = easeInOutCubic(clamp01((t - start) / pick.slideMs));
+      const u = hermiteEase(clamp01((t - start) / pick.slideMs), leave, 0);
       return { position: from.clone().lerp(to, u), orientation: FLAT.clone(), scale: 1 };
     },
   };
@@ -584,13 +624,21 @@ export function underShelf(pose: DiscPose): boolean {
 
 /**
  * Home from wherever an insert was called off, in front of the shelf (from the slide it backs out first): out
- * towards the camera, standing up as it comes, then up in front of its slot and in.
+ * towards the camera, standing up as it comes, then up in front of its slot and in, from the camera's side or, with
+ * `straight`, straight from the front (the way the rise puts a disc into its slot: past the neighbours in front of it
+ * in a deep arc rather than across them).
  */
-export function homeInFront(from: DiscPose, slot: DiscSlot, eye: Vector3, start: number): PoseSegment {
+export function homeInFront(
+  from: DiscPose,
+  slot: DiscSlot,
+  eye: Vector3,
+  start: number,
+  straight = false,
+): PoseSegment {
   const { home, settle: s } = DISC_MOTION;
   const goal = slotPose(slot);
   const out = from.position.clone().addScaledVector(FRONT, home.forward);
-  const before = goal.position.clone().addScaledVector(outOfShelf(goal.position, eye), home.outward);
+  const before = goal.position.clone().addScaledVector(straight ? FRONT : outOfShelf(goal.position, eye), home.outward);
   const incoming = goal.position.clone().sub(before).normalize();
   const end = goal.position.clone().addScaledVector(incoming, s.overshoot);
   return {

@@ -147,23 +147,57 @@ describe('the pick', () => {
     for (const slot of SLOTS) {
       const start = attentionPose(slot, EYE);
       const antic = anticipate(start, EYE, 0);
-      const fly = insertFlight(antic.at(antic.end), EYE, antic.end, DISC_MOTION.pick.flightMs);
-      const poses = samples(fly, 200);
-      for (const pose of poses) sound(pose);
-      const end = fly.at(fly.end);
-      expect(end.position.distanceTo(frontPoint())).toBeLessThan(1e-9);
-      expect(end.orientation.angleTo(seatPose().orientation)).toBeLessThan(1e-6);
-      // Out of the shelf before it moves across: sideways only once a disc's width in front of where it was.
-      for (const pose of poses) {
-        if (Math.abs(pose.position.x - start.position.x) > 0.005) {
-          expect(pose.position.z - start.position.z).toBeGreaterThan(0.06);
+      for (const glide of [true, false]) {
+        const fly = insertFlight(antic.at(antic.end), EYE, antic.end, DISC_MOTION.pick.flightMs, glide);
+        const poses = samples(fly, 200);
+        for (const pose of poses) sound(pose);
+        const end = fly.at(fly.end);
+        expect(end.position.distanceTo(frontPoint())).toBeLessThan(1e-9);
+        expect(end.orientation.angleTo(seatPose().orientation)).toBeLessThan(1e-6);
+        // Out of the shelf before it moves across: sideways only once a disc's width in front of where it was.
+        for (const pose of poses) {
+          if (Math.abs(pose.position.x - start.position.x) > 0.005) {
+            expect(pose.position.z - start.position.z).toBeGreaterThan(0.06);
+          }
         }
       }
     }
   });
 
+  it('moves at once, and glides through the front point over the seat without a stop when the well is free', () => {
+    const { pick } = DISC_MOTION;
+    const speed = (segment: { at(t: number): { position: Vector3 } }, t: number) =>
+      segment.at(t + 0.5).position.distanceTo(segment.at(t - 0.5).position);
+    for (const slot of SLOTS) {
+      const start = attentionPose(slot, EYE);
+      const antic = anticipate(start, EYE, 0);
+      const fly = insertFlight(antic.at(antic.end), EYE, antic.end, pick.flightMs, true);
+      const over = slide(0, fly.end, true);
+      // Under 80 ms after the click it is a centimetre away, still at its pick scale (no shrink cancelling the move).
+      const at80 = 80 < antic.end ? antic.at(80) : fly.at(80);
+      expect(at80.position.distanceTo(start.position)).toBeGreaterThan(0.01);
+      expect(fly.at(fly.start + pick.flightMs * 0.2).scale).toBeCloseTo(pick.scale, 6);
+      // C1 where the flight hands on to the slide: one speed, one direction (straight back towards the seat).
+      const arriving = fly
+        .at(fly.end)
+        .position.clone()
+        .sub(fly.at(fly.end - 1).position);
+      const leaving = over
+        .at(over.start + 1)
+        .position.clone()
+        .sub(over.at(over.start).position);
+      expect(arriving.length()).toBeGreaterThan(0.0005);
+      expect(leaving.length() / arriving.length()).toBeCloseTo(1, 1);
+      expect(arriving.angleTo(leaving)).toBeLessThan(0.05);
+      // No stop anywhere from the shelf to over the seat: only the slide's ease-out comes to rest, on the seat axis.
+      for (let t = fly.start + 1; t < fly.end; t += 4) expect(speed(fly, t)).toBeGreaterThan(0.0003);
+      for (let t = over.start; t < over.end - pick.slideMs * 0.2; t += 4)
+        expect(speed(over, t)).toBeGreaterThan(0.0003);
+    }
+  });
+
   it('slides back flat over the seat, drops onto the spindle and bounces 1.5 mm', () => {
-    const over = slide(0, 0);
+    const over = slide(0, 0, true);
     expect(over.at(0).position.distanceTo(frontPoint())).toBeLessThan(1e-9);
     expect(over.at(over.end).position.distanceTo(approachPoint())).toBeLessThan(1e-9);
     // Under the discs hanging above the seat: their lower edges are 40 mm above it.
@@ -177,7 +211,7 @@ describe('the pick', () => {
   });
 
   it('called back from the slide, backs out from under the shelf first, then goes home in front', () => {
-    const under = slide(0, 0).at(DISC_MOTION.pick.slideMs * 0.7);
+    const under = slide(0, 0, true).at(DISC_MOTION.pick.slideMs * 0.7);
     expect(underShelf(under)).toBe(true);
     const out = backOut(under, 0);
     expect(out.at(out.end).position.distanceTo(frontPoint())).toBeLessThan(1e-9);

@@ -495,6 +495,39 @@ describe('a new layout mid-motion', () => {
   });
 });
 
+describe('a pick after a new layout', () => {
+  it('picked on its way to the slot a turn gave it, a disc glides on there first and never jumps', () => {
+    // The keyboard's flow on a phone: Enter as the discs arrive, a turn a moment later, then another disc.
+    const turnAt = LANDING + 190;
+    let largest = 0;
+    for (let second = 1600; second <= 2800; second += 40) {
+      const { choreography, run } = setup();
+      choreography.approach(0, 0);
+      run(LANDING);
+      choreography.reveal(LANDING);
+      run(LANDING + 50);
+      choreography.setLoaded('a', LANDING + 50, true);
+      run(turnAt);
+      choreography.relayout(discSlots(5, 0.46), turnAt);
+      run(second);
+      choreography.setLoaded('b', second, true);
+      let last = choreography.sample(second).discs;
+      for (let t = second + FRAME; t <= second + 3000; t += FRAME) {
+        run(t);
+        const now = choreography.sample(t).discs;
+        for (const entry of now) {
+          const before = last.find((other) => other.id === entry.id);
+          if (before?.visible && entry.visible) largest = Math.max(largest, before.position.distanceTo(entry.position));
+        }
+        last = now;
+      }
+    }
+    // No more than the fastest frame of the disc leaving the player (about 68 mm): the review measured jumps of 60
+    // to 339 mm here, the picked disc cutting from its old slot to its new one.
+    expect(largest).toBeLessThan(0.09);
+  });
+});
+
 describe('a new collection', () => {
   it('names the discs taking over one that left, index for index, never the loaded one', () => {
     const placeholders = ['disc-1', 'disc-2', 'disc-3'];

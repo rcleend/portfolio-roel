@@ -241,6 +241,8 @@ const SPIN_UP_MS = { insert: 900, paused: 350, stopped: 600 } as const;
 const SPIN_DOWN_MS = { paused: 700, stopped: 1100 } as const;
 /** How finely the way of a disc leaving the player is searched for the moment it is clear (ms). */
 const PLAN_STEP_MS = 10;
+/** A clearance check looks at every this many steps first (see clearOver). */
+const CLEAR_COARSE_STEPS = 6;
 /** A disc picked while others are still coming up tries to set off this much later each time its way meets one. */
 const RISE_WAIT_STEP_MS = 30;
 /** And keeps this far clear of them (m). */
@@ -283,6 +285,18 @@ export function discHeirs(
 /** The discs moving in front of the shelf (where a disc going in flies): those coming up, and those called back. */
 const IN_FRONT: ReadonlySet<DiscPhase> = new Set(['rising', 'homing']);
 const RISING: ReadonlySet<DiscPhase> = new Set(['rising']);
+/** Every disc that can be seen moving (a stowed disc is inside the radio). */
+const SHOWN: ReadonlySet<DiscPhase> = new Set([
+  'rising',
+  'floating',
+  'inserting',
+  'dropping',
+  'seated',
+  'unseating',
+  'exiting',
+  'homing',
+  'returning',
+]);
 const Z = new Vector3(0, 0, 1);
 const X = new Vector3(1, 0, 0);
 const UP = new Vector3(0, 1, 0);
@@ -301,6 +315,8 @@ export class Choreography {
   #loaded: string | null = null;
   #transport: Transport = 'stopped';
   #attended: string | null = null;
+  /** The segments of the glides to new slots after a turn (#glideLate): a disc picked on one finishes it first. */
+  readonly #relayGlides = new WeakSet<PhasedSegment>();
   readonly #presses = new Map<'rocker' | 'previous' | 'next', KeyPress>();
   #amplitude: { from: number; a0: number; a1: number; duration: number }[] = [];
   readonly #parallaxX = new Spring(0, PARALLAX_SPRING.zeta, PARALLAX_SPRING.hz);
@@ -550,12 +566,17 @@ export class Choreography {
       track.insert = null;
       track.spin = this.#decaySpin(track, t, 0);
     }
+    // The ways already planned (out of the player and down the slit, the insert committing): the shelf's way home
+    // waits until it meets none of them.
+    const planned = [...slit, ...(loaded ? [loaded] : [])].map((track) =>
+      track.segments.filter((segment) => segment.end > t),
+    );
     const deadline = t + leave.lidStartBy;
     let pace = 1;
-    let sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink);
+    let sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink, planned);
     while (Math.max(closeAt, sinks.at(-1) ?? t) > deadline && pace > leave.minPace) {
       pace = Math.max(leave.minPace, pace - PACE_STEP);
-      sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink);
+      sinks = this.#packUp(order, arrivals, inSlots, t, pace, lastSink, planned);
     }
     sinks.forEach((at, k) => {
       const track = order[k] as DiscTrack;
@@ -574,7 +595,8 @@ export class Choreography {
    * its lane, across over the slot and down it, no sooner than `after` the last disc went down (planned at `t`). Its
    * turn comes once it is `inSlot`, a stagger after the one before (so none passes a disc still on its way to its slot
    * nearer the slot), and once its way home meets none of the discs still on theirs (a disc hurrying home from the
-   * player). Returns when each starts down the slot.
+   * player) nor any of the `planned` ways (a disc going down the slit, the insert committing). Returns when each
+   * starts down the slot.
    */
   #packUp(
     order: readonly DiscTrack[],
@@ -583,13 +605,17 @@ export class Choreography {
     t: number,
     pace: number,
     after: number,
+    planned: readonly (readonly PhasedSegment[])[],
   ): number[] {
     const { leave } = DISC_MOTION;
     let lastSink = after;
     let start = Number.NEGATIVE_INFINITY;
     return order.map((track, k) => {
       const arrival = arrivals[k] ?? [];
-      const ahead = arrivals.slice(k + 1).map((way) => way.filter((segment) => segment.phase !== 'floating'));
+      const ahead = [
+        ...arrivals.slice(k + 1).map((way) => way.filter((segment) => segment.phase !== 'floating')),
+        ...planned,
+      ];
       const allIn = Math.max(t, ...ahead.flatMap((way) => way.map((segment) => segment.end)));
       start = Math.max(inSlot[k] ?? t, start + leave.stagger * pace);
       // It floats on in its slot until its turn (or settles there until then), and goes from exactly where it is.
@@ -668,8 +694,17 @@ export class Choreography {
     // A disc still on its way up (a keyboard can choose it the moment the camera lands) comes up out of the slot and
     // over to its column, then flies on from there, already moving, instead of turning into its slot first.
     const phase = this.#phaseAt(incoming, t);
-    const arriving = !instant && (phase === 'stowed' || phase === 'rising') ? this.#wayUp(incoming, t) : [];
     const fromRise = !instant && (phase === 'stowed' || phase === 'rising');
+    // On its way home from the player and picked again where it cannot go back (#backIntoPlayer), or on its way to the
+    // slot a turned screen gave it (#glideLate): it goes on there, its way was planned clear of the rest, and sets
+    // off from its slot like any disc on the shelf.
+    const gliding = incoming.segments.some((segment) => segment.end > t && this.#relayGlides.has(segment));
+    const homeFirst = !instant && (phase === 'unseating' || phase === 'exiting' || (phase === 'floating' && gliding));
+    const arriving = fromRise
+      ? this.#wayUp(incoming, t)
+      : homeFirst
+        ? incoming.segments.filter((segment) => segment.end > t)
+        : [];
     const arrived = Math.max(t, arriving.at(-1)?.end ?? t);
     const live = this.#drawnPose(incoming, arrived);
     // Its way up still sounds; what it had planned after that (over to the slot, turning over) is replaced.
@@ -705,7 +740,9 @@ export class Choreography {
       this.#insertPlan(incoming, { arriving, arrived, live, fromRise, wellClear, eye, anticipationMs }, setOff);
     const riseDone = this.#riseDone(incoming, t);
     let way = plan(earliest);
-    for (let setOff = earliest; setOff < riseDone && !this.#clearOfTheRise(incoming, way.segments, t); ) {
+    // Only what is new is checked: the way up it is on (or home, before setting off) was planned clear of the rest,
+    // and in the stack inside the radio the discs lie on one another by design.
+    for (let setOff = earliest; setOff < riseDone && !this.#clearOf(incoming, way.segments, arrived, RISING); ) {
       setOff = Math.min(riseDone, setOff + RISE_WAIT_STEP_MS);
       way = plan(setOff);
     }
@@ -780,10 +817,12 @@ export class Choreography {
     // Coming out of the radio is the wind-up: a disc picked on its way flies on from its column.
     const antic = fromRise ? still(from, arrived + wait, arrived + wait) : anticipate(from, eye, arrived + wait);
     const departure = antic.end;
-    const fly = insertFlight(antic.at(antic.end), eye, departure, pick.flightMs);
-    // It slides over the seat once every disc leaving the player (behind the shelf) is clear of its way.
+    // It slides over the seat once every disc leaving the player (behind the shelf) is clear of its way: when that
+    // is before it gets there, it glides through the front point without a stop.
+    const glide = wellClear <= departure + pick.flightMs;
+    const fly = insertFlight(antic.at(antic.end), eye, departure, pick.flightMs, glide);
     const slideStart = Math.max(fly.end, wellClear);
-    const over = slide(0, slideStart);
+    const over = slide(0, slideStart, glide);
     const dropStart = over.end;
     const fall = drop(approachPoint(), dropStart);
     const segments: PhasedSegment[] = [
@@ -798,7 +837,9 @@ export class Choreography {
         : []),
       { ...antic, phase: 'inserting' },
       { ...fly, phase: 'inserting' },
-      { ...still(fly.at(fly.end), fly.end, slideStart), phase: 'inserting' },
+      ...(slideStart > fly.end
+        ? [{ ...still(fly.at(fly.end), fly.end, slideStart), phase: 'inserting' as const }]
+        : []),
       { ...over, phase: 'inserting' },
       { ...fall, phase: 'dropping' },
     ];
@@ -819,31 +860,28 @@ export class Choreography {
     return done;
   }
 
-  /** True when a disc following `segments` from `t` meets none of the discs still coming up (or in `phases`). */
-  #clearOfTheRise(
+  /** True when a disc following `segments` from `t` meets none of the other discs moving in one of `phases`. */
+  #clearOf(
     incoming: DiscTrack,
     segments: readonly PhasedSegment[],
     t: number,
-    phases: ReadonlySet<DiscPhase> = RISING,
+    phases: ReadonlySet<DiscPhase>,
   ): boolean {
-    const end = segments.at(-1)?.end ?? t;
-    const reach = 2 * DISC_RADIUS * DISC_MOTION.pick.scale + RISE_MARGIN;
-    for (let at = t; at < end; at += PLAN_STEP_MS) {
-      const pose = poseOn(segments, at);
-      for (const track of this.#discs.values()) {
-        if (track === incoming) continue;
+    const others = [...this.#discs.values()].filter((track) => track !== incoming);
+    return clearAlong(segments, t, (at) =>
+      others.map((track) => {
         const segment = activeSegment(track.segments, at);
-        if (!segment || !phases.has(segment.phase)) continue;
-        const other = segment.at(at);
-        if (other.position.distanceTo(pose.position) < reach && discsTouch(pose, other, RISE_MARGIN)) return false;
-      }
-    }
-    return true;
+        if (!phases.has(segment?.phase ?? track.rest)) return null;
+        return segment ? segment.at(at) : this.#poseAt(track, at);
+      }),
+    );
   }
 
   /**
    * Picked again while still in the player or on its way out of it (a keyboard can do that): it stays, or goes back
-   * onto the spindle the way it came (its way out, backwards), and ▷II presses itself. False if it is not there.
+   * onto the spindle the way it came (its way out, backwards), and ▷II presses itself. False if it is not there, or
+   * if its way back is no longer clear: the disc picked after it has come into the well since, and is now on its way
+   * out of it along that same way.
    */
   #backIntoPlayer(track: DiscTrack, t: number): boolean {
     const phase = this.#phaseAt(track, t);
@@ -854,7 +892,11 @@ export class Choreography {
     if (out && out.start < t) {
       // Already standing up or going: back down its own way, as long as it has been going.
       const back = t - out.start;
-      track.segments = [{ start: t, end: t + back, at: (at: number) => poseOn(way, 2 * t - at), phase: 'dropping' }];
+      const reversed: PhasedSegment[] = [
+        { start: t, end: t + back, at: (at: number) => poseOn(way, 2 * t - at), phase: 'dropping' },
+      ];
+      if (!this.#clearOf(track, reversed, t, SHOWN)) return false;
+      track.segments = reversed;
       contact = t + back;
     } else {
       // Still landing or on the spindle: it stays (its landing, if any, carries on).
@@ -1201,13 +1243,24 @@ export class Choreography {
     if (phase === 'inserting') {
       // Not committed to the drop yet: home the way it came, in front of the shelf (out from under it first).
       const out = underShelf(live) ? backOut(live, t) : null;
-      const back = homeInFront(out ? out.at(out.end) : live, track.slot, this.#options.eye(), out?.end ?? t);
-      const rest = settle(back.at(back.end), track.slot, back.end);
-      track.segments = [
-        ...(out ? [{ ...out, phase: 'homing' as const }] : []),
-        { ...back, phase: 'homing' },
-        { ...rest, phase: 'floating' },
-      ];
+      const wayHome = (straight: boolean): PhasedSegment[] => {
+        const back = homeInFront(
+          out ? out.at(out.end) : live,
+          track.slot,
+          this.#options.eye(),
+          out?.end ?? t,
+          straight,
+        );
+        const rest = settle(back.at(back.end), track.slot, back.end);
+        return [
+          ...(out ? [{ ...out, phase: 'homing' as const }] : []),
+          { ...back, phase: 'homing' },
+          { ...rest, phase: 'floating' },
+        ];
+      };
+      // From the camera's side, unless that crosses a disc in front of its slot (a deep arc of many discs).
+      const towardsCamera = wayHome(false);
+      track.segments = this.#clearOf(track, towardsCamera, t, SHOWN) ? towardsCamera : wayHome(true);
       track.rest = 'floating';
       track.insert = null;
       track.spin = this.#labelSpin(track, t);
@@ -1217,7 +1270,6 @@ export class Choreography {
     const insert = track.insert;
     const dropping = phase === 'dropping' && insert !== null;
     const landed = dropping ? insert.contact + pick.bounceMs : t;
-    const standAt = Math.max(landed, t + swap.brakeMs);
     const spin = spinAt(track.spin, t);
     if (Math.abs(spin.omega) > 0.5) {
       this.#addMoment({ at: t, owner: track.id, cue: 'spin-down', disc: track.id });
@@ -1234,29 +1286,45 @@ export class Choreography {
       ];
     }
     const kept = dropping ? track.segments.filter((segment) => segment.end > t) : [];
+    // It holds on the spindle from where what it keeps ends: a drop hurried to its contact ends before its bounce
+    // would, and a gap there would show the disc at rest in its slot for a frame.
+    const heldFrom = Math.max(t, kept.at(-1)?.end ?? t);
     // A disc already dropping lands before it leaves: its contact still sounds.
     if (dropping && insert.contact > t) {
       this.#addMoment({ at: insert.contact, owner: track.id, cue: 'disc-seat', disc: track.id });
     }
-    const stand = standUp(standAt);
     const exitZ = exitPlane([...this.#discs.values()].map((disc) => disc.slot));
-    const back = backToExit(stand.at(stand.end), exitZ, stand.end);
-    const side = across(back.at(back.end), track.slot.position, back.end, swap.acrossMs);
-    const home = into(side.at(side.end), track.slot, side.end, swap.intoMs, false);
-    const rest = settle(home.at(home.end), track.slot, home.end);
-    track.segments = [
-      ...kept,
-      { ...still(seatPose(), dropping ? landed : t, standAt), phase: 'seated' },
-      { ...stand, phase: 'unseating' },
-      { ...back, phase: 'exiting' },
-      { ...side, phase: 'exiting' },
-      { ...home, phase: 'exiting' },
-      { ...rest, phase: 'floating' },
-    ];
+    const wayHome = (at: number): PhasedSegment[] => {
+      const stand = standUp(at);
+      const back = backToExit(stand.at(stand.end), exitZ, stand.end);
+      const side = across(back.at(back.end), track.slot.position, back.end, swap.acrossMs);
+      const home = into(side.at(side.end), track.slot, side.end, swap.intoMs, false);
+      const rest = settle(home.at(home.end), track.slot, home.end);
+      return [
+        ...kept,
+        { ...still(seatPose(), heldFrom, at), phase: 'seated' },
+        { ...stand, phase: 'unseating' },
+        { ...back, phase: 'exiting' },
+        { ...side, phase: 'exiting' },
+        { ...home, phase: 'exiting' },
+        { ...rest, phase: 'floating' },
+      ];
+    };
+    // The discs still coming up (a warm arrival with this one in the player) cross the back on their way to their
+    // slots: it stays on the spindle until its way home behind the shelf is clear of theirs.
+    const riseDone = this.#riseDone(track, t);
+    let standAt = Math.max(landed, heldFrom, t + swap.brakeMs);
+    let way = wayHome(standAt);
+    while (standAt < riseDone && !this.#clearOf(track, way, t, RISING)) {
+      standAt = Math.min(riseDone, standAt + RISE_WAIT_STEP_MS);
+      way = wayHome(standAt);
+    }
+    track.segments = way;
     track.rest = 'floating';
     track.insert = null;
     this.#addMoment({ at: standAt, owner: track.id, cue: 'disc-unseat', disc: track.id });
-    track.spin = [...track.spin, this.#uprightTurn(track.spin, back.start, UPRIGHT_TURN_MS)];
+    const backed = way.find((segment) => segment.phase === 'exiting')?.start ?? standAt;
+    track.spin = [...track.spin, this.#uprightTurn(track.spin, backed, UPRIGHT_TURN_MS)];
   }
 
   /**
@@ -1279,7 +1347,7 @@ export class Choreography {
         const warp = hurryWithin(path, t, t, span, duration, COMMIT_MAX_SPEED);
         before = warpSegments(film, warp);
         ready = warp.realEnd;
-        if (warp.realEnd - t >= span || this.#clearOfTheRise(track, before, t, IN_FRONT)) break;
+        if (warp.realEnd - t >= span || this.#clearOf(track, before, t, IN_FRONT)) break;
       }
     }
     const filmFrom = Math.max(t, insert.slideStart);
@@ -1365,7 +1433,8 @@ export class Choreography {
 
   /**
    * The end of a short way home as the visitor leaves: after `kept`, `track` waits (in `waiting`) until `after`, backs
-   * straight into the slot's plane and goes down it, the `order`-th to. Returns when it starts down.
+   * straight into the slot's plane and goes down it, the `order`-th to. Returns when it starts down, or for a longer
+   * drop, when a drop at the shelf's pace (DISC_MOTION.leave.sinkMs) would have started to end with it.
    */
   #intoTheSlit(
     track: DiscTrack,
@@ -1380,19 +1449,34 @@ export class Choreography {
     const fromAt = last?.end ?? t;
     const start = Math.max(fromAt, after);
     const depth = Math.abs(seatPose().position.z - DECK.slot.z);
-    const duration = DISC_MOTION.slit.backMs * clamp01(Math.abs(from.position.z - DECK.slot.z) / depth);
-    const toward = toSlit(from, start, Math.max(4 * PLAN_STEP_MS, duration));
+    const drawn = DISC_MOTION.slit.backMs * clamp01(Math.abs(from.position.z - DECK.slot.z) / depth);
+    // As drawn for its depth, but a disc high above the slot (across the back of a tall shelf) takes as long as its
+    // drop needs at COMMIT_MAX_SPEED.
+    const duration = speedCappedMs(Math.max(4 * PLAN_STEP_MS, drawn), Number.POSITIVE_INFINITY, (ms) =>
+      toSlit(from, start, ms),
+    );
+    const toward = toSlit(from, start, duration);
+    // Down from its own height, which across the back of a tall shelf is well above where the shelf sinks from: no
+    // faster than COMMIT_MAX_SPEED either.
+    const top = toward.at(toward.end);
+    const { sinkMs } = DISC_MOTION.leave;
+    const down = sink(
+      top,
+      toward.end,
+      speedCappedMs(sinkMs, Number.POSITIVE_INFINITY, (ms) => sink(top, toward.end, ms)),
+    );
     track.segments = [
       ...kept,
       ...(start > fromAt ? [{ ...still(from, fromAt, start), phase: waiting }] : []),
       { ...toward, phase: 'exiting' },
-      { ...sink(toward.at(toward.end), toward.end), phase: 'returning' },
+      { ...down, phase: 'returning' },
     ];
     track.rest = 'stowed';
     track.insert = null;
     track.setOff = null;
     this.#addMoment({ at: toward.end, owner: track.id, cue: 'disc-sink', order, disc: track.id });
-    return toward.end;
+    // As if it had started down at the shelf's pace: the next disc into the slot's plane waits until it is in.
+    return down.end - sinkMs;
   }
 
   /** Turning into its slot on its way home from the player as the visitor leaves: the rest of its way plays sooner. */
@@ -1562,6 +1646,8 @@ export class Choreography {
       goal.orientation.copy(slotFacing(track.slot, labelAway(from.orientation)));
       const others = [...this.#discs.values()].filter((other) => other !== track);
       const ways = others.map((other) => this.#wayAndRest(other, waiting.has(other)));
+      // Every start tried below samples the same moments of the others' ways: each is worked out once.
+      const placed = onGrid(last.end, (at) => ways.map((way) => activeSegment(way, at)?.at(at) ?? null));
       // Once every other disc's planned move is over the shelf stands still: a glide blocked then stays blocked.
       const settled = Math.max(last.end, ...others.map(endOf));
       const horizon = Math.min(last.end + RELAYOUT_MAX_WAIT_MS, settled + RISE_WAIT_STEP_MS);
@@ -1576,18 +1662,23 @@ export class Choreography {
           { ...ease(front, goal, start + DISC_MOTION.relayoutMs, DISC_MOTION.relayoutMs / 2), phase: 'floating' },
         ];
       };
-      const found = firstClear(last.end, horizon, (start) => {
-        if (tries === 2) {
-          const way = frontRoute(start);
-          return clearOfWays(way, ways, start) ? way : undefined;
-        }
-        // Straight over, or bowed towards the camera to pass in front of a disc in the way (a disc is thin that way).
-        for (const bow of [undefined, ...RELAYOUT_BOWS.map((size) => forward.clone().multiplyScalar(size))]) {
-          const glide: PhasedSegment = { ...ease(from, goal, start, DISC_MOTION.relayoutMs, bow), phase: 'floating' };
-          if (clearOfWays([glide], ways, start)) return [glide];
-        }
-        return undefined;
-      });
+      // The same glide whatever moment it sets off (ease is a function of the time since): checked from its poses at
+      // the first possible start, shifted, and only built for real once a start is clear.
+      const tryEach = (makes: readonly ((start: number) => PhasedSegment[])[]) => {
+        const checks = makes.map((make) => shiftedCheck(make(last.end), last.end, placed));
+        return (start: number) => {
+          const index = checks.findIndex((clear) => clear(start));
+          return index < 0 ? undefined : makes[index]?.(start);
+        };
+      };
+      // Straight over, or bowed towards the camera to pass in front of a disc in the way (a disc is thin that way).
+      const glides = [undefined, ...RELAYOUT_BOWS.map((size) => forward.clone().multiplyScalar(size))].map(
+        (bow) =>
+          (start: number): PhasedSegment[] => [
+            { ...ease(from, goal, start, DISC_MOTION.relayoutMs, bow), phase: 'floating' },
+          ],
+      );
+      const found = firstClear(last.end, horizon, tryEach(tries === 2 ? [frontRoute] : glides));
       const blockedByWaiting = !found && queue.some((turn) => waiting.has(turn.track));
       if (blockedByWaiting && tries === 0) {
         waiting.add(track);
@@ -1598,10 +1689,10 @@ export class Choreography {
         // Out of the shelf's plane towards the camera, out of everyone's way, to wait there for its own.
         const aside = clonePose(from);
         aside.position.addScaledVector(forward, depth);
-        const step = firstClear(last.end, horizon, (start) => {
-          const out: PhasedSegment = { ...ease(from, aside, start, DISC_MOTION.relayoutMs / 2), phase: 'floating' };
-          return clearOfWays([out], ways, start) ? [out] : undefined;
-        });
+        const out = (start: number): PhasedSegment[] => [
+          { ...ease(from, aside, start, DISC_MOTION.relayoutMs / 2), phase: 'floating' },
+        ];
+        const step = firstClear(last.end, horizon, tryEach([out]));
         if (step) {
           this.#goOn(track, last.end, step);
           waiting.add(track);
@@ -1609,23 +1700,42 @@ export class Choreography {
           continue;
         }
       }
-      // Nothing clear even once the shelf stands still (a disc resting in the way): over in front of it once it does,
-      // or for a disc that never had to step aside, straight over as soon as its move ends.
-      const fallback: PhasedSegment[] =
-        tries === 2
-          ? frontRoute(horizon)
-          : [{ ...ease(from, goal, last.end, DISC_MOTION.relayoutMs), phase: 'floating' }];
-      this.#goOn(track, last.end, found ?? fallback);
+      // Nothing clear by gliding over (a disc resting in the way, or each in the other's): around the shelf instead,
+      // out of it, across and back in, in front of it or (where the disc in front of this one overlaps it) behind it,
+      // at the first start that is clear, else once the shelf stands still.
+      const around =
+        (side: 1 | -1) =>
+        (start: number): PhasedSegment[] => {
+          const out = clonePose(from);
+          out.position.addScaledVector(forward, side * depth);
+          const over = clonePose(goal);
+          over.position.addScaledVector(forward, side * depth);
+          const half = DISC_MOTION.relayoutMs / 2;
+          return [
+            { ...ease(from, out, start, half), phase: 'floating' },
+            { ...ease(out, over, start + half, DISC_MOTION.relayoutMs), phase: 'floating' },
+            { ...ease(over, goal, start + half + DISC_MOTION.relayoutMs, half), phase: 'floating' },
+          ];
+        };
+      const fallback = (): PhasedSegment[] => {
+        if (tries === 2) return frontRoute(horizon);
+        return firstClear(last.end, horizon, tryEach([around(1), around(-1)])) ?? around(1)(horizon);
+      };
+      this.#goOn(track, last.end, found ?? fallback());
     }
   }
 
   /** Appends `way` to the disc's segments, holding it still from `end` (where its move ends) until the way sets off. */
   #goOn(track: DiscTrack, end: number, way: readonly PhasedSegment[]): void {
     const first = way[0];
-    if (first && first.start > end) {
-      track.segments.push({ ...still(first.at(first.start), end, first.start), phase: 'floating' });
-    }
-    track.segments.push(...way);
+    const segments: PhasedSegment[] = [
+      ...(first && first.start > end
+        ? [{ ...still(first.at(first.start), end, first.start), phase: 'floating' as const }]
+        : []),
+      ...way,
+    ];
+    for (const segment of segments) this.#relayGlides.add(segment);
+    track.segments.push(...segments);
   }
 
   /** A disc's planned way, then where it stays (its old slot while it waits to glide, else where its way ends). */
@@ -1750,6 +1860,14 @@ export class Choreography {
 }
 
 /** True when a disc in this orientation shows its data side to the camera (its label faces away). */
+/** How far `a` moved relative to `b` in one step (from `a0`, `b0`). */
+function relativeStep(a: Vector3, a0: Vector3, b: Vector3, b0: Vector3): number {
+  const x = a.x - a0.x - (b.x - b0.x);
+  const y = a.y - a0.y - (b.y - b0.y);
+  const z = a.z - a0.z - (b.z - b0.z);
+  return Math.sqrt(x * x + y * y + z * z);
+}
+
 /** The first way `at(start)` offers for a start from `from` on, in RISE_WAIT_STEP_MS steps up to `until`. */
 function firstClear(
   from: number,
@@ -1770,17 +1888,111 @@ function clearOfWays(
   t: number,
   margin = RISE_MARGIN,
 ): boolean {
-  const end = segments.at(-1)?.end ?? t;
-  for (let at = t; at < end; at += PLAN_STEP_MS) {
-    const pose = poseOn(segments, at);
-    for (const way of ways) {
-      const segment = activeSegment(way, at);
-      if (!segment) continue;
-      const other = segment.at(at);
-      const reach = DISC_RADIUS * (pose.scale + other.scale) + margin;
-      if (other.position.distanceTo(pose.position) < reach && discsTouch(pose, other, margin)) return false;
+  return clearAlong(segments, t, (at) => ways.map((way) => activeSegment(way, at)?.at(at) ?? null), margin);
+}
+
+/**
+ * `others`, remembered on the PLAN_STEP_MS grid from `origin`: a search that tries start after start on that grid (as
+ * firstClear does, in RISE_WAIT_STEP_MS steps) works each moment of the other discs' ways out once, not once per try.
+ * The poses it hands out are shared: callers read them, never change them.
+ */
+function onGrid<T>(origin: number, others: (at: number) => T): (at: number) => T {
+  const memo = new Map<number, T>();
+  return (at) => {
+    const steps = (at - origin) / PLAN_STEP_MS;
+    const index = Math.round(steps);
+    if (Math.abs(steps - index) > 1e-6) return others(at);
+    let placed = memo.get(index);
+    if (placed === undefined) {
+      placed = others(at);
+      memo.set(index, placed);
     }
-  }
+    return placed;
+  };
+}
+
+/**
+ * clearAlong for `way` (planned to set off at `origin`) set off at any later start on the RISE_WAIT_STEP_MS grid
+ * instead: a way that is a function of the time since its start (as ease is) only needs its poses worked out once.
+ */
+function shiftedCheck(
+  way: readonly PhasedSegment[],
+  origin: number,
+  others: (at: number) => readonly (DiscPose | null)[],
+): (start: number) => boolean {
+  const poses = onGrid(origin, (at) => poseOn(way, at));
+  const length = (way.at(-1)?.end ?? origin) - origin;
+  return (start) => clearOver((at) => poses(at - start + origin), start, start + length, others);
+}
+
+/**
+ * True when a disc following `segments` from `t` keeps `margin` clear of the discs `others` places at each step (null
+ * where there is none), sampled every PLAN_STEP_MS. Where a pair moved more than the margin relative to each other since
+ * the step before, the moments in between are checked too, so two discs passing face to face through each other between
+ * steps (in one plane they touch only for a millisecond or two) count.
+ */
+function clearAlong(
+  segments: readonly PhasedSegment[],
+  t: number,
+  others: (at: number) => readonly (DiscPose | null)[],
+  margin = RISE_MARGIN,
+): boolean {
+  return clearOver((at) => poseOn(segments, at), t, segments.at(-1)?.end ?? t, others, margin);
+}
+
+/**
+ * clearAlong for a disc whose pose at each moment from `t` to `end` is `self`. A way that meets another disc mostly
+ * does so for several steps running, so a first pass every CLEAR_COARSE_STEPS steps turns most of the starts a search
+ * tries down in a few samples (a glide blocked where it arrives, not only one blocked where it sets off); the second
+ * pass checks the steps in between.
+ * Each sample is worked out once, and the answer is the same as one pass in order.
+ */
+function clearOver(
+  self: (at: number) => DiscPose,
+  t: number,
+  end: number,
+  others: (at: number) => readonly (DiscPose | null)[],
+  margin = RISE_MARGIN,
+): boolean {
+  const count = Math.max(0, Math.ceil((end - t) / PLAN_STEP_MS - 1e-9));
+  const mine: DiscPose[] = [];
+  const theirs: (readonly (DiscPose | null)[])[] = [];
+  const poseAt = (k: number) => (mine[k] ??= self(t + k * PLAN_STEP_MS));
+  const othersAt = (k: number) => (theirs[k] ??= others(t + k * PLAN_STEP_MS));
+  // Between step k - 1 and step k, at `steps` evenly spaced moments: does the pair `i` touch?
+  const meetsBetween = (k: number, i: number, steps: number): boolean => {
+    for (let j = 1; j < steps; j++) {
+      const at = t + (k - 1 + j / steps) * PLAN_STEP_MS;
+      const other = others(at)[i];
+      if (other && discsTouch(self(at), other, margin)) return true;
+    }
+    return false;
+  };
+  const meets = (k: number): boolean => {
+    const pose = poseAt(k);
+    const now = othersAt(k);
+    const previous = k > 0 ? poseAt(k - 1).position : null;
+    const before = k > 0 ? othersAt(k - 1) : [];
+    for (let i = 0; i < now.length; i++) {
+      const other = now[i];
+      if (!other) continue;
+      const last = before[i];
+      const closing = last && previous ? relativeStep(pose.position, previous, other.position, last.position) : 0;
+      // Out of reach even allowing for the way the pair moved since the step before: nothing to check.
+      if (other.position.distanceTo(pose.position) >= DISC_RADIUS * (pose.scale + other.scale) + margin + closing) {
+        continue;
+      }
+      if (discsTouch(pose, other, margin)) return true;
+      // A pair that moved more than the margin relative to each other since the step before may have passed through
+      // each other in between (face to face, they touch only for a millisecond or two): look at the moments in between,
+      // close enough that the pair moves at most the margin from one to the next. Exact where a wider margin would
+      // hold a disc back from ways that are clear.
+      if (closing > margin && meetsBetween(k, i, Math.ceil(closing / margin))) return true;
+    }
+    return false;
+  };
+  for (let k = 0; k < count; k += CLEAR_COARSE_STEPS) if (meets(k)) return false;
+  for (let k = 0; k < count; k++) if (k % CLEAR_COARSE_STEPS !== 0 && meets(k)) return false;
   return true;
 }
 

@@ -1,12 +1,10 @@
 import { Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { DISC_RADIUS, discSlots } from '../discLayout';
-import { RADIO_FIXTURE } from '../radioFixtures';
-import { radioViewpoint } from '../radioFraming';
+import { discSlots } from '../discLayout';
 import { Choreography, type DiscSample } from './choreography';
-import { DECK } from './deckLayout';
 import { discsTouch } from './discContact';
 import { DISC_MOTION } from './discMotion';
+import { arrive, conceal, type Event, LAYOUTS, MARGIN, pick, radioContact, stage, sweep } from './storyboardSweep';
 
 /**
  * The storyboard sweep: no disc ever passes through another, nor through the radio (its body outside the well, the
@@ -15,49 +13,27 @@ import { DISC_MOTION } from './discMotion';
  * events, discs held to 0.5 mm apart.
  */
 
-const LAYOUTS = [
-  { width: 1440, height: 900, bottom: 0, right: 0 },
-  { width: 3440, height: 1440, bottom: 0, right: 0 },
-  { width: 844, height: 390, bottom: 0, right: 64 },
-  { width: 390, height: 844, bottom: 64, right: 0 },
-] as const;
 const COUNTS = [1, 2, 4, 5, 7, 12];
-const STEP_MS = 8;
-const MARGIN = 0.0005;
-/** Faster than any drawn path goes (7.5 m/s): a disc that covers this in one sample has jumped. */
-const JUMP_M = 0.06;
 /** The camera is back at the room this long after the leave (the flight is 1100 ms): the radio is packed up by then. */
 const LANDING_MS = 1150;
 /**
  * Up to this many discs the lid is shut by then too. Past it the slot sets the pace (one disc down it per
- * DISC_MOTION.leave.sinkGap, closer and they touch in its plane): each further disc, and a disc leaving the player,
- * shuts the lid a gap later, while the camera is already back at the room.
+ * DISC_MOTION.leave.sinkGap, closer and they touch in its plane): each further disc shuts the lid a gap later, while the
+ * camera is already back at the room. A leave during a swap sends one more disc down the slot, the one leaving the
+ * player, and its way across from the well costs one gap more: the shelf waits for it rather than cutting through it.
  */
 const SHUT_BY_LANDING = 7;
 
-/** When the lid is shut at the latest after a leave with `count` discs. */
-function shutBy(count: number): number {
-  return LANDING_MS + Math.max(0, count - SHUT_BY_LANDING + 1) * DISC_MOTION.leave.sinkGap;
+/** When the lid is shut after a mid-pick leave of `count` discs (the camera lands at LANDING_MS). */
+function shutBy(count: number, swap: boolean): number {
+  const gap = DISC_MOTION.leave.sinkGap;
+  const throughTheSlot = swap ? count + 1 : count;
+  return LANDING_MS + (swap ? gap : 0) + Math.max(0, throughTheSlot - SHUT_BY_LANDING + 1) * gap;
 }
 
-type Event = readonly [number, (choreography: Choreography, ids: readonly string[]) => void];
-
-const arrive: readonly Event[] = [
-  [0, (c) => c.approach(0, 0)],
-  [1100, (c) => c.reveal(1100)],
-];
-const pick = (at: number, which: (count: number) => number): Event => [
-  at,
-  (c, ids) => {
-    c.setTransport('playing', at);
-    c.setLoaded(ids[which(ids.length)] ?? null, at, true);
-  },
-];
-const conceal = (at: number): Event => [at, (c) => c.conceal(at)];
-
 /** A first insert or a swap, and the leave a moment into it. */
-function leavesMidPick(count: number): { name: string; events: Event[]; from: number; leave: number }[] {
-  const list: { name: string; events: Event[]; from: number; leave: number }[] = [];
+function leavesMidPick(count: number): { name: string; events: Event[]; from: number; leave: number; swap: boolean }[] {
+  const list: { name: string; events: Event[]; from: number; leave: number; swap: boolean }[] = [];
   for (const after of [0, 150, 300, 600, 900]) {
     const leave = 4500 + after;
     list.push({
@@ -65,6 +41,7 @@ function leavesMidPick(count: number): { name: string; events: Event[]; from: nu
       events: [pick(4500, (n) => n - 1), conceal(leave)],
       from: 4500,
       leave,
+      swap: false,
     });
     if (count > 1) {
       const swap = 7000 + after;
@@ -73,6 +50,7 @@ function leavesMidPick(count: number): { name: string; events: Event[]; from: nu
         events: [pick(4500, () => 0), pick(7000, (n) => n - 1), conceal(swap)],
         from: 7000,
         leave: swap,
+        swap: true,
       });
     }
   }
@@ -186,103 +164,6 @@ function scenarios(count: number): { name: string; events: Event[]; from: number
   return list;
 }
 
-/** The storyboard for `count` discs framed for `layout`. */
-function stage(layout: (typeof LAYOUTS)[number], count: number) {
-  const slots = discSlots(count, layout.width / layout.height);
-  const eye = radioViewpoint(RADIO_FIXTURE, slots, layout, {
-    top: 0,
-    right: layout.right,
-    bottom: layout.bottom,
-    left: 0,
-  }).position;
-  const ids = Array.from({ length: count }, (_, i) => `disc ${i}`);
-  const choreography = new Choreography({
-    reducedFadeMs: 140,
-    eye: () => eye,
-    reducedMotion: () => false,
-    slow: () => false,
-  });
-  choreography.setDiscs(ids, slots, 0);
-  return { choreography, ids };
-}
-
-/** What touched what, and when, in a scenario. */
-function sweep(layout: (typeof LAYOUTS)[number], count: number, events: readonly Event[], from: number, to: number) {
-  const { choreography, ids } = stage(layout, count);
-  const queue = [...arrive, ...events].sort((a, b) => a[0] - b[0]);
-  const contacts: string[] = [];
-  const last = new Map<string, Vector3>();
-  for (let t = 0; t <= to; t += t < from ? 16 : STEP_MS) {
-    while (queue.length > 0 && (queue[0]?.[0] ?? Number.POSITIVE_INFINITY) <= t) {
-      const [at, act] = queue.shift() as Event;
-      choreography.advance(at);
-      act(choreography, ids);
-    }
-    choreography.advance(t);
-    if (t < from) continue;
-    const sample = choreography.sample(t);
-    const discs = sample.discs.filter((disc) => disc.visible);
-    for (const disc of sample.discs) {
-      const before = last.get(disc.id);
-      const moved = before ? before.distanceTo(disc.position) : 0;
-      if (disc.visible && before && moved > JUMP_M) {
-        contacts.push(`${disc.id} (${disc.phase}) jumps ${Math.round(moved * 1000)} mm at +${t - from} ms`);
-      }
-      if (disc.visible) last.set(disc.id, disc.position.clone());
-      else last.delete(disc.id);
-    }
-    for (let i = 0; i < discs.length; i++) {
-      const a = discs[i] as DiscSample;
-      const radio = radioContact(a, sample.lid);
-      if (radio) contacts.push(`${a.id} (${a.phase}) × the radio's ${radio} at +${t - from} ms`);
-      for (let j = i + 1; j < discs.length; j++) {
-        const b = discs[j] as DiscSample;
-        if (discsTouch(a, b, MARGIN)) contacts.push(`${a.id} (${a.phase}) × ${b.id} (${b.phase}) at +${t - from} ms`);
-      }
-    }
-  }
-  return contacts;
-}
-
-/** The radio as a solid: its body around the open well, the well's floor (but the slot), and the lid at its angle. */
-const BODY = { minX: 0.735, maxX: 1.295, minZ: -2.205, maxZ: -1.865, top: 1.087 };
-const WELL = { minX: 1.01, maxX: 1.213, minZ: -2.161, maxZ: -1.939 };
-const LID = { hingeY: 1.044, hingeZ: -2.161, dy: 0.0382, dz: 0.2224, minX: 1.01, maxX: 1.213, half: 0.004 };
-
-function radioContact(disc: DiscSample, lidDegrees: number): string | null {
-  const radius = DISC_RADIUS * disc.scale;
-  const angle = (lidDegrees * Math.PI) / 180;
-  const ly = LID.dy * Math.cos(angle) + LID.dz * Math.sin(angle);
-  const lz = -LID.dy * Math.sin(angle) + LID.dz * Math.cos(angle);
-  const length = Math.hypot(ly, lz);
-  const point = new Vector3();
-  for (let ring = 1; ring <= 4; ring++) {
-    for (let k = 0; k < 24; k++) {
-      const a = (2 * Math.PI * k) / 24;
-      point
-        .set((Math.cos(a) * radius * ring) / 4, (Math.sin(a) * radius * ring) / 4, 0)
-        .applyQuaternion(disc.orientation)
-        .add(disc.position);
-      const inWell = point.x > WELL.minX && point.x < WELL.maxX && point.z > WELL.minZ && point.z < WELL.maxZ;
-      const inBody =
-        point.x > BODY.minX && point.x < BODY.maxX && point.z > BODY.minZ && point.z < BODY.maxZ && point.y < BODY.top;
-      if (inBody && !inWell) return 'body';
-      if (inWell && point.y < DECK.slot.floorY - 0.0005) {
-        const inSlot = Math.abs(point.z - DECK.slot.z) < 0.0025 && point.x > DECK.slot.minX && point.x < DECK.slot.maxX;
-        if (!inSlot) return 'well floor';
-      }
-      if (point.x > LID.minX && point.x < LID.maxX) {
-        const ry = point.y - LID.hingeY;
-        const rz = point.z - LID.hingeZ;
-        const along = (ry * ly + rz * lz) / length;
-        const off = (-ry * lz + rz * ly) / length;
-        if (along > 0 && along < length && Math.abs(off) < LID.half) return 'lid';
-      }
-    }
-  }
-  return null;
-}
-
 describe('the storyboard sweep', () => {
   it('sees a jump when there is one', () => {
     const contacts = sweep(LAYOUTS[0], 1, [[2000, (c) => c.relayout(discSlots(1, 0.5), 2000)]], 1100, 2100);
@@ -325,11 +206,11 @@ describe('the storyboard sweep', () => {
     it(`packs up by the camera's landing (the lid by its bound) when the visitor leaves mid-pick at ${layout.width} × ${layout.height}`, () => {
       const late: string[] = [];
       for (const count of COUNTS) {
-        for (const { name, events, leave } of leavesMidPick(count)) {
+        for (const { name, events, leave, swap } of leavesMidPick(count)) {
           const { choreography, ids } = stage(layout, count);
           const queue = [...arrive, ...events].sort((a, b) => a[0] - b[0]);
           const landed = leave + LANDING_MS;
-          const shut = leave + shutBy(count);
+          const shut = leave + shutBy(count, swap);
           for (let t = 0; t <= shut; t += 16) {
             while (queue.length > 0 && (queue[0]?.[0] ?? Number.POSITIVE_INFINITY) <= t) {
               const [at, act] = queue.shift() as Event;
@@ -338,7 +219,9 @@ describe('the storyboard sweep', () => {
             }
             choreography.advance(t);
           }
-          const out = choreography.sample(landed).discs.filter((disc) => disc.visible && disc.phase !== 'seated');
+          // Every disc is in by the landing while the lid is shut by it; past that, by the time the lid is shut.
+          const inBy = count <= SHUT_BY_LANDING ? landed : shut;
+          const out = choreography.sample(inBy).discs.filter((disc) => disc.visible && disc.phase !== 'seated');
           const lid = choreography.sample(shut).lid;
           if (lid > 0 || choreography.lidDegrees(shut + 100) > 0 || out.length > 0) {
             late.push(
