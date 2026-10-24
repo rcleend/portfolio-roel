@@ -74,6 +74,11 @@ class Drawing(NamedTuple):
             tuple((key, (x + dx, y + dy)) for key, (x, y) in self.points),
         )
 
+    def swung(self, below: int, dx: int) -> 'Drawing':
+        """The drawing with every row under row `below` moved `dx` across, as if it swung on that row: a pixel's
+        lag of a dangling end is how Terraria tilts a hanging thing without redrawing it."""
+        return self._replace(pixels=tuple((x + dx if y > below else x, y, tone) for x, y, tone in self.pixels))
+
     def placed(self, joint: str, at: Point) -> 'Drawing':
         """The drawing moved so its point `joint` lands on `at`."""
         x, y = self.point(joint)

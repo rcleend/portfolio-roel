@@ -8,12 +8,15 @@ as one, and timed to what the game holds each mood for (entities/customer/Custom
   and his jaw goes on complaining into the phone, so the gag never stops. The game stands a still customer on
   the frame it shows 1/6 s in, so that frame is a foot striking, both feet down.
 - `shout` yells for 0.4 s, one loop for the windup, and again as the complaint flies: the game restarts the
-  animation when the bubble leaves, so the first frame is the yell itself, its mouth where the bubble
-  leaves, and Terraria's anger emote pulses behind his head.
-- `hurt` is a Terraria knockback, 0.2 s of the 0.22 s the hit holds: knocked off his feet and back, the phone
-  jolted off his ear, eye screwed shut, his tie flung up; then he lands, the phone back at his ear.
-- `stunned` sways on the spot for the 3 s stun, the phone hanging upside down from a limp hand and the eye
-  rolling, Terraria's Dazed stars circling his head.
+  animation when the bubble leaves, so the first frame is the yell itself, a lunge with his chin thrust out,
+  its mouth where the bubble leaves; then he settles, rocks back drawing breath and sinks into the next yell,
+  Terraria's anger emote swelling with it behind his head.
+- `hurt` is a Terraria knockback, 0.2 s of the 0.22 s the hit holds: knocked 3 px off his feet and back, arms
+  thrown wide, the phone yanked off his ear, eye screwed shut, his tie flung up; then he comes down and lands
+  with a stomp, the phone back at his ear.
+- `stunned` sways on the spot for the 3 s stun, the phone hanging upside down from a limp hand and swinging a
+  frame behind him, the lid drooping over an eye that rolls up and back, the jaw slack, and Terraria's Dazed
+  stars circling his head.
 - `happy` hops for joy, two hops in the 0.8 s the game lets him cheer before he strolls off hopping: the
   call held away from his ear, a thumbs up bounced at you, his tie flying.
 """
@@ -64,35 +67,51 @@ def walk() -> Animation:
 
 
 # ── shout ──
-YELL = Pose(mood='unhappy', face='rant', near='phone', far='point', body=(LEAN, 0), head=(1, 0), held=ON_THE_PHONE,
-            effects=('vein',), swing='bounce')
+# The yell thrown at you: he lunges a pixel past his walking lean and thrusts his chin out, mouth wide, finger
+# out, and the anger emote at its biggest. The game restarts `shout` as the complaint leaves, so this is the
+# frame it leaves on.
+YELL = Pose(mood='unhappy', face='rant', near='phone', far='point', body=(LEAN + 1, 0), head=(1, 0),
+            held=ON_THE_PHONE, effects=('vein',), swing='bounce')
 
 
 def shout() -> Animation:
-    between = YELL._replace(face='rant half', far='wag', head=(0, 0), effects=('vein small',), swing='rest')
-    return Animation(10, True, (YELL, between, YELL._replace(swing='rest'), between))
+    """A yell and the breath for the next one, the windup's 0.4 s a loop: he settles back from the lunge, rocks
+    back upright drawing breath, then sinks into the next yell, the emote swelling with it."""
+    settle = YELL._replace(face='rant half', far='jab', body=(LEAN, 0), head=(0, 0), effects=('vein small',),
+                           swing='rest')
+    breath = settle._replace(face='grumble', far='wag', body=(0, 0))
+    build = settle._replace(body=(LEAN, 1), effects=('vein',))
+    return Animation(10, True, (YELL, settle, breath, build))
 
 
 # ── hurt ──
+# Knocked back and off his feet as Terraria throws a hit walker, 3 px up, then down to a pixel off the ground,
+# and he lands with a stomp, the phone back at his ear.
+KNOCK = (3, 1)
+
+
 def hurt() -> Animation:
     hit = Pose(mood='unhappy', face='wince', legs='knocked', near='phone flung', far='flung', body=(-2, 0),
-               head=(-1, 0), held=(Held('phone flung', 'near'),), lift=1, swing='fly')
+               head=(-1, 0), held=(Held('phone flung', 'near'),), lift=KNOCK[0], swing='fly')
     return Animation(15, False, (
         hit,
-        hit._replace(body=(-1, 0)),
+        hit._replace(body=(-1, 0), lift=KNOCK[1]),
         Pose(mood='unhappy', face='rant half', near='phone', far='wag', body=(0, 1), held=ON_THE_PHONE, swing='bounce'),
     ))
 
 
 # ── stunned ──
 SWAY = (0, 0, -1, -1, 0, 0, 1, 1)
-ROLLING = ('up', 'up', 'front', 'front', 'down', 'down', 'back', 'back')
+# The eye rolls up out of sight, round to the front, up again and to the back.
+ROLLING = ('up', 'up', 'front', 'front', 'up', 'up', 'back', 'back')
+# The phone's lower end lags a frame behind the sway: as he sways one way it swings the other, then catches up.
+SWINGING = {1: 'phone swinging ahead', 0: 'phone dangling', -1: 'phone swinging back'}
 
 
 def stunned() -> Animation:
     frames = tuple(
         Pose(mood='unhappy', face=f'dazed {look}', near='limp', far='limp', body=(sway, 0), head=(sway, 1),
-             held=(Held('phone dangling', 'near'),), effects=dazed.pair(index))
+             held=(Held(SWINGING[SWAY[index - 1] - sway], 'near'),), effects=dazed.pair(index))
         for index, (sway, look) in enumerate(zip(SWAY, ROLLING))
     )
     return Animation(10, True, frames)

@@ -177,6 +177,34 @@ class Motion(unittest.TestCase):
         for posed in ANIMATIONS['stunned'].frames:
             self.assertEqual(len(posed.effects), 2)
 
+    def test_never_stands_one_star_over_the_other(self) -> None:
+        """The orbit is tilted, so the two stars a frame shows are always a star's width apart across."""
+        for index, posed in enumerate(ANIMATIONS['stunned'].frames):
+            near, far = (dazed.station(int(name.split()[-1]))[0] for name in posed.effects)
+            self.assertGreaterEqual(abs(near - far), dazed.SIZE, f'stunned[{index}]')
+
+    def test_hangs_the_stunned_phone_upside_down(self) -> None:
+        """The antenna, the phone's one-pixel column, points at the ground from a limp hand and up from any other."""
+        dangling = {held.prop for posed in ANIMATIONS['stunned'].frames for held in posed.held}
+        for name, prop in on_the_phone.FIGURE.props.items():
+            widths: Dict[int, int] = {}
+            for _, y, _ in prop.drawing.pixels:
+                widths[y] = widths.get(y, 0) + 1
+            antenna = [y for y, width in widths.items() if width == 1]
+            grip = prop.drawing.point('grip')[1]
+            self.assertTrue(antenna, name)
+            self.assertTrue(all((y > grip) == (name in dangling) for y in antenna), name)
+
+    def test_is_knocked_off_his_feet_and_comes_down_to_land(self) -> None:
+        lifts = [posed.lift for posed in ANIMATIONS['hurt'].frames]
+        self.assertGreaterEqual(lifts[0], 2)
+        self.assertEqual(lifts, sorted(lifts, reverse=True))
+        self.assertEqual(lifts[-1], 0)
+
+    def test_lunges_past_his_walk_to_yell(self) -> None:
+        yell, walk = ANIMATIONS['shout'].frames[0], ANIMATIONS['walk'].frames[STANDING]
+        self.assertGreater(yell.body[0] + yell.head[0], walk.body[0] + walk.head[0])
+
     def test_yells_on_the_first_frame_of_a_shout(self) -> None:
         """The game restarts `shout` as the complaint leaves, so its first frame is the yell."""
         first = ANIMATIONS['shout'].frames[0]

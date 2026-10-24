@@ -93,19 +93,19 @@ FACES: Dict[str, Drawing] = {
 '''),
 }
 
-# Stunned, the eye rolls round its socket, a pupil's step a frame, the brows flat and the jaw hanging, the
-# tongue lolling out of its corner.
-ROLL = {'up': ('ii', 'ww'), 'front': ('wi', 'wi'), 'down': ('ww', 'ii'), 'back': ('iw', 'iw')}
-for _look, (_upper, _lower) in ROLL.items():
+# Stunned, the lid drooping half over the eye as it rolls up out of sight and back, the brows flat and the jaw
+# hanging slack, the tongue lolling out of its corner.
+ROLL = {'up': 'ww', 'front': 'wi', 'back': 'iw'}
+for _look, _eye in ROLL.items():
     FACES[f'dazed {_look}'] = art(f'face dazed, looking {_look}', 18, 14, f'''
                      OO...
                      .....
-                     {_upper}...
-                     {_lower}...
+                     SS...
+                     {_eye}...
                      .....
                      .dddO
-                     .MMM.
-                     .MqM.
+                     ..MM.
+                     ..Mq.
                      ...q.
 ''')
 
@@ -319,21 +319,18 @@ NEAR_ARMS: Dict[str, Drawing] = {
                      .....#o+#.....
                      ......##......
 ''', shoulder=(10, 22), hand=(14, 19)),
-    # Knocked off his ear by a hit, the phone flung up behind him.
-    'phone flung': art('near arm flung up with the phone', 3, 13, '''
-                     ..KKK.........
-                     .KsLsK........
-                     .KsssK........
-                     ..KSsK........
-                     ...KsK........
-                     ...KsK........
-                     ...#**#.......
-                     ...#o+*#......
-                     ....#o+*#.....
-                     .....#o+#.....
-                     ......#o+#....
-                     .......####...
-''', shoulder=(10, 22), hand=(4, 15)),
+    # Knocked off his ear by a hit, the phone yanked out behind him at arm's length, the elbow straight.
+    'phone flung': art('near arm flung back with the phone', 0, 16, '''
+                     .KKK..........
+                     KsLsK.........
+                     KsssSKK.......
+                     .KSSsLsKK.....
+                     ..KKKSsLsK##..
+                     .....KKSs#**#.
+                     .......K#o+*+#
+                     ........#xo+*#
+                     .........####.
+''', shoulder=(10, 22), hand=(2, 18)),
     # Won over, the call held out at arm's length: I'll call you back.
     'phone out': art('near arm holding the phone out', 2, 20, '''
                      .KKK......
@@ -486,14 +483,42 @@ PHONE = Prop(art('brick phone', 13, 8, '''
                      0000
 ''', legend=PHONE_LEGEND, grip=(14, 19)))
 
-# Jolted off his ear, held by its foot.
-PHONE_FLUNG = Prop(PHONE.drawing._replace(name='brick phone held by its foot', points=(('grip', (14, 23)),)))
-# Slack in a limp hand, hanging at his side.
-PHONE_DANGLING = Prop(PHONE.drawing._replace(name='brick phone hanging slack', points=(('grip', (16, 19)),)))
+# Jolted off his ear, his fist round its middle, clear of whatever the game shows over his head.
+PHONE_FLUNG = Prop(PHONE.drawing._replace(name='brick phone yanked off his ear', points=(('grip', (14, 16)),)))
+# Slack in a limp hand, hanging upside down at his side: the fingers gone loose round its middle, behind the
+# hand, its antenna pointing at the ground and its light still from above. Its lower end swings on the hand, a pixel behind his
+# sway, so the brick hangs heavy.
+DANGLING = art('brick phone hanging upside down', 13, 8, '''
+                     0000
+                     0330
+                     0120
+                     0210
+                     0120
+                     0210
+                     0120
+                     0230
+                     0320
+                     0230
+                     0440
+                     0540
+                     0230
+                     0000
+                     0...
+                     0...
+                     0...
+''', legend=PHONE_LEGEND, grip=(16, 14))
+# The rows the hand closes over and above stay put as the rest swings.
+DANGLING_PIVOT = 15
+PHONE_DANGLING = {
+    'phone dangling': Prop(DANGLING),
+    'phone swinging ahead': Prop(DANGLING.swung(DANGLING_PIVOT, 1)._replace(name='brick phone swinging ahead')),
+    'phone swinging back': Prop(DANGLING.swung(DANGLING_PIVOT, -1)._replace(name='brick phone swinging back')),
+}
 
 # Terraria's anger emote: a vein popping in four arcs round a cross. Terraria draws it in a white bubble, so
-# floating free over a busy street its arcs take their dark red on the outside, the red and orange within.
-VEIN = Effect(art('anger vein', 0, 5, '''
+# floating free over a busy street its arcs take their dark red on the outside, the red and orange within. It
+# floats up behind his head, clear of the phone's antenna as he lunges.
+VEIN = Effect(art('anger vein', -3, 5, '''
                      ...02..20...
                      ...01..10...
                      .011....110.
@@ -506,7 +531,7 @@ VEIN = Effect(art('anger vein', 0, 5, '''
 ''', legend=tones('anger', '012'), crown=(16, 12)))
 
 # Between yells, the emote shrinks back: it pulses.
-VEIN_SMALL = Effect(art('anger vein, pulsing', 2, 6, '''
+VEIN_SMALL = Effect(art('anger vein, pulsing', -1, 6, '''
                      ..0..0..
                      .01..10.
                      01....10
@@ -531,7 +556,7 @@ FIGURE = Figure(
     near_arms=NEAR_ARMS,
     far_arms=FAR_ARMS,
     sleeves=Dye(cloth='shirt-blue'),
-    props={'phone': PHONE, 'phone flung': PHONE_FLUNG, 'phone dangling': PHONE_DANGLING},
+    props={'phone': PHONE, 'phone flung': PHONE_FLUNG, **PHONE_DANGLING},
     effects={'vein': VEIN, 'vein small': VEIN_SMALL, **dazed.STARS},
     hair='hair-office',
     skin={'unhappy': 'skin-fuming', 'happy': 'skin-office'},
