@@ -1,0 +1,8 @@
+{
+  "frame": { "w": 64, "h": 64 },
+  "origin": { "x": 32, "y": 64 },
+  "animations": [
+    { "name": "shout", "fps": 1, "loop": true, "frames": 1, "anchors": { "mouth": [[37, 46]], "head": [[32, 36]] } },
+    { "name": "happy", "fps": 1, "loop": true, "frames": 1, "anchors": { "mouth": [[37, 46]], "head": [[32, 36]] } }
+  ]
+}

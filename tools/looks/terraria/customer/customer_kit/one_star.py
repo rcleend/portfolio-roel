@@ -1,0 +1,206 @@
+"""ONE STAR: an app user brandishing a cracked tablet that shows the one star they are about to leave."""
+from __future__ import annotations
+
+from .art import Dye, art, full, tones
+from .rig import Figure, Held, Pose, Prop, Worn
+
+#                    01234567890123456789012345678901
+HEAD = full('head', 13, '''
+                     ..............KKKKK.............
+                     ............KKsssssLK...........
+                     ............KsssssssLK..........
+                     ............KSssssssLK..........
+                     ............KSsssssssK..........
+                     ............KSsssssssK..........
+                     ............KSsssssssK..........
+                     ............KSSssssssLK.........
+                     .............KSSsssssK..........
+                     ..............KSSsssK...........
+                     ...............KKKKK............
+''', neck=(17, 23), mouth=(20, 21), crown=(16, 8))
+
+FACES = {
+    'rant': full('face ranting', 17, '''
+                     .................OO.............
+                     .................wi.............
+                     .................wi.............
+                     ................................
+                     ..................MMq...........
+'''),
+    'happy': full('face delighted', 16, '''
+                     .................O..............
+                     ................................
+                     .................wi.............
+                     .................wi.............
+                     ................................
+                     ..................ttt...........
+                     ...................MM...........
+'''),
+}
+
+# Short dark hair showing under the beanie: a fringe at the front and a tuft at the nape.
+HAIR = full('hair', 15, '''
+                     ...........OdmO......O..........
+                     ...........OmdO.....OdO.........
+                     ...........OdmO.................
+                     ...........OmO..................
+                     ............O...................
+''')
+
+# A slouchy knit beanie: a round crown, a rolled cuff in a lighter rib and a pompom.
+BEANIE = full('beanie', 8, '''
+                     ..............##................
+                     .............#*+#...............
+                     ...........##xxxx##.............
+                     ..........#xo++*+ox#............
+                     .........#xoo+o+*+ox#...........
+                     .........#xooo+o+*+o#...........
+                     ........#56565656565#...........
+                     ........#67676767676#...........
+                     .........###########............
+''')
+
+# A track jacket worn open over a white tee, its zip and hem in the stripes' white.
+JACKET = full('track jacket', 22, '''
+                     ...........#5#........#.........
+                     ...........#x6#......#+#........
+                     ...........#xo+#6776#*+#........
+                     ...........#xoo+#677+o+#........
+                     ...........#xooo+o7+oo+#........
+                     ...........#xoxoo+7+oo+#........
+                     ...........#xoooo+7+oo#.........
+                     ...........#xooxoo7o+o#.........
+                     ...........#xxoxox7oxo#.........
+                     ...........#66666666###.........
+''', neck=(17, 23), **{'near shoulder': (10, 22), 'far shoulder': (19, 23), 'hips': (16, 32)})
+
+NECK = full('neck', 22, '''
+                     ...............Ss...............
+''')
+
+# Big headphones worn round the neck, a cup at the throat.
+HEADPHONES = full('headphones', 21, '''
+                     ............00......000.........
+                     .............000..01230.........
+                     ...............00011220.........
+                     ..................0000..........
+''', legend=tones('gadget', '0123'))
+
+LEGS = {
+    'stand': art('legs in joggers', 10, 32, '''
+                     ..#xo++#+#..
+                     ..#xo6+#+#..
+                     ..#xo6+#+#..
+                     .#xxo6o#+o#.
+                     .01223301230
+                     .01223301230
+                     .01111101110
+                     .00000000000
+'''),
+}
+
+NEAR_ARMS = {
+    # Flung back open-handed: unbelievable.
+    'fling': art('near arm flung back', 3, 21, '''
+                     .......##.
+                     ......#**#
+                     .....#o+*#
+                     ....#o6*#.
+                     ...#o6*#..
+                     ..#o6*#...
+                     .#xox#....
+                     KsLsK.....
+                     KsssSK....
+                     .KKKK.....
+''', shoulder=(10, 22), hand=(4, 29)),
+    'hang': art('near arm hanging', 8, 21, '''
+                     ..##..
+                     .#**#.
+                     #o+6+#
+                     #o+6*#
+                     #o+6#.
+                     #o+6#.
+                     #xox#.
+                     KSSSSK
+                     KsLsSK
+                     KsssSK
+                     .KKKK.
+''', shoulder=(10, 22), hand=(11, 29)),
+}
+
+FAR_ARMS = {
+    # Thrust out and up, holding the tablet up by its foot for you to see.
+    'brandish': art('far arm brandishing', 17, 19, '''
+                     ..........KKK.
+                     .........KsLsK
+                     ......####ssSK
+                     #xo+##xo+oKSK.
+                     #xo++o+o+6#K..
+                     .#xox666x#....
+                     ..########....
+''', shoulder=(19, 23), hand=(28, 20)),
+    # Out in front at the shoulder, fist closed and thumb up.
+    'thumbs up': art('far arm thumbs up', 17, 19, '''
+                     .......K...
+                     ......KLK..
+                     ......KsK..
+                     .....KKsSK.
+                     #xo+##KssSK
+                     #xo++oKsSSK
+                     .#xo6xKSSK.
+                     ..####.KK..
+''', shoulder=(19, 23), hand=(24, 23)),
+}
+
+# The case, the screen and its crack, the stars, and the digit lit in the screen's white.
+TABLET_LEGEND = {**tones('gadget', '0123'), **tones('screen', 'abcd'), **tones('star', '5678'), 'n': ('screen', 3)}
+
+# The tablet's screen, cracked from top to bottom, showing the rating they are leaving: 1 star.
+TABLET = Prop(art('cracked tablet showing one star', 23, 11, '''
+                     .000000000000.
+                     01111111111110
+                     01aaaaacaaaa10
+                     01aanacaa7aa10
+                     01annaca787a10
+                     01aanca7888710
+                     01aanaca767a10
+                     01annnca6a6a10
+                     01111111111110
+                     .000000000000.
+''', legend=TABLET_LEGEND, grip=(28, 20)))
+
+# Once they are happy the screen is whole again, and so is the rating: 5 stars.
+TABLET_HAPPY = Prop(art('tablet showing five stars', 23, 11, '''
+                     .000000000000.
+                     01111111111110
+                     01aaaaaaaaaa10
+                     01annnaaa7aa10
+                     01anaaaa787a10
+                     01annaa7888710
+                     01aaanaa767a10
+                     01annaaa6a6a10
+                     01111111111110
+                     .000000000000.
+''', legend=TABLET_LEGEND, grip=(28, 20)))
+
+FIGURE = Figure(
+    name='one star',
+    legs=LEGS,
+    legs_dye=Dye(cloth='joggers', trim='stripe', shoes='stripe'),
+    torso=(Worn(JACKET, Dye(cloth='track', trim='stripe')), Worn(NECK), Worn(HEADPHONES)),
+    head=HEAD,
+    faces=FACES,
+    headwear=(Worn(HAIR), Worn(BEANIE, Dye(cloth='beanie', trim='beanie'))),
+    near_arms=NEAR_ARMS,
+    far_arms=FAR_ARMS,
+    sleeves=Dye(cloth='track', trim='stripe'),
+    props={'tablet': TABLET, 'tablet, five stars': TABLET_HAPPY},
+    effects={},
+    hair='hair-app',
+    skin={'unhappy': 'skin-fuming', 'happy': 'skin-app'},
+)
+
+POSES = {
+    'shout': Pose(mood='unhappy', face='rant', near='fling', far='brandish', held=(Held('tablet', 'far'),)),
+    'happy': Pose(mood='happy', face='happy', far='brandish', held=(Held('tablet, five stars', 'far'),)),
+}
