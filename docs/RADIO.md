@@ -30,7 +30,7 @@ The player was built beside the room's half against a structural copy of these t
 `RadioSlot` (`RadioSlot.tsx`) is the only module the room host imports:
 
 ```tsx
-<RadioSlot deck={room?.radio ?? null} view={view} powered={tvOn} muted={muted} onLeave={showRoom} onFocusStage={focusStage} />
+<RadioSlot deck={room?.radio ?? null} view={view} settled={settled} powered={tvOn} muted={muted} onLeave={showRoom} onFocusStage={focusStage} />
 ```
 
 It renders a portal into `deck.controls` only, a sibling of the stage outside `role="application"`.
@@ -80,7 +80,7 @@ A hidden tab keeps playing.
 
 Every cue the room emits plays a synthesised engine `SfxRecipe` (clicks, latches, whooshes, the motor's spin-up and spin-down, a pentatonic bell per rising disc, descending as they sink), plus the app's own `seek` tick on each skip, between −22 and −40 dBFS, panned from where the part moves on screen.
 Nothing is continuous while playing: a real CD motor is silent at speed.
-They play in a small `AudioContext` of their own (the game's is suspended whenever the camera leaves the TV), made inside the first radio gesture once the page has had user activation, resumed on reaching the radio, suspended 2 s after leaving it; cues arriving while it sleeps are dropped. If it cannot be made the radio is silent of mechanics and the music is unaffected.
+They play in a small `AudioContext` of their own (the game's is suspended whenever the camera leaves the TV). It is made with its mixer graph as the player mounts away from the radio (at idle, suspended, once the page has had user activation), so the click that sends the camera there only resumes it, or else inside the first radio gesture; resumed in every radio gesture and on reaching the radio, suspended 2 s after leaving it; cues arriving while it sleeps are dropped. If it cannot be made the radio is silent of mechanics and the music is unaffected.
 Each recipe's gain is calibrated from an offline render so it peaks at its level; `e2e/radio-player.spec.ts` renders every one through the engine's mixer and holds it to ±3 dB, no clipping, and silence by its end.
 
 ## Controls (`ui/`)
@@ -154,18 +154,25 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: `RadioSlot` and its import in the room host (with the room host's own radio changes) | + 0.60 kB | + 0.34 kB |
-| Entry CSS | + 0.15 kB | + 0.03 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 12.4 kB (Vite: 11.1 kB JS + 1.2 kB CSS) |
+| Entry JS: `RadioSlot`, the room host's radio changes and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB (raised to + 0.75, pending the captain's word: `bundle-budgets.json`) | + 0.71 kB |
+| Entry CSS | + 0.15 kB | + 0.04 kB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.05 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
-Measured on the production lab build (Chromium, M-series Mac):
+Measured in the real app (development server, Chromium on an M-series Mac, the radio prepared at idle; `e2e/radio-flow.spec.ts` holds the first two to 1.0 s and 0.35 s):
 
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
-| Pick → sound | 0.92 s | 0.92 s |
-| Pick → sound, reduced motion | 0.03 s | 0.08 s |
+| Pick → sound | 0.91 s | 0.93 s |
+| Pick → sound, reduced motion | 0.03 s | 0.09 s |
+| Long animation frames over 50 ms in the flights to and from the radio and the arrival until the discs are up | none | none |
+| Frames over 2 s at the computer with a disc playing | 0 | |
+
+And on the production lab build:
+
+| | 1× CPU | 6× CPU |
+| --- | ---: | ---: |
 | Long tasks over 50 ms: the player mounting and painting the prints, the flight in, a pick, a swap, the keys | none | none |
 | Media elements, `decodeAudioData` calls, audio contexts of the radio's own | 1, 0, 1 | |
 
@@ -206,4 +213,4 @@ content/radio/
   validate.ts              the shelf's rules (pnpm verify:radio, albums.test.ts ★)
 ```
 
-★: unit-tested next to the code. End to end: `e2e/radio-player.spec.ts` on the lab, real media in Chromium under the strict autoplay policy (`--autoplay-policy=document-user-activation-required`).
+★: unit-tested next to the code. End to end, real media in Chromium under the strict autoplay policy (`--autoplay-policy=document-user-activation-required`): `e2e/radio-player.spec.ts` on the lab, and `e2e/radio-flow.spec.ts` on the real app with the room's radio (the integrated flows, the keyboard and the phone, mute, loading, frame budgets and long frames at 6× CPU).
