@@ -81,6 +81,13 @@ Rescaled and positioned for the room; radio web base reduced to 30% geometry,
 512 px textures; high uses original mesh and up to 2K textures.
 A public redistribution license was not established. The recovered files do
 not acquire a CC0 license by being included in this scene.
+CD player close-up (radio-closeup.glb, radio-skin-2k.webp; loaded only when a
+visitor goes to the radio): the lid underside, hinge, well liner, turntable,
+pickup and disc slot are original scene-built geometry modelled after the
+CFD-V31L and baked open in the room's own Cycles scene; the 2K skin re-bakes
+the recovered radio's materials on its original UV layout. Both derive from
+the recovered model's materials, so the note above applies to them too.
+Recipe: tools/room/radio_closeup.py and tools/room/radio-closeup.mjs.
 
 CRT television — user supplied crt_tv.glb.
 Timothy Ahene (https://sketchfab.com/timothyahene)

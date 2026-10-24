@@ -132,27 +132,20 @@ def export(objects, path, animated=False):
     )
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--work', required=True)
-    parser.add_argument('--samples', type=int, default=48)
-    parser.add_argument('--device', choices=('CPU', 'METAL'), default='CPU')
-    parser.add_argument('--reuse-bakes', action='store_true', help='Reuse unchanged atlases; delete affected PNGs first')
-    args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
-    work = Path(args.work).resolve()
-    bakes = work / 'baked'
-    bakes.mkdir(exist_ok=True)
-    bpy.ops.wm.open_mainfile(filepath=str(work / 'room-source.blend'))
-    scene = bpy.context.scene
+COLLECTIONS = ('01_TV', '02_Desk', '03_Room', '04_Drawer', '05_Posters_and_mic')
+
+
+def configure_bake(scene, samples, device):
+    """Cycles COMBINED bake settings every atlas shares (tools/room/radio_closeup.py reuses them)."""
     scene.render.engine = 'CYCLES'
-    scene.cycles.samples = args.samples
-    if args.device == 'METAL':
+    scene.cycles.samples = samples
+    if device == 'METAL':
         preferences = bpy.context.preferences.addons['cycles'].preferences
         preferences.compute_device_type = 'METAL'
         preferences.get_devices()
-        assert any(device.type == 'METAL' for device in preferences.devices), 'No Metal GPU available'
-        for device in preferences.devices:
-            device.use = device.type == 'METAL'
+        assert any(item.type == 'METAL' for item in preferences.devices), 'No Metal GPU available'
+        for item in preferences.devices:
+            item.use = item.type == 'METAL'
         scene.cycles.device = 'GPU'
     else:
         scene.cycles.device = 'CPU'
@@ -164,8 +157,14 @@ def main():
     scene.render.bake.use_selected_to_active = False
     for name in ('direct', 'indirect', 'diffuse', 'glossy', 'transmission', 'emit'):
         setattr(scene.render.bake, 'use_pass_' + name, True)
-    collections = [bpy.data.collections[name] for name in
-                   ('01_TV', '02_Desk', '03_Room', '04_Drawer', '05_Posters_and_mic')]
+
+
+def prepare_scene(scene):
+    """Binds source UVs, drops omitted objects and converts every baked object to a world-space mesh.
+
+    Returns the asset-group collections in export order.
+    """
+    collections = [bpy.data.collections[name] for name in COLLECTIONS]
     # Bind the source UV explicitly BEFORE creating or activating a bake UV channel.
     for material in bpy.data.materials:
         if not material.use_nodes:
@@ -195,6 +194,23 @@ def main():
                 obj.data.extrude = 0
             bpy.ops.object.convert(target='MESH')
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return collections
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--work', required=True)
+    parser.add_argument('--samples', type=int, default=48)
+    parser.add_argument('--device', choices=('CPU', 'METAL'), default='CPU')
+    parser.add_argument('--reuse-bakes', action='store_true', help='Reuse unchanged atlases; delete affected PNGs first')
+    args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
+    work = Path(args.work).resolve()
+    bakes = work / 'baked'
+    bakes.mkdir(exist_ok=True)
+    bpy.ops.wm.open_mainfile(filepath=str(work / 'room-source.blend'))
+    scene = bpy.context.scene
+    configure_bake(scene, args.samples, args.device)
+    collections = prepare_scene(scene)
     batches, room, retained, glass = [], [], [], []
     devices = {key: [] for key in ('tv', 'pc', 'radio', 'ps2')}
     for collection in collections:

@@ -2,7 +2,7 @@
   "generatedBy": "tools/room/optimize.mjs",
   "sourceRevision": 6,
   "artDirection": "After hours — crafted miniature",
-  "totalBytes": 6970271,
+  "totalBytes": 6970795,
   "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
   "atlases": {
     "01_TV_surfaces": 2048,
@@ -62,8 +62,22 @@
     {
       "name": "CREDITS.txt",
       "source": "Retained source attribution + revision 6 modifications",
-      "bytes": 10443,
-      "sha256": "40860a142d02f48eac337af8bd090425eb90696757272004042d674dd7f3baeb"
+      "bytes": 10967,
+      "sha256": "ef6f4ddf7e46c8cba647250e9f3155842950d554a1af40b801adaab821db96b5"
+    }
+  ],
+  "lazyFiles": [
+    {
+      "name": "radio-closeup.glb",
+      "bytes": 56028,
+      "sha256": "b4af2b754fc0f9a659ef4c5dad8c592756f4d9124a6818a43f13360808d6fc76",
+      "validationErrors": 0,
+      "validationWarnings": 0
+    },
+    {
+      "name": "radio-skin-2k.webp",
+      "bytes": 178820,
+      "sha256": "d2245a0a12908ab551ddc1d4910c4e6766434f0ef239f49d6f16862dcde61ca6"
     }
   ]
 }
