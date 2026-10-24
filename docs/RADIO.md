@@ -28,19 +28,19 @@ The player was built beside the room's half against a structural copy of these t
 | reads `layout`, `live`, `controls`, `labelSize`, `available` | where the discs and keys are on the page at the settled pose; the controls slot, visible only while the camera rests at the radio |
 | reads `discsOut` (`onDiscsOutChange`) | true while the camera rests at the radio and the whole shelf hangs in its slots, label out (the teaching lines wait for it); false from the request to leave |
 
-`RadioSlot` (`RadioSlot.tsx`) is the only module the room host imports:
+`RadioSlot` (`RadioSlot.tsx`) is the only module the room host loads, lazily (`React.lazy`), in a transition once the camera has first come to rest away from the TV, or as soon as it heads for the radio (never inside the click that leaves the TV, so that click costs what it did before the radio):
 
 ```tsx
-<RadioSlot deck={room?.radio ?? null} view={view} settled={settled} powered={tvOn} muted={muted} onLeave={showRoom} onFocusStage={focusStage} />
+<RadioSlot door={room.radio} view={view} settled={settled} powered={tvOn} muted={muted} onLeave={showRoom} onFocusStage={focusStage} />
 ```
 
-It renders a portal into `deck.controls` only, a sibling of the stage outside `role="application"`.
+`room.radio` is the room's door to the CD player (`available`, `prefetch`, `load()`); the slot loads the deck through it beside the player's chunk and renders a portal into `deck.controls` only, a sibling of the stage outside `role="application"`. A slot chunk that fails to load is warned once and the radio stays scenery.
 
 ## Loading
 
 | Chunk | Contents | Loaded |
 | --- | --- | --- |
-| main bundle | `RadioSlot.tsx` and its failure message's style | first load |
+| `RadioSlot-*` (`RadioSlot.tsx` + its failure message's style) | the loading policy, the portal, the failure message | once the camera first rests away from the TV, or heads for the radio (the room's door imports the deck's chunk just after the first TV leave's first flight frame) |
 | `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands, and the room's half, `deck.prefetch('idle')` at 0.4 s, so a visitor who heads for the radio at once still finds its device preparing on the way and the lid opening on time); it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
 | covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize), then painted one per idle moment while the camera rests away from the TV (`labels/discPrints.ts`) on CPU canvases (nothing reads the GPU back) and handed to the room together; one that has not arrived in 6 s is given up on (`labels/loadArt.ts`) | when the player mounts |
 | audio | one track at a time, streamed | from the pick that needs it |
@@ -155,10 +155,12 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: `RadioSlot`, the room host's radio changes and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB (raised to + 0.75, pending the captain's word: `bundle-budgets.json`) | + 0.75 kB |
-| Entry CSS | + 0.15 kB | + 0.04 kB |
+| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.52 kB |
+| Entry CSS | + 0.15 kB | + 0.00 kB |
+| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.62 kB |
+| `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
 | `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.6 kB |
-| `radioDevice`, the lazy storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 30.2, pending the captain's word: `bundle-budgets.json`) | 29.99 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 33.8, pending the captain's word: `bundle-budgets.json`) | 33.55 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
@@ -179,7 +181,7 @@ And on the production build (6× CPU, two runs): no long animation frame over 50
 
 ```
 radio/
-  RadioSlot.tsx            the room host's entry: loading policy, the portal, the failure message (main bundle)
+  RadioSlot.tsx            the room host's entry: loading policy, the portal, the failure message (lazy)
   deck.ts                  the room's RadioDeck family, re-exported from @/room (types only)
   RadioExperience.tsx      the lazy chunk: the player, the prints for the room, the controls
   player/
