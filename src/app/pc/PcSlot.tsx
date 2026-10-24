@@ -53,10 +53,11 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
     });
   }, [display, powered]);
 
-  const loaded = typeof Screen === 'function';
+  // Loaded, or failed for good.
+  const settledLoad = Screen !== null;
   const wanted = view === 'pc' || (view === 'room' && settled && !saveData());
   useEffect(() => {
-    if (!display || loaded || !wanted) return;
+    if (!display || settledLoad || !wanted) return;
     // A load finishing after this effect is gone still lands: the screen stays mounted once loaded.
     const load = (): void => {
       loadExperience().then(
@@ -70,22 +71,39 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
     // On the way to the computer: now, hidden by the flight. Looking around the room: when the page is idle.
     if (view !== 'pc') return whenIdle(load);
     load();
-  }, [display, loaded, wanted, view]);
+  }, [display, settledLoad, wanted, view]);
 
   if (!display || !Screen) return null;
+  const leave = (): void => {
+    onLeave();
+    onFocusStage();
+  };
   return createPortal(
-    Screen === 'failed' ? <Unavailable /> : <Screen display={display} onLeave={onLeave} onFocusStage={onFocusStage} />,
+    Screen === 'failed' ? (
+      <Unavailable onLeave={leave} />
+    ) : (
+      <Screen display={display} onLeave={onLeave} onFocusStage={onFocusStage} />
+    ),
     display.screen,
   );
 }
 
 /**
- * The screen could not load: say so in the screen's own idiom and point to the résumé on the page. Escape and
- * clicks outside the computer still leave (the room handles both).
+ * The screen could not load: say so in the screen's own idiom and point to the résumé on the page. A click outside
+ * the computer leaves (the room's), and so does Escape, from the stage or from in here (its link, or the box itself,
+ * which a click focuses).
  */
-function Unavailable() {
+function Unavailable({ onLeave }: { readonly onLeave: () => void }) {
   return (
-    <div className="pc-unavailable" role="alert">
+    <div
+      className="pc-unavailable"
+      role="alert"
+      // A click in the box keeps the keys, and so Escape, here.
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onLeave();
+      }}
+    >
       <p>
         The document could not be opened. <a href="#resume">Read the résumé</a>
       </p>

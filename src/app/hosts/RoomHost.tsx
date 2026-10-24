@@ -18,7 +18,7 @@ declare global {
 const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
   tv: "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks. The same content is in the résumé after this game.",
   room: 'Paused, looking around the attic. Click the computer to read the résumé or the TV to play. Tab to reach them, or press Enter to return to the TV.',
-  pc: 'At the computer. The résumé opens in a document reader; press Escape to return to the room.',
+  pc: 'At the computer. Press Escape to return to the room.',
 };
 
 /**
