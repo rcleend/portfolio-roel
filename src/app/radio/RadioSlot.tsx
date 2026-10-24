@@ -25,11 +25,18 @@ export interface RadioSlotProps {
 type Experience = ComponentType<RadioExperienceProps>;
 
 /**
- * Settled in the room view this long, the visitor is looking around rather than passing through: one heading for
- * the computer has clicked by now. The computer's screen loads first, as the camera lands; the radio's halves
- * follow, so the two prefetches never compete.
+ * Settled in the room view this long, the visitor is looking around rather than passing through. The computer's
+ * screen loads first, as the camera lands. Then the room's half of the radio (its device, the close-up and the
+ * sharper skin, prepared in the room's own idle units), so a visitor who heads for the radio soon still sees the lid
+ * open on time.
  */
-export const PREFETCH_AFTER_SETTLED_MS = 3000;
+export const DEVICE_PREFETCH_AFTER_SETTLED_MS = 1500;
+
+/**
+ * Then the player, whose chunk and prints are the bigger main-thread job: by now a visitor heading for the computer
+ * has clicked, so it rarely lands in that flight (a player loaded at idle mounts only while the camera rests).
+ */
+export const PLAYER_PREFETCH_AFTER_SETTLED_MS = 3000;
 
 let experience: Promise<Experience> | null = null;
 
@@ -52,29 +59,29 @@ export function RadioSlot({ deck, view, settled, powered, muted, onLeave, onFocu
   const [Player, setPlayer] = useState<Experience | 'failed' | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Looking around the room for a while: both halves at idle, the room's first; never on Save-Data, never for a
+  // radio that cannot work (it is scenery).
+  const lookingAround = deck?.available === true && view === 'room' && settled && powered && !saveData();
+
   useEffect(() => {
-    // A radio that cannot work is scenery: nothing of the player loads for it.
+    if (!deck || !lookingAround) return;
+    return afterIdleDelay(DEVICE_PREFETCH_AFTER_SETTLED_MS, () => {
+      if (deck.available) deck.prefetch('idle');
+    });
+  }, [deck, lookingAround]);
+
+  useEffect(() => {
     if (!deck?.available || Player) return;
     // On the way to the radio: now, hidden by the flight.
     if (view === 'radio') {
       load(setPlayer);
       return;
     }
-    // Looking around the room for a while: both halves at idle, never on Save-Data.
-    if (view !== 'room' || !settled || !powered || saveData()) return;
-    let cancelIdle: (() => void) | undefined;
-    const timer = window.setTimeout(() => {
-      cancelIdle = whenIdle(() => {
-        if (!deck.available) return;
-        deck.prefetch('idle');
-        load(setPlayer);
-      });
-    }, PREFETCH_AFTER_SETTLED_MS);
-    return () => {
-      window.clearTimeout(timer);
-      cancelIdle?.();
-    };
-  }, [deck, powered, view, settled, Player]);
+    if (!lookingAround) return;
+    return afterIdleDelay(PLAYER_PREFETCH_AFTER_SETTLED_MS, () => {
+      if (deck.available) load(setPlayer);
+    });
+  }, [deck, view, lookingAround, Player]);
 
   // Mounting (the player, its controls, the prints) waits for the camera to rest, except on the way to the radio,
   // where the flight hides it and the discs want their prints before they rise.
@@ -94,6 +101,18 @@ export function RadioSlot({ deck, view, settled, powered, muted, onLeave, onFocu
     ),
     deck.controls,
   );
+}
+
+/** Runs `task` at the first idle moment `ms` from now; returns a cancel function. */
+function afterIdleDelay(ms: number, task: () => void): () => void {
+  let cancelIdle: (() => void) | undefined;
+  const timer = window.setTimeout(() => {
+    cancelIdle = whenIdle(task);
+  }, ms);
+  return () => {
+    window.clearTimeout(timer);
+    cancelIdle?.();
+  };
 }
 
 /** A load finishing after the effect that asked is gone still lands: the player stays once loaded. */

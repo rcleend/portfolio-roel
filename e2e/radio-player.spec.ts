@@ -492,14 +492,17 @@ test('loads nothing before the visitor has looked around the room for a while, t
     if (request.url().includes('RadioExperience') || request.resourceType() === 'media') modules.push(request.url());
   });
   await page.goto('/radio-lab.html?clean');
-  await page.waitForTimeout(2000);
+  // The lab opens settled in the room view: the room's half first, 1.5 s on; the player 3 s on.
+  await page.waitForTimeout(1300);
+  expect(await page.evaluate(() => window.__radioLab?.events.some((event) => event.type === 'prefetch'))).toBe(false);
+  await page.waitForTimeout(1300);
   expect(modules).toEqual([]);
+  const prefetch = await page.evaluate(() => window.__radioLab?.events.find((event) => event.type === 'prefetch'));
+  expect(prefetch?.detail).toBe('idle');
+  expect(prefetch?.at).toBeGreaterThan(1500);
   await expect.poll(() => page.evaluate(() => window.__radioLab?.loaded() ?? false), { timeout: 6000 }).toBe(true);
   expect(modules.some((url) => url.includes('RadioExperience'))).toBe(true);
   expect(modules.filter((url) => !url.includes('RadioExperience'))).toEqual([]);
-  const prefetch = await page.evaluate(() => window.__radioLab?.events.find((event) => event.type === 'prefetch'));
-  expect(prefetch?.detail).toBe('idle');
-  expect(prefetch?.at).toBeGreaterThan(2600);
 });
 
 test('with Save-Data, nothing is prefetched', async ({ page }) => {
