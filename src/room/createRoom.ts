@@ -125,10 +125,17 @@ export function createRoom(options: CreateRoomOptions): Room {
       const loaded = scene;
       // Any still the flight shows is painted and uploaded now, before its first frame.
       loaded.monitor.prepare(from, to);
-      loaded.rig.goTo(to, () => {
-        arrived();
-        loaded.refreshCursor();
-      });
+      // A first reduced-motion visit to the radio stays black until its device is ready, so it is one cut to the
+      // open radio, not a closed radio that then snaps open.
+      const holdCut = to === 'radio' ? () => radio.available && radio.prepared === null : undefined;
+      loaded.rig.goTo(
+        to,
+        () => {
+          arrived();
+          loaded.refreshCursor();
+        },
+        { holdCut },
+      );
       loaded.refreshCursor();
     },
     releasePointer: () => scene?.tvInput.release(),

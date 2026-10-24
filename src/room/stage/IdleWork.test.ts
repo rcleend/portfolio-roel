@@ -116,6 +116,68 @@ describe('IdleWork', () => {
       expect(log).toEqual(['a:1', 'a:2']);
     });
 
+    it('runs urgent work only as it runs while something plays, and only while it is urgent', () => {
+      work.start();
+      let urgent = true;
+      work.add(logging(log, 'a', 3, 4), { urgent: () => urgent });
+      work.add(logging(log, 'b', 1));
+      moment = 'moving';
+      // Its first unit is judged by the longest unit so far (4 ms before any): a 3 ms idle period cannot hold it.
+      idle.idle(3);
+      expect(log).toEqual([]);
+      vi.advanceTimersByTime(250);
+      idle.idle(9);
+      expect(log).toEqual(['a:1', 'a:2']);
+      urgent = false;
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:1', 'a:2']);
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:1', 'a:2', 'a:3', 'b:1']);
+    });
+
+    it('never lets patience run a unit that does not fit while something moves', () => {
+      work.start();
+      work.add(logging(log, 'big', 1, 14));
+      idle.idle(50);
+      work.add(logging(log, 'a', 1, 3), { urgent: () => true, patienceMs: 400 });
+      moment = 'moving';
+      now += 1000;
+      idle.idle(6);
+      expect(log).toEqual(['big:1']);
+    });
+
+    it('never runs a unit kept for a quiet moment in motion unless urgent, and then only what fits', () => {
+      work.start();
+      let urgent = false;
+      moment = 'playing';
+      work.add(
+        (function* (): IdleTask {
+          now += 6;
+          log.push('a:cpu');
+          yield QUIET;
+          log.push('a:quiet');
+        })(),
+        { urgent: () => urgent },
+      );
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu']);
+      moment = 'moving';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu']);
+      urgent = true;
+      vi.advanceTimersByTime(250);
+      // Judged by its task's previous unit, 6 ms.
+      idle.idle(3);
+      expect(log).toEqual(['a:cpu']);
+      vi.advanceTimersByTime(250);
+      idle.idle(9);
+      expect(log).toEqual(['a:cpu', 'a:quiet']);
+    });
+
     it('stops within an idle period as soon as something starts moving', () => {
       work.start();
       work.add(
@@ -160,6 +222,51 @@ describe('IdleWork', () => {
       // The first needs the 6 ms a's unit took; the rest only the 2 ms b's own took.
       idle.idle(6);
       expect(log).toEqual(['a:1', 'b:1', 'b:2', 'b:3']);
+    });
+
+    it('runs urgent work that has waited out its patience, one unit per idle period, only while urgent', () => {
+      work.add(logging(log, 'big', 1, 14));
+      idle.idle(50);
+      let urgent = true;
+      // Prints at the radio: 3 ms each, but judged by the 14 ms unit before them none would fit a 6 ms idle period.
+      work.add(logging(log, 'print', 2, 3), { urgent: () => urgent, patienceMs: 400 });
+      work.add(logging(log, 'other', 1, 3), { urgent: () => urgent, patienceMs: 400 });
+      idle.idle(6);
+      expect(log).toEqual(['big:1']);
+      now += 400;
+      idle.idle(6);
+      // One unit for its patience; then its own 3 ms measure fits what is left.
+      expect(log).toEqual(['big:1', 'print:1', 'print:2']);
+      // The next task's patience ran out too, but an idle period runs only one unit that may not fit.
+      idle.idle(6);
+      expect(log).toEqual(['big:1', 'print:1', 'print:2', 'other:1']);
+      work.add(logging(log, 'late', 1, 3), { urgent: () => urgent, patienceMs: 400 });
+      urgent = false;
+      now += 1000;
+      idle.idle(6);
+      expect(log).toHaveLength(4);
+      // Never in a sliver of idle time.
+      urgent = true;
+      idle.idle(2);
+      expect(log).toHaveLength(4);
+    });
+
+    it('lets an urgent task run its units kept for a quiet moment, as long as it is urgent', () => {
+      let urgent = true;
+      work.add(uploading(log, 'a'), { urgent: () => urgent });
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:quiet']);
+      urgent = false;
+      work.add(uploading(log, 'b'), { urgent: () => urgent });
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:quiet', 'b:cpu']);
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:quiet', 'b:cpu']);
+      urgent = true;
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:quiet', 'b:cpu', 'b:quiet']);
     });
 
     it('keeps a unit for a quiet moment: the tasks behind it go first', () => {

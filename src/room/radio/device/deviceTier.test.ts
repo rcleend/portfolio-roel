@@ -27,6 +27,11 @@ describe('device tiers', () => {
     expect(isSlow(false, null)).toBe(false);
     const slowFlight = Array.from({ length: 30 }, (_, i) => i * 40);
     expect(isSlow(false, slowFlight)).toBe(true);
-    expect(isSlow(false, Array.from({ length: 30 }, (_, i) => i * 20))).toBe(false);
+    expect(
+      isSlow(
+        false,
+        Array.from({ length: 30 }, (_, i) => i * 20),
+      ),
+    ).toBe(false);
   });
 });

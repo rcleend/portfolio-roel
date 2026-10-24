@@ -46,9 +46,18 @@ describe('announcement', () => {
     expect(say(playing, { type: 'ended' }).words).toMatch(/^Playing Window Seat/);
   });
 
-  it('says nothing for a restart, a selection while paused or a key on a disc still going in', () => {
+  it('names the track ⏭ or ⏮ chooses while paused or stopped, which only the LCD showed', () => {
+    expect(say({ ...playing, transport: 'paused' }, { type: 'press', key: 'next' }).words).toBe(
+      'Track 2 of 2, Window Seat.',
+    );
+    const stopped = say(playing, { type: 'press', key: 'stop' }).state;
+    expect(say(stopped, { type: 'press', key: 'next' }).words).toBe('Track 2 of 2, Window Seat.');
+    // The last track has no next one: nothing changes, nothing is said.
+    expect(say({ ...stopped, track: 2 }, { type: 'press', key: 'next' }).words).toBeNull();
+  });
+
+  it('says nothing for a restart or a key on a disc still going in', () => {
     expect(say({ ...playing, position: 30 }, { type: 'press', key: 'previous' }).words).toBeNull();
-    expect(say({ ...playing, transport: 'paused' }, { type: 'press', key: 'next' }).words).toBeNull();
     const going = say(EMPTY_PLAYER, { type: 'pick', disc: 'a' }).state;
     expect(say(going, { type: 'press', key: 'play-pause' }).words).toBeNull();
   });

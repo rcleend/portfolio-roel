@@ -38,9 +38,16 @@ export function radioHintFor(progress: RadioHintProgress, coarse: boolean): Radi
   return coarse || progress.leftRadio ? null : 'leave';
 }
 
-export function radioHintText(kind: RadioHintKind, coarse: boolean): string {
-  return kind === 'pick' ? `${coarse ? 'Tap' : 'Click'} a CD to play it` : 'Click outside the radio to look around';
+/** How the visitor is reaching the radio: the words follow it. */
+export type HintInput = 'mouse' | 'touch' | 'keyboard';
+
+export function radioHintText(kind: RadioHintKind, input: HintInput): string {
+  if (kind === 'pick') {
+    if (input === 'keyboard') return 'Press Enter to play a CD';
+    return `${input === 'touch' ? 'Tap' : 'Click'} a CD to play it`;
+  }
+  return input === 'keyboard' ? 'Press Escape to look around' : 'Click outside the radio to look around';
 }
 
-/** The first line waits for the camera to settle and the discs to rise. */
-export const RADIO_HINT_DELAY_MS = 1200;
+/** The first line waits for the discs to be up in their slots (it names them), and a beat more. */
+export const RADIO_HINT_DELAY_MS = 450;

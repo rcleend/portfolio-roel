@@ -1,18 +1,29 @@
 import { type FramingInsets, NO_INSETS } from '../camera/CameraRig';
 import type { ControlsLayer } from './ControlsLayer';
-import type { CreateRadioDevice, RadioDevice, RadioHost } from './deviceContract';
+import { CLOSEUP_FILE, type CreateRadioDevice, type RadioDevice, type RadioHost } from './deviceContract';
+import { deviceMemory, saveData } from './deviceFacts';
 import { discSlots, labelSizeFor, largestDiscDiameter, MAX_DISCS, MIN_DISCS } from './discLayout';
 import type { DeckState, DiscArt, RadioCueEvent, RadioDeck, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
-import { deviceMemory, saveData } from './deviceFacts';
 
 /** Loads the device chunk; a seam for tests. */
 export type DeviceLoader = CreateRadioDevice;
 
-const loadDevice: DeviceLoader = (host, link) =>
-  import('./device/RadioDevice').then((module) => module.createRadioDevice(host, link));
+/** The device's chunk, and its close-up downloading beside it rather than after it. */
+const loadDevice: DeviceLoader = (host, link) => {
+  const closeUp = fetchCloseUp(new URL(CLOSEUP_FILE, host.assetBaseUrl).href);
+  // Its failure is the device's to report, once it asks for it.
+  closeUp.catch(() => undefined);
+  return import('./device/RadioDevice').then((module) => module.createRadioDevice(host, { ...link, closeUp }));
+};
 
 /** The label size before the room is ready, when nothing is known of the screen at the radio. */
 const DEFAULT_LABEL_SIZE = 384;
+async function fetchCloseUp(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+  return response.arrayBuffer();
+}
+
 /** Five plain silver discs until the app hands over its collection. */
 export const DEFAULT_DISCS: readonly DiscArt[] = [1, 2, 3, 4, 5].map((n) => ({ id: `disc-${n}`, label: null }));
 export const DEFAULT_DECK_STATE: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
@@ -57,6 +68,9 @@ export class RadioDeckHandle implements RadioDeck {
   /** Fixed on the first read once the room is ready; null until then. */
   #size: 256 | 384 | 512 | null = null;
   #current: RadioLayout = EMPTY_LAYOUT;
+  #discsOut = false;
+  /** The disc a `seated` was last told for, until another is loaded: a disc is seated once per insert. */
+  #seatedFor: string | null = null;
   #host: RadioHost | null = null;
   #device: RadioDevice | null = null;
   #loading = false;
@@ -70,6 +84,7 @@ export class RadioDeckHandle implements RadioDeck {
   readonly #seats = new Emitter<string>();
   readonly #cues = new Emitter<RadioCueEvent>();
   readonly #layouts = new Emitter<RadioLayout>();
+  readonly #shelf = new Emitter<boolean>();
 
   readonly #layer: ControlsLayer;
   readonly #reducedMotion: MediaQueryList;
@@ -116,6 +131,10 @@ export class RadioDeckHandle implements RadioDeck {
     return this.#current;
   }
 
+  get discsOut(): boolean {
+    return this.#discsOut;
+  }
+
   /** The device once it is loaded, cut and prepared (for stats and background work); null before. */
   get prepared(): RadioDevice | null {
     return this.#device;
@@ -149,6 +168,10 @@ export class RadioDeckHandle implements RadioDeck {
     return this.#layouts.on(listener);
   }
 
+  onDiscsOutChange(listener: (out: boolean) => void): () => void {
+    return this.#shelf.on(listener);
+  }
+
   prefetch(reason: 'idle' | 'intent'): void {
     // Save-Data: only a visitor reaching for the radio pays for it.
     if (!this.#isAvailable || (reason === 'idle' && saveData())) return;
@@ -173,10 +196,11 @@ export class RadioDeckHandle implements RadioDeck {
   setState(state: DeckState): void {
     const disc = state.loaded;
     const inserted = disc !== null && disc !== this.#state.loaded;
+    if (state.loaded !== this.#state.loaded) this.#seatedFor = null;
     this.#state = state;
     if (this.#device) this.#device.setState(state);
     // Nothing to animate the insert with: the disc is on the spindle as soon as it is asked for.
-    else if (disc !== null && inserted) queueMicrotask(() => this.#state.loaded === disc && this.#seats.emit(disc));
+    else if (disc !== null && inserted) queueMicrotask(() => this.#state.loaded === disc && this.#seat(disc));
   }
 
   press(key: RadioKey): void {
@@ -227,6 +251,7 @@ export class RadioDeckHandle implements RadioDeck {
   conceal(): void {
     this.#pendingApproach = null;
     this.#layer.conceal();
+    this.#setDiscsOut(false);
     this.#device?.conceal();
   }
 
@@ -241,6 +266,7 @@ export class RadioDeckHandle implements RadioDeck {
       this.#seats,
       this.#cues,
       this.#layouts,
+      this.#shelf,
     ]) {
       emitter.clear();
     }
@@ -255,7 +281,7 @@ export class RadioDeckHandle implements RadioDeck {
       discCount: () => this.#discs.length,
       events: {
         intent: (intent) => this.#intents.emit(intent),
-        seated: (disc) => this.#seats.emit(disc),
+        seated: (disc) => this.#seat(disc),
         cue: (event) => this.#cues.emit(event),
         pointerAttention: (disc) => {
           this.#pointer = disc;
@@ -265,6 +291,7 @@ export class RadioDeckHandle implements RadioDeck {
           this.#current = layout;
           this.#layouts.emit(layout);
         },
+        discsOut: (out) => this.#setDiscsOut(out && this.#layer.live),
       },
     }).then(
       (device) => {
@@ -298,6 +325,19 @@ export class RadioDeckHandle implements RadioDeck {
     this.#availability.emit(false);
     // Flying to (or at) a radio that cannot open: back to the room.
     if (this.#host?.views.view === 'radio') this.#host.views.request('room');
+  }
+
+  /** Once per insert: a device that wakes up after the disc was seated without it seats it again, silently. */
+  #seat(disc: string): void {
+    if (disc === this.#seatedFor) return;
+    this.#seatedFor = disc;
+    this.#seats.emit(disc);
+  }
+
+  #setDiscsOut(out: boolean): void {
+    if (out === this.#discsOut) return;
+    this.#discsOut = out;
+    this.#shelf.emit(out);
   }
 
   #updateAttention(): void {

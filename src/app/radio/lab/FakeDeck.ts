@@ -33,15 +33,17 @@ export interface LabEvent {
   readonly detail?: unknown;
 }
 
-/** The room's insert, as the storyboard times it (SPEC §3.6): ▷II reaches the bottom 890 ms after the pick. */
-export const SEAT_MS = 890;
+/** The room's insert, as its storyboard times it (docs/ROOM.md › Motion): ▷II reaches the bottom 900 ms after the pick. */
+export const SEAT_MS = 900;
 const INSERT_CUES: readonly (readonly [number, RadioCue])[] = [
   [0, 'disc-pick'],
-  [770, 'disc-seat'],
-  [840, 'key-down'],
-  [SEAT_MS, 'key-up'],
+  [750, 'disc-seat'],
+  [810, 'key-down'],
   [SEAT_MS, 'spin-up'],
+  [SEAT_MS + 150, 'key-up'],
 ];
+/** The room's shelf is up this long after the landing (five discs). */
+const SHELF_UP_MS = 1340;
 /** What still sounds under reduced motion: state changes only (SPEC §3.3). */
 const STATE_CUES: ReadonlySet<RadioCue> = new Set(['lid-unlatch', 'lid-latch', 'disc-seat', 'key-down', 'key-up']);
 const NO_INSETS: FramingInsets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -51,7 +53,7 @@ const KEYS: readonly RadioKey[] = ['previous', 'play-pause', 'stop', 'next'];
  * A stand-in for the room's CD player (`room.radio`) for building the player without
  * three.js (radio-lab.html): it draws the radio, its keys and the floating discs in the
  * DOM where the room would project them, turns clicks on them into the intents the room
- * would emit, seats a picked disc 890 ms after the answering `setState` (in a microtask
+ * would emit, seats a picked disc 900 ms after the answering `setState` (in a microtask
  * under reduced motion), emits the mechanical cues on the room's timetable and records
  * everything it is asked to do.
  */
@@ -71,6 +73,8 @@ export class FakeDeck implements RadioDeck {
   #layout: RadioLayout;
   #insets: FramingInsets = NO_INSETS;
   #live = false;
+  #discsOut = false;
+  #shelfTimer: number | null = null;
   #keyboard: string | null = null;
   #pointer: string | null = null;
   #attention: string | null = null;
@@ -83,6 +87,7 @@ export class FakeDeck implements RadioDeck {
     cue: new Set<(event: RadioCueEvent) => void>(),
     live: new Set<(live: boolean) => void>(),
     layout: new Set<(layout: RadioLayout) => void>(),
+    shelf: new Set<(out: boolean) => void>(),
   };
 
   constructor(stage: HTMLElement, overlay: HTMLElement) {
@@ -114,6 +119,14 @@ export class FakeDeck implements RadioDeck {
 
   get live(): boolean {
     return this.#live;
+  }
+
+  get discsOut(): boolean {
+    return this.#discsOut;
+  }
+
+  onDiscsOutChange(listener: (out: boolean) => void): () => void {
+    return subscribe(this.#listeners.shelf, listener);
   }
 
   get layout(): RadioLayout {
@@ -210,8 +223,17 @@ export class FakeDeck implements RadioDeck {
     for (const listener of this.#listeners.live) listener(true);
     this.#discs.forEach((_, index) => {
       this.#cueLater(37 + index * 60, 'disc-rise', index);
-      this.#cueLater(37 + index * 60 + 330, 'disc-flip', index);
+      this.#cueLater(37 + index * 60 + 640, 'disc-flip', index);
     });
+    this.#shelfTimer = window.setTimeout(() => this.#setDiscsOut(true), reducedMotion() ? 0 : SHELF_UP_MS);
+  }
+
+  #setDiscsOut(out: boolean): void {
+    if (this.#shelfTimer !== null) window.clearTimeout(this.#shelfTimer);
+    this.#shelfTimer = null;
+    if (out === this.#discsOut) return;
+    this.#discsOut = out;
+    for (const listener of this.#listeners.shelf) listener(out);
   }
 
   /** The camera is asked to leave: the controls hide at once (the room's `concealRadio`). */
@@ -221,6 +243,7 @@ export class FakeDeck implements RadioDeck {
     this.#applyLive();
     this.#log('live', false);
     for (const listener of this.#listeners.live) listener(false);
+    this.#setDiscsOut(false);
     this.#discs.forEach((_, index) => {
       this.#cueLater(index * 45 + 340, 'disc-sink', index);
     });

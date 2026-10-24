@@ -49,6 +49,13 @@ export const FLIGHT_MS = 1100;
 const FLIGHT_LIFT = 0.16;
 /** Under reduced motion a move is a fade to black this long, a cut, and a fade back as long. */
 export const REDUCED_FADE_MS = 140;
+/** The longest a cut stays black waiting for what it cuts to (the radio's device on a first visit). */
+export const MAX_CUT_HOLD_MS = 1200;
+
+export interface FlightOptions {
+  /** Under reduced motion, hold the black after the cut while this says so (at most MAX_CUT_HOLD_MS). */
+  readonly holdCut?: () => boolean;
+}
 
 const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
@@ -132,14 +139,14 @@ export class CameraRig {
   }
 
   /** Flies to `view` (or cuts, under reduced motion) and calls `onArrive` once there. */
-  goTo(view: RoomView, onArrive: () => void): void {
+  goTo(view: RoomView, onArrive: () => void, options: FlightOptions = {}): void {
     const from = this.moving ? null : this.settledView;
     this.stopFlight?.();
     this.parallaxEnabled = false;
     this.setParallaxPointer(null);
     const { lead, crane } = flightShape(from, view);
     const step = this.reducedMotion.matches
-      ? this.cutStep(view, onArrive)
+      ? this.cutStep(view, onArrive, options.holdCut)
       : this.flightStep(view, lead, crane, onArrive);
     this.stopFlight = this.loop.animate(step);
   }
@@ -201,9 +208,12 @@ export class CameraRig {
     };
   }
 
-  private cutStep(view: RoomView, onArrive: () => void): (now: number) => boolean {
+  /** A fade to black, the cut (held black while `hold` says so, within MAX_CUT_HOLD_MS) and a fade back. */
+  private cutStep(view: RoomView, onArrive: () => void, hold?: () => boolean): (now: number) => boolean {
     let start: number | null = null;
     let cut = false;
+    let fadeInFrom = REDUCED_FADE_MS;
+    let holding = hold !== undefined;
     return (now) => {
       start ??= now;
       const elapsed = now - start;
@@ -212,7 +222,16 @@ export class CameraRig {
         this.current = cloneViewpoint(this.pose(view));
         this.apply();
       }
-      const fadeIn = (elapsed - REDUCED_FADE_MS) / REDUCED_FADE_MS;
+      if (cut && holding) {
+        // Black until what the cut shows is ready; once the fade back starts it never holds again.
+        if (hold?.() && elapsed < REDUCED_FADE_MS + MAX_CUT_HOLD_MS) {
+          fadeInFrom = elapsed;
+          this.fade.opacity = 1;
+          return true;
+        }
+        holding = false;
+      }
+      const fadeIn = (elapsed - fadeInFrom) / REDUCED_FADE_MS;
       this.fade.opacity = cut ? 1 - easeOutCubic(Math.min(1, fadeIn)) : elapsed / REDUCED_FADE_MS;
       if (fadeIn < 1) return true;
       this.fade.opacity = 0;

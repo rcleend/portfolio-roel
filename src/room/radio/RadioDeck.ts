@@ -124,6 +124,12 @@ export interface RadioDeck {
   /** True from the landing at the radio until the camera is asked to leave. */
   readonly live: boolean;
   onLiveChange(listener: (live: boolean) => void): () => void;
+  /**
+   * True while the camera rests at the radio and every disc not in the player hangs in its slot, label out: the
+   * shelf is up (teaching lines wait for it). False from the request to leave.
+   */
+  readonly discsOut: boolean;
+  onDiscsOutChange(listener: (out: boolean) => void): () => void;
   readonly layout: RadioLayout;
   onLayoutChange(listener: (layout: RadioLayout) => void): () => void;
   /** CSS px of the viewport the app's controls cover at the radio (the touch transport bar); the radio is framed clear of it. */

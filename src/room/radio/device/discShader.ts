@@ -6,10 +6,13 @@ import { DISC_RADIUS } from '../discLayout';
  * the moonlight from the window — tuned against the baked cabinet and wall next to the radio.
  *
  * - Label face: the print over silver foil (ink alpha 0 shows bare foil), lit, with a varnish highlight from the
- *   lamp that brightens under attention.
+ *   lamp that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp
+ *   across the varnish says it spins.
  * - Foil (bare print, mirror band, rim): silver with thin-film iridescence weighted by the lamp's highlight.
- * - Data face: silver with diffraction from the lamp and the moon off a 1.6 µm track pitch: the rainbow spoke
- *   stays fixed in space while the disc turns.
+ * - Data face: a silver mirror that brightens towards grazing, with the lamp's spoke and the room's sheen across its
+ *   tracks and diffraction from the lamp and the moon off a 1.6 µm track pitch (the rainbow spoke stays fixed in
+ *   space while the disc turns), softly shouldered so a disc near the lamp never burns out; a polished rim catches
+ *   the room and the lamp, so overlapping discs keep their outlines.
  * - Spin blur: 6 taps along the arc swept in 1/60 s, blended to the label's radial average from 0.8 to 2 rev/s,
  *   so a disc at play speed is the same image every frame and costs no frames of its own.
  *
@@ -48,10 +51,23 @@ export const DISC_LIGHT = {
   /** How far the lamp wraps round matte ink, and the ink's gain under the night's dim light. */
   inkWrap: 0.5,
   inkGain: 2.2,
-  /** The varnish over the ink reflects the room faintly. */
+  /** The varnish over the ink reflects the room faintly, and the lamp broadly (it travels as the disc drifts). */
   varnishSheen: 0.12,
+  varnishBroad: 0.35,
   /** The smoky hub under the room's light. */
   hubGain: 4,
+  /**
+   * The data side: a mirror that brightens towards grazing (Fresnel), the lamp's spoke and the room's broad sheen
+   * across its tracks, so every disc shows its own lit structure rather than a flat grey; and a polished rim that
+   * catches the room and the lamp, so overlapping discs keep their outlines.
+   */
+  dataFresnel: 2.2,
+  dataSpoke: 9,
+  dataSheen: 1.6,
+  rimRoom: 1.1,
+  rimLamp: 0.45,
+  /** A label at play speed keeps a still spoke from the lamp across its varnish: the sign that it spins. */
+  spinSpoke: 2.4,
 } as const;
 
 function normalize(v: readonly [number, number, number]): [number, number, number] {
@@ -89,6 +105,7 @@ uniform float uRow;
 uniform float uOmega;
 uniform float uAttention;
 uniform float uFlipLabel;
+uniform float uPrint;
 varying vec2 vUv;
 varying vec3 vWorld;
 varying vec3 vNormal;
@@ -113,6 +130,13 @@ const float RAINBOW = ${DISC_LIGHT.rainbow.toFixed(4)};
 const float INK_WRAP = ${DISC_LIGHT.inkWrap.toFixed(4)};
 const float INK_GAIN = ${DISC_LIGHT.inkGain.toFixed(4)};
 const float VARNISH_SHEEN = ${DISC_LIGHT.varnishSheen.toFixed(4)};
+const float VARNISH_BROAD = ${DISC_LIGHT.varnishBroad.toFixed(4)};
+const float DATA_FRESNEL = ${DISC_LIGHT.dataFresnel.toFixed(4)};
+const float DATA_SPOKE = ${DISC_LIGHT.dataSpoke.toFixed(4)};
+const float DATA_SHEEN = ${DISC_LIGHT.dataSheen.toFixed(4)};
+const float RIM_ROOM = ${DISC_LIGHT.rimRoom.toFixed(4)};
+const float RIM_LAMP = ${DISC_LIGHT.rimLamp.toFixed(4)};
+const float SPIN_SPOKE = ${DISC_LIGHT.spinSpoke.toFixed(4)};
 const float HUB_GAIN = ${DISC_LIGHT.hubGain.toFixed(4)};
 const float STACKING_RING = ${(DISC_ZONES.stackingRing / DISC_RADIUS).toFixed(5)};
 const float ZONE_HUB = ${(DISC_ZONES.hub / DISC_RADIUS).toFixed(5)};
@@ -194,7 +218,9 @@ float tracks(vec3 n, vec3 r, vec3 h, float across, float along) {
 
 vec4 label(vec2 uv) {
   vec4 ink = texture2D(uLabel, vec2(uv.x, mix(uv.y, 1.0 - uv.y, uFlipLabel)));
-  return vec4(ink.rgb * ink.a, ink.a);
+  // uPrint fades a print in over bare foil when it arrives after the disc is out.
+  float a = ink.a * uPrint;
+  return vec4(ink.rgb * a, a);
 }
 
 `;
@@ -242,11 +268,31 @@ void main() {
     * (SILVER * SPOKE * tracks(n, radial, hLamp, 0.10, 0.55) + RAINBOW * grating(n, radial, v, toLamp, 3.0))
     + ROOM_HIGH * SILVER * ROOM_SHEEN * tracks(n, radial, hUp, 0.3, 0.9));
 
+  float facing = max(dot(n, v), 0.0);
+  // The rim catches the light where its edge faces it: the lamp's side, and the ceiling's (its top).
+  float rim = smoothstep(0.962, 0.992, radius);
+  vec3 lampInPlane = toLamp - n * dot(toLamp, n);
+  vec3 upInPlane = vec3(0.0, 1.0, 0.0) - n * n.y;
+  float lampSide = length(lampInPlane) > 1e-4 ? max(dot(radial, normalize(lampInPlane)), 0.0) : 0.0;
+  float topSide = length(upInPlane) > 1e-4 ? 0.5 + 0.5 * dot(radial, normalize(upInPlane)) : 0.5;
+  vec3 rimLight = ROOM_HIGH * RIM_ROOM * (0.35 + 0.65 * topSide) + LAMP_COLOR * lampFall * RIM_LAMP * lampSide * lampSide;
   vec3 colour;
   if (vFace < -0.5) {
     if (radius < ZONE_HUB) colour = HUB * diffuse(n, toLamp, lampFall) * 3.0 + glints * 0.5;
-    else colour = mirror + (grating(n, radial, v, toLamp, 2.0) * lampLight * 2.5
-      + grating(n, radial, v, MOON_DIRECTION, 2.0) * MOON_COLOR * 1.5);
+    else {
+      float fresnel = pow(1.0 - facing, 3.0);
+      colour = mirror * (1.0 + DATA_FRESNEL * fresnel)
+        + lampLight * SILVER * DATA_SPOKE * tracks(n, radial, hLamp, 0.10, 0.55)
+        + ROOM_HIGH * SILVER * DATA_SHEEN * tracks(n, radial, hUp, 0.3, 0.9)
+        + grating(n, radial, v, toLamp, 2.0) * lampLight * 2.5
+        + grating(n, radial, v, MOON_DIRECTION, 2.0) * MOON_COLOR * 1.5;
+      colour = mix(colour, colour + rimLight, rim);
+      // A soft shoulder: right by the lamp the turning mirror flashes, but stays a disc, never a white blank.
+      colour = 1.2 * (1.0 - exp(-colour / 1.2));
+    }
+  } else if (vFace > -0.5 && vFace < 0.5 && radius > 0.9) {
+    // The outer edge: a polished band of polycarbonate, lit by the room and the lamp.
+    colour = rimLight * 1.4 + glints * 0.6;
   } else if (vFace > 0.5 && radius >= ZONE_MIRROR && radius < ZONE_LABEL) {
     float speed = abs(uOmega);
     vec4 print;
@@ -261,12 +307,16 @@ void main() {
         print += label(0.5 + 0.5 * radius * vec2(cos(a), sin(a)));
       }
       print /= 6.0;
-      vec4 average = texture2D(uAverages, vec2(radius, uRow));
+      vec4 average = texture2D(uAverages, vec2(radius, uRow)) * uPrint;
       print = mix(print, average, smoothstep(BLUR_FROM, BLUR_TO, speed));
     }
     vec3 lit = print.rgb * inkLight(n, toLamp, lampFall) * INK_GAIN;
-    float varnish = pow(max(dot(n, hLamp), 0.0), 140.0) * lampFall * (0.35 + 0.65 * uAttention);
-    colour = foil * (1.0 - print.a) + lit + (LAMP_COLOR * varnish + env * VARNISH_SHEEN) * print.a;
+    float hl = max(dot(n, hLamp), 0.0);
+    float varnish = pow(hl, 140.0) * lampFall * (0.35 + 0.65 * uAttention) + pow(hl, 16.0) * lampFall * VARNISH_BROAD;
+    // At play speed the varnish's circular scratches draw the lamp as a spoke that stays put while the disc turns.
+    float spinning = smoothstep(BLUR_FROM, BLUR_TO, abs(uOmega));
+    vec3 spoke = lampLight * SPIN_SPOKE * spinning * tracks(n, radial, hLamp, 0.08, 0.6);
+    colour = foil * (1.0 - print.a) + lit + (LAMP_COLOR * varnish + env * VARNISH_SHEEN + spoke) * print.a;
   } else if (radius < ZONE_HUB) {
     float ring = 1.0 - smoothstep(0.006, 0.012, abs(radius - STACKING_RING));
     colour = HUB * diffuse(n, toLamp, lampFall) * (HUB_GAIN + 2.0 * ring) + env * 0.08
@@ -274,7 +324,7 @@ void main() {
   } else if (radius < ZONE_LABEL) {
     colour = mirror * SMOOTH_MIRROR;
   } else {
-    colour = foil;
+    colour = mix(foil, foil + rimLight, rim);
   }
   gl_FragColor = vec4(colour, 1.0);
   #include <colorspace_fragment>

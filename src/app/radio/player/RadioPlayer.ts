@@ -1,4 +1,5 @@
 import type { Album, Track } from '@/content/radio/types';
+import { whenIdle } from '../../pc/whenIdle';
 import type { DeckState, RadioDeck, RadioKey, RoomView, Transport } from '../deck';
 import { announcement, type DescribeTrack, type Spoken, shouldSay } from './announce';
 import { radioAudio, tvTransition } from './audioPolicy';
@@ -72,6 +73,8 @@ export interface RadioPlayerOptions {
   readonly muted: boolean;
   readonly timers?: Timers;
   readonly now?: () => number;
+  /** Runs a task at the main thread's next idle moment; returns its cancel. */
+  readonly whenIdle?: (task: () => void) => () => void;
 }
 
 /** What the controls render: changes only when something they show does (never with the clock). */
@@ -111,6 +114,7 @@ export class RadioPlayer {
   readonly #session: MediaSessionBridge;
   readonly #timers: Timers;
   readonly #now: () => number;
+  readonly #whenIdle: (task: () => void) => () => void;
   #state: PlayerState = EMPTY_PLAYER;
   #view: RoomView;
   #muted: boolean;
@@ -134,6 +138,7 @@ export class RadioPlayer {
     this.#muted = options.muted;
     this.#timers = options.timers ?? WINDOW_TIMERS;
     this.#now = options.now ?? (() => performance.now());
+    this.#whenIdle = options.whenIdle ?? whenIdle;
     this.#music = options.music({
       playing: () => undefined,
       time: (seconds) => this.#fromElement({ type: 'time', seconds }),
@@ -160,12 +165,15 @@ export class RadioPlayer {
       this.#deck.onSeated((disc) => this.#dispatch({ type: 'seated', disc })),
       this.#deck.onCue((event) => this.#foley.play(event.cue, event.pan, event.order)),
     ];
-    // At the radio: awake. Elsewhere (loaded at idle): made now and kept asleep, so the click that sends the camera
+    // At the radio: awake. Elsewhere (loaded at idle): made in an idle moment of its own (an AudioContext is the
+    // dearest part of the player's start: 74 ms on a slow phone) and kept asleep, so the click that sends the camera
     // to the radio only resumes it.
+    let cancelPrepare: (() => void) | null = null;
     if (this.#view === 'radio') this.#foley.wake();
-    else this.#foley.prepare();
+    else cancelPrepare = this.#whenIdle(() => this.#foley.prepare());
     this.#publish();
     return () => {
+      cancelPrepare?.();
       for (const stop of stops) stop();
       this.#clearTimers();
       this.#music.dispose();

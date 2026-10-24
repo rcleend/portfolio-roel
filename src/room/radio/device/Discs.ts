@@ -30,6 +30,8 @@ interface Disc {
   art: DiscArt['label'];
   texture: Texture | null;
   pixels: number;
+  /** A print uploaded and waiting to be shown with the others (and its radial average). */
+  incoming: { readonly texture: Texture; readonly average: Uint8Array; readonly pixels: number } | null;
 }
 
 export interface DiscPick {
@@ -83,6 +85,11 @@ export class Discs {
     return [...this.#discs.values()].every((disc) => disc.texture !== null);
   }
 
+  /** Prints uploaded and waiting to be shown. */
+  get labelsWaiting(): boolean {
+    return [...this.#discs.values()].some((disc) => disc.incoming !== null);
+  }
+
   get ready(): boolean {
     return this.#compiled;
   }
@@ -95,6 +102,7 @@ export class Discs {
       disc.mesh.removeFromParent();
       disc.material.dispose();
       disc.texture?.dispose();
+      disc.incoming?.texture.dispose();
       this.#discs.delete(id);
     }
     const pending: string[] = [];
@@ -111,6 +119,7 @@ export class Discs {
             uOmega: { value: 0 },
             uAttention: { value: 0 },
             uFlipLabel: { value: 0 },
+            uPrint: { value: 1 },
           },
         });
         const mesh = new Mesh(this.#geometry, material);
@@ -118,7 +127,7 @@ export class Discs {
         mesh.visible = false;
         mesh.matrixAutoUpdate = true;
         this.group.add(mesh);
-        disc = { id: entry.id, mesh, material, row, art: null, texture: null, pixels: 0 };
+        disc = { id: entry.id, mesh, material, row, art: null, texture: null, pixels: 0, incoming: null };
         this.#discs.set(entry.id, disc);
       }
       disc.row = row;
@@ -132,7 +141,10 @@ export class Discs {
     return pending;
   }
 
-  /** Makes, averages and uploads one disc's print (one unit of background work). Returns true if it changed. */
+  /**
+   * Makes, averages and uploads one disc's print (one unit of background work); it shows with the others, at
+   * `showLabels`. Returns true if there was one to make.
+   */
   prepareLabel(id: string, renderer: { initTexture(texture: Texture): void }): boolean {
     const disc = this.#discs.get(id);
     const art = disc?.art;
@@ -147,13 +159,37 @@ export class Discs {
     texture.flipY = art instanceof HTMLCanvasElement;
     texture.needsUpdate = true;
     renderer.initTexture(texture);
-    disc.texture?.dispose();
-    disc.texture = texture;
-    disc.pixels = Math.round(art.width * art.height * (4 / 3));
-    setUniform(disc.material, 'uLabel', texture);
-    setUniform(disc.material, 'uFlipLabel', texture.flipY ? 0 : 1);
-    this.#average(disc, art);
+    disc.incoming?.texture.dispose();
+    disc.incoming = { texture, average: this.#average(art), pixels: Math.round(art.width * art.height * (4 / 3)) };
     return true;
+  }
+
+  /** Every print uploaded so far shows, together, at `print` coverage (0 bare foil … 1). Returns their discs. */
+  showLabels(print: number): string[] {
+    const shown: string[] = [];
+    for (const disc of this.#discs.values()) {
+      const incoming = disc.incoming;
+      if (!incoming) continue;
+      disc.incoming = null;
+      disc.texture?.dispose();
+      disc.texture = incoming.texture;
+      disc.pixels = incoming.pixels;
+      setUniform(disc.material, 'uLabel', incoming.texture);
+      setUniform(disc.material, 'uFlipLabel', incoming.texture.flipY ? 0 : 1);
+      setUniform(disc.material, 'uPrint', print);
+      this.#averagePixels.set(incoming.average, disc.row * AVERAGE_BINS * 4);
+      this.#averages.needsUpdate = true;
+      shown.push(disc.id);
+    }
+    return shown;
+  }
+
+  /** How much of their prints the discs `ids` show (a fade in). */
+  setPrint(ids: readonly string[], print: number): void {
+    for (const id of ids) {
+      const disc = this.#discs.get(id);
+      if (disc) setUniform(disc.material, 'uPrint', print);
+    }
   }
 
   /** Compiles the discs' program off the frame (KHR_parallel_shader_compile where available). */
@@ -212,6 +248,7 @@ export class Discs {
     for (const disc of this.#discs.values()) {
       disc.material.dispose();
       disc.texture?.dispose();
+      disc.incoming?.texture.dispose();
     }
     this.#discs.clear();
     this.group.removeFromParent();
@@ -232,14 +269,12 @@ export class Discs {
   }
 
   /** The print's radial average from a 128² copy on the CPU (the print is a CPU canvas: no wait for the GPU). */
-  #average(disc: Disc, art: HTMLCanvasElement | ImageBitmap): void {
+  #average(art: HTMLCanvasElement | ImageBitmap): Uint8Array {
     const context = this.#scratch.getContext('2d', { willReadFrequently: true });
-    if (!context) return;
+    if (!context) return new Uint8Array(AVERAGE_BINS * 4);
     context.clearRect(0, 0, AVERAGE_SAMPLE_SIZE, AVERAGE_SAMPLE_SIZE);
     context.drawImage(art, 0, 0, AVERAGE_SAMPLE_SIZE, AVERAGE_SAMPLE_SIZE);
-    const pixels = context.getImageData(0, 0, AVERAGE_SAMPLE_SIZE, AVERAGE_SAMPLE_SIZE);
-    this.#averagePixels.set(radialAverage(pixels), disc.row * AVERAGE_BINS * 4);
-    this.#averages.needsUpdate = true;
+    return radialAverage(context.getImageData(0, 0, AVERAGE_SAMPLE_SIZE, AVERAGE_SAMPLE_SIZE));
   }
 }
 

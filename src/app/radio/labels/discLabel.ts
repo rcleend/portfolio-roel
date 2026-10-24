@@ -53,10 +53,9 @@ export function paintDiscLabel(context: CanvasRenderingContext2D, size: number, 
   paintRimText(context, centre, mm, rimText(album));
 }
 
-/** "NIGHT SHIFT · STUDIO ATTIC · PLACEHOLDER" */
+/** "NIGHT SHIFT · STUDIO ATTIC". (A placeholder says so in its caption, not on every disc.) */
 export function rimText(album: LabelText): string {
-  const parts = [album.title, album.artist, ...(album.placeholder ? ['Placeholder'] : [])];
-  return parts.join(' · ').toUpperCase();
+  return [album.title, album.artist].join(' · ').toUpperCase();
 }
 
 /** A muted, mid-dark colour that is the same for the same id, for discs without art. */

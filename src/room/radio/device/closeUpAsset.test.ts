@@ -22,7 +22,14 @@ function list(mesh: string, triangles: readonly number[]): TriangleList {
   // Each triangle t spans x t…t + 1, y 0…1, z 0.
   const min = Math.min(...triangles);
   const max = Math.max(...triangles) + 1;
-  return { mesh, ranges: triangles.map((t) => [t, 1] as const), bounds: [[min, 0, 0], [max, 1, 0]] };
+  return {
+    mesh,
+    ranges: triangles.map((t) => [t, 1] as const),
+    bounds: [
+      [min, 0, 0],
+      [max, 1, 0],
+    ],
+  };
 }
 
 function radio(parts: CloseUpExtras['parts'] = defaultParts()) {
@@ -102,7 +109,13 @@ describe('assembleParts', () => {
     const next = shifted.next;
     const moved: CloseUpExtras['parts'] = {
       ...shifted,
-      next: { ...next, bounds: [[8.004, 0, 0], [9.004, 1, 0]] },
+      next: {
+        ...next,
+        bounds: [
+          [8.004, 0, 0],
+          [9.004, 1, 0],
+        ],
+      },
     };
     const { gltf, meshes, before, root } = radio(moved);
     expect(() => assembleParts(gltf, meshes, root)).toThrow(/next/);

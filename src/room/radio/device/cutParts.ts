@@ -26,7 +26,8 @@ export function cutTriangles(geometry: BufferGeometry, lists: readonly (readonly
   if (lists.length > 254) throw new RangeError('cutTriangles cuts at most 254 parts from one geometry');
   lists.forEach((list, k) => {
     for (const t of list) {
-      if (!Number.isInteger(t) || t < 0 || t >= count) throw new RangeError(`No triangle ${t} in a geometry of ${count}`);
+      if (!Number.isInteger(t) || t < 0 || t >= count)
+        throw new RangeError(`No triangle ${t} in a geometry of ${count}`);
       if (owner[t] !== 0) throw new Error(`cutTriangles: triangle ${t} is listed twice`);
       owner[t] = k + 1;
     }

@@ -46,31 +46,60 @@ const ring = (r: number, width: number, attrs: string): string =>
 const labelArea = (fill: string): string =>
   ring((LABEL_INNER + LABEL_OUTER) / 2, LABEL_OUTER - LABEL_INNER + 6, `stroke="${fill}"`);
 
-// ── Night Shift: concentric grooves under a desk lamp ──────────────────────────
+// ── Night Shift: a skyline at night, lit windows, a desk lamp's glow ───────────
+
+/** A row of seeded towers along `base`, and their lit windows: paths and rects, for a cover or a print. */
+function skyline(rng: Rng, base: number, height: number, windowFill: string, litShare: number) {
+  let x = -10;
+  let towers = '';
+  let windows = '';
+  while (x < SIZE + 10) {
+    const width = rng.range(26, 64);
+    const top = base - rng.range(height * 0.35, height);
+    towers += `<rect x="${n(x)}" y="${n(top)}" width="${n(width)}" height="${n(SIZE - top)}"/>`;
+    for (let wy = top + 8; wy < base - 6; wy += 11) {
+      for (let wx = x + 5; wx < x + width - 7; wx += 9) {
+        if (rng.next() < litShare)
+          windows += `<rect x="${n(wx)}" y="${n(wy)}" width="4" height="5" fill="${windowFill}"/>`;
+      }
+    }
+    x += width + rng.range(-4, 6);
+  }
+  return { towers, windows };
+}
 
 const nightShift: Painter = (rng) => {
-  const cx = 300 + rng.range(-20, 20);
-  const cy = 330 + rng.range(-20, 20);
-  const grooves = Array.from({ length: 34 }, (_, i) => {
-    const r = 30 + i * 13 + rng.range(-3, 3);
-    return `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" fill="none" stroke="#c9b8ff" stroke-opacity="${n(rng.range(0.06, 0.26))}" stroke-width="${n(rng.range(0.8, 3.2))}"/>`;
-  }).join('');
-  const cover = svg(
-    `<defs><radialGradient id="g" cx="0.58" cy="0.64" r="0.8"><stop offset="0" stop-color="#3a2a6e"/><stop offset="0.55" stop-color="#1b1640"/><stop offset="1" stop-color="#0b0a1f"/></radialGradient>` +
-      `<radialGradient id="lamp" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffd27a"/><stop offset="0.6" stop-color="#ff9c4a"/><stop offset="1" stop-color="#ff9c4a" stop-opacity="0"/></radialGradient></defs>` +
-      `<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>${grooves}` +
-      `<circle cx="132" cy="128" r="74" fill="url(#lamp)" opacity="0.9"/><circle cx="132" cy="128" r="26" fill="#ffe3a3"/>` +
-      `<circle cx="${n(cx)}" cy="${n(cy)}" r="18" fill="#0b0a1f"/>`,
-  );
-  // On the disc the grooves are real: thin rings of bare foil between violet ink.
-  const rings = Array.from({ length: 11 }, (_, i) =>
-    ring(LABEL_INNER + 10 + i * 13 + rng.range(-2, 2), rng.range(1.2, 3.4), 'stroke="black"'),
+  const front = skyline(rng, 470, 210, '#ffd27a', 0.32);
+  const back = skyline(rng, 440, 150, '#8f7fd0', 0.12);
+  const stars = Array.from(
+    { length: 40 },
+    () =>
+      `<circle cx="${n(rng.range(0, SIZE))}" cy="${n(rng.range(0, 250))}" r="${n(rng.range(0.6, 1.8))}" fill="#e9e2ff" opacity="${n(rng.range(0.3, 0.9))}"/>`,
   ).join('');
-  const ink = svg(
-    `<defs><radialGradient id="g" cx="0.5" cy="0.5" r="0.5"><stop offset="0.35" stop-color="#2a2160"/><stop offset="1" stop-color="#151236"/></radialGradient></defs>` +
-      `<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/><circle cx="${C + 118}" cy="${C - 118}" r="22" fill="#ffc86a"/>`,
+  const cover = svg(
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0a1f"/><stop offset="0.6" stop-color="#2a2160"/><stop offset="1" stop-color="#4a2f6e"/></linearGradient>` +
+      `<radialGradient id="lamp" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffd27a"/><stop offset="0.6" stop-color="#ff9c4a" stop-opacity="0.5"/><stop offset="1" stop-color="#ff9c4a" stop-opacity="0"/></radialGradient></defs>` +
+      `<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>${stars}` +
+      `<circle cx="138" cy="118" r="96" fill="url(#lamp)"/><circle cx="138" cy="118" r="22" fill="#ffe3a3"/>` +
+      `<g fill="#1a1538">${back.towers}</g>${back.windows}<g fill="#0e0b24">${front.towers}</g>${front.windows}`,
   );
-  const mask = svg(`${labelArea('white')}${rings}<circle cx="${C + 118}" cy="${C - 118}" r="28" fill="white"/>`);
+  // On the disc: the skyline round the lower half of the label, lit windows and stars cut into the ink as bare foil.
+  const discFront = skyline(rng, C + LABEL_OUTER - 14, 92, 'black', 0.3);
+  const discStars = Array.from({ length: 26 }, () => {
+    const angle = rng.range(Math.PI * 1.08, Math.PI * 1.92);
+    const r = rng.range(LABEL_INNER + 12, LABEL_OUTER - 8);
+    return `<circle cx="${n(C + Math.cos(angle) * r)}" cy="${n(C + Math.sin(angle) * r)}" r="${n(rng.range(1.2, 2.6))}" fill="black"/>`;
+  }).join('');
+  const ink = svg(
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1640"/><stop offset="1" stop-color="#3a2a6e"/></linearGradient></defs>` +
+      `<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/><circle cx="${C - 96}" cy="${C - 104}" r="20" fill="#ffc86a"/>` +
+      `<g fill="#0e0b24">${discFront.towers}</g>`,
+  );
+  // Ink over the label (the towers darker in it), with the windows and the stars as foil.
+  const mask = svg(
+    `<defs><clipPath id="label"><circle cx="${C}" cy="${C}" r="${n(LABEL_OUTER + 3)}"/></clipPath></defs>` +
+      `${labelArea('white')}<g clip-path="url(#label)">${discFront.windows}</g>${discStars}`,
+  );
   return { cover, ink, mask };
 };
 
@@ -165,17 +194,24 @@ const lowTide: Painter = (rng) => {
     const y = 232 + i * 13 + rng.range(-3, 3);
     return `<path d="${tideLine(rng, y, 4 + i * 0.45)}" fill="none" stroke="#e7f4ef" stroke-opacity="${n(0.12 + (i / 22) * 0.4)}" stroke-width="${n(1 + i * 0.09)}"/>`;
   }).join('');
+  const beam = `<path d="M 404 214 L ${SIZE + 40} 150 L ${SIZE + 40} 236 Z" fill="#fff6d8" opacity="0.32"/>`;
   const cover = svg(
     `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9d2c4"/><stop offset="0.42" stop-color="#b8c4bf"/><stop offset="0.45" stop-color="#5f8583"/><stop offset="1" stop-color="#1f3d43"/></linearGradient></defs>` +
-      `<rect width="${SIZE}" height="${SIZE}" fill="url(#sky)"/><circle cx="356" cy="168" r="34" fill="#f4efe4" opacity="0.85"/>${lines}`,
+      `<rect width="${SIZE}" height="${SIZE}" fill="url(#sky)"/><circle cx="356" cy="168" r="34" fill="#f4efe4" opacity="0.85"/>${beam}` +
+      `<path d="M 396 232 L 400 198 L 408 198 L 412 232 Z" fill="#2b4a4e"/>${lines}`,
   );
-  const bands = Array.from({ length: 6 }, (_, i) =>
-    ring(LABEL_INNER + 14 + i * 22 + rng.range(-3, 3), rng.range(3, 7), 'stroke="black"'),
-  ).join('');
+  // On the disc the tide runs straight across the label (no rings: a CD's print, not a record's grooves), cut into
+  // the ink as bare foil, under a lighthouse's beam of foil.
+  const tide = Array.from({ length: 9 }, (_, i) => {
+    const y = C - 20 + i * 18 + rng.range(-3, 3);
+    return `<path d="${tideLine(rng, y, 3 + i * 0.5)}" fill="none" stroke="black" stroke-width="${n(1.6 + i * 0.35)}"/>`;
+  }).join('');
+  const discBeam = `<path d="M ${C + 34} ${C - 66} L ${C + LABEL_OUTER + 20} ${C - 132} L ${C + LABEL_OUTER + 20} ${C - 72} Z" fill="black"/>`;
   const ink = svg(
-    `<defs><radialGradient id="g" cx="0.5" cy="0.5" r="0.5"><stop offset="0.38" stop-color="#2e5658"/><stop offset="1" stop-color="#173034"/></radialGradient></defs><rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>`,
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fb2ad"/><stop offset="0.47" stop-color="#5f8583"/><stop offset="0.5" stop-color="#2e5658"/><stop offset="1" stop-color="#173034"/></linearGradient></defs>` +
+      `<rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/><circle cx="${C - 70}" cy="${C - 80}" r="18" fill="#f4efe4"/>`,
   );
-  const mask = svg(`${labelArea('white')}${bands}`);
+  const mask = svg(`${labelArea('white')}${tide}${discBeam}`);
   return { cover, ink, mask };
 };
 

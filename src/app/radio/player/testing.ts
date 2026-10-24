@@ -193,6 +193,7 @@ export class RecordingDeck implements RadioDeck {
     keys: { 'play-pause': NO_RECT, stop: NO_RECT, previous: NO_RECT, next: NO_RECT },
   };
   live = false;
+  discsOut = false;
   readonly states: DeckState[] = [];
   readonly presses: RadioKey[] = [];
   /** Every call in order, for checks that one thing happened before another. */
@@ -255,6 +256,9 @@ export class RecordingDeck implements RadioDeck {
     return () => undefined;
   }
   onLiveChange(): () => void {
+    return () => undefined;
+  }
+  onDiscsOutChange(): () => void {
     return () => undefined;
   }
   onLayoutChange(): () => void {

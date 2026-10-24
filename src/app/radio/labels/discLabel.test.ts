@@ -94,8 +94,9 @@ describe('paintDiscLabel', () => {
 });
 
 describe('rimText', () => {
-  it('names the album and the artist, and says when it is a placeholder', () => {
-    expect(rimText(ALBUM)).toBe('NIGHT SHIFT · STUDIO ATTIC · PLACEHOLDER');
+  it('names the album and the artist', () => {
+    // A placeholder is tagged in its caption; its print carries only its title and artist, as a real CD's would.
+    expect(rimText(ALBUM)).toBe('NIGHT SHIFT · STUDIO ATTIC');
     expect(rimText({ ...ALBUM, placeholder: false })).toBe('NIGHT SHIFT · STUDIO ATTIC');
   });
 });

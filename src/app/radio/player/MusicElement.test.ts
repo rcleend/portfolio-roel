@@ -194,6 +194,17 @@ describe('MusicElement', () => {
     expect(audio.muted).toBe(false);
   });
 
+  it('plays again on opening when something paused it while it went in silently', () => {
+    const { music, audio, events } = setup();
+    music.startSilently('/a/01.m4a');
+    // The OS pauses it (a phone call) while the disc is still flying in.
+    audio.pause();
+    expect(events).toEqual(['interrupted']);
+    music.open(1, 0);
+    expect(audio.paused).toBe(false);
+    expect(audio.log.filter((entry) => entry.startsWith('play'))).toEqual(['play /a/01.m4a', 'play /a/01.m4a']);
+  });
+
   it('tells an outside pause from its own and from the end of a track', () => {
     const { music, audio, events } = setup();
     music.play('/a/01.m4a', 0, 1, 0);

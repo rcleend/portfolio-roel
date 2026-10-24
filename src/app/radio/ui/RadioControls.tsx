@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -17,6 +18,7 @@ import type { DiscAnchor, RadioDeck, RadioKey, RadioLayout, ScreenRect } from '.
 import { liveText } from '../player/announce';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
 import {
+  type HintInput,
   learn,
   loadRadioHints,
   RADIO_HINT_DELAY_MS,
@@ -56,8 +58,10 @@ const KEYS: readonly { readonly key: RadioKey; readonly label: (playing: boolean
  */
 export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, onFocusStage }: RadioControlsProps) {
   const root = useRef<HTMLElement>(null);
+  const howTo = useId();
   const cds = useRef<(HTMLButtonElement | null)[]>([]);
   const live = useLive(deck);
+  const shelfUp = useDiscsOut(deck);
   const layout = useLayout(deck);
   const attended = useAttention(deck);
   const coarse = useMediaQuery(COARSE_POINTER);
@@ -66,6 +70,9 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
   // The camera's landing focuses a CD from a script: a keyboard user sees it ringed and brought forward, a mouse
   // or touch user does not (Chrome would ring it for them too, see useKeyboardModality).
   const keyboard = useKeyboardModality();
+  const hint = useRadioHint(live, live && shelfUp, coarse, keyboard, snapshot.disc !== null);
+  // On a phone held upright the bar carries the line (the radio's front fills the bottom of the frame).
+  const hintInBar = coarse && !rail;
   const loadedIndex = albums.findIndex((album) => album.id === snapshot.disc);
   const [activeCd, setActiveCd] = useState(Math.max(0, loadedIndex));
   const [activeKey, setActiveKey] = useState(1);
@@ -113,9 +120,14 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
       data-keyboard={keyboard}
       onKeyDown={onKeyDown}
     >
+      {/* Focus lands on a CD, past the stage's label: the toolbar says how to play one and how to leave. */}
+      <p id={howTo} className="radio__hidden">
+        Enter plays a CD; Escape returns to the room.
+      </p>
       <div
         role="toolbar"
         aria-label="CDs"
+        aria-describedby={howTo}
         onKeyDown={(event) => {
           const next = nextRovingIndex(event.key, activeCd, albums.length);
           if (next === null) return;
@@ -151,7 +163,13 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         })}
       </div>
       {coarse ? (
-        <TransportBar deck={deck} player={player} snapshot={snapshot} onLeave={onLeave} />
+        <TransportBar
+          deck={deck}
+          player={player}
+          snapshot={snapshot}
+          onLeave={onLeave}
+          hint={hintInBar && hint.visible ? hint.text : null}
+        />
       ) : (
         <div
           role="toolbar"
@@ -185,7 +203,16 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         anchor={anchorOf(layout, attended)}
         muted={muted}
       />
-      <Hint live={live} coarse={coarse} picked={snapshot.disc !== null} />
+      {hintInBar ? null : (
+        <p className="radio__hint radio__plate" aria-hidden="true" data-visible={hint.visible}>
+          {hint.text ? (
+            <>
+              <span className="radio__marker">▸</span>
+              {hint.text}
+            </>
+          ) : null}
+        </p>
+      )}
       <p className="radio__announcer" role="status">
         {words}
       </p>
@@ -228,12 +255,15 @@ function Caption({ album, anchor, muted }: { album: Album | null; anchor: DiscAn
   );
 }
 
-/** The radio's teaching line (radioHints.ts), shown a beat after landing. */
-function Hint({ live, coarse, picked }: { live: boolean; coarse: boolean; picked: boolean }) {
+/**
+ * The radio's teaching line (radioHints.ts): shown a beat after the discs are up (never before: it names them), in
+ * the words of the input in use. `text` stays while the line fades out.
+ */
+function useRadioHint(live: boolean, shelfUp: boolean, coarse: boolean, keyboard: boolean, picked: boolean) {
   const [storage] = useState(browserStorage);
   const [progress, setProgress] = useState(() => loadRadioHints(storage));
   const [shown, setShown] = useState<RadioHintKind | null>(null);
-  const [lastKind, setLastKind] = useState<RadioHintKind | null>(null);
+  const [last, setLast] = useState<{ kind: RadioHintKind; input: HintInput } | null>(null);
   const wasLive = useRef(live);
 
   const record = useCallback(
@@ -253,27 +283,25 @@ function Hint({ live, coarse, picked }: { live: boolean; coarse: boolean; picked
     wasLive.current = live;
   }, [live, record]);
 
-  const wanted = live ? radioHintFor(progress, coarse) : null;
+  const input: HintInput = keyboard ? 'keyboard' : coarse ? 'touch' : 'mouse';
+  const wanted = shelfUp ? radioHintFor(progress, coarse) : null;
   useEffect(() => {
     setShown(null);
     if (!wanted) return;
-    const timer = window.setTimeout(() => {
-      setShown(wanted);
-      setLastKind(wanted);
-    }, RADIO_HINT_DELAY_MS);
+    const timer = window.setTimeout(() => setShown(wanted), RADIO_HINT_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [wanted]);
+  useEffect(() => {
+    if (shown) setLast({ kind: shown, input });
+  }, [shown, input]);
 
-  return (
-    <p className="radio__hint radio__plate" aria-hidden="true" data-visible={shown !== null}>
-      {lastKind ? (
-        <>
-          <span className="radio__marker">▸</span>
-          {radioHintText(lastKind, coarse)}
-        </>
-      ) : null}
-    </p>
-  );
+  return { visible: shown !== null, text: last ? radioHintText(last.kind, last.input) : null };
+}
+
+/** True while every disc not in the player hangs in its slot at the radio. */
+function useDiscsOut(deck: RadioDeck): boolean {
+  const subscribe = useCallback((listener: () => void) => deck.onDiscsOutChange(listener), [deck]);
+  return useSyncExternalStore(subscribe, () => deck.discsOut);
 }
 
 /** True while the camera rests at the radio. */

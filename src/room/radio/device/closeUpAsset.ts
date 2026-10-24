@@ -2,14 +2,11 @@ import {
   type Box3,
   type BufferGeometry,
   Group,
-  LinearFilter,
-  LinearMipmapLinearFilter,
   type Matrix4,
   Mesh,
   type MeshBasicMaterial,
   type Object3D,
-  SRGBColorSpace,
-  Texture,
+  type Texture,
   Vector3,
 } from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
@@ -277,25 +274,4 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
       atlas?.dispose();
     },
   };
-}
-
-/** Downloads and decodes the 2K skin off the main thread (`createImageBitmap`), oriented as glTF textures are. */
-export async function loadSkin(url: string, signal?: AbortSignal): Promise<ImageBitmap> {
-  const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  const blob = await response.blob();
-  return createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-}
-
-/** The skin as a texture with the glTF texture's settings (no flip, sRGB, mipmaps). */
-export function skinTexture(bitmap: ImageBitmap, anisotropy: number): Texture {
-  const texture = new Texture(bitmap);
-  texture.flipY = false;
-  texture.colorSpace = SRGBColorSpace;
-  texture.generateMipmaps = true;
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.magFilter = LinearFilter;
-  texture.anisotropy = anisotropy;
-  texture.needsUpdate = true;
-  return texture;
 }

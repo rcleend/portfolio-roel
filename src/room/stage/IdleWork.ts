@@ -65,8 +65,29 @@ const browserScheduler: IdleScheduler = {
   },
 };
 
+export interface IdleTaskOptions {
+  /**
+   * While this says so the task may also run while something moves, as it may while something plays (only units
+   * that fit the idle period), and its units kept for a quiet moment are not kept: work a flight or a visit is
+   * waiting for, such as the radio's device, its prints and its skin on the way to the radio and there, small
+   * uploads that then go between the frames of the flight or of the discs' float rather than after them.
+   */
+  readonly urgent?: () => boolean;
+  /**
+   * While it is urgent and something plays (never while something moves), a unit that has waited this long (ms) for
+   * an idle period that can hold it runs in the next one with a little time left, one such unit per idle period: work
+   * the visitor is waiting on (the radio's prints, at the radio) is worth one late frame of an ambient animation, and
+   * judged by the longest unit run so far it could otherwise wait for the animation to rest.
+   */
+  readonly patienceMs?: number;
+}
+
 interface Queued {
   readonly task: IdleTask;
+  readonly urgent: (() => boolean) | undefined;
+  readonly patienceMs: number | undefined;
+  /** Since when its next unit has waited (queued, or its last unit ran). */
+  since: number;
   /** The task's next unit waits for a quiet moment. */
   quiet: boolean;
   /** How long the task's last CPU unit took, in ms; null before its first. */
@@ -101,9 +122,16 @@ export class IdleWork {
   }
 
   /** Queues `task`; the returned function drops it, finished or not. */
-  add(task: IdleTask): () => void {
+  add(task: IdleTask, options: IdleTaskOptions = {}): () => void {
     if (this.disposed) return () => {};
-    const queued: Queued = { task, quiet: false, lastUnit: null };
+    const queued: Queued = {
+      task,
+      urgent: options.urgent,
+      patienceMs: options.patienceMs,
+      since: performance.now(),
+      quiet: false,
+      lastUnit: null,
+    };
     this.queue.push(queued);
     this.schedule();
     return () => this.remove(queued);
@@ -140,20 +168,30 @@ export class IdleWork {
   private readonly run = (budget: IdleBudget): void => {
     this.handle = null;
     let ran = false;
+    let ranPatient = false;
     // Nothing for this moment, as opposed to nothing that fits this idle period: look again later.
     let later = false;
     try {
       for (;;) {
         const moment = this.moment();
-        const playing = moment === 'playing';
-        const next = moment === 'moving' ? undefined : this.queue.find((queued) => !playing || !queued.quiet);
+        // In motion only urgent work runs, and only as it may while something plays.
+        const moving = moment === 'moving';
+        const playing = moment !== 'quiet';
+        // While something plays or moves, a unit kept for a quiet moment waits, unless its task is urgent.
+        const next = this.queue.find((queued) => {
+          const urgent = queued.urgent?.() === true;
+          return (!playing || !queued.quiet || urgent) && (!moving || urgent);
+        });
         if (!next) {
           later = this.queue.length > 0;
           break;
         }
         const left = budget.timeRemaining();
-        if (playing ? left < (next.lastUnit ?? this.longestUnit) : ran && left <= 0) break;
-        this.step(next);
+        if (playing ? left < (next.lastUnit ?? this.longestUnit) : ran && left <= 0) {
+          if (moving || ranPatient || !this.outOfPatience(next) || left < FIRST_UNIT_ESTIMATE_MS) break;
+          ranPatient = true;
+        }
+        this.step(next, playing);
         ran = true;
       }
     } finally {
@@ -161,10 +199,15 @@ export class IdleWork {
     }
   };
 
+  private outOfPatience(queued: Queued): boolean {
+    const { patienceMs } = queued;
+    return patienceMs !== undefined && queued.urgent?.() === true && performance.now() - queued.since >= patienceMs;
+  }
+
   /** Runs `queued`'s next unit and times it. */
-  private step(queued: Queued): void {
+  private step(queued: Queued, playing: boolean): void {
     // Only units that may run while something plays need timing: their cost is what must fit.
-    const timed = !queued.quiet;
+    const timed = !queued.quiet || playing;
     const start = performance.now();
     let done = true;
     try {
@@ -178,6 +221,7 @@ export class IdleWork {
         queued.lastUnit = performance.now() - start;
         this.longestUnit = Math.max(this.longestUnit, queued.lastUnit);
       }
+      queued.since = performance.now();
     }
   }
 

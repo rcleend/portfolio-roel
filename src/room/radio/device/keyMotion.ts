@@ -5,23 +5,28 @@ import { springAt } from './springs';
 /**
  * The transport keys as pure functions of time (docs/ROOM.md › The CD player): ▷II and ■ are one rocker that
  * tilts about its pivot, ⏮ and ⏭ push straight in. A press goes down quickly, holds while the pointer does (at least
- * 60 ms), and springs back with a little overshoot; the pressed face darkens as it sinks into its recess, because
+ * 140 ms), and springs back with a little overshoot; the pressed face darkens as it sinks into its recess, because
  * the bake cannot shade a key that moves.
  */
 
 export const KEYS = {
-  rockerDegrees: 4,
+  rockerDegrees: 6,
   rockerInMs: 50,
-  sideTravel: 0.0015,
+  sideTravel: 0.0025,
   sideInMs: 35,
-  sideOutMs: 100,
-  minHoldMs: 60,
+  sideOutMs: 110,
+  /** A press holds this long however short the tap: long enough to be seen (50 ms went unnoticed). */
+  minHoldMs: 140,
   releaseZeta: 0.45,
   releaseHz: 9,
-  /** Colour factors at full travel: the pressed half, the rocker's other half, a side key. */
-  pressedShade: 0.82,
-  otherShade: 1.05,
-  sideShade: 0.85,
+  /**
+   * Colour factors at full travel: the pressed half, the rocker's other half, a side key. From the front a press is
+   * hardly seen moving (the travel runs along the view), so the light does the telling: a key going into its
+   * recess loses most of the light on it, and the rocker's other half tips out into more.
+   */
+  pressedShade: 0.55,
+  otherShade: 1.18,
+  sideShade: 0.55,
 } as const;
 
 /** One press of one key: when it went down and, once known, when it was let go. */
@@ -33,6 +38,8 @@ export interface KeyPress {
   readonly instant?: boolean;
   /** Shortest hold before it comes back up (ms); a pointer's press holds at least KEYS.minHoldMs. */
   readonly minHold?: number;
+  /** How long it takes to go all the way down (ms); a finger's press is quicker than the radio's own. */
+  readonly inMs?: number;
 }
 
 const outQuad = (u: number): number => 1 - (1 - u) * (1 - u);
@@ -47,7 +54,7 @@ export function releaseStart(press: KeyPress): number | null {
 export function keyTravel(press: KeyPress, t: number): number {
   if (press.instant) return t >= press.down && (press.up === null || t < press.up) ? 1 : 0;
   const side = press.key === 'previous' || press.key === 'next';
-  const inMs = side ? KEYS.sideInMs : KEYS.rockerInMs;
+  const inMs = press.inMs ?? (side ? KEYS.sideInMs : KEYS.rockerInMs);
   const going = (from: number) => (from - press.down) / inMs;
   const release = releaseStart(press);
   if (t < press.down) return 0;

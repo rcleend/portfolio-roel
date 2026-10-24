@@ -244,7 +244,8 @@ test('keys on an empty player ask for a CD, and the hint teaches the pick', asyn
   await page.waitForTimeout(1100);
   await page.keyboard.press('Enter');
   await expect(announced(page)).toHaveText('Choose a CD first. ');
-  await expect(page.locator('.radio__hint')).toHaveText('▸Click a CD to play it');
+  // Reached by the keyboard, the hint speaks the keyboard's words.
+  await expect(page.locator('.radio__hint')).toHaveText('▸Press Enter to play a CD');
   await expect(page.locator('.radio__hint')).toHaveAttribute('data-visible', 'true');
 });
 
@@ -335,15 +336,22 @@ test.describe('on a phone', () => {
     const insets = await page.evaluate(() => window.__radioLab?.events.findLast((e) => e.type === 'insets')?.detail);
     expect(insets).toEqual({ top: 0, left: 0, right: 0, bottom: 64 });
 
+    // On a phone the hint lives in the bar, where the now-playing line will be, once the discs are up.
+    await expect(bar.locator('.radio-bar__now')).toHaveText('▸Tap a CD to play it');
+    await expect(page.locator('.radio__hint')).toHaveCount(0);
+
     await disc(page, 'insert-coin').tap();
     await waitAudible(page);
-    await expect(bar).toContainText('Attract Mode · Insert Coin');
+    // Two lines: the track, then its album.
+    await expect(bar.locator('.radio-bar__track')).toHaveText('Attract Mode');
+    await expect(bar.locator('.radio-bar__album')).toHaveText('Insert Coin');
     await bar.getByRole('button', { name: 'Pause' }).tap();
     await expect.poll(async () => (await sound(page))?.paused).toBe(true);
     expect(
       await page.evaluate(() => window.__radioLab?.events.filter((e) => e.type === 'press').map((e) => e.detail)),
     ).toEqual(['play-pause']);
-    await expect(page.locator('.radio__hint')).not.toHaveText(/outside/);
+    // A phone leaves by the bar's back key: no leave hint, in the bar or anywhere else.
+    await expect(page.getByText(/outside the radio/)).toHaveCount(0);
     await bar.getByRole('button', { name: 'Look around the room' }).tap();
     await expect.poll(() => page.evaluate(() => window.__radioLab?.deck.live)).toBe(false);
   });
@@ -375,14 +383,18 @@ test('loads nothing before the visitor has looked around the room for a while, t
     if (request.url().includes('RadioExperience') || request.resourceType() === 'media') modules.push(request.url());
   });
   await page.goto('/radio-lab.html?clean');
-  // The lab opens settled in the room view: the room's half first, 1.5 s on; the player 3 s on.
-  await page.waitForTimeout(1300);
-  expect(await page.evaluate(() => window.__radioLab?.events.some((event) => event.type === 'prefetch'))).toBe(false);
-  await page.waitForTimeout(1300);
+  // The lab opens settled in the room view: the room's half first, 0.4 s on; the player 3 s on.
+  await page.waitForTimeout(2600);
   expect(modules).toEqual([]);
   const prefetch = await page.evaluate(() => window.__radioLab?.events.find((event) => event.type === 'prefetch'));
   expect(prefetch?.detail).toBe('idle');
-  expect(prefetch?.at).toBeGreaterThan(1500);
+  // The lab mounts once its scripts have run: never before the document was interactive, always before it loaded.
+  const timing = await page.evaluate(() => {
+    const [entry] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+    return { interactive: entry?.domInteractive ?? 0, loaded: entry?.loadEventEnd ?? 0 };
+  });
+  expect((prefetch?.at ?? 0) - timing.interactive).toBeGreaterThanOrEqual(400);
+  expect((prefetch?.at ?? 0) - timing.loaded).toBeLessThan(1000);
   await expect.poll(() => page.evaluate(() => window.__radioLab?.loaded() ?? false), { timeout: 6000 }).toBe(true);
   expect(modules.some((url) => url.includes('RadioExperience'))).toBe(true);
   expect(modules.filter((url) => !url.includes('RadioExperience'))).toEqual([]);

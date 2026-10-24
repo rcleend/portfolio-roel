@@ -141,14 +141,3 @@ export function radioLayout(
   ) as Record<RadioKey, ScreenRect>;
   return { discs: anchors, keys };
 }
-
-/** The largest disc diameter on the page at the radio pose (CSS px): what labels must be sharp at. */
-export function largestDiscDiameter(slots: readonly DiscSlot[], pose: Viewpoint, viewport: PageViewport): number {
-  let largest = 0;
-  for (const slot of slots) {
-    const centre = attentionCentre(slot, pose.position);
-    const ring = ringPoints(centre, facingOrientation(centre, pose.position), DISC_RADIUS);
-    largest = Math.max(largest, 2 * anchorOf(ring, centre, pose, viewport).radius);
-  }
-  return largest;
-}

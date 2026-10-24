@@ -26,11 +26,11 @@ type Experience = ComponentType<RadioExperienceProps>;
 
 /**
  * Settled in the room view this long, the visitor is looking around rather than passing through. The computer's
- * screen loads first, as the camera lands. Then the room's half of the radio (its device, the close-up and the
- * sharper skin, prepared in the room's own idle units), so a visitor who heads for the radio soon still sees the lid
- * open on time.
+ * screen loads first, as the camera lands. Then, almost at once, the room's half of the radio (its device and the
+ * close-up, prepared in the room's own idle units, never in a flight but on the way to the radio), so a visitor who
+ * heads for the radio straight away still sees the radio wake, the lid open on time and the discs rise.
  */
-export const DEVICE_PREFETCH_AFTER_SETTLED_MS = 1500;
+export const DEVICE_PREFETCH_AFTER_SETTLED_MS = 400;
 
 /**
  * Then the player, whose chunk and prints are the bigger main-thread job: by now a visitor heading for the computer

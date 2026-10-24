@@ -131,7 +131,8 @@
   color: #ffc83d;
 }
 
-.radio__announcer {
+.radio__announcer,
+.radio__hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -226,16 +227,42 @@
 }
 
 .radio-bar__now {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-width: 0;
   margin: 0 0 0 8px;
-  overflow: hidden;
   color: #d9d0ff;
   font:
-    13px / 1.2 system-ui,
+    13px / 1.25 system-ui,
     sans-serif;
+}
+
+/* Two lines, each cut short on its own: the track, then (smaller, dimmer) the album. */
+.radio-bar__track,
+.radio-bar__album {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.radio-bar__album {
+  color: #a99fdc;
+  font-size: 11px;
+}
+
+/* The teaching line before anything plays, in the hint plate's face: on two lines if it must (a phone leaves the
+   bar's keys about 100 px of it), never cut short. */
+.radio-bar__now[data-hint="true"] {
+  display: block;
+  font:
+    400 10px / 1.4 Silkscreen,
+    ui-monospace,
+    monospace;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: normal;
+  -webkit-font-smoothing: none;
 }
 
 @media (hover: hover) {

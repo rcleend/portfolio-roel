@@ -166,6 +166,9 @@ export class MusicElement {
       element.volume = 0;
       this.#fade(volume, ms);
     }
+    // Paused while it went in silently (the OS's call, a headset): the element was allowed to play in the pick's
+    // gesture, so it may play again now rather than show playing in silence.
+    if (element.paused) this.#play();
   }
 
   /** Plays `url` from `at` seconds, sound first, fading in to `volume` over `ms` (0: at once). */

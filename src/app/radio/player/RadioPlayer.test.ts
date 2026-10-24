@@ -75,6 +75,7 @@ function setup(
   const foley = new RecordingFoley();
   const { session, handlers } = fakeSession();
   const create = vi.fn(() => audio);
+  const idle: (() => void)[] = [];
   const player = new RadioPlayer({
     deck,
     albums: ALBUMS,
@@ -86,6 +87,10 @@ function setup(
     muted: options.muted ?? false,
     timers,
     now: () => timers.time,
+    whenIdle: (task) => {
+      idle.push(task);
+      return () => idle.splice(idle.indexOf(task), 1);
+    },
   });
   const words: string[] = [];
   player.onAnnounce((text) => words.push(text));
@@ -95,7 +100,11 @@ function setup(
     frames.tick(ms);
     timers.advance(ms);
   };
-  return { deck, audio, frames, timers, foley, session, handlers, create, player, words, disconnect, wait };
+  /** The main thread goes idle: what waited for it runs. */
+  const goIdle = (): void => {
+    for (const task of idle.splice(0)) task();
+  };
+  return { deck, audio, frames, timers, foley, session, handlers, create, player, words, disconnect, wait, goIdle };
 }
 
 /** Picks a disc on the model, seats it and lets it fade in. */
@@ -337,8 +346,12 @@ describe('the camera', () => {
     expect(world.deck.state?.lcd).toEqual({ kind: 'no-disc' });
   });
 
-  it('wakes the foley at the radio and lets it sleep two seconds after leaving', () => {
+  it('makes the foley in an idle moment of its own, wakes it at the radio and lets it sleep after leaving', () => {
     const world = setup({ view: 'room' });
+    // Not in the player's own start: the AudioContext is its dearest part.
+    expect(world.foley.log).toEqual([]);
+    world.goIdle();
+    expect(world.foley.log).toEqual(['prepare']);
     world.player.setView('radio');
     world.player.setView('room');
     expect(world.foley.log).toEqual(['prepare', 'wake', 'sleep 2000']);

@@ -211,8 +211,10 @@ test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back 
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect(cds.getByRole('button', { name: /^Low Tide by Harbour Lights/ })).toBeFocused();
+  // Chosen the moment the camera lands, before it is out of the radio: it comes up and over to its column first (no
+  // disc passes through another), then flies in. Heard within 1.5 s, against 1 s for a disc already out.
   const elapsed = await timePickToSound(page, () => page.keyboard.press('Enter'));
-  expect(elapsed).toBeLessThanOrEqual(1000);
+  expect(elapsed).toBeLessThanOrEqual(1500);
   expect((await sound(page))?.src).toMatch(/low-tide\/01-slow-water/);
   await expect(cds.getByRole('button', { name: /^Low Tide by Harbour Lights/ })).toHaveAttribute(
     'aria-current',
@@ -309,10 +311,12 @@ test.describe('performance', () => {
     expect(lazy).toEqual([]);
     await page.mouse.click(WALL.x, WALL.y);
     await settled(page);
-    expect(lazy).toEqual([]);
-    // Looking around for a while: the radio's halves arrive at idle, but no music before a pick.
+    // Looking around: the room's half almost at once (0.4 s after the camera rests: the device, the close-up and the
+    // skin's bytes), the player (the bigger job) 3 s on; no music before a pick.
+    expect(lazy.some((url) => /RadioExperience/.test(url))).toBe(false);
+    await expect.poll(() => lazy.some((url) => /radio-closeup/.test(url)), { timeout: 3000 }).toBe(true);
+    expect(lazy.some((url) => /RadioExperience/.test(url))).toBe(false);
     await expect.poll(() => lazy.some((url) => /RadioExperience/.test(url)), { timeout: 8000 }).toBe(true);
-    expect(lazy.some((url) => /radio-closeup/.test(url))).toBe(true);
     expect(media).toEqual([]);
   });
 
@@ -331,11 +335,14 @@ test.describe('performance', () => {
 
     await goToRadio(page);
     expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
-    // Resting with nothing in the player (past the float's rest 7.2 s after the last input, and the sharper skin's
-    // one frame as it swaps in then): no frame at all.
+    // Resting with nothing in the player (past the float's rest 7.2 s after the last input): no frame at all, but for
+    // the sharper skin's one as it swaps in, should a busy machine bring it this late.
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(9000);
-    expect(await framesOver(page, 2000)).toBe(0);
+    const pixels = (await stats(page))?.radioTexturePixels ?? 0;
+    const resting = await framesOver(page, 2000);
+    const skinLanded = ((await stats(page))?.radioTexturePixels ?? 0) !== pixels;
+    expect(resting).toBe(skinLanded ? 1 : 0);
     // Playing, resting: the seated disc is its radial average; only the LCD's clock draws.
     const lowTide = await disc(page, 'low-tide');
     await page.mouse.click(lowTide.x, lowTide.y);

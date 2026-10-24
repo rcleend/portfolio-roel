@@ -176,6 +176,35 @@ describe('RadioDeckHandle', () => {
     expect(seated).toHaveBeenCalledTimes(1);
   });
 
+  it('seats a disc once per insert, even when a device that wakes up later seats it again', async () => {
+    let events = null as RadioDeviceEvents | null;
+    let resolve: (device: RadioDevice) => void = () => {};
+    const { deck } = handle(async (_host, link) => {
+      events = link.events;
+      return new Promise<RadioDevice>((done) => {
+        resolve = done;
+      });
+    });
+    const seated = vi.fn();
+    deck.onSeated(seated);
+    deck.attach(host());
+    deck.prefetch('idle');
+    deck.setState(PLAYING);
+    await Promise.resolve();
+    expect(seated).toHaveBeenCalledTimes(1);
+    resolve(fakeDevice());
+    await vi.waitFor(() => expect(events).not.toBeNull());
+    // The device, handed the state, seats its disc at once: the app has already been told.
+    events?.seated('disc-2');
+    expect(seated).toHaveBeenCalledTimes(1);
+    // Another disc, then this one again: each is a new insert.
+    deck.setState({ ...PLAYING, loaded: 'disc-3' });
+    events?.seated('disc-3');
+    deck.setState(PLAYING);
+    events?.seated('disc-2');
+    expect(seated.mock.calls).toEqual([['disc-2'], ['disc-3'], ['disc-2']]);
+  });
+
   it('becomes scenery when the device fails: warned once, unavailable, back to the room', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const loader = vi.fn(() => Promise.reject(new Error('404 radio-closeup.glb')));

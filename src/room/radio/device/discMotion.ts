@@ -1,15 +1,26 @@
 import { MathUtils, Quaternion, Vector3 } from 'three';
-import { clamp01, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic } from '../../motion/easing';
+import { clamp01, easeInCubic, easeInOutCubic, easeOutCubic } from '../../motion/easing';
 import { DISC_RADIUS, type DiscSlot } from '../discLayout';
 import { slotOrientation } from '../radioFraming';
 import { ATTENTION, DECK, seatOrientation } from './deckLayout';
 import { springAt } from './springs';
 
 /**
- * The paths a CD takes (docs/ROOM.md › The CD player), as pure functions of time: the rise out of the magazine
- * slot like toast, the glide and flip to its slot, the settle; the pick, flight, drop and bounce onto the spindle;
- * the unseat and flight home; the return and sink when the visitor leaves; and the idle float in between. Each
- * segment starts from a live pose, so a retarget never jumps.
+ * The paths a CD takes (docs/ROOM.md › The CD player), as pure functions of time, each starting from a live pose so
+ * a retarget never jumps. Every path is drawn so that no disc passes through another (choreography.ts schedules them
+ * so; discContact.ts and the storyboard sweep check it):
+ *
+ * - up out of the magazine slot like toast, in the slot's own plane until it is clear of the lips, then forward into
+ *   a lane of its own so the next disc comes up behind it; across to its slot within that lane, upright like every
+ *   disc in the other lanes (parallel discs in different lanes cannot touch); and forward into its slot, turning over
+ *   to show its label there, where no other disc ever passes;
+ * - into the player: out of the shelf towards the camera, down in front of the radio while it lies flat, a slide
+ *   back over the seat and the drop;
+ * - out of the player: it lifts off the spindle and stands up, label to the camera, and goes home behind the shelf,
+ *   so it never meets the disc coming in in front;
+ * - back home from mid-flight in front of the shelf; and when the visitor leaves, the arrival backwards: out of the
+ *   slot into a lane, turning back to the data side; across to the slot it rises through; and down it, one disc after
+ *   another, each once the lanes between it and the slot are empty.
  */
 
 export interface DiscPose {
@@ -27,48 +38,107 @@ export interface PoseSegment {
 
 export const DISC_MOTION = {
   rise: {
-    ms: 220,
+    ms: 200,
     warmMs: 180,
     hiddenBelow: 0.075,
     apexY: 1.205,
-    apexStep: 0.014,
     offsetShare: 0.22,
     maxOffset: 0.045,
+    /**
+     * A rising disc keeps to the slot's plane until its lower edge is this high (clear of the slot's lips and of a
+     * disc lying in the player), then moves into its lane: `lane` in front of the slot for the last disc up, and
+     * `laneStep` further for each disc before it, so every disc comes up behind the one before.
+     */
+    clearY: 1.053,
+    lane: 0.03,
+    laneStep: 0.01,
+    /** Share of the rise it takes to get into its lane, once clear (quick: the next disc is right behind). */
+    laneShare: 0.2,
   },
   /** Rising discs spin about their own axis at this speed (rad/s). */
   riseSpin: 14,
-  glide: { ms: 440, warmMs: 380, lift: 0.07, depthShare: 0.35, flipFrom: 0.15, flipTo: 0.75, scaleFrom: 0.94 },
+  /** Across to its slot within its lane, upright and a little smaller (ms, m). */
+  across: { ms: 320, warmMs: 280, lift: 0.05 },
+  /** Forward into its slot, turning over to show its label and hanging as the slot does. */
+  into: { ms: 240, warmMs: 220 },
+  scaleFrom: 0.94,
   glideSpinTau: 350,
   settle: { overshoot: 0.006, zeta: 0.5, hz: 3.2, ms: 300 },
-  stagger: { min: 30, max: 60, span: 240, warm: 40 },
+  /**
+   * Between successive rising discs: clamp(240 / (N − 1), 55, 60) ms. No shorter: a disc must be in its lane before
+   * the next one's top reaches its lower edge, and the next one rises faster than it (its ease is further back).
+   */
+  stagger: { min: 55, max: 60, span: 240, warm: 55 },
   pick: {
     anticipationMs: 90,
     dip: 0.006,
     forward: 0.01,
     scale: 1.08,
-    flightMs: 560,
+    /** Out of the shelf towards the camera (and a little up), then down to the point in front of the radio. */
+    flightMs: 400,
+    outward: 0.1,
+    lift: 0.02,
+    /** Shares of the flight: upright until the first, flat from the second (low, in front of the radio). */
+    flatFrom: 0.4,
+    flatBy: 0.9,
+    /** Share of the way out before it starts across. */
+    acrossFrom: 0.2,
+    /** The point it comes down to, flat: this far in front of the seat, and as high above it as the approach. */
+    frontOfSeat: 0.16,
     approachAbove: 0.093,
-    controlUp: 0.06,
-    controlForward: 0.08,
-    dropMs: 120,
+    /** Back over the seat, flat, under the discs hanging above it. */
+    slideMs: 150,
+    dropMs: 110,
     bounce: 0.0015,
     bounceMs: 50,
     spinTau: 120,
-    /** Contact → ghost press → press bottom (when the sound may start). */
-    ghostPressAfter: 70,
-    pressBottomAfter: 120,
+    /**
+     * After the bounce the radio presses its own ▷II, as a beat of its own: down `pressAfter` ms after contact
+     * (the bounce is over), at the bottom `pressDownMs` later (the sound may start), held `pressHoldMs`.
+     */
+    pressAfter: 60,
+    pressDownMs: 90,
+    pressHoldMs: 150,
   },
   swap: {
-    brakeMs: 300,
-    pop: 0.025,
-    popMs: 120,
-    homeMs: 560,
-    sameSideLift: 0.04,
-    sideOffset: 0.03,
-    clearance: 0.06,
-    earliestDrop: 650,
+    brakeMs: 220,
+    /** The outgoing disc lifts off the spindle and stands up, its label to the camera, in this long, this high. */
+    standMs: 220,
+    standLift: 0.055,
+    /**
+     * Then home behind the shelf: back to a plane this far behind the shelf's deepest disc edge (never deeper than
+     * `deepestExitZ`, clear of the open lid), up and across, the insert's length.
+     */
+    exitZ: -2.088,
+    exitBehind: 0.014,
+    deepestExitZ: -2.132,
+    /** Back into it (and up), across it, into its slot. */
+    exitLift: 0.03,
+    backMs: 140,
+    acrossMs: 300,
+    intoMs: 220,
+    /** The incoming disc slides over the seat once the outgoing one's lower edge is this far above the slide. */
+    clearance: 0.012,
+    /** It sets off so as to wait no longer than this in front of the radio, flat, for the well to clear. */
+    aimMs: 80,
   },
-  leave: { stagger: 45, glideMs: 340, sinkMs: 140, commitMs: 150 },
+  /** A disc called back mid-flight in front of the shelf goes home the way it came, in front. */
+  home: { ms: 520, forward: 0.15, outward: 0.08 },
+  leave: {
+    stagger: 45,
+    /** Out of the slot into its lane (turning back to the data side), then across to the slot it sinks through. */
+    outMs: 200,
+    acrossMs: 260,
+    sinkMs: 130,
+    /** The height and lanes above the slot discs wait in before they sink, the first one back nearest the slot. */
+    hoverY: 1.22,
+    lane: 0.015,
+    laneStep: 0.01,
+    /** A disc may go down the slot this long after the one before (they share its plane). */
+    sinkGap: 50,
+    /** The lid starts to close this long after the last disc starts down the slot. */
+    lidAfterSinkMs: 0,
+  },
   relayoutMs: 400,
   /** At play speed (7.5 rev/s) a disc is drawn as its radial average: the same image every frame. */
   playSpeed: 2 * Math.PI * 7.5,
@@ -78,10 +148,11 @@ export const DISC_MOTION = {
 export const SLIT_X = (DECK.slot.minX + DECK.slot.maxX) / 2;
 
 const UP = new Vector3(0, 1, 0);
+const FRONT = new Vector3(0, 0, 1);
 /** A half turn about the vertical: the data side towards the camera. */
 const DATA_SIDE = new Quaternion().setFromAxisAngle(UP, Math.PI);
 
-const smoothFade = (u: number): number => {
+const smooth = (u: number): number => {
   const v = clamp01(u);
   return v * v * (3 - 2 * v);
 };
@@ -102,25 +173,60 @@ function bezier(a: Vector3, control: Vector3, b: Vector3, u: number, target = ne
   return target.copy(p.lerp(q, u));
 }
 
+/** Cubic Bézier. */
+function cubic(a: Vector3, b: Vector3, c: Vector3, d: Vector3, u: number, target = new Vector3()): Vector3 {
+  const v = 1 - u;
+  return target
+    .copy(a)
+    .multiplyScalar(v * v * v)
+    .addScaledVector(b, 3 * v * v * u)
+    .addScaledVector(c, 3 * v * u * u)
+    .addScaledVector(d, u * u * u);
+}
+
+/** The unit vector from `point` towards the eye: "towards the camera". */
+export function towards(point: Vector3, eye: Vector3): Vector3 {
+  return eye.clone().sub(point).normalize();
+}
+
+/**
+ * Out of the shelf towards the camera without going sideways: where the camera stands to one side (trucked clear of
+ * the lava lamp), straight at it would take a disc across its neighbour.
+ */
+export function outOfShelf(point: Vector3, eye: Vector3): Vector3 {
+  return towards(point, eye).setX(0).normalize();
+}
+
 /** Where a disc waits inside the radio, under the slit, data side out, centre 75 mm below the well floor. */
 export function hiddenPose(): DiscPose {
   const { slot } = DECK;
   return {
     position: new Vector3(SLIT_X, slot.floorY - DISC_MOTION.rise.hiddenBelow, slot.z),
     orientation: DATA_SIDE.clone(),
-    scale: DISC_MOTION.glide.scaleFrom,
+    scale: DISC_MOTION.scaleFrom,
   };
 }
 
-/** The top of a disc's rise: above the radio, a little towards its slot, higher for later discs. */
-export function apexPose(slot: DiscSlot, order: number): DiscPose {
+/** Where above the slot a disc bound for (or from) `slot` hangs in `lane`: a little towards its slot. */
+function aboveSlot(slot: DiscSlot, y: number, lane: number): DiscPose {
   const { rise } = DISC_MOTION;
   const offset = MathUtils.clamp(rise.offsetShare * (slot.position.x - SLIT_X), -rise.maxOffset, rise.maxOffset);
   return {
-    position: new Vector3(SLIT_X + offset, rise.apexY + rise.apexStep * order, DECK.slot.z),
+    position: new Vector3(SLIT_X + offset, y, DECK.slot.z + lane),
     orientation: DATA_SIDE.clone(),
-    scale: DISC_MOTION.glide.scaleFrom,
+    scale: DISC_MOTION.scaleFrom,
   };
+}
+
+/** The top of a disc's rise, in its lane. */
+export function apexPose(slot: DiscSlot, lane: number): DiscPose {
+  return aboveSlot(slot, DISC_MOTION.rise.apexY, lane);
+}
+
+/** The lane rising disc `order` of `count` takes once clear of the slot: the first up is furthest forward. */
+export function riseLane(order: number, count: number): number {
+  const { lane, laneStep } = DISC_MOTION.rise;
+  return lane + laneStep * Math.max(0, count - 1 - order);
 }
 
 /** The pose a disc rests at in its slot. */
@@ -133,17 +239,26 @@ export function seatPose(): DiscPose {
   return { position: DECK.seat.clone(), orientation: seatOrientation(), scale: 1 };
 }
 
-/** Straight up through the slit: height eases out, the drift towards the slot comes late, once it is clear. */
+/**
+ * Straight up through the slit, height easing out like toast. It stays in the slit's plane until its lower edge
+ * clears `clearY`, then moves forward into its lane; the drift towards its slot comes late, once it is clear.
+ */
 export function rise(from: DiscPose, apex: DiscPose, start: number, duration: number): PoseSegment {
+  const halfHeight = DISC_RADIUS * from.scale;
+  const climb = apex.position.y - from.position.y;
+  const share = climb > 0 ? clamp01((DISC_MOTION.rise.clearY + halfHeight - from.position.y) / climb) : 0;
+  // The time share at which easeOutCubic reaches `share` of the climb.
+  const clear = 1 - Math.cbrt(1 - share);
   return {
     start,
     end: start + duration,
     at(t) {
       const u = clamp01((t - start) / duration);
+      const forward = clear >= 1 ? 0 : smooth((u - clear) / DISC_MOTION.rise.laneShare);
       const position = new Vector3(
         MathUtils.lerp(from.position.x, apex.position.x, u * u * u),
         MathUtils.lerp(from.position.y, apex.position.y, easeOutCubic(u)),
-        MathUtils.lerp(from.position.z, apex.position.z, u),
+        MathUtils.lerp(from.position.z, apex.position.z, forward),
       );
       return { position, orientation: from.orientation.clone(), scale: from.scale };
     },
@@ -151,37 +266,56 @@ export function rise(from: DiscPose, apex: DiscPose, start: number, duration: nu
 }
 
 /**
- * From the apex to `slot` on a Bézier (control halfway across, 70 mm above the higher end, 35 % of the way in z),
- * flipping half a turn about the vertical between 15 % and 75 % to show the label, ending 6 mm past the slot
- * along the incoming direction (the settle springs it back).
+ * Across within its lane (its depth never changes) to the point behind or before its slot, upright, data side out:
+ * every disc in another lane is parallel to it, so none can touch it.
  */
-export function glide(from: DiscPose, slot: DiscSlot, start: number, duration: number): PoseSegment {
-  const { glide: g, settle } = DISC_MOTION;
+export function across(
+  from: DiscPose,
+  to: { readonly x: number; readonly y: number },
+  start: number,
+  duration: number,
+) {
+  const target = new Vector3(to.x, to.y, from.position.z);
+  const control = from.position
+    .clone()
+    .lerp(target, 0.5)
+    .setY(Math.max(from.position.y, to.y) + DISC_MOTION.across.lift);
+  return {
+    start,
+    end: start + duration,
+    at(t: number): DiscPose {
+      const u = easeInOutCubic(clamp01((t - start) / duration));
+      return {
+        position: bezier(from.position, control, target, u),
+        orientation: from.orientation.clone(),
+        scale: from.scale,
+      };
+    },
+  } satisfies PoseSegment;
+}
+
+/**
+ * From its lane straight into its slot, turning over (a half turn about its own vertical) to show its label and
+ * hanging as the slot does; it ends 6 mm past the slot (the settle springs it back). It turns where no other disc
+ * passes: in front of or behind its own slot, whose neighbours hang a pitch (135 mm, more than two discs) away.
+ */
+export function into(from: DiscPose, slot: DiscSlot, start: number, duration: number, turnOver = true): PoseSegment {
   const goal = slotPose(slot);
-  const control = new Vector3(
-    (from.position.x + goal.position.x) / 2,
-    Math.max(from.position.y, goal.position.y) + g.lift,
-    MathUtils.lerp(from.position.z, goal.position.z, g.depthShare),
-  );
-  const incoming = goal.position.clone().sub(control).normalize();
-  const end = goal.position.clone().addScaledVector(incoming, settle.overshoot);
-  const flipped = from.orientation.clone().multiply(DATA_SIDE);
+  const way = Math.sign(goal.position.z - from.position.z) || 1;
+  const end = goal.position.clone().add(new Vector3(0, 0, way * DISC_MOTION.settle.overshoot));
+  // Label out from the start, the half turn unwound as it goes in (or no turn: a disc coming home label out).
+  const upright = turnOver ? from.orientation.clone().multiply(DATA_SIDE) : from.orientation.clone();
   return {
     start,
     end: start + duration,
     at(t) {
-      const u = clamp01((t - start) / duration);
-      const eased = easeInOutCubic(u);
-      const flip = easeInOutCubic(clamp01((u - g.flipFrom) / (g.flipTo - g.flipFrom)));
-      // The turn about the disc's own vertical, unwinding the half turn it rose with.
-      const orientation = flipped
-        .clone()
-        .slerp(goal.orientation, eased)
-        .multiply(new Quaternion().setFromAxisAngle(UP, Math.PI * (1 - flip)));
+      const u = easeInOutCubic(clamp01((t - start) / duration));
+      const orientation = upright.clone().slerp(goal.orientation, u);
+      if (turnOver) orientation.multiply(new Quaternion().setFromAxisAngle(UP, Math.PI * (1 - u)));
       return {
-        position: bezier(from.position, control, end, eased),
+        position: from.position.clone().lerp(end, u),
         orientation,
-        scale: MathUtils.lerp(from.scale, 1, eased),
+        scale: MathUtils.lerp(from.scale, 1, u),
       };
     },
   };
@@ -198,7 +332,7 @@ export function settle(from: DiscPose, slot: DiscSlot, start: number): PoseSegme
     at(t) {
       // The spring's last few per cent fade out over its final 30 %, so it ends exactly in the slot.
       const u = clamp01((t - start) / s.ms);
-      const k = springAt(1, 0, s.zeta, s.hz, (t - start) / 1000).x * (1 - smoothFade((u - 0.7) / 0.3));
+      const k = springAt(1, 0, s.zeta, s.hz, (t - start) / 1000).x * (1 - smooth((u - 0.7) / 0.3));
       return {
         position: goal.position.clone().addScaledVector(offset, k),
         orientation: goal.orientation.clone(),
@@ -208,7 +342,33 @@ export function settle(from: DiscPose, slot: DiscSlot, start: number): PoseSegme
   };
 }
 
-/** From a live pose to a slot in a plain eased move (a re-laid shelf, a disc called back mid-flight). */
+/**
+ * Leaving: from where it floats in its slot back into its lane, turning back to the data side and upright (into,
+ * backwards). Its column is its own: the discs nearer the slot have already gone, the further ones wait their turn.
+ */
+export function outOf(from: DiscPose, slot: DiscSlot, lane: number, start: number, duration: number): PoseSegment {
+  const target = new Vector3(slot.position.x, slot.position.y, DECK.slot.z + lane);
+  const label = from.orientation.clone();
+  return {
+    start,
+    end: start + duration,
+    at(t) {
+      const u = easeInOutCubic(clamp01((t - start) / duration));
+      // Unhang to upright and turn the half turn back, about its own vertical.
+      const orientation = label
+        .clone()
+        .slerp(new Quaternion(), u)
+        .multiply(new Quaternion().setFromAxisAngle(UP, Math.PI * u));
+      return {
+        position: from.position.clone().lerp(target, u),
+        orientation,
+        scale: MathUtils.lerp(from.scale, DISC_MOTION.scaleFrom, u),
+      };
+    },
+  };
+}
+
+/** From a live pose to another in a plain eased move (a re-laid shelf). */
 export function ease(from: DiscPose, to: DiscPose, start: number, duration: number, lift = 0): PoseSegment {
   const control = from.position
     .clone()
@@ -226,11 +386,6 @@ export function ease(from: DiscPose, to: DiscPose, start: number, duration: numb
       };
     },
   };
-}
-
-/** The unit vector from `point` towards the eye: "towards the camera". */
-export function towards(point: Vector3, eye: Vector3): Vector3 {
-  return eye.clone().sub(point).normalize();
 }
 
 /** The pick's anticipation: a small dip and lean forward, a touch bigger (easeOutQuad). */
@@ -254,39 +409,64 @@ export function anticipate(from: DiscPose, eye: Vector3, start: number): PoseSeg
   };
 }
 
-/** Share of the flight a picked disc stays upright before it starts to lie down. */
-const FLAT_FROM = 0.3;
-
-/** The point straight above the seat a disc flies to before it drops (gravity), optionally shifted sideways (a swap's waiting place). */
+/** The point straight above the seat a disc slides to before it drops (gravity), optionally shifted sideways. */
 export function approachPoint(side = 0): Vector3 {
   return DECK.seat.clone().add(new Vector3(side, DISC_MOTION.pick.approachAbove, 0));
 }
 
+/** The point in front of the radio, as high as the approach, a picked disc comes down to, flat. */
+export function frontPoint(side = 0): Vector3 {
+  return approachPoint(side).addScaledVector(FRONT, DISC_MOTION.pick.frontOfSeat);
+}
+
+/** A disc lying on the turntable, label up (the label's top away from the camera). */
+const FLAT = seatOrientation();
+
 /**
- * The flight to the point above the seat: a Bézier whose control is 60 mm up and 80 mm towards the camera, so the
- * disc passes in front of the shelf; it turns flat, label up, the label's top away from the camera.
+ * The flight from the shelf to the front point: out towards the camera and a little up, then down in front of the
+ * radio, upright (label to the camera) for its first 40 %, flat by 90 %, so it turns where nothing hangs.
  */
-export function flight(from: DiscPose, to: Vector3, eye: Vector3, start: number, duration: number): PoseSegment {
+export function insertFlight(from: DiscPose, eye: Vector3, start: number, duration: number, side = 0): PoseSegment {
   const { pick } = DISC_MOTION;
-  const control = from.position
+  const front = frontPoint(side);
+  const out = from.position
     .clone()
-    .lerp(to, 0.5)
-    .add(new Vector3(0, pick.controlUp, 0))
-    .addScaledVector(towards(from.position, eye), pick.controlForward);
-  const flat = seatOrientation();
+    .addScaledVector(outOfShelf(from.position, eye), pick.outward)
+    .add(new Vector3(0, pick.lift, 0));
+  // Out and down onto the front point from above and in front of it; across (on its own timing) only once it is
+  // out, so it never slides sideways along the shelf.
+  const above = new Vector3(from.position.x, front.y + 0.07, front.z + 0.05);
   return {
     start,
     end: start + duration,
     at(t) {
       const linear = clamp01((t - start) / duration);
-      const u = easeInOutCubic(linear);
-      // It stays upright, label to the camera, while it passes in front of the shelf, and lies down as it descends.
-      const turn = easeInOutCubic(clamp01((linear - FLAT_FROM) / (1 - FLAT_FROM)));
+      // A sine ease: the anticipation was the wind-up, so it leaves at once and lands softly.
+      const u = (1 - Math.cos(Math.PI * linear)) / 2;
+      const turn = easeInOutCubic(clamp01((linear - pick.flatFrom) / (pick.flatBy - pick.flatFrom)));
+      const position = cubic(from.position, out, above, front, u);
+      const acrossShare = clamp01((u - pick.acrossFrom) / (1 - pick.acrossFrom));
+      position.x = MathUtils.lerp(from.position.x, front.x, acrossShare * acrossShare * (3 - 2 * acrossShare));
       return {
-        position: bezier(from.position, control, to, u),
-        orientation: from.orientation.clone().slerp(flat, turn),
+        position,
+        orientation: from.orientation.clone().slerp(FLAT, turn),
         scale: MathUtils.lerp(from.scale, 1, u),
       };
+    },
+  };
+}
+
+/** Flat, from the front point back over the seat, under the discs hanging above it. */
+export function slide(side: number, start: number): PoseSegment {
+  const { pick } = DISC_MOTION;
+  const from = frontPoint(side);
+  const to = approachPoint(side);
+  return {
+    start,
+    end: start + pick.slideMs,
+    at(t) {
+      const u = easeInOutCubic(clamp01((t - start) / pick.slideMs));
+      return { position: from.clone().lerp(to, u), orientation: FLAT.clone(), scale: 1 };
     },
   };
 }
@@ -314,89 +494,151 @@ export function drop(from: Vector3, start: number): PoseSegment {
   };
 }
 
-/** The unseat: the disc pops 25 mm off the spindle (easeOutBack 1.4). */
-export function unseat(from: DiscPose, start: number): PoseSegment {
+/** Upright over the seat, the label to the camera (along the well floor's forward direction). */
+function standingOrientation(): Quaternion {
+  const normal = DECK.seatNormal;
+  const forward = FRONT.clone().addScaledVector(normal, -FRONT.dot(normal)).normalize();
+  return new Quaternion().setFromUnitVectors(normal, forward).multiply(FLAT);
+}
+
+/**
+ * Out of the player: it lifts off the spindle (fast at first) and stands up, label to the camera, turning about its
+ * own centre high enough that its front edge stays clear of the well floor.
+ */
+export function standUp(start: number): PoseSegment {
   const { swap } = DISC_MOTION;
-  const back = easeOutBack(1.4);
+  const seat = seatPose();
+  const upright = standingOrientation();
   return {
     start,
-    end: start + swap.popMs,
+    end: start + swap.standMs,
     at(t) {
-      const u = clamp01((t - start) / swap.popMs);
+      const u = clamp01((t - start) / swap.standMs);
       return {
-        position: from.position.clone().addScaledVector(DECK.seatNormal, swap.pop * back(u)),
-        orientation: from.orientation.clone(),
+        position: seat.position.clone().addScaledVector(DECK.seatNormal, swap.standLift * easeOutCubic(u)),
+        orientation: seat.orientation.clone().slerp(upright, easeInOutCubic(clamp01((u - 0.15) / 0.85))),
         scale: 1,
       };
     },
   };
 }
 
-/** Home from the well: the insert path mirrored, 40 mm higher when the slot is on the incoming disc's side. */
-export function flyHome(from: DiscPose, slot: DiscSlot, eye: Vector3, start: number, higher: boolean): PoseSegment {
-  const { pick, swap, settle: s } = DISC_MOTION;
+/** The plane a disc leaving the player goes home in: behind every disc on the shelf, in front of the open lid. */
+export function exitPlane(slots: readonly DiscSlot[]): number {
+  const { swap } = DISC_MOTION;
+  let deepest = swap.exitZ + swap.exitBehind;
+  for (const slot of slots) deepest = Math.min(deepest, slot.position.z - DISC_RADIUS * Math.sin(slot.tilt));
+  return Math.max(swap.deepestExitZ, deepest - swap.exitBehind);
+}
+
+/**
+ * Home from the well behind the shelf, the first of three moves (then across within the exit plane and into its slot,
+ * as a rising disc goes): back to the exit plane, behind every disc on the shelf, and a little up, upright.
+ */
+export function backToExit(from: DiscPose, exitZ: number, start: number): PoseSegment {
+  const { swap } = DISC_MOTION;
+  const to = new Vector3(from.position.x, from.position.y + swap.exitLift, exitZ);
+  return {
+    start,
+    end: start + swap.backMs,
+    at(t) {
+      const u = easeInOutCubic(clamp01((t - start) / swap.backMs));
+      return { position: from.position.clone().lerp(to, u), orientation: from.orientation.clone(), scale: 1 };
+    },
+  };
+}
+
+/** Called back from the slide: flat, back out from under the shelf to the front point (the slide in reverse). */
+export function backOut(from: DiscPose, start: number): PoseSegment {
+  const { pick } = DISC_MOTION;
+  const front = frontPoint();
+  const duration = pick.slideMs * clamp01(front.distanceTo(from.position) / pick.frontOfSeat);
+  return {
+    start,
+    end: start + duration,
+    at(t) {
+      const u = easeInOutCubic(clamp01((t - start) / duration));
+      return { position: from.position.clone().lerp(front, u), orientation: FLAT.clone(), scale: 1 };
+    },
+  };
+}
+
+/** Whether a disc is under the shelf on its way in (flat, behind the front point): it backs out first. */
+export function underShelf(pose: DiscPose): boolean {
+  return pose.position.z < frontPoint().z - 0.002 && new Vector3(0, 0, 1).applyQuaternion(pose.orientation).y > 0.9;
+}
+
+/**
+ * Home from wherever an insert was called off, in front of the shelf (from the slide it backs out first): out
+ * towards the camera, standing up as it comes, then up in front of its slot and in.
+ */
+export function homeInFront(from: DiscPose, slot: DiscSlot, eye: Vector3, start: number): PoseSegment {
+  const { home, settle: s } = DISC_MOTION;
   const goal = slotPose(slot);
-  const control = from.position
-    .clone()
-    .lerp(goal.position, 0.5)
-    .add(new Vector3(0, pick.controlUp + (higher ? swap.sameSideLift : 0), 0))
-    .addScaledVector(towards(from.position, eye), pick.controlForward);
-  const incoming = goal.position.clone().sub(control).normalize();
+  const out = from.position.clone().addScaledVector(FRONT, home.forward);
+  const before = goal.position.clone().addScaledVector(outOfShelf(goal.position, eye), home.outward);
+  const incoming = goal.position.clone().sub(before).normalize();
   const end = goal.position.clone().addScaledVector(incoming, s.overshoot);
   return {
     start,
-    end: start + swap.homeMs,
+    end: start + home.ms,
     at(t) {
-      const u = easeInOutCubic(clamp01((t - start) / swap.homeMs));
+      const linear = clamp01((t - start) / home.ms);
+      const u = easeInOutCubic(linear);
       return {
-        position: bezier(from.position, control, end, u),
-        orientation: from.orientation.clone().slerp(goal.orientation, u),
-        scale: 1,
+        position: cubic(from.position, out, before, end, u),
+        orientation: from.orientation.clone().slerp(goal.orientation, easeInOutCubic(clamp01(linear / 0.6))),
+        scale: MathUtils.lerp(from.scale, 1, u),
       };
     },
   };
 }
 
-/** Leaving: back over the slit with the flip back to the data side (340 ms), then down into it (easeInCubic, 140 ms). */
-export function returnHome(from: DiscPose, apex: DiscPose, start: number): PoseSegment {
+/** Where a disc going home waits above the slot before it sinks, data side out, in its lane. */
+export function hoverPose(slot: DiscSlot, lane: number): DiscPose {
+  return aboveSlot(slot, DISC_MOTION.leave.hoverY, lane);
+}
+
+/** The lane the `order`-th disc home takes: the first one back nearest the slot's plane, so nothing is between. */
+export function leaveLane(order: number): number {
+  const { lane, laneStep } = DISC_MOTION.leave;
+  return lane + laneStep * order;
+}
+
+/** Down the slot (easeInCubic): back into its plane and over its middle well before the lower edge reaches it. */
+export function sink(from: DiscPose, start: number): PoseSegment {
   const { leave } = DISC_MOTION;
   const hidden = hiddenPose();
-  const sinkStart = start + leave.glideMs;
-  const control = from.position
-    .clone()
-    .lerp(apex.position, 0.5)
-    .add(new Vector3(0, 0.03, 0));
   return {
     start,
-    end: sinkStart + leave.sinkMs,
+    end: start + leave.sinkMs,
     at(t) {
-      if (t < sinkStart) {
-        const u = easeInOutCubic(clamp01((t - start) / leave.glideMs));
-        return {
-          position: bezier(from.position, control, apex.position, u),
-          orientation: from.orientation.clone().slerp(apex.orientation, u),
-          scale: MathUtils.lerp(from.scale, apex.scale, u),
-        };
-      }
-      const u = easeInCubic(clamp01((t - sinkStart) / leave.sinkMs));
+      const u = clamp01((t - start) / leave.sinkMs);
+      const into = smooth(u / 0.7);
       return {
-        position: apex.position.clone().lerp(hidden.position, u),
-        orientation: apex.orientation.clone(),
-        scale: apex.scale,
+        position: new Vector3(
+          MathUtils.lerp(from.position.x, hidden.position.x, into),
+          MathUtils.lerp(from.position.y, hidden.position.y, easeInCubic(u)),
+          MathUtils.lerp(from.position.z, hidden.position.z, into),
+        ),
+        orientation: from.orientation.clone(),
+        scale: from.scale,
       };
     },
   };
 }
 
-/** Centre-out order for the rise (k = 0 the middle disc), and its reverse, edge-in, for the return. */
-export function centreOutOrder(count: number): number[] {
-  const middle = (count - 1) / 2;
-  return Array.from({ length: count }, (_, i) => i).sort(
-    (a, b) => Math.abs(a - middle) - Math.abs(b - middle) || a - b,
-  );
+/**
+ * The rise's order: the disc whose slot is furthest from the slot it rises through first, so a disc never glides past
+ * a slot already taken, and (the slots being symmetric) one to the left, one to the right by turns. Ties left first.
+ */
+export function riseOrder(slots: readonly DiscSlot[]): number[] {
+  const origin = new Vector3(SLIT_X, DISC_MOTION.rise.apexY, DECK.slot.z);
+  const distance = slots.map((slot) => Math.round(slot.position.distanceTo(origin) * 1e4));
+  return slots.map((_, i) => i).sort((a, b) => (distance[b] ?? 0) - (distance[a] ?? 0) || a - b);
 }
 
-/** The delay between successive rising discs: clamp(240 / (N − 1), 30, 60) ms; warm arrivals 40 ms. */
+/** The delay between successive rising discs: clamp(240 / (N − 1), 55, 60) ms; warm arrivals 55 ms. */
 export function riseStagger(count: number, warm: boolean): number {
   const { stagger } = DISC_MOTION;
   if (count <= 1) return 0;

@@ -41,9 +41,14 @@ export interface RadioHost {
   readonly anisotropy: number;
 }
 
+/** The close-up the device is made from, in the room's asset folder. */
+export const CLOSEUP_FILE = 'radio-closeup.glb';
+
 /** What the handle gives the device it loads: the motion preference, the disc count, and where to report. */
 export interface RadioLink {
   readonly reducedMotion: MediaQueryList;
+  /** The close-up's bytes, asked for beside the device's own chunk (else the device asks). */
+  readonly closeUp?: Promise<ArrayBuffer>;
   discCount(): number;
   readonly events: RadioDeviceEvents;
 }
@@ -83,6 +88,8 @@ export interface RadioDeviceEvents {
   pointerAttention(disc: string | null): void;
   /** Where the discs and keys now sit on the page at the settled radio pose. */
   layout(layout: RadioLayout): void;
+  /** Every disc not in the player is up in its slot (or no longer: the leave began). */
+  discsOut(out: boolean): void;
 }
 
 /** What a ray met on the device, in priority order: a disc, a key or the lid. */
