@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createGame } from '@/game/createGame';
 import { App } from './App';
+import { watchInputModality } from './a11y/inputModality';
 import { readHarnessConfig } from './harness/config';
 import { chooseHost, detectWebGL } from './hosts';
 import { openLink } from './links/openLink';
@@ -11,6 +12,7 @@ import './styles.css';
 function main(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root element');
+  watchInputModality();
   const config = readHarnessConfig(window.location.search, import.meta.env.DEV);
   // Kick off the game's downloads before React's first render; the app shows progress meanwhile.
   const loading = createGame({

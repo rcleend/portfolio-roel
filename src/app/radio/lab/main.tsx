@@ -8,6 +8,7 @@ import { FOLEY_CUES, FOLEY_LEVELS, type FoleyCue, foleyRecipe } from '../player/
 import { RadioSlot } from '../RadioSlot';
 import { FakeDeck, type LabEvent, lcdText } from './FakeDeck';
 import '../../styles.css';
+import { watchInputModality } from '../../a11y/inputModality';
 
 /**
  * Radio lab (`/radio-lab.html`, development only): the CD player on a stand-in deck, without
@@ -182,6 +183,7 @@ if (autoPick) {
   }, 50);
 }
 
+watchInputModality();
 createRoot(byId('root')).render(
   <StrictMode>
     <Lab />

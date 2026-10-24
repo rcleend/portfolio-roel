@@ -4,6 +4,7 @@ import type { RoomView } from '@/room';
 import { PcSlot } from '../PcSlot';
 import { FakeDisplay, type LabEvent } from './FakeDisplay';
 import '../../styles.css';
+import { watchInputModality } from '../../a11y/inputModality';
 
 /**
  * PC lab (`/pc-lab.html`, development only): the computer's screen on a
@@ -121,6 +122,7 @@ if (params.get('live') === '1') {
   }, 50);
 }
 
+watchInputModality();
 createRoot(byId('root')).render(
   <StrictMode>
     <Lab />
