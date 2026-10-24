@@ -4,7 +4,8 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
 import terrariaJson from '../../art/looks/terraria/customer/sheet.json';
 import type { RenderKit } from '../RenderKit';
-import { overheadLift } from './renderCustomer';
+import type { Customer, CustomerMood } from './Customer';
+import { customerPose, overheadLift } from './renderCustomer';
 
 /** Only the size of the image matters until something is drawn. */
 const image = (width: number, height: number) => ({ width, height }) as PixelImage;
@@ -39,5 +40,24 @@ describe('overheadLift', () => {
     const kit = kitFor(terrariaJson, 'terraria/customer/sheet.json');
     expect(overheadLift(kit, 1)).toBe(2);
     expect(overheadLift(kit, 2)).toBe(4);
+  });
+});
+
+/** A customer in `mood`, moving at `vx` with `walked` art pixels behind it; customerPose reads nothing else. */
+const moving = (mood: CustomerMood, vx: number, walked: number) =>
+  ({ mood, moodAge: () => 0, body: { vx }, walked }) as unknown as Customer;
+
+describe('customerPose', () => {
+  it("plays the walk by distance, in real time at a regular customer's pace", () => {
+    expect(customerPose(moving({ kind: 'approach' }, 30, 45), 100)).toEqual({ animation: 'walk', time: 1.5 });
+    // Half as far in its art for the escalated customer at 2×, so his legs plant at his size.
+    expect(customerPose(moving({ kind: 'approach' }, 34, 17), 100)).toEqual({ animation: 'walk', time: 17 / 30 });
+    expect(customerPose(moving({ kind: 'charge', until: 9, direction: 1 }, 165, 82.5), 100).time).toBe(2.75);
+  });
+
+  it('stands a still customer in the walk frame with both feet down', () => {
+    const still = customerPose(moving({ kind: 'approach' }, 0, 45), 100);
+    expect(still.animation).toBe('walk');
+    expect(Math.floor(still.time * 6)).toBe(1);
   });
 });
