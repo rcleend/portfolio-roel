@@ -58,7 +58,10 @@ const PARALLAX_RATE = 5;
  * parallax in the room view.
  */
 export class CameraRig {
-  private readonly poses: Record<RoomView, Viewpoint>;
+  /** The TV, room and computer poses for the current viewport; the radio's is solved when first needed. */
+  private readonly poses: Record<Exclude<RoomView, 'radio'>, Viewpoint>;
+  /** The radio's pose for the current viewport, disc count and control insets; null until asked for again. */
+  private radioPose: Viewpoint | null = null;
   private current: Viewpoint;
   private settledView: RoomView = 'tv';
   private region: NdcRegion = FULL_VIEWPORT;
@@ -82,8 +85,7 @@ export class CameraRig {
     /** Null when the room has no radio: its view then rests where the room view does. */
     private readonly radio: RadioFramingModel | null = null,
   ) {
-    const room = roomViewpoint(1);
-    this.poses = { tv: this.computeTvPose(), room, pc: pcViewpoint(pc, 1), radio: this.computeRadioPose() ?? room };
+    this.poses = { tv: this.computeTvPose(), room: roomViewpoint(1), pc: pcViewpoint(pc, 1) };
     this.current = cloneViewpoint(this.poses.tv);
     this.apply();
   }
@@ -94,7 +96,7 @@ export class CameraRig {
 
   /** The pose the camera rests at in `view`, for the current viewport. */
   viewpoint(view: RoomView): Viewpoint {
-    return cloneViewpoint(this.poses[view]);
+    return cloneViewpoint(this.pose(view));
   }
 
   resize(viewport: ViewportSize): void {
@@ -115,7 +117,8 @@ export class CameraRig {
   setRadioFraming(discs: number, insets: ControlInsets): void {
     this.radioDiscs = discs;
     this.controlInsets = insets;
-    this.refreshPoses();
+    this.radioPose = null;
+    if (this.settledView === 'radio') this.holdPose();
   }
 
   /** Places the camera at `view` immediately. */
@@ -123,7 +126,7 @@ export class CameraRig {
     this.stopFlight?.();
     this.stopFlight = null;
     this.settledView = view;
-    this.current = cloneViewpoint(this.poses[view]);
+    this.current = cloneViewpoint(this.pose(view));
     this.apply();
     this.loop.invalidate();
   }
@@ -183,7 +186,7 @@ export class CameraRig {
       start ??= now;
       const t = Math.min(1, (now - start) / FLIGHT_MS);
       // Read every frame, so a resize mid-flight lands on the new viewport's pose.
-      const to = this.poses[view];
+      const to = this.pose(view);
       const progress: FlightProgress = leg ? deviceLegProgress(t, leg) : uniformProgress(easeInOutCubic(t));
       let path: FlightPath = { lift: FLIGHT_LIFT };
       if (crane) {
@@ -206,7 +209,7 @@ export class CameraRig {
       const elapsed = now - start;
       if (!cut && elapsed >= REDUCED_FADE_MS) {
         cut = true;
-        this.current = cloneViewpoint(this.poses[view]);
+        this.current = cloneViewpoint(this.pose(view));
         this.apply();
       }
       const fadeIn = (elapsed - REDUCED_FADE_MS) / REDUCED_FADE_MS;
@@ -230,15 +233,25 @@ export class CameraRig {
     this.poses.tv = this.computeTvPose();
     this.poses.room = roomViewpoint(aspect);
     this.poses.pc = pcViewpoint(this.pc, aspect);
-    this.poses.radio = this.computeRadioPose() ?? this.poses.room;
+    this.radioPose = null;
     this.holdPose();
   }
 
   /** A camera at rest takes up its view's new pose; a flight reads its destination every frame. */
   private holdPose(): void {
     if (this.moving) return;
-    this.current = cloneViewpoint(this.poses[this.settledView]);
+    this.current = cloneViewpoint(this.pose(this.settledView));
     this.apply();
+  }
+
+  /**
+   * The pose `view` rests at. The radio's is solved on first use after a change (a few milliseconds, many on a slow
+   * phone), so the first frame, a resize away from the radio and the app's controls never pay for it.
+   */
+  private pose(view: RoomView): Viewpoint {
+    if (view !== 'radio') return this.poses[view];
+    this.radioPose ??= this.computeRadioPose() ?? this.poses.room;
+    return this.radioPose;
   }
 
   private computeRadioPose(): Viewpoint | null {

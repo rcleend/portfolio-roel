@@ -11,6 +11,8 @@ export type DeviceLoader = CreateRadioDevice;
 const loadDevice: DeviceLoader = (host, link) =>
   import('./device/RadioDevice').then((module) => module.createRadioDevice(host, link));
 
+/** The label size before the room is ready, when nothing is known of the screen at the radio. */
+const DEFAULT_LABEL_SIZE = 384;
 /** Five plain silver discs until the app hands over its collection. */
 export const DEFAULT_DISCS: readonly DiscArt[] = [1, 2, 3, 4, 5].map((n) => ({ id: `disc-${n}`, label: null }));
 export const DEFAULT_DECK_STATE: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
@@ -52,7 +54,8 @@ export class RadioDeckHandle implements RadioDeck {
   #attention: string | null = null;
   #insets: FramingInsets = NO_INSETS;
   #isAvailable = true;
-  #size: 256 | 384 | 512 = 384;
+  /** Fixed on the first read once the room is ready; null until then. */
+  #size: 256 | 384 | 512 | null = null;
   #current: RadioLayout = EMPTY_LAYOUT;
   #host: RadioHost | null = null;
   #device: RadioDevice | null = null;
@@ -82,7 +85,22 @@ export class RadioDeckHandle implements RadioDeck {
     return this.#isAvailable;
   }
 
+  /**
+   * From the largest disc at the radio, read once the room is ready and fixed from then on. Solved on that first
+   * read (the app's prints, at idle) rather than when the room is ready, which is the first frame's time.
+   */
   get labelSize(): 256 | 384 | 512 {
+    if (this.#size !== null) return this.#size;
+    const host = this.#host;
+    if (!host) return DEFAULT_LABEL_SIZE;
+    const { size, softwareGpu } = host.stage;
+    const slots = discSlots(this.#discs.length, size.width / size.height);
+    this.#size = labelSizeFor(
+      largestDiscDiameter(slots, host.rig.viewpoint('radio'), size),
+      size.pixelRatio,
+      deviceMemory(),
+      softwareGpu,
+    );
     return this.#size;
   }
 
@@ -180,18 +198,10 @@ export class RadioDeckHandle implements RadioDeck {
     this.#device?.relayout();
   }
 
-  /** The room has loaded: the label size is fixed now, from the discs' size at the radio. */
+  /** The room has loaded. Nothing is solved here: this runs before the room's first frame. */
   attach(host: RadioHost): void {
     this.#host = host;
     host.rig.setRadioFraming(this.#discs.length, this.#insets);
-    const { size, softwareGpu } = host.stage;
-    const slots = discSlots(this.#discs.length, size.width / size.height);
-    this.#size = labelSizeFor(
-      largestDiscDiameter(slots, host.rig.viewpoint('radio'), size),
-      size.pixelRatio,
-      deviceMemory(),
-      softwareGpu,
-    );
     if (this.#wanted) this.#load();
   }
 

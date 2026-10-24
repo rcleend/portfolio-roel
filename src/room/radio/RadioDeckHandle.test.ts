@@ -81,14 +81,21 @@ describe('RadioDeckHandle', () => {
     expect(deck.layout.keys.stop).toEqual({ left: 0, top: 0, width: 0, height: 0 });
   });
 
-  it('fixes the label size and frames the discs as soon as the room is there, before any device', () => {
+  it('frames the discs as soon as the room is there, and fixes the label size on its first read', () => {
     const loader = vi.fn();
     const { deck } = handle(loader);
     const room = host();
+    const viewpoint = vi.spyOn(room.rig, 'viewpoint');
+    expect(deck.labelSize).toBe(384);
     deck.attach(room);
     expect(room.rig.setRadioFraming).toHaveBeenCalledWith(5, { top: 0, right: 0, bottom: 0, left: 0 });
+    // Attaching runs before the room's first frame: it solves nothing.
+    expect(viewpoint).not.toHaveBeenCalled();
     // About 210 px discs at 1440 × 900 @1: the 256 px prints are sharp enough.
     expect(deck.labelSize).toBe(256);
+    expect(viewpoint).toHaveBeenCalledTimes(1);
+    expect(deck.labelSize).toBe(256);
+    expect(viewpoint).toHaveBeenCalledTimes(1);
     expect(loader).not.toHaveBeenCalled();
     deck.setControlInsets({ top: 0, right: 0, bottom: 64, left: 0 });
     expect(room.rig.setRadioFraming).toHaveBeenLastCalledWith(5, { top: 0, right: 0, bottom: 64, left: 0 });
