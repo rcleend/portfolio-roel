@@ -657,10 +657,13 @@ class Device implements RadioDevice {
         this.#labelWork.delete(id);
         if (this.#disposed) return;
         if (this.#discs.prepareLabel(id, this.#context.renderer)) {
-          this.#choreography.setLabelsReady(this.#discs.labelsReady, performance.now());
-          // A print arriving on a disc in view replaces the plain silver in one frame.
+          const ready = this.#discs.labelsReady;
+          this.#choreography.setLabelsReady(ready, performance.now());
+          // A print arriving on a disc in view replaces the plain silver in one frame. Only the last can start
+          // the rise: running the frame step for the others would count as motion and hold back the very
+          // uploads the rise waits for (a quarter of a second each).
           this.#context.loop.invalidate();
-          this.#kick();
+          if (ready) this.#kick();
         }
       }),
     );
