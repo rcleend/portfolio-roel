@@ -267,7 +267,10 @@ const scenarios = {
         await new Promise((r) => setTimeout(r, 1000));
         return room.stats.framesRendered - start;
       });
-    /** Frame rate over the first second of a flight (each lasts 1.1 s), then waits for the landing. */
+    /**
+     * Frame rate over the first second of a flight (each lasts 1.1 s), then waits for the landing and
+     * a settled room: 900 ms, or the landing's frames would count in the next leg's second.
+     */
     const flight = async (action) => {
       const rate = await page.evaluate(async (name) => {
         const { room } = window.__roomLab;
@@ -277,23 +280,33 @@ const scenarios = {
         await new Promise((r) => setTimeout(r, 1000));
         return (room.stats.framesRendered - start) / ((performance.now() - began) / 1000);
       }, action);
-      await sleep(600);
-      return rate.toFixed(1);
+      await sleep(900);
+      return rate;
     };
+    const median = (rates) => [...rates].sort((a, b) => a - b)[Math.floor(rates.length / 2)];
     console.log('tv view, game running:', await framesPerSecond(), 'frames/s');
     await page.evaluate(() => window.__roomLab.surface.pause());
     await sleep(200);
     console.log('tv view, game paused:', await framesPerSecond(), 'frames/s');
-    console.log('flight tv → room (first leave, paints the still):', await flight('showRoom'), 'frames/s');
+    console.log('flight tv → room (first leave):', (await flight('showRoom')).toFixed(1), 'frames/s');
     console.log('room view (lava visible):', await framesPerSecond(), 'frames/s');
     console.log('stats:', JSON.stringify(await page.evaluate(() => window.__roomLab.room.stats)));
-    const legs = { tv: [], pc: [] };
-    for (let round = 0; round < 2; round++) {
-      legs.tv.push(await flight('focusTv'), await flight('showRoom'));
-      legs.pc.push(await flight('focusPc'), await flight('showRoom'));
+    // Each leg several times, compared by medians: software GL on a busy machine is noisy.
+    const legs = { 'room → tv': [], 'tv → room': [], 'room → pc': [], 'pc → room': [] };
+    for (let round = 0; round < Number(process.env.PERF_ROUNDS ?? 3); round++) {
+      legs['room → tv'].push(await flight('focusTv'));
+      legs['tv → room'].push(await flight('showRoom'));
+      legs['room → pc'].push(await flight('focusPc'));
+      legs['pc → room'].push(await flight('showRoom'));
     }
-    console.log('flights room ↔ tv:', legs.tv.join(', '), 'frames/s');
-    console.log('flights room ↔ pc:', legs.pc.join(', '), 'frames/s');
+    for (const [leg, rates] of Object.entries(legs)) {
+      console.log(
+        `flight ${leg}: median ${median(rates).toFixed(1)} frames/s (${rates.map((r) => r.toFixed(1)).join(', ')})`,
+      );
+    }
+    const pcLegs = (median(legs['room → pc']) + median(legs['pc → room'])) / 2;
+    const tvLegs = (median(legs['room → tv']) + median(legs['tv → room'])) / 2;
+    console.log('computer legs / TV legs:', (pcLegs / tvLegs).toFixed(2), '(budget ≥ 0.9)');
     await page.evaluate(() => window.__roomLab.room.focusPc());
     await page.waitForFunction(() => window.__roomLab.room.pc.live);
     await sleep(400);
