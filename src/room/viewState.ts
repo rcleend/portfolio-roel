@@ -21,6 +21,8 @@ export type ViewEffect =
   | 'disableInput'
   | 'moveCamera'
   | 'notify'
+  /** The camera came to rest at the view. */
+  | 'notifySettled'
   /** Landed on the computer: show its live screen. */
   | 'revealScreen'
   /** Leaving the computer (settled or still flying in): hide its live screen before the camera moves. */
@@ -36,11 +38,11 @@ export const INITIAL_VIEW_STATE: ViewState = { view: 'tv', moving: false };
 const ARRIVAL_EFFECTS: Readonly<Record<RoomView, readonly ViewEffect[]>> = {
   // The game wakes up only once the camera has landed on the TV, so the PAUSE glyph is still
   // visible during the approach and the first input lands on a settled screen.
-  tv: ['resumeGame', 'enableInput'],
-  room: [],
+  tv: ['resumeGame', 'enableInput', 'notifySettled'],
+  room: ['notifySettled'],
   // The live screen replaces the monitor's still only once the camera rests exactly where the
   // screen's placement was computed for.
-  pc: ['revealScreen'],
+  pc: ['revealScreen', 'notifySettled'],
 };
 
 export function reduceView(state: ViewState, event: ViewEvent): ViewTransition {

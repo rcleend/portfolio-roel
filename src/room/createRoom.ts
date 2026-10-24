@@ -37,6 +37,8 @@ export interface Room {
   readonly ready: Promise<void>;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
+  /** True while the camera rests at `view`, false while it flies there. */
+  readonly settled: boolean;
   readonly powerState: PowerState;
   /** Lights the power LED and runs the CRT turn-on; resolves when the picture is up. */
   powerOn(): Promise<void>;
@@ -47,7 +49,10 @@ export interface Room {
   showRoom(): void;
   /** Flies straight in front of the monitor; the game stays paused with its input off. */
   focusPc(): void;
+  /** Called as the camera sets off towards another view. */
   onViewChange(listener: (view: RoomView) => void): () => void;
+  /** Called as the camera comes to rest at the view. */
+  onSettle(listener: (view: RoomView) => void): () => void;
   /** Keeps the TV framing clear of app overlays (CSS-pixel strips of the viewport). */
   setFramingInsets(insets: FramingInsets): void;
   /** Adds a clickable prop (radio, poster…); returns its unregister function. */
@@ -147,6 +152,9 @@ export function createRoom(options: CreateRoomOptions): Room {
     get view() {
       return views.view;
     },
+    get settled() {
+      return !views.moving;
+    },
     get powerState() {
       return scene?.television.powerState ?? 'off';
     },
@@ -162,6 +170,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     showRoom: () => views.request('room'),
     focusPc: () => views.request('pc'),
     onViewChange: (listener) => views.onChange(listener),
+    onSettle: (listener) => views.onSettle(listener),
     setFramingInsets(insets) {
       framingInsets = insets;
       scene?.setFramingInsets(insets);

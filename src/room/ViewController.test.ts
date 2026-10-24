@@ -64,6 +64,18 @@ describe('ViewController', () => {
     expect(views.atTv).toBe(false);
   });
 
+  it('tells settle listeners once the camera lands, never as it sets off', () => {
+    const { views, land } = setup();
+    const settled = vi.fn();
+    views.onSettle(settled);
+    views.request('pc');
+    expect(settled).not.toHaveBeenCalled();
+    land();
+    expect(settled).toHaveBeenCalledExactlyOnceWith('pc');
+    views.request('pc');
+    expect(settled).toHaveBeenCalledTimes(1);
+  });
+
   it('resumes only after the camera lands back on the TV', () => {
     const { surface, views, land } = setup();
     views.request('room');

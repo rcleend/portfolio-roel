@@ -24,6 +24,7 @@ export class ViewController {
   private state: ViewState = INITIAL_VIEW_STATE;
   private pausedByRoom = false;
   private readonly listeners = new Set<(view: RoomView) => void>();
+  private readonly settleListeners = new Set<(view: RoomView) => void>();
 
   constructor(private readonly options: ViewControllerOptions) {
     options.surface.setInputEnabled(true);
@@ -46,13 +47,21 @@ export class ViewController {
     this.apply(reduceView(this.state, { type: 'request', view }));
   }
 
+  /** Called as the camera sets off towards a new view. */
   onChange(listener: (view: RoomView) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
+  /** Called as the camera comes to rest at the view. */
+  onSettle(listener: (view: RoomView) => void): () => void {
+    this.settleListeners.add(listener);
+    return () => this.settleListeners.delete(listener);
+  }
+
   dispose(): void {
     this.listeners.clear();
+    this.settleListeners.clear();
   }
 
   private readonly arrived = (): void => {
@@ -91,6 +100,9 @@ export class ViewController {
         return;
       case 'notify':
         for (const listener of this.listeners) listener(this.state.view);
+        return;
+      case 'notifySettled':
+        for (const listener of this.settleListeners) listener(this.state.view);
         return;
       case 'revealScreen':
         this.options.revealScreen();

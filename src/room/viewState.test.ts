@@ -20,11 +20,14 @@ describe('reduceView', () => {
     expect(leaving.effects).toEqual(['moveCamera', 'notify']);
     const arrived = reduceView(leaving.state, { type: 'arrived' });
     expect(arrived.state).toEqual({ view: 'tv', moving: false });
-    expect(arrived.effects).toEqual(['resumeGame', 'enableInput']);
+    expect(arrived.effects).toEqual(['resumeGame', 'enableInput', 'notifySettled']);
   });
 
-  it('does nothing on arrival in the room', () => {
-    expect(reduceView(moving('room'), { type: 'arrived' })).toEqual({ state: settled('room'), effects: [] });
+  it('only says it has settled on arrival in the room', () => {
+    expect(reduceView(moving('room'), { type: 'arrived' })).toEqual({
+      state: settled('room'),
+      effects: ['notifySettled'],
+    });
   });
 
   it.each([settled('tv'), settled('room'), settled('pc'), moving('tv'), moving('room'), moving('pc')])(
@@ -57,7 +60,7 @@ describe('reduceView', () => {
   it('shows the live screen only once the camera has landed on the computer', () => {
     expect(reduceView(moving('pc'), { type: 'arrived' })).toEqual({
       state: settled('pc'),
-      effects: ['revealScreen'],
+      effects: ['revealScreen', 'notifySettled'],
     });
   });
 
@@ -96,6 +99,6 @@ describe('reduceView', () => {
       state = arrival.state;
     }
     state = reduceView(state, { type: 'request', view: 'tv' }).state;
-    expect(reduceView(state, { type: 'arrived' }).effects).toEqual(['resumeGame', 'enableInput']);
+    expect(reduceView(state, { type: 'arrived' }).effects).toEqual(['resumeGame', 'enableInput', 'notifySettled']);
   });
 });
