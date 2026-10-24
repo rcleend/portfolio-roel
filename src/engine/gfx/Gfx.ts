@@ -59,7 +59,10 @@ export class Gfx {
   }
 
   fillRect(x: number, y: number, w: number, h: number, fill: Fill): void {
-    const [rx, ry, rw, rh] = [snap(x), snap(y), snap(w), snap(h)];
+    const rx = snap(x);
+    const ry = snap(y);
+    const rw = snap(w);
+    const rh = snap(h);
     if (rw <= 0 || rh <= 0) return;
     if (typeof fill === 'string') {
       this.ctx.fillStyle = fill;
@@ -71,7 +74,10 @@ export class Gfx {
 
   /** 1 px outline drawn inside the box, so `rect` and `fillRect` with equal arguments cover the same pixels. */
   rect(x: number, y: number, w: number, h: number, color: string): void {
-    const [rx, ry, rw, rh] = [snap(x), snap(y), snap(w), snap(h)];
+    const rx = snap(x);
+    const ry = snap(y);
+    const rw = snap(w);
+    const rh = snap(h);
     if (rw <= 0 || rh <= 0) return;
     this.ctx.fillStyle = color;
     this.ctx.fillRect(rx, ry, rw, 1);
@@ -82,8 +88,10 @@ export class Gfx {
 
   /** Bresenham line, both endpoints inclusive. */
   line(x0: number, y0: number, x1: number, y1: number, color: string): void {
-    let [x, y] = [snap(x0), snap(y0)];
-    const [tx, ty] = [snap(x1), snap(y1)];
+    let x = snap(x0);
+    let y = snap(y0);
+    const tx = snap(x1);
+    const ty = snap(y1);
     const dx = Math.abs(tx - x);
     const dy = -Math.abs(ty - y);
     const sx = x < tx ? 1 : -1;
@@ -107,7 +115,9 @@ export class Gfx {
 
   /** Midpoint circle — symmetric, gap-free and identical every frame. */
   circle(cx: number, cy: number, radius: number, color: string, filled = true): void {
-    const [x0, y0, r] = [snap(cx), snap(cy), Math.max(0, snap(radius))];
+    const x0 = snap(cx);
+    const y0 = snap(cy);
+    const r = Math.max(0, snap(radius));
     this.ctx.fillStyle = color;
     let x = r;
     let y = 0;
@@ -144,7 +154,8 @@ export class Gfx {
 
   image(image: PixelImage, x: number, y: number, options: ImageDrawOptions = {}): void {
     const source = options.source ?? { x: 0, y: 0, w: image.width, h: image.height };
-    const [dx, dy] = [snap(x), snap(y)];
+    const dx = snap(x);
+    const dy = snap(y);
     const ctx = this.ctx;
     const alpha = options.alpha ?? 1;
     if (alpha <= 0) return;
