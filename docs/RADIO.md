@@ -40,8 +40,8 @@ It renders a portal into `deck.controls` only, a sibling of the stage outside `r
 | Chunk | Contents | Loaded |
 | --- | --- | --- |
 | main bundle | `RadioSlot.tsx` and its failure message's style | first load |
-| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands, and the room's half, `deck.prefetch('idle')` at 1.5 s, so the lid opens on time for a visitor who heads for the radio soon); it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
-| covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize), then painted one per idle moment while the camera rests away from the TV (`labels/discPrints.ts`) and handed to the room together | when the player mounts |
+| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands, and the room's half, `deck.prefetch('idle')` at 0.4 s, so a visitor who heads for the radio at once still finds its device preparing on the way and the lid opening on time); it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
+| covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize), then painted one per idle moment while the camera rests away from the TV (`labels/discPrints.ts`) on CPU canvases (nothing reads the GPU back) and handed to the room together; one that has not arrived in 6 s is given up on (`labels/loadArt.ts`) | when the player mounts |
 | audio | one track at a time, streamed | from the pick that needs it |
 
 Once loaded the player stays mounted for the page, so the music survives leaving the radio.
@@ -80,7 +80,7 @@ A hidden tab keeps playing.
 
 Every cue the room emits plays a synthesised engine `SfxRecipe` (clicks, latches, whooshes, the motor's spin-up and spin-down, a pentatonic bell per rising disc, descending as they sink), plus the app's own `seek` tick on each skip, between −22 and −40 dBFS, panned from where the part moves on screen.
 Nothing is continuous while playing: a real CD motor is silent at speed.
-They play in a small `AudioContext` of their own (the game's is suspended whenever the camera leaves the TV). It is made with its mixer graph as the player mounts away from the radio (at idle, suspended, once the page has had user activation), so the click that sends the camera there only resumes it, or else inside the first radio gesture; resumed in every radio gesture and on reaching the radio, suspended 2 s after leaving it; cues arriving while it sleeps are dropped. If it cannot be made the radio is silent of mechanics and the music is unaffected.
+They play in a small `AudioContext` of their own (the game's is suspended whenever the camera leaves the TV). It is made with its mixer graph in an idle moment of its own after the player mounts away from the radio (suspended, once the page has had user activation: making one is the dearest part of the player's start, 74 ms on a slow phone), so the click that sends the camera there only resumes it, or else inside the first radio gesture; resumed in every radio gesture and on reaching the radio, suspended 2 s after leaving it; cues arriving while it sleeps are dropped. If it cannot be made the radio is silent of mechanics and the music is unaffected.
 Each recipe's gain is calibrated from an offline render so it peaks at its level; `e2e/radio-player.spec.ts` renders every one through the engine's mixer and holds it to ±3 dB, no clipping, and silence by its end.
 
 ## Controls (`ui/`)
@@ -89,10 +89,10 @@ Portaled into `deck.controls`, a `<section aria-label="CD player">`. The layer t
 
 - **CDs**: `role="toolbar" aria-label="CDs"`, one Tab stop, ←/→ and Home/End move between the albums (the shared roving tabindex, `app/a11y/roving.ts`). One button per album sits as a circle over its disc (over the seat for the loaded one), invisible until a keyboard focus rings the disc itself in `#ffc83d` and brings it forward. Labels say "Night Shift by Studio Attic, 2 tracks", with ", in the player" and `aria-current` for the loaded disc. Enter or Space plays it (the loaded one: play/pause).
 - **Transport** on fine pointers: `role="toolbar" aria-label="CD player controls"`, "Previous track", "Play"/"Pause" (the label changes, no `aria-pressed`), "Stop", "Next track", each over its key on the model; `aria-disabled` with an empty player (still focusable: activation says "Choose a CD first.").
-- **Touch bar** on a primary coarse pointer: 48 px keys on the sound toggle's dark plate: back ("Look around the room"), ⏮, ▶/‖, ■, ⏭ and "Kettle On · Night Shift" along the bottom (64 px plus the safe area), or stacked down a right rail on a landscape phone under 480 px tall. Each key presses its 3D twin too. It reports its strip through `setControlInsets`, and the room frames the radio clear of it.
+- **Touch bar** on a primary coarse pointer: 48 px keys on the sound toggle's dark plate: back ("Look around the room"), ⏮, ▶/‖, ■, ⏭ and what plays on two lines, the track over the album ("Kettle On", "Night Shift"), along the bottom (64 px plus the safe area), or stacked down a right rail on a landscape phone under 480 px tall. Each key presses its 3D twin too. It reports its strip through `setControlInsets`, and the room frames the radio clear of it.
 - **Caption** (`aria-hidden`): under the disc that has the visitor's attention (over it for the disc in the player, so the keys stay in sight), in the view hint's pixel plate: "Night Shift — Studio Attic", "2 tracks · 1:38", a "placeholder" tag and "Sound is off" when they apply; a 120 ms fade.
-- **Hint** (`radioHints.ts`, `localStorage` `reo-leo:radio-hints`): 1.2 s after landing, "Click a CD to play it" ("Tap…" on touch) until the first pick; then, with a mouse, "Click outside the radio to look around" until the visitor has left once.
-- **One live region** (`role="status"`, polite): "Playing Kettle On, track 1 of 2, from Night Shift by Studio Attic." (+ " Sound is off."), "Paused.", "Playing.", "Stopped.", "End of the CD.", "This track could not be played.", "Choose a CD first.", "Press play to start the music." The same words within a second are said once; never the clock, a hover or a focus.
+- **Hint** (`radioHints.ts`, `localStorage` `reo-leo:radio-hints`): 450 ms after the discs are up (never before: it names them), "Click a CD to play it" ("Tap…" on touch, "Press Enter to play a CD" for a keyboard) until the first pick; then, with a mouse or a keyboard, "Click outside the radio to look around" ("Press Escape to look around") until the visitor has left once. On a phone's bottom bar it shows in the bar, where what plays will be (on two lines if it must); elsewhere in the view hint's plate.
+- **One live region** (`role="status"`, polite): "Playing Kettle On, track 1 of 2, from Night Shift by Studio Attic." (+ " Sound is off."), "Track 2 of 2, Window Seat." (a track chosen while paused or stopped), "Paused.", "Playing.", "Stopped.", "End of the CD.", "This track could not be played.", "Choose a CD first.", "Press play to start the music." The same words within a second are said once; never the clock, a hover or a focus. The CDs' toolbar is described by "Enter plays a CD; Escape returns to the room." for a screen reader landing on it.
 - **Keyboard**: arriving moves focus to the CDs (the loaded disc's button, else the first); Escape anywhere in the controls leaves for the room; the controls hiding with focus inside hand it back to the stage.
 
 **Media Session** (`player/mediaSession.ts`): while a disc is loaded, the track's title, the artist, the album and its cover; `playbackState`; play, pause, stop, previous and next as the radio's keys (pressing the 3D key while the visitor is at the radio; at the TV, play only asks to resume on leaving); the position on play, pause, track changes and seeks. Nothing at all with no disc, or without the API.
@@ -105,7 +105,7 @@ Portaled into `deck.controls`, a `<section aria-label="CD player">`. The layer t
 The five placeholders are original, made for this site: eleven tracks composed in the game's own tracker (`scripts/radio/songs`), rendered through the game's synth, loudness-matched to the game's first stage and encoded to AAC (4.94 MB together), and seeded generative covers and prints without text or marks (`scripts/radio/covers.ts`); see `scripts/radio/README.md`.
 Each is marked `placeholder: true`, so its caption and its print say so.
 
-Disc prints (`labels/discLabel.ts`): the album's `disc` print as it is, or its cover filling the disc, then the rim text every CD carries, "NIGHT SHIFT · STUDIO ATTIC · PLACEHOLDER", set round the top at 54.5 mm in 3.2 mm capitals; a print that fails to load becomes a plain disc in a colour of its own, with its text.
+Disc prints (`labels/discLabel.ts`): the album's `disc` print as it is, or its cover filling the disc, then the rim text every CD carries, "NIGHT SHIFT · STUDIO ATTIC", set round the top at 54.5 mm in 3.2 mm capitals (a placeholder says so in its caption, not on the disc); a print that fails to load, or has not arrived in 6 s, becomes a plain disc in a colour of its own, with its text.
 
 ## Your own albums
 
@@ -156,25 +156,22 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 | --- | ---: | ---: |
 | Entry JS: `RadioSlot`, the room host's radio changes and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB (raised to + 0.75, pending the captain's word: `bundle-budgets.json`) | + 0.71 kB |
 | Entry CSS | + 0.15 kB | + 0.04 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.05 kB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.46 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
-Measured in the real app (development server, Chromium on an M-series Mac, the radio prepared at idle; `e2e/radio-flow.spec.ts` holds the first two to 1.0 s and 0.35 s):
+Measured in the real app (development server, Chromium on an M-series Mac, the radio prepared at idle; `e2e/radio-flow.spec.ts` holds pick → sound to 1.0 s, 1.5 s for a disc chosen before it is out, and 0.35 s under reduced motion):
 
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
-| Pick → sound | 0.91 s | 0.93 s |
-| Pick → sound, reduced motion | 0.03 s | 0.09 s |
-| Long animation frames over 50 ms in the flights to and from the radio and the arrival until the discs are up | none | none |
+| Pick → sound | 0.94 s | 0.93 s (a phone: 0.95 s) |
+| A keyboard pick the moment the camera lands, the disc still inside the radio | 1.41 s | |
+| Long animation frames over 50 ms in the flights to and from the radio, the arrival until the discs are up, an insert and a swap | none | none |
+| The prints on the discs after an eager click (the radio clicked as soon as the camera rests in the room) | 1.25–1.35 s, before the shelf is up | |
 | Frames over 2 s at the computer with a disc playing | 0 | |
-
-And on the production lab build:
-
-| | 1× CPU | 6× CPU |
-| --- | ---: | ---: |
-| Long tasks over 50 ms: the player mounting and painting the prints, the flight in, a pick, a swap, the keys | none | none |
 | Media elements, `decodeAudioData` calls, audio contexts of the radio's own | 1, 0, 1 | |
+
+And on the production build (6× CPU, two runs): no long animation frame over 50 ms from the click to the radio through its arrival and a pick, the longest frame gap 29–32 ms; 0 frames at rest at the radio, 2–3 in 2 s playing (the clock); the first look around the room fetches 376.5 kB of radio and room work in 15 requests, the pick 436 kB (the first track).
 
 ## Modules
 

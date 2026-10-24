@@ -46,9 +46,9 @@ A seeded painter per album draws SVG that sharp rasterises into `cover.webp` (51
 
 | Album | Cover | Disc print |
 | --- | --- | --- |
-| Night Shift | concentric grooves under a desk lamp | grooves cut into the foil |
+| Night Shift | a night skyline with lit windows under a lamp-coloured moon | the skyline round the lower half of the label, its windows and the stars in foil |
 | Insert Coin | a formation of seeded pixel creatures and a coin over scanlines | the creatures marching round in foil |
-| Low Tide | tide lines on a grey-green sea | tide bands of foil |
+| Low Tide | tide lines on a grey-green sea, a lighthouse and its beam | the tide straight across the label and the beam in foil (no rings: a CD's print, not a record's grooves) |
 | Solar Drive | a banded sun over a perspective grid | the sun's bands and the grid in foil |
 | Sunday Roast | overlapping plates on a gingham cloth | foil dots between the plates |
 

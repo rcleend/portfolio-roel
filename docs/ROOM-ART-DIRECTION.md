@@ -113,7 +113,10 @@ shadow maps or a postprocessing stack for that appearance.
   bake's own three sources (the lilac ambient, the lava lamp, the moon) by name, a silver
   foil that reflects the dark room and draws the lamp's spoke and rainbow across its tracks,
   matte ink under a varnish glint and a smoky hub, so plain silver discs already read as
-  CDs in the night palette rather than as stickers. Nothing added carries a mark; the
+  CDs in the night palette rather than as stickers. Their data side, which faces the camera
+  as they rise and go home, is a lit silver mirror with the lamp's spoke and rainbow and a
+  polished rim, never a flat grey; the placeholder prints are a CD's (a skyline, a tide
+  across the label), not a record's grooves. Nothing added carries a mark; the
   model's own prints stay as shipped.
 - **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
   The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
