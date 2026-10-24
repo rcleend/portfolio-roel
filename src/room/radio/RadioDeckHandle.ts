@@ -1,29 +1,18 @@
 import { type FramingInsets, NO_INSETS } from '../camera/CameraRig';
 import type { ControlsLayer } from './ControlsLayer';
-import { CLOSEUP_FILE, type CreateRadioDevice, type RadioDevice, type RadioHost } from './deviceContract';
+import type { CreateRadioDevice, RadioDevice, RadioHost } from './deviceContract';
 import { deviceMemory, saveData } from './deviceFacts';
 import { discSlots, labelSizeFor, largestDiscDiameter, MAX_DISCS, MIN_DISCS } from './discLayout';
 import type { DeckState, DiscArt, RadioCueEvent, RadioDeck, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
+import { UNAVAILABLE_WARNING } from './RadioDoor';
+import { RadioParts } from './RadioParts';
+import { radioPoseSolver } from './radioFraming';
 
-/** Loads the device chunk; a seam for tests. */
+/** Makes the device (deckChunk.ts › loadDevice); a seam for tests. */
 export type DeviceLoader = CreateRadioDevice;
-
-/** The device's chunk, and its close-up downloading beside it rather than after it. */
-const loadDevice: DeviceLoader = (host, link) => {
-  const closeUp = fetchCloseUp(new URL(CLOSEUP_FILE, host.assetBaseUrl).href);
-  // Its failure is the device's to report, once it asks for it.
-  closeUp.catch(() => undefined);
-  return import('./device/RadioDevice').then((module) => module.createRadioDevice(host, { ...link, closeUp }));
-};
 
 /** The label size before the room is ready, when nothing is known of the screen at the radio. */
 const DEFAULT_LABEL_SIZE = 384;
-async function fetchCloseUp(url: string): Promise<ArrayBuffer> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  return response.arrayBuffer();
-}
-
 /** Five plain silver discs until the app hands over its collection. */
 export const DEFAULT_DISCS: readonly DiscArt[] = [1, 2, 3, 4, 5].map((n) => ({ id: `disc-${n}`, label: null }));
 export const DEFAULT_DECK_STATE: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
@@ -52,10 +41,11 @@ class Emitter<T> {
 }
 
 /**
- * The room's public face of the CD player (`room.radio`). It exists from `createRoom` on, before the models have
- * loaded, so the app can hand over its discs and state at once: they are remembered and passed to the device once
- * it exists. It owns the listeners, `live`, `available` and the label size, and starts the device's lazy import on
- * a prefetch or the approach; the device lays the discs and keys out on the page and publishes that here.
+ * The CD player as the app drives it (`room.radio.load()`), in the radio's lazy chunk (deckChunk.ts), which
+ * RadioDoor imports as the camera first leaves the TV, before anything at the radio can be asked for. It remembers the app's discs and
+ * state and passes them to the device once that exists. It owns the listeners, `live`, `available`, the label size
+ * and the camera's radio framing, and makes the device on a prefetch or the approach; the device lays
+ * the discs and keys out on the page and publishes that here.
  */
 export class RadioDeckHandle implements RadioDeck {
   #discs: readonly DiscArt[] = DEFAULT_DISCS;
@@ -89,8 +79,10 @@ export class RadioDeckHandle implements RadioDeck {
   readonly #layer: ControlsLayer;
   readonly #reducedMotion: MediaQueryList;
   readonly #loadDeviceChunk: DeviceLoader;
+  /** The radio view's half of the radio's click target: the device's parts under the pointer. */
+  readonly parts = new RadioParts(() => this.#device);
 
-  constructor(layer: ControlsLayer, reducedMotion: MediaQueryList, loadDeviceChunk: DeviceLoader = loadDevice) {
+  constructor(layer: ControlsLayer, reducedMotion: MediaQueryList, loadDeviceChunk: DeviceLoader) {
     this.#layer = layer;
     this.#reducedMotion = reducedMotion;
     this.#loadDeviceChunk = loadDeviceChunk;
@@ -189,7 +181,7 @@ export class RadioDeckHandle implements RadioDeck {
     }
     const recount = discs.length !== this.#discs.length;
     this.#discs = [...discs];
-    if (recount) this.#host?.rig.setRadioFraming(discs.length, this.#insets);
+    if (recount) this.#frame();
     this.#device?.setDiscs(this.#discs);
   }
 
@@ -218,14 +210,14 @@ export class RadioDeckHandle implements RadioDeck {
     const was = this.#insets;
     if (top === was.top && right === was.right && bottom === was.bottom && left === was.left) return;
     this.#insets = { top, right, bottom, left };
-    this.#host?.rig.setRadioFraming(this.#discs.length, this.#insets);
+    this.#frame();
     this.#device?.relayout();
   }
 
   /** The room has loaded. Nothing is solved here: this runs before the room's first frame. */
   attach(host: RadioHost): void {
     this.#host = host;
-    host.rig.setRadioFraming(this.#discs.length, this.#insets);
+    this.#frame();
     if (this.#wanted) this.#load();
   }
 
@@ -258,7 +250,9 @@ export class RadioDeckHandle implements RadioDeck {
   dispose(): void {
     this.#device?.dispose();
     this.#device = null;
+    this.#host?.rig.setRadioFraming(null);
     this.#host = null;
+    this.#layer.dispose();
     for (const emitter of [
       this.#availability,
       this.#attentions,
@@ -318,13 +312,19 @@ export class RadioDeckHandle implements RadioDeck {
   /** The radio cannot work (its asset or its code failed): it is scenery again, warned once. */
   unavailable(error: unknown): void {
     if (!this.#isAvailable) return;
-    console.warn('The CD player could not load (radio-closeup.glb or its code); the radio stays scenery.', error);
+    console.warn(UNAVAILABLE_WARNING, error);
     this.#isAvailable = false;
     this.#pointer = null;
     this.#updateAttention();
     this.#availability.emit(false);
     // Flying to (or at) a radio that cannot open: back to the room.
     if (this.#host?.views.view === 'radio') this.#host.views.request('room');
+  }
+
+  /** The camera frames every disc slot clear of the app's controls: re-solved when either changes. */
+  #frame(): void {
+    const host = this.#host;
+    host?.rig.setRadioFraming(radioPoseSolver(host.model, this.#discs.length, this.#insets));
   }
 
   /** Once per insert: a device that wakes up after the disc was seated without it seats it again, silently. */

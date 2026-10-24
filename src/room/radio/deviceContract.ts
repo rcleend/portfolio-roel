@@ -1,6 +1,6 @@
 import type { Group, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
 import type { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { FramingInsets } from '../camera/CameraRig';
+import type { RadioPoseSolver } from '../camera/CameraRig';
 import type { Viewpoint } from '../camera/cameraPath';
 import type { InteractionHit } from '../interaction/Interactable';
 import type { IdleWork } from '../stage/IdleWork';
@@ -12,8 +12,8 @@ import type { DeckState, DiscArt, RadioCueEvent, RadioIntent, RadioKey, RadioLay
 import type { RadioModel } from './radioModel';
 
 /**
- * The seam between the radio's eager glue (RadioDeckHandle, in the room chunk) and its lazy device
- * (device/RadioDevice.ts, the `radioDevice` chunk). Types only: the device receives everything it uses from the
+ * The seam between the radio's deck (RadioDeckHandle, the lazy `radioDeck` chunk, which the room chunk's RadioDoor
+ * loads) and its lazy device (device/RadioDevice.ts, the `radioDevice` chunk). Types only: the device receives everything it uses from the
  * room through the host and the link, so the chunk imports no loaders or room state of its own.
  */
 
@@ -22,7 +22,7 @@ export interface RadioHost {
   readonly model: RadioModel;
   readonly rig: {
     viewpoint(view: 'radio'): Viewpoint;
-    setRadioFraming(discs: number, insets: FramingInsets): void;
+    setRadioFraming(solve: RadioPoseSolver | null): void;
   };
   readonly stage: {
     readonly renderer: WebGLRenderer;
@@ -129,11 +129,15 @@ export interface RadioDevice {
   /** The slots or the pose changed (resize, disc count, insets): retarget resting discs. */
   relayout(): void;
   pick(raycaster: Raycaster): DevicePick | null;
-  /** Pointer pressed on a device target; true to own the gesture. */
-  pointerDown(target: DeviceTarget): boolean;
+  /**
+   * Pointer pressed on a device target; true to own the gesture. A mouse's key acts at once; a finger's or a pen's on
+   * the release, where the browser grants the gesture that may start media (a refused play needs one).
+   */
+  pointerDown(target: DeviceTarget, pointerType: string): boolean;
   /** While owning a gesture: where the pointer is now (null off the device). */
   pointerMove(target: DeviceTarget | null): void;
-  pointerUp(): void;
+  /** The owned gesture ended; a `cancelled` one does nothing (the key comes back up). */
+  pointerUp(cancelled: boolean): void;
   /** A click that was not a gesture. */
   activate(target: DeviceTarget): void;
   /** Hover moved over a target or off the device (null). */

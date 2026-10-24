@@ -36,9 +36,10 @@ export interface Interactable {
    * Pointer pressed on it. Return true to own the rest of the gesture: moves and the release
    * then go to this interactable even off its surface, and no `activate` follows.
    */
-  pointerDown?(hit: InteractionHit): boolean;
+  pointerDown?(hit: InteractionHit, pointerType: string): boolean;
   /** Pointer moved over it, or (while it owns a gesture) anywhere; `null` when off-surface. */
   pointerMove?(hit: InteractionHit | null): void;
-  pointerUp?(): void;
+  /** The gesture it owns ended: released, or `cancelled` by the browser (nothing is done for a cancelled one). */
+  pointerUp?(cancelled: boolean): void;
   pointerLeave?(): void;
 }

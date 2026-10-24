@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RoomView } from '../viewState';
 import type { DevicePick, DeviceTarget } from './deviceContract';
 import { RadioInteractable } from './RadioInteractable';
+import { RadioParts } from './RadioParts';
 
 const BODY = new Box3(new Vector3(0.735, 0.887, -2.205), new Vector3(1.295, 1.087, -1.865));
 
@@ -24,7 +25,8 @@ function setup(view: RoomView, pick: DevicePick | null = null) {
     activate: vi.fn(),
     hover: vi.fn(),
   };
-  const deck = { available: true, prefetch: vi.fn(), prepared: device };
+  // The deck's parts drive the device, as RadioDeckHandle's do.
+  const deck = { available: true, prefetch: vi.fn(), parts: new RadioParts(() => device), prepared: device };
   const interactable = new RadioInteractable({
     root: new Object3D(),
     bodyBounds: BODY,
@@ -81,18 +83,18 @@ describe('RadioInteractable', () => {
     if (!part) throw new Error('missed');
     expect(part.distance).toBe(99);
     expect(interactable.cursor(part.hit)).toBe('pointer');
-    expect(interactable.pointerDown(part.hit)).toBe(true);
-    expect(deck.prepared.pointerDown).toHaveBeenCalledWith(disc);
+    expect(interactable.pointerDown(part.hit, 'touch')).toBe(true);
+    expect(deck.prepared.pointerDown).toHaveBeenCalledWith(disc, 'touch');
     interactable.pointerMove(null);
     expect(deck.prepared.pointerMove).toHaveBeenCalledWith(null);
-    interactable.pointerUp();
-    expect(deck.prepared.pointerUp).toHaveBeenCalled();
+    interactable.pointerUp(true);
+    expect(deck.prepared.pointerUp).toHaveBeenCalledWith(true);
 
     deck.prepared.pick.mockReturnValue(null);
     const body = interactable.intersect(rayAt(RADIO));
     if (!body) throw new Error('missed');
     expect(interactable.cursor(body.hit)).toBe('default');
-    expect(interactable.pointerDown(body.hit)).toBe(false);
+    expect(interactable.pointerDown(body.hit, 'mouse')).toBe(false);
     interactable.activate(body.hit);
     expect(views.request).not.toHaveBeenCalled();
 

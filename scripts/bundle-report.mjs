@@ -7,10 +7,12 @@
 // Measured, in kB (1000 bytes) of gzip at the default level, like Vite's own report:
 // - entry JS / entry CSS: the closure of index.html's static imports (what first load downloads);
 // - room: the three.js chunk the room host lazy-loads;
-// - pcStill / PcExperience / RadioExperience: the closure of each dynamic entry minus what the entry already
+// - pcStill / PcExperience / RadioSlot / RadioExperience: the closure of each dynamic entry minus what the entry already
 //   loaded (their own chunks plus the chunks only they share), JS and CSS together;
-// - radioDevice: the radio's lazy device, minus the entry and the room chunk it imports three from.
-// PcSlot and RadioSlot, the glue that loads them, are part of the entry. PcExperience and RadioExperience must not
+// - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
+//   and the room chunk it imports three from.
+// PcSlot, the glue that loads the computer's screen, is part of the entry; RadioSlot, the radio's, loads the first time
+// the camera leaves the TV. PcExperience, RadioSlot and RadioExperience must not
 // contain three.js (none of their files may be the room chunk or one it loads, nor carry three's names), and
 // radioDevice must bring no three.js of its own.
 // A lazy row whose source file does not exist (yet: another branch adds it) is reported as absent, not failed.
@@ -28,7 +30,8 @@ const ROOM = 'src/room/index.ts';
 const LAZY_CHUNKS = {
   pcStill: { source: 'src/app/pc/still/pcStill.ts', three: 'any' },
   PcExperience: { source: 'src/app/pc/PcExperience.tsx', three: 'none' },
-  radioDevice: { source: 'src/room/radio/device/RadioDevice.ts', three: 'room' },
+  radioDevice: { source: 'src/room/radio/deckChunk.ts', three: 'room' },
+  RadioSlot: { source: 'src/app/radio/RadioSlot.tsx', three: 'none' },
   RadioExperience: { source: 'src/app/radio/RadioExperience.tsx', three: 'none' },
 };
 

@@ -13,3 +13,10 @@ export function whenIdle(task: () => void): () => void {
   const handle = window.setTimeout(task, FALLBACK_DELAY_MS);
   return () => window.clearTimeout(handle);
 }
+
+/** The visitor asked to save data (Chrome's Save-Data): nothing loads ahead of need. */
+export function saveData(): boolean {
+  return (
+    (navigator as Navigator & { readonly connection?: { readonly saveData?: boolean } }).connection?.saveData === true
+  );
+}

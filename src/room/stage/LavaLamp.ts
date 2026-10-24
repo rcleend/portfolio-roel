@@ -22,7 +22,8 @@ export interface LavaLampOptions {
  */
 export class LavaLamp {
   private readonly mixer: AnimationMixer | null;
-  private readonly bounds = new Box3();
+  /** The lamp's glass and base in world space: it ticks only while these are in view. */
+  readonly bounds = new Box3();
   private readonly frustum = new Frustum();
   private readonly projection = new Matrix4();
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -34,6 +35,8 @@ export class LavaLamp {
     options.root.traverse((object) => {
       if (object.userData.supplied_asset === 'lava') lamp.push(object);
     });
+    // World bounds need the parents' matrices, which nothing has updated before the first frame.
+    options.root.updateMatrixWorld(true);
     for (const object of lamp) this.bounds.expandByObject(object);
     this.mixer = options.clips.length > 0 && lamp.length > 0 ? new AnimationMixer(options.root) : null;
     for (const clip of options.clips) this.mixer?.clipAction(clip).play();

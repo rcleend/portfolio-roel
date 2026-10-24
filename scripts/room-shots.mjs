@@ -102,20 +102,20 @@ async function radioLab(viewport, options = {}) {
 /** Flies to the radio and waits for the landing and the lid, past the emergence. */
 async function atRadio(page) {
   await page.evaluate(() => window.__roomLab.room.focusRadio());
-  await page.waitForFunction(() => window.__roomLab.room.radio.live);
+  await page.waitForFunction(() => window.__roomLab.room.radio.deck?.live);
   await sleep(1800);
 }
 
 /** Clicks the floating disc at `index` (slot order) and waits for the insert, the press and the spin-up. */
 async function pickDisc(page, index, wait = 2600) {
-  const disc = await page.evaluate((i) => window.__roomLab.room.radio.layout.discs[i], index);
+  const disc = await page.evaluate((i) => window.__roomLab.room.radio.deck?.layout.discs[i], index);
   await page.mouse.click(disc.x, disc.y);
   await sleep(wait);
 }
 
 /** The pointer on the floating disc at `index`, a little off its centre: it pays attention and tilts. */
 async function hoverDisc(page, index) {
-  const disc = await page.evaluate((i) => window.__roomLab.room.radio.layout.discs[i], index);
+  const disc = await page.evaluate((i) => window.__roomLab.room.radio.deck?.layout.discs[i], index);
   await page.mouse.move(disc.x + disc.radius * 0.35, disc.y - disc.radius * 0.3, { steps: 6 });
   await sleep(1200);
 }
@@ -126,7 +126,7 @@ async function radioState(page) {
     const { programs, drawCalls, radioTexturePixels, radioLidDegrees, radioAmbient, pixelRatio } = room.stats;
     return {
       view: room.view,
-      live: room.radio.live,
+      live: room.radio.deck?.live,
       lcd: radio?.deckState.lcd,
       programs,
       drawCalls,
@@ -228,7 +228,7 @@ async function radioPerf(page, label) {
     legs.radio.push(await flightRate(page, 'focusRadio', 1800), await flightRate(page, 'showRoom'));
   }
   await page.evaluate(() => window.__roomLab.room.focusRadio());
-  await page.waitForFunction(() => window.__roomLab.room.radio.live);
+  await page.waitForFunction(() => window.__roomLab.room.radio.deck?.live);
   await sleep(1800);
   await page.mouse.move(4, 4);
   await sleep(7500);
@@ -557,7 +557,7 @@ const scenarios = {
   async 'radio-insert'() {
     const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
     await atRadio(page);
-    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.deck?.layout.discs[0]);
     await page.mouse.move(disc.x, disc.y);
     await sleep(800);
     const times = [0, 90, 200, 350, 500, 650, 720, 770, 840, 890, 1100, 1500];
@@ -572,7 +572,7 @@ const scenarios = {
     const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
     await atRadio(page);
     await pickDisc(page, 1, 3000);
-    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[3]);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.deck?.layout.discs[3]);
     await page.mouse.move(disc.x, disc.y);
     await sleep(800);
     const times = [0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1400, 1700, 2100];
@@ -587,7 +587,7 @@ const scenarios = {
     // A pick and then a leave 300 ms later: the insert commits, the shelf packs up and the lid shuts by the landing.
     const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
     await atRadio(page);
-    const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+    const disc = await page.evaluate(() => window.__roomLab.room.radio.deck?.layout.discs[0]);
     await page.mouse.move(disc.x, disc.y);
     await sleep(800);
     const times = [0, 300, 400, 500, 600, 700, 800, 900, 1000, 1150, 1300, 1600];
@@ -606,7 +606,7 @@ const scenarios = {
     for (const offset of [0, 150, 300, 600, 900]) {
       const page = await radioLab({ width: 1440, height: 900, dpr: 1 }, { clock: true });
       await atRadio(page);
-      const disc = await page.evaluate(() => window.__roomLab.room.radio.layout.discs[0]);
+      const disc = await page.evaluate(() => window.__roomLab.room.radio.deck?.layout.discs[0]);
       await page.mouse.move(disc.x, disc.y);
       await sleep(400);
       await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
@@ -637,7 +637,7 @@ const scenarios = {
   async 'radio-press'() {
     const page = await radioLab({ width: 1440, height: 900, dpr: 2 }, { clock: true });
     await atRadio(page);
-    const key = await page.evaluate(() => window.__roomLab.room.radio.layout.keys['play-pause']);
+    const key = await page.evaluate(() => window.__roomLab.room.radio.deck?.layout.keys['play-pause']);
     const size = Math.max(key.width, key.height) * 2.4;
     const clip = {
       x: Math.round(key.left + key.width / 2 - size / 2),

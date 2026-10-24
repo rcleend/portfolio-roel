@@ -6,8 +6,14 @@ import { projectToPage } from '../camera/pageProjection';
 import { radioLayout } from './device/deckLayout';
 import { DISC_RADIUS, discSlots } from './discLayout';
 import { RADIO_FIXTURE, RADIO_VIEWPORTS } from './radioFixtures';
-import { lampTruck, RADIO_PITCH_DEGREES, radioDirection, radioViewpoint, slotRing } from './radioFraming';
-import { openLidCorners } from './radioModel';
+import {
+  lampTruck,
+  openLidCorners,
+  RADIO_PITCH_DEGREES,
+  radioDirection,
+  radioViewpoint,
+  slotRing,
+} from './radioFraming';
 
 type Viewport = (typeof RADIO_VIEWPORTS)[number];
 

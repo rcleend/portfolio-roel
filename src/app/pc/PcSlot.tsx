@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { RoomView } from '@/room';
 import type { PcDisplay } from './display';
 import type { PcExperienceProps } from './PcExperience';
-import { whenIdle } from './whenIdle';
+import { saveData, whenIdle } from './whenIdle';
 import './PcSlot.css';
 
 export interface PcSlotProps {
@@ -113,10 +113,4 @@ function Unavailable({ onLeave }: { readonly onLeave: () => void }) {
 
 function warn(error: unknown): void {
   console.warn('The PC screen failed to load', error);
-}
-
-function saveData(): boolean {
-  return (
-    (navigator as Navigator & { readonly connection?: { readonly saveData?: boolean } }).connection?.saveData === true
-  );
 }

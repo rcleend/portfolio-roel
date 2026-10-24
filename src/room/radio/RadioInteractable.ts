@@ -1,15 +1,14 @@
 import { Box3, type Mesh, Object3D, type Raycaster, Vector3 } from 'three';
 import type { Interactable, InteractionHit } from '../interaction/Interactable';
 import type { RoomView } from '../viewState';
-import type { DeviceTarget, RadioDevice } from './deviceContract';
 
-/** The radio as the interactable needs it (RadioDeckHandle): whether it works, and its device once prepared. */
+/** The radio view's half of the target: the device's parts under the pointer (RadioParts, in the radio's chunk). */
+export type RadioPartsTarget = Required<Omit<Interactable, 'id' | 'object' | 'gestureSurface'>>;
+
+/** The radio as the interactable needs it (RadioDoorHandle): whether it works, and its parts once loaded. */
 export interface RadioDeckTargets {
   readonly available: boolean;
-  readonly prepared: Pick<
-    RadioDevice,
-    'pick' | 'pointerDown' | 'pointerMove' | 'pointerUp' | 'activate' | 'hover'
-  > | null;
+  readonly parts: RadioPartsTarget | null;
   prefetch(reason: 'intent'): void;
 }
 
@@ -28,9 +27,6 @@ export const LAMP_PROXY = new Box3(new Vector3(0.42, 0.88, -2.04), new Vector3(0
 /** The cabinet proper inside `04_Drawer_surfaces`, which also holds the floor books (x < 0.30) and the cable (x > 1.40). */
 export const CABINET_X = { min: 0.3, max: 1.4 } as const;
 
-/** What a ray met: a part of the device, the radio's body, or its surroundings (the cabinet, the lamp). */
-type Target = DeviceTarget | 'body' | 'surroundings';
-
 /**
  * The radio, its cabinet and the lava lamp as one click target (docs/ROOM.md › The CD player):
  *
@@ -41,7 +37,8 @@ type Target = DeviceTarget | 'body' | 'surroundings';
  * | radio | pointer: hover attends, press picks | pointer: ▷II | pointer: pressed while held | default, nothing | zoom-out, the room |
  *
  * At the radio the device's parts win over the body (a proxy box 3 mm bigger than it), which wins over the
- * surroundings. A radio that cannot work answers nothing anywhere: it is scenery.
+ * surroundings. The parts are the radio's lazy chunk's (RadioParts): this half, the room's first load, is the body and
+ * the surroundings, and any hit it did not make is theirs. A radio that cannot work answers nothing anywhere.
  */
 export class RadioInteractable implements Interactable {
   readonly id = 'radio';
@@ -50,8 +47,8 @@ export class RadioInteractable implements Interactable {
   /** The cabinet proper: a ray that misses it never tests the mesh. */
   readonly #cabinetBox = new Box3();
   readonly #proxy = new Object3D();
-  readonly #targets = new WeakMap<InteractionHit, Target>();
-  #owning = false;
+  /** This half's hits, the body's (true) and the surroundings' (false). */
+  readonly #hits = new WeakMap<InteractionHit, boolean>();
 
   readonly #options: RadioInteractableOptions;
 
@@ -67,11 +64,11 @@ export class RadioInteractable implements Interactable {
   intersect(raycaster: Raycaster): { readonly hit: InteractionHit; readonly distance: number } | null {
     const { views, deck, cabinet } = this.#options;
     if (!deck.available || views.view === 'tv' || views.view === 'pc') return null;
-    const part = views.view === 'radio' ? (deck.prepared?.pick(raycaster) ?? null) : null;
-    if (part) return this.#found(part.target, part.hit, part.distance);
+    const part = views.view === 'radio' ? (this.#parts?.intersect(raycaster) ?? null) : null;
+    if (part) return part;
     const ray = raycaster.ray;
     const body = ray.intersectBox(this.#body, new Vector3());
-    if (body) return this.#found('body', { object: this.#proxy, point: body, uv: null }, body.distanceTo(ray.origin));
+    if (body) return this.#found(true, { object: this.#proxy, point: body, uv: null }, body.distanceTo(ray.origin));
     const lamp = ray.intersectBox(LAMP_PROXY, new Vector3());
     const shelf =
       cabinet && ray.intersectsBox(this.#cabinetBox)
@@ -81,58 +78,52 @@ export class RadioInteractable implements Interactable {
         : undefined;
     const lampDistance = lamp ? lamp.distanceTo(ray.origin) : Infinity;
     if (shelf && shelf.distance < lampDistance) {
-      return this.#found('surroundings', { object: shelf.object, point: shelf.point, uv: null }, shelf.distance);
+      return this.#found(false, { object: shelf.object, point: shelf.point, uv: null }, shelf.distance);
     }
-    return lamp ? this.#found('surroundings', { object: this.#proxy, point: lamp, uv: null }, lampDistance) : null;
+    return lamp ? this.#found(false, { object: this.#proxy, point: lamp, uv: null }, lampDistance) : null;
   }
 
   cursor(hit: InteractionHit): string {
-    const target = this.#targets.get(hit);
     if (this.#options.views.view === 'room') return 'zoom-in';
-    if (target === 'surroundings' || target === undefined) return 'zoom-out';
-    return target === 'body' || target.kind === 'lid' ? 'default' : 'pointer';
+    const body = this.#hits.get(hit);
+    return body === undefined ? (this.#parts?.cursor(hit) ?? 'default') : body ? 'default' : 'zoom-out';
   }
 
   activate(hit: InteractionHit): void {
-    const { views, deck } = this.#options;
-    const target = this.#targets.get(hit);
+    const { views } = this.#options;
+    const body = this.#hits.get(hit);
     if (views.view === 'room') views.request('radio');
-    else if (views.view !== 'radio' || target === undefined || target === 'body') return;
-    else if (target === 'surroundings') views.request('room');
-    // The lid, like the body: the visitor is using the radio.
-    else if (target.kind !== 'lid') deck.prepared?.activate(target);
+    else if (views.view !== 'radio' || body) return;
+    else if (body === false) views.request('room');
+    else this.#parts?.activate(hit);
   }
 
-  pointerDown(hit: InteractionHit): boolean {
-    const target = this.#targets.get(hit);
-    if (this.#options.views.view !== 'radio' || typeof target !== 'object') return false;
-    this.#owning = this.#options.deck.prepared?.pointerDown(target) ?? false;
-    return this.#owning;
+  pointerDown(hit: InteractionHit, pointerType: string): boolean {
+    if (this.#options.views.view !== 'radio' || this.#hits.has(hit)) return false;
+    return this.#parts?.pointerDown(hit, pointerType) ?? false;
   }
 
   pointerMove(hit: InteractionHit | null): void {
     const { views, deck } = this.#options;
-    const target = hit ? this.#targets.get(hit) : undefined;
     // Reaching for the radio in the room: get it ready (and its sharper skin) before the click.
-    if (views.view === 'room' && target !== undefined) deck.prefetch('intent');
-    if (views.view !== 'radio') return;
-    const part = typeof target === 'object' ? target : null;
-    if (this.#owning) deck.prepared?.pointerMove(part);
-    else deck.prepared?.hover(part);
+    if (views.view === 'room' && hit) deck.prefetch('intent');
+    if (views.view === 'radio') this.#parts?.pointerMove(hit && !this.#hits.has(hit) ? hit : null);
   }
 
-  pointerUp(): void {
-    if (!this.#owning) return;
-    this.#owning = false;
-    this.#options.deck.prepared?.pointerUp();
+  pointerUp(cancelled: boolean): void {
+    this.#parts?.pointerUp(cancelled);
   }
 
   pointerLeave(): void {
-    if (!this.#owning && this.#options.views.view === 'radio') this.#options.deck.prepared?.hover(null);
+    if (this.#options.views.view === 'radio') this.#parts?.pointerLeave();
   }
 
-  #found(target: Target, hit: InteractionHit, distance: number) {
-    this.#targets.set(hit, target);
+  get #parts(): RadioPartsTarget | null {
+    return this.#options.deck.parts;
+  }
+
+  #found(body: boolean, hit: InteractionHit, distance: number) {
+    this.#hits.set(hit, body);
     return { hit, distance };
   }
 }

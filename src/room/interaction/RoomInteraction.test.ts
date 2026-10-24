@@ -147,6 +147,8 @@ describe('room target picking', () => {
     const intersect = vi.fn(() => ({ hit: { object: anchor, point: new Vector3(), uv: null }, distance }));
     const activate = vi.fn();
     const moves: unknown[] = [];
+    const pointerDown = vi.fn(() => true);
+    const pointerUp = vi.fn();
     const big = new Mesh(new SphereGeometry(1, 96, 64), new MeshBasicMaterial());
     interaction.register({
       id: 'radio',
@@ -154,9 +156,9 @@ describe('room target picking', () => {
       intersect,
       cursor: () => 'pointer',
       activate,
-      pointerDown: () => true,
+      pointerDown,
       pointerMove: (hit) => moves.push(hit?.object ?? null),
-      pointerUp: vi.fn(),
+      pointerUp,
     });
     // Only the box is queued for cutting; the custom target's meshes are never collected.
     expect(tasks).toHaveLength(1);
@@ -168,12 +170,37 @@ describe('room target picking', () => {
     distance = 2;
     vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
     canvas.dispatchEvent(
-      new PointerEvent('pointerdown', { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100 }),
+      new PointerEvent('pointerdown', {
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerType: 'touch',
+      }),
     );
     canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 100 }));
     // While it owns the gesture its moves are ray-tested by its own test too.
     expect(moves.at(-1)).toBe(anchor);
     expect(intersect.mock.calls.length).toBeGreaterThanOrEqual(4);
+    // The owner learns what pressed (a touch acts on its release) and whether the browser cancelled the gesture.
+    expect(pointerDown).toHaveBeenLastCalledWith(expect.anything(), 'touch');
+    canvas.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1 }));
+    expect(pointerUp).toHaveBeenLastCalledWith(true);
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 2,
+        isPrimary: true,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerType: 'mouse',
+      }),
+    );
+    expect(pointerDown).toHaveBeenLastCalledWith(expect.anything(), 'mouse');
+    vi.spyOn(canvas, 'hasPointerCapture').mockReturnValue(false);
+    canvas.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2, clientX: 100, clientY: 100 }));
+    expect(pointerUp).toHaveBeenLastCalledWith(false);
     expect(boxClicks).not.toHaveBeenCalled();
     expect(activate).not.toHaveBeenCalled();
     interaction.dispose();

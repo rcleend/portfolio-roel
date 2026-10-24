@@ -98,7 +98,7 @@ async function framesOver(page: Page, ms: number): Promise<number> {
 
 /** The centre of disc `index` on the page (its anchor). */
 async function disc(page: Page, index: number) {
-  const anchor = await page.evaluate((i) => window.__roomLab?.room.radio.layout.discs[i], index);
+  const anchor = await page.evaluate((i) => window.__roomLab?.room.radio.deck?.layout.discs[i], index);
   if (!anchor) throw new Error(`No disc ${index}`);
   return anchor;
 }
@@ -118,7 +118,7 @@ test('opens the lid on the storyboard and raises the discs by the landing + 1.4 
   expect(Math.abs((await lidAt(1079)) - 72)).toBeLessThanOrEqual(1);
   expect(Math.abs((await lidAt(1309)) - 87.2)).toBeLessThanOrEqual(1);
   expect(Math.abs((await lidAt(2000)) - 84)).toBeLessThanOrEqual(1);
-  expect(await page.evaluate(() => window.__roomLab?.room.radio.live)).toBe(true);
+  expect(await page.evaluate(() => window.__roomLab?.room.radio.deck?.live)).toBe(true);
   expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
 
   await lidAt(LANDING + 1400);
@@ -154,7 +154,9 @@ test('a pick seats the disc at +900 ms, presses ▷II in the model and starts it
   expect(Math.abs(seated.at - pick.at - 900)).toBeLessThanOrEqual(FRAME + 1);
   const after = events.filter((entry) => entry.at >= pick.at).map((entry) => entry.detail);
   for (const cue of ['disc-pick', 'disc-seat', 'key-down', 'key-up', 'spin-up']) expect(after).toContain(cue);
-  const layout = await page.evaluate(() => window.__roomLab?.room.radio.layout.discs.find((d) => d.disc === 'mock-2'));
+  const layout = await page.evaluate(() =>
+    window.__roomLab?.room.radio.deck?.layout.discs.find((d) => d.disc === 'mock-2'),
+  );
   expect(layout?.inPlayer).toBe(true);
 });
 
@@ -197,7 +199,7 @@ test('the sharper skin goes up in strips and the radio stays lit under it', asyn
   expect(await skinned()).toBe(true);
   await advance(page, 100);
   // The front panel around the keys: the skin's grey plastic, not black (a strip that fails leaves the texture empty).
-  const keys = await page.evaluate(() => window.__roomLab?.room.radio.layout.keys);
+  const keys = await page.evaluate(() => window.__roomLab?.room.radio.deck?.layout.keys);
   if (!keys) throw new Error('No key rects');
   const rects = Object.values(keys);
   const left = Math.min(...rects.map((rect) => rect.left));
@@ -220,7 +222,7 @@ test('the keys press themselves for the app and answer the pointer', async ({ pa
   const pressed = (await log(page)).slice(before).map((entry) => entry.detail);
   expect(pressed).toEqual(['key-down', 'key-up']);
   // The ⏭ key in the model under the pointer: pressed while held, a press intent at once.
-  const key = await page.evaluate(() => window.__roomLab?.room.radio.layout.keys.next);
+  const key = await page.evaluate(() => window.__roomLab?.room.radio.deck?.layout.keys.next);
   if (!key) throw new Error('No key rect');
   await page.mouse.move(key.left + key.width / 2, key.top + key.height / 2);
   await page.mouse.down();
@@ -239,7 +241,7 @@ test('leaving sends the discs home and shuts the lid by the time the camera land
     window.__roomLab?.room.showRoom();
     return performance.now();
   });
-  expect(await page.evaluate(() => window.__roomLab?.room.radio.live)).toBe(false);
+  expect(await page.evaluate(() => window.__roomLab?.room.radio.deck?.live)).toBe(false);
   await advance(page, LANDING);
   expect((await stats(page))?.radioLidDegrees).toBe(0);
   const events = (await log(page)).filter((entry) => entry.at >= start).map((entry) => entry.detail);
@@ -264,7 +266,7 @@ test.describe('frames at the radio', () => {
     // Playing: the seated disc is its radial average; only the LCD clock draws.
     await page.evaluate(() => {
       const room = window.__roomLab?.room;
-      room?.radio.setState({ loaded: 'mock-3', transport: 'playing', lcd: { kind: 'reading' } });
+      room?.radio.deck?.setState({ loaded: 'mock-3', transport: 'playing', lcd: { kind: 'reading' } });
     });
     await advance(page, 9000);
     expect(await framesOver(page, 2000)).toBeLessThanOrEqual(2);
@@ -274,7 +276,7 @@ test.describe('frames at the radio', () => {
   test('blinks a paused time only while the visitor is there', async ({ page }) => {
     await atRadio(page);
     await page.evaluate(() =>
-      window.__roomLab?.room.radio.setState({
+      window.__roomLab?.room.radio.deck?.setState({
         loaded: 'mock-1',
         transport: 'paused',
         lcd: { kind: 'track', track: 1, seconds: 37, transport: 'paused' },
@@ -333,7 +335,7 @@ for (const viewport of [
 
     test('lays the discs and keys out on the page for the app', async ({ page }) => {
       await atRadio(page);
-      const layout = await page.evaluate(() => window.__roomLab?.room.radio.layout);
+      const layout = await page.evaluate(() => window.__roomLab?.room.radio.deck?.layout);
       if (!layout) throw new Error('No layout');
       expect(layout.discs).toHaveLength(5);
       for (const anchor of layout.discs) {

@@ -7,6 +7,7 @@ import type {
   RadioCue,
   RadioCueEvent,
   RadioDeck,
+  RadioDoor,
   RadioIntent,
   RadioKey,
   RadioLayout,
@@ -556,4 +557,24 @@ function sameInsets(a: FramingInsets, b: FramingInsets): boolean {
 
 function reducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const doors = new WeakMap<FakeDeck, RadioDoor>();
+
+/** The fake deck behind the door the room would hand the slot (its deck already loaded). */
+export function doorOf(deck: FakeDeck): RadioDoor {
+  let door = doors.get(deck);
+  if (!door) {
+    door = {
+      get available() {
+        return deck.available;
+      },
+      onAvailableChange: () => deck.onAvailableChange(),
+      prefetch: (reason) => deck.prefetch(reason),
+      load: () => Promise.resolve(deck),
+      deck,
+    };
+    doors.set(deck, door);
+  }
+  return door;
 }

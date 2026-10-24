@@ -7,9 +7,8 @@ import type { FramingInsets } from './camera/CameraRig';
 import type { Interactable } from './interaction/Interactable';
 import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
 import { ScreenOverlay } from './pc/ScreenOverlay';
-import { ControlsLayer } from './radio/ControlsLayer';
-import type { RadioDeck } from './radio/RadioDeck';
-import { RadioDeckHandle } from './radio/RadioDeckHandle';
+import type { RadioDoor } from './radio/RadioDeck';
+import { RadioDoorHandle } from './radio/RadioDoor';
 import { RoomStage } from './stage/RoomStage';
 import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
@@ -65,7 +64,7 @@ export interface Room {
   /** The computer's monitor; usable before `ready` (calls are remembered). */
   readonly pc: PcMonitor;
   /** The CD player; usable before `ready` (calls are remembered). */
-  readonly radio: RadioDeck;
+  readonly radio: RadioDoor;
   /** Where the TV, the computer and the radio sit in the settled room view, for the current viewport. */
   readonly anchors: readonly PropAnchor[];
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
@@ -107,8 +106,7 @@ export function createRoom(options: CreateRoomOptions): Room {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const overlay = new ScreenOverlay(options.overlayContainer ?? options.container, reducedMotion);
   const pc = new PcMonitorHandle(overlay);
-  const controls = new ControlsLayer(options.overlayContainer ?? options.container);
-  const radio = new RadioDeckHandle(controls, reducedMotion);
+  const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
   const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
@@ -145,9 +143,17 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
     concealScreen: () => pc.conceal(),
     // The device times its lid from the click, against the flight's own clock (FLIGHT_MS, REDUCED_FADE_MS).
-    approachRadio: () => radio.approach(performance.now()),
-    revealRadio: () => radio.reveal(),
-    concealRadio: () => radio.conceal(),
+    approachRadio: () => radio.deck?.approach(performance.now()),
+    revealRadio: () => radio.deck?.reveal(),
+    concealRadio: () => radio.deck?.conceal(),
+    // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
+    whenReady: (view) => (view === 'radio' && !radio.deck ? radio.load() : null),
+  });
+  // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
+  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds).
+  const stopPreload = views.onChange(() => {
+    stopPreload();
+    requestAnimationFrame(() => setTimeout(() => disposed || radio.preload(), 0));
   });
 
   const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {})).then((assets) => {
@@ -258,7 +264,6 @@ export function createRoom(options: CreateRoomOptions): Room {
       disposed = true;
       pc.detach();
       radio.dispose();
-      controls.dispose();
       scene?.dispose();
       scene = null;
       views.dispose();

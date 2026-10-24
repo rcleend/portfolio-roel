@@ -29,7 +29,6 @@ const room = createRoom({
   },
 });
 if (params.get('mockpc') === '1') new MockPcScreen(room.pc);
-const radio = params.get('mockradio') === '1' ? new MockRadioApp(room.radio) : null;
 
 const showStatus = (): void => {
   const stats = room.stats;
@@ -41,7 +40,7 @@ const showStatus = (): void => {
     `${stats.drawCalls} calls`,
     `${stats.programs} programs`,
     `pc texture ${stats.pcTexturePixels} px`,
-    `radio ${stats.radioReady ? 'ready' : 'cold'}${room.radio.live ? ' live' : ''}`,
+    `radio ${stats.radioReady ? 'ready' : 'cold'}${room.radio.deck?.live ? ' live' : ''}`,
     `lid ${stats.radioLidDegrees.toFixed(1)}°`,
     stats.radioAmbient ? 'ambient' : 'resting',
     `radio texture ${stats.radioTexturePixels} px`,
@@ -50,7 +49,6 @@ const showStatus = (): void => {
 };
 room.onViewChange(showStatus);
 room.pc.onLiveChange(showStatus);
-room.radio.onLiveChange(showStatus);
 setInterval(showStatus, 500);
 
 document.getElementById('panel')?.addEventListener('click', (event) => {
@@ -60,9 +58,9 @@ document.getElementById('panel')?.addEventListener('click', (event) => {
   if (action === 'room') room.showRoom();
   if (action === 'pc') room.focusPc();
   if (action === 'radio') room.focusRadio();
-  if (action === 'play') radio?.press('play-pause');
-  if (action === 'stop') radio?.press('stop');
-  if (action === 'next') radio?.press('next');
+  if (action === 'play') lab.radio?.press('play-pause');
+  if (action === 'stop') lab.radio?.press('stop');
+  if (action === 'next') lab.radio?.press('next');
 });
 
 declare global {
@@ -70,13 +68,18 @@ declare global {
     __roomLab?: { room: typeof room; surface: MockGameSurface; radio: MockRadioApp | null };
   }
 }
-window.__roomLab = { room, surface, radio };
+/** The mock radio arrives with the radio's deck, once the room is ready. */
+const lab: { room: typeof room; surface: MockGameSurface; radio: MockRadioApp | null } = { room, surface, radio: null };
+window.__roomLab = lab;
 
 room.ready.then(
   async () => {
     showStatus();
-    if (radio) {
-      radio.setDiscs();
+    const deck = params.get('mockradio') === '1' ? await room.radio.load().catch(() => null) : null;
+    if (deck) {
+      lab.radio = new MockRadioApp(deck);
+      deck.onLiveChange(showStatus);
+      lab.radio.setDiscs();
       room.radio.prefetch('idle');
     }
     if (params.get('autopower') === '0') return;

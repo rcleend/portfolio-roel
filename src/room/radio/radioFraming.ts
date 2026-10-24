@@ -1,8 +1,30 @@
 import { type Box3, MathUtils, Quaternion, Vector3 } from 'three';
 import type { Viewpoint } from '../camera/cameraPath';
 import { boxCorners, frameSubject, regionFromInsets } from '../camera/framing';
-import { DISC_RADIUS, type DiscSlot, STACK_BELOW_ASPECT } from './discLayout';
-import { openLidCorners } from './radioModel';
+import { DISC_RADIUS, type DiscSlot, discSlots, STACK_BELOW_ASPECT } from './discLayout';
+
+/** The radio's lid in world space (glTF metres), the close-up build's measurement (tools/room/radio-closeup.json). */
+export const LID_FRAMING = {
+  /** The lid swings about an x-parallel axis along its lower back edge. */
+  hinge: { y: 1.044, z: -2.161 },
+  openDegrees: 84,
+  /** The closed lid: its footprint across x and its far (front, top) edge. */
+  lid: { minX: 1.01, maxX: 1.213, frontY: 1.0822, frontZ: -1.9386 },
+} as const;
+
+/** Points of the open lid's far edge make the camera keep it in frame; this is the closed lid's, rotated. */
+export function openLidCorners(degrees: number = LID_FRAMING.openDegrees): Vector3[] {
+  const { hinge, lid } = LID_FRAMING;
+  const angle = MathUtils.degToRad(degrees);
+  const dy = lid.frontY - hinge.y;
+  const dz = lid.frontZ - hinge.z;
+  const far = new Vector3(
+    0,
+    hinge.y + dy * Math.cos(angle) + dz * Math.sin(angle),
+    hinge.z - dy * Math.sin(angle) + dz * Math.cos(angle),
+  );
+  return [lid.minX, lid.maxX].flatMap((x) => [new Vector3(x, hinge.y, hinge.z), far.clone().setX(x)]);
+}
 
 /**
  * Where the camera rests at the CD player: straight at the radio's front, pitched 24° down so the open well,
@@ -124,6 +146,23 @@ export function radioViewpoint(
   );
   const shift = new Vector3(truck, 0, 0);
   return { position: pose.position.clone().add(shift), target: pose.target.clone().add(shift), fov, truck };
+}
+
+/** The camera's resting pose at the radio for `discs` slots clear of `insets`, as CameraRig asks for it per viewport. */
+export function radioPoseSolver(
+  model: RadioFramingModel,
+  discs: number,
+  insets: ControlInsets,
+): (viewport: FramingViewport) => Viewpoint {
+  return ({ width, height }) => {
+    const { position, target, fov } = radioViewpoint(
+      model,
+      discSlots(discs, width / height),
+      { width, height },
+      insets,
+    );
+    return { position, target, fov };
+  };
 }
 
 /** The sideways move (+x, m) that puts every lamp corner beyond NDC x = −1.04; 0 when it already is. */

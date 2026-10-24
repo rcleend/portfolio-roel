@@ -2,16 +2,11 @@ import { Box3, PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { PcFramingModel } from '../pc/pcFraming';
 import { RADIO_FIXTURE } from '../radio/radioFixtures';
-import * as framing from '../radio/radioFraming';
+import { radioPoseSolver } from '../radio/radioFraming';
 import { type FrameScheduler, RenderLoop } from '../stage/RenderLoop';
 import type { TvModel } from '../tv/tvModel';
-import { CameraRig, MAX_CUT_HOLD_MS, REDUCED_FADE_MS } from './CameraRig';
+import { CameraRig, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
 import type { ScreenFade } from './ScreenFade';
-
-vi.mock('../radio/radioFraming', async (original) => {
-  const module = await original<typeof import('../radio/radioFraming')>();
-  return { ...module, radioViewpoint: vi.fn(module.radioViewpoint) };
-});
 
 /** pc-base.glb's glass and shell, and the TV set (room revision 6), as the models find them. */
 const PC: PcFramingModel = {
@@ -47,25 +42,35 @@ function rig(reduced: boolean) {
   const fade = { opacity: 0 } as unknown as ScreenFade;
   const motion = { matches: reduced } as MediaQueryList;
   const camera = new PerspectiveCamera();
-  const instance = new CameraRig(camera, loop, TV, PC, motion, fade, RADIO_FIXTURE);
+  const instance = new CameraRig(camera, loop, TV, PC, motion, fade);
+  instance.setRadioFraming(radioPoseSolver(RADIO_FIXTURE, 5, NO_INSETS));
   return { instance, frames, fade };
 }
 
 describe('CameraRig', () => {
   it('solves the radio pose only when it is first needed, and again only after a change', () => {
-    const solve = vi.mocked(framing.radioViewpoint);
-    solve.mockClear();
     const { instance } = rig(false);
     instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
-    instance.setRadioFraming(5, { top: 0, right: 0, bottom: 0, left: 0 });
+    const solve = vi.fn(radioPoseSolver(RADIO_FIXTURE, 5, NO_INSETS));
+    instance.setRadioFraming(solve);
     expect(solve).not.toHaveBeenCalled();
     const pose = instance.viewpoint('radio');
     expect(solve).toHaveBeenCalledTimes(1);
     expect(instance.viewpoint('radio').position.distanceTo(pose.position)).toBe(0);
     expect(solve).toHaveBeenCalledTimes(1);
-    instance.setRadioFraming(5, { top: 0, right: 0, bottom: 64, left: 0 });
+    instance.resize({ width: 1440, height: 800, pixelRatio: 2 });
     instance.viewpoint('radio');
     expect(solve).toHaveBeenCalledTimes(2);
+    const inset = vi.fn(radioPoseSolver(RADIO_FIXTURE, 5, { top: 0, right: 0, bottom: 64, left: 0 }));
+    instance.setRadioFraming(inset);
+    expect(instance.viewpoint('radio').position.distanceTo(pose.position)).toBeGreaterThan(0);
+    expect(inset).toHaveBeenCalledTimes(1);
+  });
+
+  it('rests the radio view at the room pose until the radio can frame itself', () => {
+    const { instance } = rig(false);
+    instance.setRadioFraming(null);
+    expect(instance.viewpoint('radio').position.distanceTo(instance.viewpoint('room').position)).toBe(0);
   });
 
   it('holds a reduced-motion cut black while asked, then fades back and arrives', () => {

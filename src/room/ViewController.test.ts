@@ -25,7 +25,7 @@ function fakeSurface() {
   return surface;
 }
 
-function setup() {
+function setup(whenReady?: (view: RoomView) => Promise<unknown> | null) {
   const surface = fakeSurface();
   const arrivals: (() => void)[] = [];
   /** Every camera move and screen change, in order, as the controller performed them. */
@@ -43,6 +43,7 @@ function setup() {
     approachRadio: () => log.push('approach radio'),
     revealRadio: () => log.push('reveal radio'),
     concealRadio: () => log.push('conceal radio'),
+    whenReady,
   });
   const land = () => arrivals.shift()?.();
   return { surface, views, land, releasePointer, log };
@@ -213,5 +214,65 @@ describe('ViewController', () => {
     views.request('tv');
     land();
     expect(surface.resume).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a view whose code is still loading', () => {
+    function gated() {
+      let open: () => void = () => {};
+      let fail: () => void = () => {};
+      const loading = new Promise<void>((resolve, reject) => {
+        open = resolve;
+        fail = reject;
+      });
+      let loaded = false;
+      void loading.then(
+        () => (loaded = true),
+        () => undefined,
+      );
+      const controller = setup((view) => (view === 'radio' && !loaded ? loading : null));
+      return { ...controller, open, fail };
+    }
+
+    it('sets off once the code is there, and at once from then on', async () => {
+      const { views, land, log, open } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      expect(log).toEqual(['move tv→room']);
+      open();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+      land();
+      views.request('room');
+      land();
+      views.request('radio');
+      expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+    });
+
+    it('lets a later request win over one still waiting', async () => {
+      const { views, land, log, open } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      views.request('pc');
+      open();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log).toEqual(['move tv→room', 'move room→pc']);
+      expect(views.view).toBe('pc');
+    });
+
+    it('drops the request when the code fails to load', async () => {
+      const { views, land, log, fail } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      fail();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log).toEqual(['move tv→room']);
+      expect(views.view).toBe('room');
+    });
   });
 });

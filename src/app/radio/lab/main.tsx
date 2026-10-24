@@ -6,7 +6,7 @@ import { sfxLength } from '@/engine/audio/sfx/recipe';
 import type { RadioIntent, RoomView } from '../deck';
 import { FOLEY_CUES, FOLEY_LEVELS, type FoleyCue, foleyRecipe } from '../player/foley';
 import { RadioSlot } from '../RadioSlot';
-import { FakeDeck, type LabEvent, lcdText } from './FakeDeck';
+import { doorOf, FakeDeck, type LabEvent, lcdText } from './FakeDeck';
 import '../../styles.css';
 import { watchInputModality } from '../../a11y/inputModality';
 
@@ -106,7 +106,7 @@ function Lab() {
   const [currentView, currentMuted, currentSettled] = current.split('|');
   return (
     <RadioSlot
-      deck={deck}
+      door={doorOf(deck)}
       view={currentView as RoomView}
       settled={currentSettled === 'true'}
       powered

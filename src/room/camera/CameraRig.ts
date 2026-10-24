@@ -1,8 +1,6 @@
 import { MathUtils, type PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { easeInOutCubic, easeOutCubic } from '../motion/easing';
 import { type PcFramingModel, pcViewpoint } from '../pc/pcFraming';
-import { discSlots } from '../radio/discLayout';
-import { type ControlInsets, type RadioFramingModel, radioViewpoint } from '../radio/radioFraming';
 import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { TvModel } from '../tv/tvModel';
@@ -32,6 +30,9 @@ export interface FramingInsets {
 }
 
 export const NO_INSETS: FramingInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** The radio's resting pose for a viewport (radioFraming.ts › radioPoseSolver). */
+export type RadioPoseSolver = (viewport: ViewportSize) => Viewpoint;
 
 // A long lens flattens the set into a "product shot" of the TV.
 const TV_FOV = 28;
@@ -79,8 +80,8 @@ export class CameraRig {
   private readonly parallaxGoal = new Vector2();
   private parallaxActive = false;
   private parallaxEnabled = false;
-  private radioDiscs = 5;
-  private controlInsets: ControlInsets = NO_INSETS;
+  /** Solves the radio's pose; set by the radio's deck once its code has loaded (null: the room's pose). */
+  private radioSolver: RadioPoseSolver | null = null;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -89,8 +90,6 @@ export class CameraRig {
     private readonly pc: PcFramingModel,
     private readonly reducedMotion: MediaQueryList,
     private readonly fade: ScreenFade,
-    /** Null when the room has no radio: its view then rests where the room view does. */
-    private readonly radio: RadioFramingModel | null = null,
   ) {
     this.poses = { tv: this.computeTvPose(), room: roomViewpoint(1), pc: pcViewpoint(pc, 1) };
     this.current = cloneViewpoint(this.poses.tv);
@@ -120,10 +119,12 @@ export class CameraRig {
     this.holdPose();
   }
 
-  /** The radio view frames every disc slot clear of the app's controls: re-frame when either changes. */
-  setRadioFraming(discs: number, insets: ControlInsets): void {
-    this.radioDiscs = discs;
-    this.controlInsets = insets;
+  /**
+   * How the radio view frames its disc slots clear of the app's controls, from the radio's deck (its framing code
+   * leaves the first load): re-set when the disc count or the controls change. Null rests it at the room's pose.
+   */
+  setRadioFraming(solve: RadioPoseSolver | null): void {
+    this.radioSolver = solve;
     this.radioPose = null;
     if (this.settledView === 'radio') this.holdPose();
   }
@@ -274,14 +275,8 @@ export class CameraRig {
   }
 
   private computeRadioPose(): Viewpoint | null {
-    if (!this.radio) return null;
-    const { width, height } = this.viewport;
-    const { position, target, fov } = radioViewpoint(
-      this.radio,
-      discSlots(this.radioDiscs, width / height),
-      { width, height },
-      this.controlInsets,
-    );
+    if (!this.radioSolver) return null;
+    const { position, target, fov } = this.radioSolver(this.viewport);
     return { position, target, fov };
   }
 

@@ -11,6 +11,7 @@ export type {
   RadioCue,
   RadioCueEvent,
   RadioDeck,
+  RadioDoor,
   RadioIntent,
   RadioKey,
   RadioLayout,

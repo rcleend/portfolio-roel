@@ -130,7 +130,7 @@ export class RoomInteraction {
     this.setNdc(event);
     const found = this.pick();
     let owner: Interactable | null = null;
-    if (found?.interactable.pointerDown?.(found.hit)) {
+    if (found?.interactable.pointerDown?.(found.hit, event.pointerType)) {
       owner = found.interactable;
       this.options.canvas.setPointerCapture(event.pointerId);
     }
@@ -142,7 +142,7 @@ export class RoomInteraction {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     this.gesture = null;
     if (gesture.owner) {
-      gesture.owner.pointerUp?.();
+      gesture.owner.pointerUp?.(false);
       if (this.options.canvas.hasPointerCapture(event.pointerId)) {
         this.options.canvas.releasePointerCapture(event.pointerId);
       }
@@ -158,7 +158,7 @@ export class RoomInteraction {
 
   private readonly onPointerCancel = (event: PointerEvent): void => {
     if (this.gesture?.pointerId !== event.pointerId) return;
-    this.gesture.owner?.pointerUp?.();
+    this.gesture.owner?.pointerUp?.(true);
     this.gesture = null;
   };
 

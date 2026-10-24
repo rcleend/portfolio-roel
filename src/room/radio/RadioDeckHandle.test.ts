@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type FramingInsets, NO_INSETS } from '../camera/CameraRig';
 import { ControlsLayer } from './ControlsLayer';
 import type { RadioDevice, RadioDeviceEvents, RadioHost } from './deviceContract';
 import { discSlots } from './discLayout';
 import type { DeckState } from './RadioDeck';
 import { DEFAULT_DISCS, type DeviceLoader, RadioDeckHandle } from './RadioDeckHandle';
 import { RADIO_FIXTURE } from './radioFixtures';
-import { radioViewpoint } from './radioFraming';
+import { radioPoseSolver, radioViewpoint } from './radioFraming';
 
 const motion = (reduced = false) => ({ matches: reduced }) as MediaQueryList;
 const PLAYING: DeckState = { loaded: 'disc-2', transport: 'playing', lcd: { kind: 'reading' } };
@@ -87,8 +88,16 @@ describe('RadioDeckHandle', () => {
     const room = host();
     const viewpoint = vi.spyOn(room.rig, 'viewpoint');
     expect(deck.labelSize).toBe(384);
+    const framing = vi.mocked(room.rig.setRadioFraming);
+    /** The pose the rig would solve from the last framing it was given, against the one expected. */
+    const framed = (discs: number, insets: FramingInsets) => {
+      const viewport = { width: 1440, height: 900, pixelRatio: 1 };
+      const solve = framing.mock.lastCall?.[0];
+      const expected = radioPoseSolver(room.model, discs, insets)(viewport);
+      return solve ? solve(viewport).position.distanceTo(expected.position) : Number.NaN;
+    };
     deck.attach(room);
-    expect(room.rig.setRadioFraming).toHaveBeenCalledWith(5, { top: 0, right: 0, bottom: 0, left: 0 });
+    expect(framed(5, NO_INSETS)).toBe(0);
     // Attaching runs before the room's first frame: it solves nothing.
     expect(viewpoint).not.toHaveBeenCalled();
     // About 210 px discs at 1440 × 900 @1: the 256 px prints are sharp enough.
@@ -97,10 +106,15 @@ describe('RadioDeckHandle', () => {
     expect(deck.labelSize).toBe(256);
     expect(viewpoint).toHaveBeenCalledTimes(1);
     expect(loader).not.toHaveBeenCalled();
-    deck.setControlInsets({ top: 0, right: 0, bottom: 64, left: 0 });
-    expect(room.rig.setRadioFraming).toHaveBeenLastCalledWith(5, { top: 0, right: 0, bottom: 64, left: 0 });
+    const bar = { top: 0, right: 0, bottom: 64, left: 0 };
+    deck.setControlInsets(bar);
+    expect(framed(5, bar)).toBe(0);
+    expect(framed(5, NO_INSETS)).toBeGreaterThan(0);
     deck.setDiscs([{ id: 'a', label: null }]);
-    expect(room.rig.setRadioFraming).toHaveBeenLastCalledWith(1, { top: 0, right: 0, bottom: 64, left: 0 });
+    expect(framed(1, bar)).toBe(0);
+    expect(framing).toHaveBeenCalledTimes(3);
+    deck.dispose();
+    expect(framing).toHaveBeenLastCalledWith(null);
   });
 
   it('publishes the layout the device lays out', async () => {

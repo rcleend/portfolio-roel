@@ -1,13 +1,38 @@
-import { type KeyboardEvent, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  lazy,
+  Suspense,
+  startTransition,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { Room, RoomView } from '@/room';
 import { RoomHotspots } from '../overlays/room-hotspots/RoomHotspots';
 import { PcSlot } from '../pc/PcSlot';
-import { RadioSlot } from '../radio/RadioSlot';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import type { HostProps } from './types';
 import { useRoom } from './useRoom';
 import './RoomHost.css';
+
+/**
+ * The CD player's glue leaves the first load (docs/RADIO.md › Loading): it mounts, in a transition, the first time the
+ * camera rests away from the TV or heads for the radio, never inside the click that leaves the TV. Should only this glue fail, the radio stays without its music, and
+ * Escape or a click beside it still leads back to the room.
+ */
+const RadioSlot = lazy(() =>
+  import('../radio/RadioSlot').then(
+    (module) => ({ default: module.RadioSlot }),
+    (error: unknown) => {
+      console.warn('The CD player failed to load', error);
+      return { default: () => null };
+    },
+  ),
+);
 
 declare global {
   interface Window {
@@ -47,6 +72,8 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
   const [settled, setSettled] = useState(true);
   // The computer's prefetch waits for the picture: nothing may compete with the TV turning on.
   const [tvOn, setTvOn] = useState(false);
+  // The camera has rested away from the TV (or headed for the radio): the CD player's glue loads (see RadioSlot above).
+  const [radioDue, setRadioDue] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
 
@@ -92,6 +119,14 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
     if (!room || !powered || room.powerState !== 'off') return;
     room.powerOn().then(poweredOn, (error: unknown) => console.error('TV failed to power on', error));
   }, [room, powered]);
+
+  // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
+  // suspension and the commit), so it waits for the landing, out of the click and the flight, as a transition. The
+  // slot does nothing until then anyway: its prefetch waits for a settled room and its load for the radio view.
+  useEffect(() => {
+    if (radioDue || view === 'tv' || !(settled || view === 'radio')) return;
+    startTransition(() => setRadioDue(true));
+  }, [radioDue, view, settled]);
 
   const { top, right, bottom, left } = insets;
   useEffect(() => {
@@ -159,15 +194,19 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
         onLeave={showRoom}
         onFocusStage={focusStage}
       />
-      <RadioSlot
-        deck={room?.radio ?? null}
-        view={view}
-        settled={settled}
-        powered={tvOn}
-        muted={muted}
-        onLeave={showRoom}
-        onFocusStage={focusStage}
-      />
+      {room && radioDue ? (
+        <Suspense fallback={null}>
+          <RadioSlot
+            door={room.radio}
+            view={view}
+            settled={settled}
+            powered={tvOn}
+            muted={muted}
+            onLeave={showRoom}
+            onFocusStage={focusStage}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

@@ -20,6 +20,11 @@ export interface ViewControllerOptions {
   readonly revealRadio: () => void;
   /** The camera is about to leave the radio (or turn back on the way there): hide its controls, close it up. */
   readonly concealRadio: () => void;
+  /**
+   * A view whose code is still loading (the radio's, which leaves the first load): a promise the request waits for
+   * before the camera sets off, else null. A later request supersedes a waiting one; a rejected wait drops it.
+   */
+  readonly whenReady?: (view: RoomView) => Promise<unknown> | null;
 }
 
 /**
@@ -32,6 +37,8 @@ export class ViewController {
   private pausedByRoom = false;
   private readonly listeners = new Set<(view: RoomView) => void>();
   private readonly settleListeners = new Set<(view: RoomView) => void>();
+  /** Counts requests, so a request waiting for its view's code knows whether a later one superseded it. */
+  private requests = 0;
 
   constructor(private readonly options: ViewControllerOptions) {
     options.surface.setInputEnabled(true);
@@ -51,7 +58,16 @@ export class ViewController {
   }
 
   request(view: RoomView): void {
-    this.apply(reduceView(this.state, { type: 'request', view }));
+    const request = ++this.requests;
+    const wait = view === this.state.view ? null : (this.options.whenReady?.(view) ?? null);
+    if (!wait) {
+      this.apply(reduceView(this.state, { type: 'request', view }));
+      return;
+    }
+    wait.then(
+      () => request === this.requests && this.apply(reduceView(this.state, { type: 'request', view })),
+      () => undefined,
+    );
   }
 
   /** Called as the camera sets off towards a new view. */

@@ -36,7 +36,7 @@ async function open(page: Page, path = '/?seed=1'): Promise<void> {
   await page.evaluate(() => {
     const record = window as unknown as { __cues: string[] };
     record.__cues = [];
-    window.__room?.radio.onCue((event) => record.__cues.push(event.cue));
+    void window.__room?.radio.load().then((deck) => deck.onCue((event) => record.__cues.push(event.cue)));
   });
 }
 
@@ -69,7 +69,7 @@ async function goToRadio(page: Page, tap = false): Promise<void> {
 }
 
 async function untilDiscsUp(page: Page): Promise<void> {
-  await expect.poll(() => page.evaluate(() => window.__room?.radio.live), { timeout: 5000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__room?.radio.deck?.live), { timeout: 5000 }).toBe(true);
   // The last disc rises by the landing + 1.2 s on a warm visit, later on a cold one (its print uploads first).
   await expect
     .poll(async () => (await cues(page)).filter((cue) => cue === 'disc-rise').length, { timeout: 8000 })
@@ -79,14 +79,14 @@ async function untilDiscsUp(page: Page): Promise<void> {
 
 /** Where a disc of the shelf is on the page at the radio (its floating slot, or the seat). */
 async function disc(page: Page, id: string) {
-  const found = await page.evaluate((name) => window.__room?.radio.layout.discs.find((d) => d.disc === name), id);
+  const found = await page.evaluate((name) => window.__room?.radio.deck?.layout.discs.find((d) => d.disc === name), id);
   if (!found) throw new Error(`No disc ${id} at the radio`);
   return found;
 }
 
 /** Clicks a key on the 3D model, at the middle of its projected rect. */
 async function pressModelKey(page: Page, key: 'play-pause' | 'stop' | 'previous' | 'next'): Promise<void> {
-  const rect = await page.evaluate((name) => window.__room?.radio.layout.keys[name], key);
+  const rect = await page.evaluate((name) => window.__room?.radio.deck?.layout.keys[name], key);
   if (!rect) throw new Error(`No ${key} key`);
   await page.mouse.click(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
@@ -244,7 +244,7 @@ test.describe('with reduced motion', () => {
     await lookAround(page);
     const radio = await anchor(page, 'radio');
     await page.mouse.click(radio.x, radio.y);
-    await expect.poll(() => page.evaluate(() => window.__room?.radio.live)).toBe(true);
+    await expect.poll(() => page.evaluate(() => window.__room?.radio.deck?.live)).toBe(true);
     await expect.poll(async () => (await stats(page))?.radioLidDegrees).toBe(84);
     const lowTide = await disc(page, 'low-tide');
     const elapsed = await timePickToSound(page, () => page.mouse.click(lowTide.x, lowTide.y));
@@ -494,7 +494,7 @@ test.describe('on a phone', () => {
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeCloseTo(844, 0);
       expect(box?.height ?? 0).toBeGreaterThan(200);
       // The discs are framed clear of the rail.
-      const layout = await page.evaluate(() => window.__room?.radio.layout.discs ?? []);
+      const layout = await page.evaluate(() => window.__room?.radio.deck?.layout.discs ?? []);
       for (const anchor of layout) expect(anchor.x + anchor.radius).toBeLessThanOrEqual(box?.x ?? 0);
     });
   });

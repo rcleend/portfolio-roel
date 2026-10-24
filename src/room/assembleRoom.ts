@@ -11,9 +11,9 @@ import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
 import { locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
-import type { RadioDeckHandle } from './radio/RadioDeckHandle';
+import type { RadioDoorHandle } from './radio/RadioDoor';
 import { RadioInteractable } from './radio/RadioInteractable';
-import { locateRadio, RADIO_GEOMETRY, type RadioModel } from './radio/radioModel';
+import { locateRadio, RADIO_ANCHOR, type RadioModel } from './radio/radioModel';
 import { type IdleMoment, IdleWork } from './stage/IdleWork';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
@@ -34,7 +34,7 @@ export interface RoomSceneOptions {
   /** The computer's live screen, created before the room loaded. */
   readonly overlay: ScreenOverlay;
   /** The CD player's public face, created before the room loaded. */
-  readonly radio: RadioDeckHandle;
+  readonly radio: RadioDoorHandle;
   /** Where the props now sit in the settled room view; called on every viewport change. */
   readonly onAnchorsChange: (anchors: readonly PropAnchor[]) => void;
 }
@@ -77,13 +77,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const desk = assets.room.scene.getObjectByName('02_Desk');
   if (!pcRoot || !desk) throw new Error('Room assets lack the computer or its desk');
   const pcModel = locatePc(pcRoot, desk);
-  const radioModel = locateRadio(
-    assets.devices.find((device) => device.getObjectByName('Radio_Imported_Part_00_base')),
-    assets.room.scene,
-  );
   const fade = new ScreenFade();
   scene.add(fade.mesh);
-  const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade, radioModel);
+  const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
   const background = new IdleWork((): IdleMoment => {
     const power = television.powerState;
@@ -124,6 +120,13 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     reducedMotion,
     invalidate: () => loop.invalidate(),
   });
+  // The radio view keeps the lamp out of frame (so it can rest at zero frames): its bounds are the ones the lamp
+  // ticks for.
+  const radioModel = locateRadio(
+    assets.devices.find((device) => device.getObjectByName('Radio_Imported_Part_00_base')),
+    assets.room.scene,
+    lava.bounds,
+  );
 
   const tvInput = new TvInteractable({
     tv: tvModel,
@@ -176,7 +179,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const anchorTargets: readonly AnchorTarget[] = [
     { target: 'tv', point: tvPictureCentre(tvModel) },
     { target: 'pc', point: planeCentre(pcModel.picture) },
-    ...(radioModel ? [{ target: 'radio', point: RADIO_GEOMETRY.anchor.clone() } as const] : []),
+    ...(radioModel ? [{ target: 'radio', point: RADIO_ANCHOR.clone() } as const] : []),
   ];
   const publishAnchors = (): void => {
     options.onAnchorsChange(propAnchors(anchorTargets, rig.viewpoint('room'), stage.size));
@@ -185,7 +188,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     rig.resize(stage.size);
     television.setPixelRatio(stage.size.pixelRatio);
     monitor.setPose(rig.viewpoint('pc'), stage.size);
-    radio.resize();
+    radio.deck?.resize();
     publishAnchors();
   };
   syncSize();

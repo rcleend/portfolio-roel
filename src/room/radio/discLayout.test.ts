@@ -6,8 +6,7 @@ import { DECK, seatOrientation } from './device/deckLayout';
 import { attentionPose } from './device/discMotion';
 import { DISC_RADIUS, type DiscSlot, discSlots, labelSizeFor, STACK_BELOW_ASPECT } from './discLayout';
 import { RADIO_FIXTURE, RADIO_VIEWPORTS } from './radioFixtures';
-import { radioViewpoint, slotOrientation } from './radioFraming';
-import { RADIO_GEOMETRY } from './radioModel';
+import { LID_FRAMING, radioViewpoint, slotOrientation } from './radioFraming';
 
 type Point = { readonly x: number; readonly y: number };
 
@@ -83,7 +82,7 @@ function setup(count: number, viewport: (typeof RADIO_VIEWPORTS)[number]) {
 
 /** Distance from a point to the open lid, a 223 mm plate across x 1.010–1.213, anywhere from 80° to 88° open. */
 function lidDistance(point: Vector3): number {
-  const { hinge, lid } = RADIO_GEOMETRY;
+  const { hinge, lid } = LID_FRAMING;
   let nearest = Infinity;
   for (let degrees = 80; degrees <= 88; degrees += 0.5) {
     const angle = MathUtils.degToRad(degrees);

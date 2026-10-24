@@ -93,6 +93,22 @@ export interface RadioLayout {
   readonly keys: Readonly<Record<RadioKey, ScreenRect>>;
 }
 
+/**
+ * The radio as the room's first load has it (`room.radio`): whether it works, and the way to its deck, whose code
+ * loads lazily (as the camera first leaves the TV, on a prefetch, or on the way to the radio).
+ */
+export interface RadioDoor {
+  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the hotspot hides. */
+  readonly available: boolean;
+  onAvailableChange(listener: (available: boolean) => void): () => void;
+  /** Starts loading the deck and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
+  prefetch(reason: 'idle' | 'intent'): void;
+  /** The deck, importing its chunk on first call; rejects when the radio cannot work. */
+  load(): Promise<RadioDeck>;
+  /** The deck once `load` has brought it, else null. */
+  readonly deck: RadioDeck | null;
+}
+
 export interface RadioDeck {
   /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the hotspot hides. */
   readonly available: boolean;

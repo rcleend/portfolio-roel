@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { RADIO_VIEWPORTS } from '../radio/radioFixtures';
-import { RADIO_GEOMETRY } from '../radio/radioModel';
+import { RADIO_ANCHOR } from '../radio/radioModel';
 import { type AnchorTarget, EDGE_BAND, propAnchors } from './anchors';
 import type { Viewpoint } from './cameraPath';
 import { roomViewpoint } from './roomFraming';
@@ -88,7 +88,7 @@ describe('propAnchors', () => {
   });
 
   it.each(RADIO_VIEWPORTS)('has the radio in the room view at $width × $height', ({ width, height }) => {
-    const [radio] = propAnchors([{ target: 'radio', point: RADIO_GEOMETRY.anchor }], roomViewpoint(width / height), {
+    const [radio] = propAnchors([{ target: 'radio', point: RADIO_ANCHOR }], roomViewpoint(width / height), {
       width,
       height,
     });
