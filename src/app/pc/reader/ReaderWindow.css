@@ -332,10 +332,14 @@
   justify-content: flex-end;
 }
 
+/*
+ * 20 px buttons, their centres 25 px apart: undersized targets spaced to WCAG 2.5.8 (in the glass the
+ * desktop is never scaled below 1), for touch tablets that keep the reader in the glass.
+ */
 .pc-status__pages {
   display: flex;
   flex: none;
-  gap: 1px;
+  gap: 5px;
   align-items: center;
 }
 
@@ -349,7 +353,6 @@
   box-sizing: border-box;
   min-width: 54px;
   height: 17px;
-  margin: 0 4px;
   padding: 0 6px;
   border: 1px solid #7f9db9;
   line-height: 15px;
