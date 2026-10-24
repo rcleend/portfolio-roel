@@ -7,7 +7,10 @@ the whole figure, and this rig does the same:
 - Each hand holds whatever is put in it: a prop is placed by its grip on the hand of the arm drawing the
   pose picks, so the same phone follows the arm into any pose.
 - The face (eyes, brows, mouth), the hair and any hat are drawn over the head and move with it, and an
-  effect (steam, an anger mark) hangs from a point of the head.
+  effect (steam, an anger mark, stars) hangs from a point of the head, in front of the figure or behind it.
+- A loose part (a tie) hangs from a joint of the torso in the drawing its swing names, so it rides the body
+  and lags behind its moves.
+- A hop lifts the whole figure, legs and all, off the ground.
 - The mood dyes the skin: the face, the scalp and the ears flush while the customer is unhappy and calm once
   won over. The hands, and whatever skin a held prop shows, only warm a little, so the anger reads as a
   flush rather than a red-skinned person, a fist stays a fist and what it holds stays legible.
@@ -44,9 +47,22 @@ class Prop(NamedTuple):
 
 
 class Effect(NamedTuple):
-    """Something the mood puts in the air, hung by its point `on` from the same point of the head."""
+    """Something the mood puts in the air, hung by its point `on` from the same point of the head, and drawn in
+    front of the figure or, like a star circling round the back of the head, behind it."""
     drawing: Drawing
     on: str = 'crown'
+    layer: str = 'front'
+
+
+EFFECT_LAYERS = ('behind', 'front')
+
+
+class Loose(NamedTuple):
+    """A part hanging loose from a joint of the torso, a tie from its knot: a drawing per swing, each placed by
+    its `knot` on that joint."""
+    on: str
+    swings: Mapping[str, Drawing]
+    dye: Dye = Dye()
 
 
 class Figure(NamedTuple):
@@ -75,6 +91,8 @@ class Figure(NamedTuple):
     skin: Mapping[str, str]
     hands: Mapping[str, str]
     hair: str
+    # Drawn over the torso and under the head, each in the swing the pose names.
+    loose: Tuple[Loose, ...] = ()
 
 
 class Held(NamedTuple):
@@ -94,11 +112,17 @@ class Pose(NamedTuple):
     head: Point = (0, 0)
     held: Tuple[Held, ...] = ()
     effects: Tuple[str, ...] = ()
+    # How far the whole figure leaves the ground, legs and all: a hop.
+    lift: int = 0
+    # How every loose part swings: hanging at rest, or bounced and flung by the body's moves.
+    swing: str = 'rest'
 
 
 class Posed(NamedTuple):
-    """A pose resolved: every layer placed and dyed, in painting order, and the head and hands where they went."""
+    """A pose resolved: every layer placed and dyed, in painting order, the figure's alone (without the effects in
+    the air round it), and the head and hands where they went."""
     strokes: Tuple[Stroke, ...]
+    figure: Tuple[Stroke, ...]
     head: Drawing
     hands: Mapping[str, Point]
 
@@ -131,7 +155,12 @@ def pose(figure: Figure, posed: Pose, where: str) -> Posed:
         standing.point(joint)
     if not legs.covers(standing.point('hips')):
         raise ValueError(f'{where}: legs {posed.legs} do not cover the hips at {standing.point("hips")}')
-    torso = [Worn(part.drawing.moved(*posed.body), part.dye) for part in figure.torso]
+    if posed.lift < 0:
+        raise ValueError(f'{where}: lifts {posed.lift}, below the ground')
+    # A hop lifts the legs off the ground and everything else with them.
+    legs = legs.moved(0, -posed.lift)
+    body = (posed.body[0], posed.body[1] - posed.lift)
+    torso = [Worn(part.drawing.moved(*body), part.dye) for part in figure.torso]
     joints = torso[0].drawing
 
     for point in HEAD_POINTS:
@@ -159,27 +188,43 @@ def pose(figure: Figure, posed: Pose, where: str) -> Posed:
             raise ValueError(f'{where}: {held.prop} is drawn on {prop.layer!r}, not one of {LAYERS}')
         props[prop.layer].append(worn(prop.drawing.placed('grip', holders[held.by]), prop.dye, hand))
 
-    effects = []
+    loose = []
+    for part in figure.loose:
+        drawing = pick(part.swings, posed.swing, f'swing of what hangs from the {part.on}', where)
+        loose.append(worn(drawing.placed('knot', joints.point(part.on)), part.dye))
+
+    effects: Dict[str, List[Stroke]] = {layer: [] for layer in EFFECT_LAYERS}
     for name in posed.effects:
         effect = figure.effects.get(name)
         if effect is None:
             raise ValueError(f'{where}: no effect {name!r}; there are {sorted(figure.effects)}')
-        effects.append(Stroke(effect.drawing.placed(effect.on, head.point(effect.on)), Dye()))
+        if effect.layer not in EFFECT_LAYERS:
+            raise ValueError(f'{where}: {name} is drawn on {effect.layer!r}, not one of {EFFECT_LAYERS}')
+        effects[effect.layer].append(Stroke(effect.drawing.placed(effect.on, head.point(effect.on)), Dye()))
 
-    strokes = (
+    drawn = (
         worn(far, figure.sleeves, hand),
         *props['behind'],
         worn(legs, figure.legs_dye),
         *(worn(part.drawing, part.dye) for part in torso),
+        *loose,
         worn(head, Dye()),
         worn(face, Dye()),
         *(worn(part.drawing, part.dye) for part in headwear),
         *props['held'],
         worn(near, figure.sleeves, hand),
         *props['front'],
-        *effects,
     )
-    return Posed(strokes, head, hands)
+    return Posed((*effects['behind'], *drawn, *effects['front']), drawn, head, hands)
+
+
+def top(posed: Posed) -> Point:
+    """The top of the head and of whatever stands on it (its hair, a hat, the antenna of a phone held to the ear):
+    the figure's highest pixel over the head's columns, which everything shown above a customer must clear."""
+    columns = [x for x, _, _ in posed.head.pixels]
+    left, right = min(columns), max(columns)
+    rows = [y for stroke in posed.figure for x, y, _ in stroke.drawing.pixels if left <= x <= right]
+    return posed.head.point('crown')[0], min(rows)
 
 
 def compose(figure: Figure, posed: Pose, where: str) -> Image.Image:

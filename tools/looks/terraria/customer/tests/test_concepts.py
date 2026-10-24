@@ -79,6 +79,19 @@ def rgba(value: str) -> Tuple[int, int, int, int]:
 OUTLINES = {rgba(ramp[0]) for ramp in RAMPS.values()}
 
 
+def off_outline(picture: Image.Image) -> List[Tuple[int, int]]:
+    """Every pixel on the picture's edge that is not the darkest tone of a ramp."""
+    pixels = picture.load()
+    w, h = picture.size
+    return [
+        (x, y) for y in range(h) for x in range(w)
+        if pixels[x, y][3] and pixels[x, y] not in OUTLINES and any(
+            not (0 <= x + dx < w and 0 <= y + dy < h) or not pixels[x + dx, y + dy][3]
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+        )
+    ]
+
+
 class CommittedSheets(unittest.TestCase):
     def test_are_what_the_generator_writes(self) -> None:
         result = subprocess.run(
@@ -124,19 +137,7 @@ class Figures(unittest.TestCase):
         """As Terraria does: every pixel on the figure's edge is the outline of the ramp it is painted from."""
         for concept in CONCEPTS:
             for name in KEY_POSES:
-                picture = body(concept, name)
-                pixels = picture.load()
-                w, h = picture.size
-                for y in range(h):
-                    for x in range(w):
-                        if not pixels[x, y][3]:
-                            continue
-                        edge = any(
-                            not (0 <= x + dx < w and 0 <= y + dy < h) or not pixels[x + dx, y + dy][3]
-                            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-                        )
-                        if edge:
-                            self.assertIn(pixels[x, y], OUTLINES, f'{concept} {name} at {(x, y)}')
+                self.assertEqual(off_outline(body(concept, name)), [], f'{concept} {name}')
 
     def test_turn_calm_when_won_over(self) -> None:
         for concept, module in CONCEPTS.items():
@@ -166,7 +167,6 @@ class Screens(unittest.TestCase):
                 left, right = min(x for x, _ in glyph), max(x for x, _ in glyph)
                 mirrored = {(left + right - x, y) for x, y in glyph}
                 self.assertEqual(mirrored, glyph, f'{name}: a glyph at x {left}-{right} reads differently mirrored')
-
 
 
 class Rig(unittest.TestCase):
