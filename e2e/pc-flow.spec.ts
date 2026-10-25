@@ -4,6 +4,7 @@ import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
+import { postersShown, ROOM_PROGRAMS } from './programs';
 
 /**
  * The computer on the desk in the real app: the room's flight and live
@@ -18,8 +19,6 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, he
 
 /** Bare wall beside the window, outside every prop in the room and at the computer. */
 const WALL = { x: 40, y: 450 };
-/** Shader programs after the first room view, pinned at 2494ded before the computer existed (e2e/pc-monitor.spec.ts). */
-const BASE_PROGRAMS = 7;
 /** One frame of the paused clock. */
 const FRAME = 16;
 /** Longer than any flight (1.1 s) or reduced-motion cut (0.28 s). */
@@ -627,7 +626,8 @@ test.describe('performance', () => {
     await page.mouse.click(WALL.x, WALL.y);
     await expect(page.locator('.pc-screen')).toBeAttached();
     await page.waitForTimeout(SETTLE_MS);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
+    await postersShown(page, () => stats(page));
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
     const pc = await anchor(page, 'pc');
     await page.mouse.click(pc.x, pc.y);
     await expect(page.locator('[data-pc-state="reader"]')).toBeAttached({ timeout: 5_000 });
@@ -645,7 +645,7 @@ test.describe('performance', () => {
     await expect.poll(() => pane(page).evaluate((element) => element.scrollTop)).toBeGreaterThanOrEqual(900);
     await page.waitForTimeout(500);
     expect((await stats(page))?.framesRendered).toBe(reading);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
   });
 
   test('keeps every flight to and from the computer free of long frames at 6× CPU', { tag: '@frames' }, async ({

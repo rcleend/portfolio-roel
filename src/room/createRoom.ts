@@ -7,6 +7,7 @@ import type { FramingInsets } from './camera/CameraRig';
 import type { Interactable } from './interaction/Interactable';
 import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
 import { ScreenOverlay } from './pc/ScreenOverlay';
+import { type PostersPath, PostersSlot, type PostersState } from './posters/PostersSlot';
 import type { RadioDoor } from './radio/RadioDeck';
 import { RadioDoorHandle } from './radio/RadioDoor';
 import { RoomStage } from './stage/RoomStage';
@@ -32,6 +33,8 @@ export interface CreateRoomOptions {
   readonly maxPixelRatio?: number;
   /** Upper bound for drawing-buffer pixels (default 3 000 000). */
   readonly maxDrawingBufferPixels?: number;
+  /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
+  readonly posters?: boolean;
 }
 
 export interface Room {
@@ -70,6 +73,8 @@ export interface Room {
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
   /** Diagnostics for the dev lab and performance checks. */
   readonly stats: RoomStats;
+  /** Resolves true once the decorated walls are shown, false when they will not be this page load. */
+  readonly postersReady: Promise<boolean>;
   dispose(): void;
 }
 
@@ -94,6 +99,16 @@ export interface RoomStats {
   readonly radioLidDegrees: number;
   /** Ambient motion is scheduling frames. */
   readonly radioAmbient: boolean;
+  /** The decorated walls: none this page load, on their way, or shown (docs/ROOM.md › Posters). */
+  readonly posters: PostersState;
+  /** Pixels of the posters' atlas on the GPU. */
+  readonly postersTexturePixels: number;
+  /** How the loaded walls draw (PostersSlot.path). */
+  readonly postersPath: PostersPath | null;
+  /** Late bytes are fading in. */
+  readonly postersFading: boolean;
+  /** The reduced-motion cut's veil: 0 clear, 1 black. */
+  readonly screenFade: number;
 }
 
 /**
@@ -107,6 +122,7 @@ export function createRoom(options: CreateRoomOptions): Room {
   const overlay = new ScreenOverlay(options.overlayContainer ?? options.container, reducedMotion);
   const pc = new PcMonitorHandle(overlay);
   const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
+  const posters = new PostersSlot(options.posters ?? true);
   const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
@@ -124,8 +140,10 @@ export function createRoom(options: CreateRoomOptions): Room {
       // Any still the flight shows is painted and uploaded now, before its first frame.
       loaded.monitor.prepare(from, to);
       // A first reduced-motion visit to the radio stays black until its device is ready, so it is one cut to the
-      // open radio, not a closed radio that then snaps open.
-      const holdCut = to === 'radio' ? () => radio.available && radio.prepared === null : undefined;
+      // open radio, not a closed radio that then snaps open; the first cut to the room view also waits for the
+      // posters once their bytes are in hand, so it lands on decorated walls.
+      const holdCut = (): boolean =>
+        (to === 'radio' && radio.available && radio.prepared === null) || posters.holdsCut(to);
       loaded.rig.goTo(
         to,
         () => {
@@ -150,9 +168,11 @@ export function createRoom(options: CreateRoomOptions): Room {
     whenReady: (view) => (view === 'radio' && !radio.deck ? radio.load() : null),
   });
   // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
-  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds).
+  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds). The
+  // posters fetched at the TV go up between that flight's frames: their departure only queues the work.
   const stopPreload = views.onChange(() => {
     stopPreload();
+    posters.depart();
     requestAnimationFrame(() => setTimeout(() => disposed || radio.preload(), 0));
   });
 
@@ -190,6 +210,15 @@ export function createRoom(options: CreateRoomOptions): Room {
     } else {
       radio.unavailable(new Error('The room assets lack the radio'));
     }
+    posters.attach({
+      stage,
+      views,
+      background: scene.background,
+      loader: assets.loader,
+      assetBaseUrl,
+      anisotropy: scene.anisotropy,
+      reducedMotion,
+    });
     const { background } = scene;
     // Work ahead of need never delays the first frame.
     return firstFrame(stage).then(() => background.start());
@@ -197,6 +226,7 @@ export function createRoom(options: CreateRoomOptions): Room {
 
   return {
     ready,
+    postersReady: posters.ready,
     get view() {
       return views.view;
     },
@@ -257,6 +287,11 @@ export function createRoom(options: CreateRoomOptions): Room {
         radioTexturePixels: radio.prepared?.texturePixels ?? 0,
         radioLidDegrees: radio.prepared?.lidDegrees(performance.now()) ?? 0,
         radioAmbient: radio.prepared?.ambient ?? false,
+        posters: posters.state,
+        postersTexturePixels: posters.texturePixels,
+        postersPath: posters.path,
+        postersFading: posters.fading,
+        screenFade: scene?.fade.opacity ?? 0,
       };
     },
     dispose() {
@@ -264,6 +299,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       disposed = true;
       pc.detach();
       radio.dispose();
+      posters.dispose();
       scene?.dispose();
       scene = null;
       views.dispose();

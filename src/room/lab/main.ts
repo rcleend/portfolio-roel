@@ -9,7 +9,8 @@ import { MockRadioApp } from './MockRadioApp';
  * `?view=pc` or `?view=radio` flies to the computer or the radio after power-on; `?mockpc=1` puts
  * a test card on the computer's still and live screen; `?mockradio=1` hands the radio five numbered
  * discs and a fake player that answers it like the app (and prepares the radio once the room is
- * ready). `window.__roomLab` exposes the room, surface and mock radio to Playwright.
+ * ready); `?posters=0` keeps the walls bare. `window.__roomLab` exposes the room, surface and mock radio to
+ * Playwright.
  */
 const params = new URLSearchParams(window.location.search);
 if (params.has('clean')) document.body.classList.add('clean');
@@ -24,6 +25,7 @@ const room = createRoom({
   container,
   overlayContainer: screens,
   surface,
+  posters: params.get('posters') !== '0',
   onProgress: (fraction) => {
     status.textContent = `loading ${Math.round(fraction * 100)}%`;
   },
@@ -44,6 +46,7 @@ const showStatus = (): void => {
     `lid ${stats.radioLidDegrees.toFixed(1)}°`,
     stats.radioAmbient ? 'ambient' : 'resting',
     `radio texture ${stats.radioTexturePixels} px`,
+    `posters ${stats.posters} ${stats.postersTexturePixels} px`,
     `dpr ${stats.pixelRatio.toFixed(2)}`,
   ].join(' · ');
 };

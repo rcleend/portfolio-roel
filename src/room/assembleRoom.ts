@@ -42,6 +42,8 @@ export interface RoomSceneOptions {
 /** Everything that exists once the room's assets are loaded. */
 export interface RoomScene {
   readonly rig: CameraRig;
+  /** The reduced-motion cut's black veil. */
+  readonly fade: ScreenFade;
   readonly television: Television;
   readonly tvInput: TvInteractable;
   readonly monitor: Monitor;
@@ -83,8 +85,14 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
   const background = new IdleWork((): IdleMoment => {
     const power = television.powerState;
-    // A flight, the CRT turning on or off, or the radio's lid and discs in motion.
-    if (views.moving || power === 'powering-on' || power === 'powering-off' || radio.prepared?.moving === true) {
+    // A flight, the CRT turning on or off, or the radio's lid and discs in motion. A reduced-motion cut held black
+    // shows nothing that moves: what runs then is out of sight (the posters' strips, for one, before the fade back).
+    if (
+      (views.moving && !rig.veiled) ||
+      power === 'powering-on' ||
+      power === 'powering-off' ||
+      radio.prepared?.moving === true
+    ) {
       return 'moving';
     }
     // The game at the TV, the computer's live screen, or the radio's discs floating: only units that fit a frame.
@@ -207,6 +215,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
 
   return {
     rig,
+    fade,
     television,
     tvInput,
     monitor,

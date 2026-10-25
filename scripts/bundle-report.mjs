@@ -33,6 +33,7 @@ const LAZY_CHUNKS = {
   radioDevice: { source: 'src/room/radio/deckChunk.ts', three: 'room' },
   RadioSlot: { source: 'src/app/radio/RadioSlot.tsx', three: 'none' },
   RadioExperience: { source: 'src/app/radio/RadioExperience.tsx', three: 'none' },
+  posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
 };
 
 const { budgets, baseline } = JSON.parse(readFileSync(join(ROOT, 'bundle-budgets.json'), 'utf8'));

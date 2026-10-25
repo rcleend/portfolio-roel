@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { trackErrors } from './helpers';
+import { postersShown, ROOM_PROGRAMS } from './programs';
 
 /**
  * The CD player in the room lab (`?mockradio=1`: five numbered discs and a fake player that answers the radio
@@ -15,9 +16,6 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, he
 /** The camera lands this long after the request (CameraRig's FLIGHT_MS). */
 const LANDING = 1100;
 const FRAME = 16;
-/** Shader programs after the first room view, pinned by e2e/pc-monitor.spec.ts; the discs add exactly one. */
-const BASE_PROGRAMS = 7;
-
 const stats = (page: Page) => page.evaluate(() => window.__roomLab?.room.stats);
 const log = (page: Page) =>
   page.evaluate(() => (window.__roomLab?.radio?.log ?? []).map(({ at, event, detail }) => ({ at, event, detail })));
@@ -68,6 +66,7 @@ async function inRoom(page: Page, query = ''): Promise<void> {
   await page.evaluate(() => window.__roomLab?.room.showRoom());
   await page.waitForFunction(() => window.__roomLab?.room.stats.radioReady === true, null, { timeout: 20_000 });
   await page.waitForTimeout(1300);
+  await postersShown(page, () => stats(page));
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await advance(page, 1000);
 }
@@ -106,7 +105,7 @@ async function disc(page: Page, index: number) {
 test('opens the lid on the storyboard and raises the discs by the landing + 1.4 s', async ({ page }) => {
   const errors = trackErrors(page);
   await inRoom(page);
-  expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
+  expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
   const start = await goToRadio(page);
   const lidAt = async (ms: number) => {
     const now = await page.evaluate(() => performance.now());
@@ -119,7 +118,7 @@ test('opens the lid on the storyboard and raises the discs by the landing + 1.4 
   expect(Math.abs((await lidAt(1309)) - 87.2)).toBeLessThanOrEqual(1);
   expect(Math.abs((await lidAt(2000)) - 84)).toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => window.__roomLab?.room.radio.deck?.live)).toBe(true);
-  expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
+  expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
 
   await lidAt(LANDING + 1400);
   const events = await log(page);
@@ -270,7 +269,7 @@ test.describe('frames at the radio', () => {
     });
     await advance(page, 9000);
     expect(await framesOver(page, 2000)).toBeLessThanOrEqual(2);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
   });
 
   test('blinks a paused time only while the visitor is there', async ({ page }) => {

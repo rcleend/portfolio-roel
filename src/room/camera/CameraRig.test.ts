@@ -79,11 +79,15 @@ describe('CameraRig', () => {
     let holding = true;
     const arrived = vi.fn();
     instance.goTo('radio', arrived, { holdCut: () => holding });
-    for (let t = 0; t <= 600; t += 16) frames.run(t);
+    frames.run(0);
+    expect(instance.veiled).toBe(false);
+    for (let t = 16; t <= 600; t += 16) frames.run(t);
     expect(fade.opacity).toBe(1);
+    expect(instance.veiled).toBe(true);
     expect(arrived).not.toHaveBeenCalled();
     holding = false;
     frames.run(616);
+    expect(instance.veiled).toBe(false);
     frames.run(616 + REDUCED_FADE_MS / 2);
     expect(fade.opacity).toBeGreaterThan(0);
     expect(fade.opacity).toBeLessThan(1);
@@ -101,5 +105,15 @@ describe('CameraRig', () => {
     for (let t = 0; t <= end; t += 16) frames.run(t);
     expect(fade.opacity).toBe(0);
     expect(arrived).toHaveBeenCalledTimes(1);
+  });
+
+  it('is no longer veiled once a new move supersedes a held cut', () => {
+    const { instance, frames } = rig(true);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    instance.goTo('room', () => {}, { holdCut: () => true });
+    for (let t = 0; t <= REDUCED_FADE_MS + 64; t += 16) frames.run(t);
+    expect(instance.veiled).toBe(true);
+    instance.goTo('tv', () => {});
+    expect(instance.veiled).toBe(false);
   });
 });

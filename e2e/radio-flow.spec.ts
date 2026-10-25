@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
+import { postersShown, ROOM_PROGRAMS } from './programs';
 import { audioRequests, sound, spyOnAudio, timePickToSound, waitAudible } from './radioAudio';
 
 /**
@@ -18,8 +19,6 @@ test.use({
 
 /** Bare wall beside the window, outside every prop in the room and at the computer and the radio. */
 const WALL = { x: 40, y: 450 };
-/** Shader programs after the first room view and at the computer (e2e/pc-monitor.spec.ts); the discs add one. */
-const BASE_PROGRAMS = 7;
 /** What the radio loads lazily: none of it may be fetched before the visitor has looked around the room. */
 const LAZY_RADIO =
   /\/radio\/device\/|RadioDevice|RadioExperience|\/app\/radio\/(player|ui|labels)\/|\/content\/radio\/|radio-closeup|radio-skin|\.m4a|\.mp3/;
@@ -365,17 +364,18 @@ test.describe('performance', () => {
     test.setTimeout(90_000);
     await open(page);
     await lookAround(page);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
+    await postersShown(page, () => stats(page));
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
     // The computer first: still the pinned program count, the radio's own is not compiled yet.
     const pc = await anchor(page, 'pc');
     await page.mouse.click(pc.x, pc.y);
     await expect(page.locator('[data-pc-state="reader"]')).toBeAttached({ timeout: 10_000 });
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
     await page.mouse.click(WALL.x, WALL.y);
     await settled(page);
 
     await goToRadio(page);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
     // Resting with nothing in the player (past the float's rest 7.2 s after the last input): no frame at all, but for
     // the sharper skin's one as it swaps in, should a busy machine bring it this late.
     await page.mouse.move(1430, 890);
@@ -413,7 +413,7 @@ test.describe('performance', () => {
     expect((await sound(page))?.paused).toBe(false);
     await expect.poll(async () => (await sound(page))?.volume, { timeout: 3000 }).toBeCloseTo(0.56, 2);
     expect(await framesOver(page, 2000)).toBe(0);
-    expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
   });
 
   test('keeps the flights to and from the radio, and the arrival, free of long frames at 6× CPU', {

@@ -76,6 +76,8 @@ export class CameraRig {
   private insets: FramingInsets = NO_INSETS;
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
   private stopFlight: (() => void) | null = null;
+  /** The current cut holds its black (see `veiled`). */
+  private holdingBlack = false;
   private readonly parallax = new Vector2();
   private readonly parallaxGoal = new Vector2();
   private parallaxActive = false;
@@ -98,6 +100,11 @@ export class CameraRig {
 
   get moving(): boolean {
     return this.stopFlight !== null;
+  }
+
+  /** A reduced-motion cut holds its black: the camera is at its destination and nothing on screen moves. */
+  get veiled(): boolean {
+    return this.moving && this.holdingBlack;
   }
 
   /** The pose the camera rests at in `view`, for the current viewport. */
@@ -143,6 +150,7 @@ export class CameraRig {
   goTo(view: RoomView, onArrive: () => void, options: FlightOptions = {}): void {
     const from = this.moving ? null : this.settledView;
     this.stopFlight?.();
+    this.holdingBlack = false;
     this.parallaxEnabled = false;
     this.setParallaxPointer(null);
     const { lead, crane } = flightShape(from, view);
@@ -228,9 +236,11 @@ export class CameraRig {
         if (hold?.() && elapsed < REDUCED_FADE_MS + MAX_CUT_HOLD_MS) {
           fadeInFrom = elapsed;
           this.fade.opacity = 1;
+          this.holdingBlack = true;
           return true;
         }
         holding = false;
+        this.holdingBlack = false;
       }
       const fadeIn = (elapsed - fadeInFrom) / REDUCED_FADE_MS;
       this.fade.opacity = cut ? 1 - easeOutCubic(Math.min(1, fadeIn)) : elapsed / REDUCED_FADE_MS;

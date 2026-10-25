@@ -3,14 +3,9 @@ import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { trackErrors } from './helpers';
+import { postersShown, ROOM_PROGRAMS } from './programs';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
-
-/**
- * Shader programs the room lab has compiled after its first room view, measured at 2494ded
- * before the computer existed (Metal ANGLE). The computer must not add one.
- */
-const BASE_PROGRAMS = 7;
 
 async function openLab(page: Page, query = ''): Promise<void> {
   await page.goto(`/room-lab.html?clean&mockpc=1${query}`);
@@ -24,6 +19,7 @@ async function atComputer(page: Page): Promise<void> {
   await page.waitForFunction(() => window.__roomLab?.surface.paused === false, null, { timeout: 20_000 });
   await page.evaluate(() => window.__roomLab?.room.showRoom());
   await page.waitForTimeout(1300);
+  await postersShown(page, () => stats(page));
   await page.evaluate(() => window.__roomLab?.room.focusPc());
   await page.waitForFunction(() => window.__roomLab?.room.pc.live === true);
   // Past the live screen's 160 ms fade.
@@ -56,7 +52,8 @@ for (const viewport of [
       await page.waitForTimeout(1000);
       const after = await stats(page);
       expect(after?.framesRendered).toBe(before?.framesRendered);
-      expect(after?.programs).toBe(BASE_PROGRAMS);
+      // The computer adds no program to the room's (e2e/programs.ts).
+      expect(after?.programs).toBe(ROOM_PROGRAMS);
       expect(after?.pcTexturePixels).toBeGreaterThan(0);
       expect(after?.pcTexturePixels).toBeLessThanOrEqual(1024 * 817);
       expect(errors).toEqual([]);

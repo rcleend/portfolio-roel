@@ -38,6 +38,18 @@ await mkdir(outDir, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** posters-detail crops in CSS pixels of the 1440×900 room view: the densest cluster, taped corners, the corkboard. */
+const POSTERS_DETAIL_CLIPS = {
+  cluster: { x: 570, y: 165, width: 420, height: 270 },
+  oblivion: { x: 80, y: 172, width: 120, height: 90 },
+  corkboard: { x: 92, y: 318, width: 120, height: 80 },
+  slope: { x: 830, y: 20, width: 340, height: 220 },
+  /** B1's top-left tape, lifted 6 mm off the wall. */
+  tape: { x: 565, y: 175, width: 90, height: 60 },
+  /** A flat tape on the pale slope (the Avatar print's lower-right corner), 0.3 mm over its skirt. */
+  'tape-slope': { x: 1095, y: 150, width: 90, height: 60 },
+};
+
 async function openLab(viewport, query = '', { clock = false } = {}) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: viewport.dpr ?? 2 });
   // A fake clock installed later would restart performance.now(), and the radio's timelines with it.
@@ -91,7 +103,9 @@ async function pcState(page) {
 
 /** The lab with its mock collection, the screen on a still, and the radio's device prepared ahead of need. */
 async function radioLab(viewport, options = {}) {
-  const page = await openLab(viewport, '&autopower=0&mockradio=1', { clock: options.clock ?? false });
+  const page = await openLab(viewport, `&autopower=0&mockradio=1${options.query ?? ''}`, {
+    clock: options.clock ?? false,
+  });
   if (options.reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' });
   await poweredStill(page);
   await page.waitForFunction(() => window.__roomLab.room.stats.radioReady, null, { timeout: 30_000 });
@@ -253,6 +267,54 @@ async function radioPerf(page, label) {
     'playing, at rest (clock ticks)': playingRest,
     stats: JSON.stringify(await radioState(page)),
   };
+  for (const [key, value] of Object.entries(result)) console.log(`${label} ${key}: ${value}`);
+}
+
+/**
+ * The posters' load from the TV through the first flight to the room and its landing: every rAF interval over
+ * 16.7 ms (the main thread's long frames), when the walls became ready against the departure, and the flight's rate.
+ */
+async function postersPerf(page, label) {
+  await page.waitForFunction(() => !window.__roomLab.surface.paused);
+  await page.evaluate(() => {
+    const frames = [];
+    window.__postersFrames = frames;
+    const tick = (now) => {
+      frames.push([now, window.__roomLab.room.stats.posters]);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  // The TV's idle unit fetches and decodes the tier behind the opening view.
+  await sleep(4000);
+  const result = await page.evaluate(async () => {
+    const { room } = window.__roomLab;
+    const frames = window.__postersFrames;
+    const departed = performance.now();
+    const before = room.stats.framesRendered;
+    room.showRoom();
+    await new Promise((r) => setTimeout(r, 1000));
+    const flightRate = (room.stats.framesRendered - before) / ((performance.now() - departed) / 1000);
+    await new Promise((r) => setTimeout(r, 1500));
+    const long = (from, to) => {
+      const spans = [];
+      for (let i = 1; i < frames.length; i++) {
+        const [now] = frames[i];
+        if (now < from || now > to) continue;
+        const span = now - frames[i - 1][0];
+        if (span > 16.7) spans.push(Math.round(span));
+      }
+      return spans;
+    };
+    const ready = frames.find(([now, state]) => now >= departed && state === 'ready');
+    return {
+      'at the TV, long frames (ms)': long(0, departed).join(' ') || 'none',
+      'departure to landing, long frames (ms)': long(departed, departed + 2500).join(' ') || 'none',
+      'ready after departure (ms, first piece in frame at >= 400)': ready ? Math.round(ready[0] - departed) : 'never',
+      'first flight (frames/s)': Math.round(flightRate * 10) / 10,
+      stats: JSON.stringify(room.stats),
+    };
+  });
   for (const [key, value] of Object.entries(result)) console.log(`${label} ${key}: ${value}`);
 }
 
@@ -668,6 +730,115 @@ const scenarios = {
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
       await radioPerf(page, 'metal 6×');
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    }
+    await page.close();
+  },
+  async 'posters-perf'() {
+    const gl = process.env.ROOM_SHOTS_GL === 'swiftshader' ? 'swiftshader' : 'metal';
+    for (const [viewport, aspect] of [
+      [{ width: 1440, height: 900, dpr: 2 }, '16:10'],
+      [{ width: 390, height: 844, dpr: 3 }, '9:19.5'],
+    ]) {
+      for (const query of ['&posters=0', '']) {
+        for (const rateTimes of gl === 'metal' ? [1, 6] : [1]) {
+          const page = await openLab(viewport, query);
+          const cdp = await page.context().newCDPSession(page);
+          await cdp.send('Emulation.setCPUThrottlingRate', { rate: rateTimes });
+          await postersPerf(page, `${gl} ${rateTimes}× ${aspect}${query ? ' posters=0' : ''}`);
+          await page.close();
+        }
+      }
+    }
+  },
+  async 'posters-views'() {
+    // What the walls cost at rest in each view, against ?posters=0: draw calls, programs and the room view's idle rate.
+    const restRate = (page) =>
+      page.evaluate(async () => {
+        const { room } = window.__roomLab;
+        const start = room.stats.framesRendered;
+        await new Promise((r) => setTimeout(r, 2000));
+        return (room.stats.framesRendered - start) / 2;
+      });
+    const settled = (page) => page.waitForFunction(() => window.__roomLab.room.settled);
+    const calls = (page) => page.evaluate(() => window.__roomLab.room.stats.drawCalls);
+    for (const [viewport, aspect] of [
+      [{ width: 1440, height: 900, dpr: 2 }, '16:10'],
+      [{ width: 390, height: 844, dpr: 3 }, '9:19.5'],
+    ]) {
+      for (const query of ['&posters=0', '']) {
+        const label = `${aspect}${query ? ' posters=0' : ''}`;
+        const page = await radioLab(viewport, { query });
+        await page.evaluate(() => window.__roomLab.room.showRoom());
+        await page.evaluate(() => window.__roomLab.room.postersReady);
+        await settled(page);
+        await sleep(1500);
+        const room = { calls: await calls(page), idle: await restRate(page) };
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await sleep(500);
+        const reduced = await restRate(page);
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await page.evaluate(() => window.__roomLab.room.focusPc());
+        await settled(page);
+        await sleep(800);
+        const pc = await calls(page);
+        await page.evaluate(() => window.__roomLab.room.focusRadio());
+        await page.waitForFunction(() => window.__roomLab.room.radio.deck?.live);
+        await sleep(1800);
+        const radio = await calls(page);
+        await page.evaluate(() => window.__roomLab.room.focusTv());
+        await settled(page);
+        await sleep(800);
+        const tv = await calls(page);
+        const { programs, posters, postersTexturePixels } = await page.evaluate(() => window.__roomLab.room.stats);
+        console.log(
+          `posters-views ${label}: draw calls room ${room.calls} pc ${pc} radio ${radio} tv ${tv}; room at rest ` +
+            `${room.idle} frames/s (reduced motion ${reduced}); programs ${programs}; posters ${posters} ` +
+            `${postersTexturePixels} px`,
+        );
+        await page.close();
+      }
+    }
+  },
+  async 'posters-tour'() {
+    // The decorated walls from every view the camera visits, on a laptop and on a small phone.
+    for (const viewport of [
+      { width: 1440, height: 900, dpr: 2 },
+      { width: 375, height: 667, dpr: 2 },
+    ]) {
+      const size = `${viewport.width}x${viewport.height}`;
+      const page = await radioLab(viewport, { query: '&mockpc=1' });
+      const settled = () => page.waitForFunction(() => window.__roomLab.room.settled);
+      await page.evaluate(() => window.__roomLab.room.showRoom());
+      await page.evaluate(() => window.__roomLab.room.postersReady);
+      await settled();
+      await sleep(1500);
+      await shot(page, `posters-room-${size}`);
+      await atComputer(page);
+      await shot(page, `posters-pc-${size}`);
+      await atRadio(page);
+      await shot(page, `posters-radio-${size}`);
+      await page.evaluate(() => window.__roomLab.room.focusTv());
+      await settled();
+      await sleep(800);
+      await shot(page, `posters-tv-${size}`);
+      console.log(
+        `posters-tour ${size}:`,
+        JSON.stringify(await page.evaluate(() => window.__roomLab.room.stats.posters)),
+      );
+      await page.close();
+    }
+  },
+  async 'posters-detail'() {
+    // The densest cluster and a taped corner, close: the room view at 1440×900 cropped at 2× the device pixels.
+    const page = await openLab({ width: 1440, height: 900, dpr: 2 });
+    await page.waitForFunction(() => !window.__roomLab.surface.paused);
+    await page.evaluate(() => window.__roomLab.room.showRoom());
+    await page.evaluate(() => window.__roomLab.room.postersReady);
+    await sleep(1800);
+    for (const [name, clip] of Object.entries(POSTERS_DETAIL_CLIPS)) {
+      const path = join(outDir, `posters-detail-${name}.png`);
+      await page.screenshot({ path, clip });
+      console.log(`wrote ${path}`);
     }
     await page.close();
   },
