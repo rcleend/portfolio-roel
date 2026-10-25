@@ -43,18 +43,52 @@ async function anchor(page: Page, target: 'tv' | 'pc') {
   return found;
 }
 
-/** The page on the TV with the game running; the clock is installed but still flowing. */
+/** Set on the page once the desktop's still painter has reached the room (see `lookAround`). */
+type StillWatch = { __stillLoaded?: boolean };
+
+/**
+ * The page on the TV with the game running; the clock is installed but still flowing. The page notes when the
+ * app hands the room the desktop's still painter (`room.pc.setStill`, at idle once the TV is on): the room
+ * itself does not say, and a stat only the tests read would ship in the room's first load.
+ */
 async function openRoom(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    let room: Window['__room'];
+    Object.defineProperty(window, '__room', {
+      configurable: true,
+      get: () => room,
+      set(value: Window['__room']) {
+        room = value;
+        if (!value) return;
+        const { pc } = value;
+        const setStill = pc.setStill.bind(pc);
+        pc.setStill = (painter) => {
+          (window as StillWatch).__stillLoaded = painter !== null;
+          setStill(painter);
+        };
+      },
+    });
+  });
   await page.clock.install();
   await page.goto('/?seed=1');
   await waitForRunning(page);
 }
 
+/** How often a wait on the flowing clock looks: a few frames, so it adds no more than that to the test. */
+const FLOWING_POLL = { intervals: [100] };
+
 /**
  * Looks around the room the way `go` does, waits for what the room view preloads (the screen's chunk,
  * the painted still), then pauses the clock with the camera settled.
+ *
+ * It leaves the TV only once the still painter is in, as it is moments after the TV turns on: the flight
+ * then paints the glass. A painter that arrives after the flight queues behind the room's other work ahead
+ * of need, the desk's ~270 picking cuts and the texture uploads, which a real browser finishes before the
+ * game starts (a late painter there paints 40–220 ms after it arrives, at 1× and 6× CPU). The page's fake
+ * idle callbacks, 50 ms apart with no time left, run one such unit each: 15 s before the still paints.
  */
 async function lookAround(page: Page, go: () => Promise<void> = () => page.mouse.click(WALL.x, WALL.y)) {
+  await expect.poll(() => page.evaluate(() => (window as StillWatch).__stillLoaded), FLOWING_POLL).toBe(true);
   await go();
   await expect(stage(page)).toHaveAttribute('data-view', 'room');
   await expect(page.locator('.pc-screen')).toBeAttached();
@@ -63,9 +97,6 @@ async function lookAround(page: Page, go: () => Promise<void> = () => page.mouse
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await advance(page, SETTLE_MS);
 }
-
-/** How often a wait on the flowing clock looks: a few frames, so it adds no more than that to the test. */
-const FLOWING_POLL = { intervals: [100] };
 
 /** On the flowing clock, waits until the camera rests in the room view. */
 async function restInRoom(page: Page): Promise<void> {
