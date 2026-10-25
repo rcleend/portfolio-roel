@@ -68,19 +68,22 @@ to `bake.py`. This is an offline authoring job.
    are identical) and bakes its atlas at 2048² into `radio-skin-2k.png` plus a UV probe.
    `--stage closeup` splits the lid off the radio, measures the well (its floor plane, the
    rim heights, the slot), models the parts an open lid reveals (liner, turntable and nubs,
-   pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens the
-   lid to 84° about its hinge, bakes them into one 512² atlas in the same lit scene plus a soft
-   glow from the lava lamp's side (the room's lamp only grazes the rim), returns the
-   lid to its closed pose and exports `radio-closeup-raw.glb` with the measurements in
-   `radio-closeup.json`. `radio-closeup.mjs` then proves the skin's UVs match the shipped
-   `radio-base.glb` (≤ 2/65535; measured 0.5), finds the lid, the rocker's halves and the side
-   keys in the shipped base as triangle lists, writes them with the base's geometry and UV
-   fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED into
-   the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and validates it,
-   and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles` in the manifest
-   (the first-load `files`, `totalBytes` and size table are untouched). About 45 s with
-   `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte; Metal skin bakes
-   differ between runs by a few pixels.
+   pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens
+   the lid to 84° about its hinge, leaves the body's own tub floor under the liner out (it
+   would seal the pickup pocket and the slit from every light), bakes them into one 512²
+   atlas in the same lit scene plus a soft glow from the lava lamp's side (the room's lamp
+   only grazes the rim) and a faint bounce from the far side, re-bakes the hinge barrels
+   outside the well in the room's light alone, returns the lid to its closed pose and
+   exports `radio-closeup-raw.glb` with the measurements in `radio-closeup.json`.
+   `radio-closeup.mjs` then proves the skin's UVs match the shipped `radio-base.glb` (≤
+   2/65535; measured 0.5), finds the lid, the rocker's halves, the side keys and the tub
+   floor in the shipped base as triangle lists, writes them with the base's geometry and UV
+   fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED
+   into the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and
+   validates it, and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles`
+   in the manifest (the first-load `files`, `totalBytes` and size table are untouched).
+   About 45 s with `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte;
+   Metal skin bakes differ between runs by a few pixels.
 
 Individual stages can be run for iteration:
 

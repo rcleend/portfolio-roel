@@ -17,6 +17,8 @@ import {
   RADIO_PARTS,
   radioMeshes,
   uvSha256,
+  WELL_FLOOR,
+  wellFloorTriangles,
 } from './radio-geometry.mjs';
 import { assetSizes } from './runtime-manifest.mjs';
 
@@ -247,8 +249,8 @@ function verifyFlatRegisteredScreen(screen, primitive) {
 /**
  * The radio close-up's contract (tools/room/radio-closeup.mjs): its lazy files match manifest.lazyFiles, it was
  * built against exactly this radio-base.glb (geometry and UV fingerprints, per-mesh counts), its cut lists select
- * whole parts (one lid, one rocker, two mirrored side keys), the lid swings clear of the antenna, and the 2K skin
- * is the size it claims.
+ * whole parts (one lid, one rocker, two mirrored side keys, the tub floor under the liner), the lid swings clear of
+ * the antenna, and the 2K skin is the size it claims.
  */
 export async function verifyRadioCloseup(directory, manifest) {
   await MeshoptDecoder.ready;
@@ -335,6 +337,16 @@ export async function verifyRadioCloseup(directory, manifest) {
     'The side keys are not mirrored about the rocker',
   );
 
+  // The tub floor the liner covers, exactly: the runtime hides it while the well shows, so nothing else may go.
+  const floor = decodeTriangles(extras.parts.wellFloor);
+  assert.equal(extras.parts.wellFloor.mesh, WELL_FLOOR.mesh, 'The well floor cut is not from the radio body');
+  assert.deepEqual(
+    floor,
+    wellFloorTriangles(byName.get(WELL_FLOOR.mesh), extras.well),
+    'The well floor cut is not the body floor under the liner',
+  );
+  assert.ok(floor.length >= 50, 'The well floor cut is not the tub floor');
+
   // Swing the lid 0–90° about its hinge: it must keep clear of the antenna behind it.
   const antenna = findComponent(byName.get(RADIO_PARTS.antenna.mesh), RADIO_PARTS.antenna.bounds).bounds;
   const lidMesh = byName.get(extras.parts.lid.mesh);
@@ -373,6 +385,7 @@ export async function verifyRadioCloseup(directory, manifest) {
     closeupTriangles: triangles,
     skinBytes: bytes['radio-skin-2k.webp'].length,
     lidTriangles: lid.triangles.length,
+    wellFloorTriangles: floor.length,
     lidAntennaClearanceMm: Math.round(clearance * 10000) / 10,
   };
 }

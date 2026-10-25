@@ -87,7 +87,7 @@ def open_scene(work, samples, device):
     return scene, prepare_scene(scene)
 
 
-def bake_into(objects, image, margin):
+def bake_into(objects, image, margin, coverage=0.015):
     scene = bpy.context.scene
     scene.render.bake.margin = margin
     for material in {m for obj in objects for m in obj.data.materials if m}:
@@ -102,7 +102,7 @@ def bake_into(objects, image, margin):
     image.pixels.foreach_get(pixels)
     rgb = pixels.reshape(-1, 4)[:, :3]
     assert np.isfinite(rgb).all(), (image.name, 'Non-finite bake')
-    assert (rgb.max(axis=1) > 0.0002).mean() > 0.015, (image.name, 'Empty bake')
+    assert (rgb.max(axis=1) > 0.0002).mean() > coverage, (image.name, 'Empty bake')
     return rgb
 
 
@@ -327,29 +327,92 @@ LID_SKIN = 0.0025
 #: on the lamp's side, aimed at the well: the parts read as moulded plastic, lit from the lamp and falling off to the
 #: far side, at night. Nothing else is baked in this stage, so no other atlas sees it. The glass glows paler than
 #: the spill it throws on the wall, so the panel's colour is half the lamp's and half a warm white: the plastic stays
-#: grey-brown rather than turning the lamp's orange.
+#: grey-brown rather than turning the lamp's orange. The same light comes back off the wall and the desk all round,
+#: faintly: a wide, much weaker panel on the far side stands in for that bounce, so the faces turned away from the
+#: glass (the far inner wall, the pickup pocket's sides) stay dark without baking to a black that reads as a hole.
 LAMP = 'Lava lamp amber spill'
 GLOW_OFFSET = 0.26  # m from the well's centre, along the lamp's bearing and as far up
 GLOW_SIZE = 0.18
 GLOW_ENERGY = 1.8  # W
 GLOW_WARMTH = 0.5
 GLASS_WHITE = (1.0, 0.86, 0.72)
+BOUNCE_SIZE = 0.4
+BOUNCE_ENERGY = 0.25  # W
 
 
 def lamp_glow():
+    """The glass's glow on the lamp's side of the well and its faint bounce on the far side (both aimed at the well)."""
     lamp = bpy.data.objects[LAMP]
     centre = b((OPENING[0] + OPENING[1]) / 2, rim_height(SPINDLE_Z), (OPENING[2] + OPENING[3]) / 2)
     bearing = lamp.matrix_world.translation - centre
     bearing.z = 0
-    position = centre + bearing.normalized() * GLOW_OFFSET + Vector((0, 0, GLOW_OFFSET))
-    data = bpy.data.lights.new('CD well lamp glow', 'AREA')
-    data.energy, data.size = GLOW_ENERGY, GLOW_SIZE
-    data.color = [GLOW_WARMTH * own + (1 - GLOW_WARMTH) * glass for own, glass in zip(lamp.data.color, GLASS_WHITE)]
-    glow = bpy.data.objects.new(data.name, data)
-    glow.location = position
-    glow.rotation_euler = (centre - position).to_track_quat('-Z', 'Y').to_euler()
-    bpy.context.scene.collection.objects.link(glow)
-    return glow
+    bearing.normalize()
+    colour = [GLOW_WARMTH * own + (1 - GLOW_WARMTH) * glass for own, glass in zip(lamp.data.color, GLASS_WHITE)]
+    lights = []
+    for name, side, size, energy in (('CD well lamp glow', 1, GLOW_SIZE, GLOW_ENERGY),
+                                     ('CD well lamp bounce', -1, BOUNCE_SIZE, BOUNCE_ENERGY)):
+        position = centre + bearing * side * GLOW_OFFSET + Vector((0, 0, GLOW_OFFSET))
+        data = bpy.data.lights.new(name, 'AREA')
+        data.energy, data.size, data.color = energy, size, colour
+        light = bpy.data.objects.new(name, data)
+        light.location = position
+        light.rotation_euler = (centre - position).to_track_quat('-Z', 'Y').to_euler()
+        bpy.context.scene.collection.objects.link(light)
+        lights.append(light)
+    return lights
+
+
+#: The body's own tub floor is not flat (up to ±1.3 mm about the plane the liner follows): it rises through the liner
+#: at the back and the front, and it lies over the pickup pocket and the magazine slit, which go 3.5 and 8 mm down.
+#: Left in, it seals them from every light and they bake black. The runtime draws exactly these faces only while the
+#: lid is shut (tools/room/radio-geometry.mjs WELL_FLOOR, the same rule in glTF), so the bake leaves them out too.
+FLOOR_BAND, FLOOR_MIN_NORMAL = 0.0025, 0.8
+BODY_PART = 'Radio_Imported_Part_00'
+
+
+def drop_body_floor(radio, well):
+    body = next(o for o in radio if o.name == BODY_PART)
+    x0, x1, z0, z1 = OPENING[0] + LINER_INSET, OPENING[1] - LINER_INSET, OPENING[2] + LINER_INSET, OPENING[3] - LINER_INSET
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bm.transform(body.matrix_world)
+    plane = lambda co: well.floor(co.x, -co.y) + LINER_LIFT  # noqa: E731
+    floor = [f for f in bm.faces
+             if x0 <= f.calc_center_median().x <= x1 and z0 <= -f.calc_center_median().y <= z1
+             and f.normal.z >= FLOOR_MIN_NORMAL and all(abs(v.co.z - plane(v.co)) <= FLOOR_BAND for v in f.verts)]
+    assert len(floor) >= 25, ('The tub floor was not found under the liner', len(floor))
+    bmesh.ops.delete(bm, geom=floor, context='FACES_ONLY')
+    bm.transform(body.matrix_world.inverted())
+    bm.to_mesh(body.data)
+    bm.free()
+    print('WELL floor faces left out of the bake', len(floor), flush=True)
+
+
+def without_glow(objects, lights, image):
+    """Bakes `objects` again in the room's light alone and writes them over their texels in `image`.
+
+    The hinge barrels sit outside the well, by the body the room bake lit: in the glow they would read as a pale chip
+    between the lid and the body. Light linking cannot tell them apart, as the parts bake as one joined object.
+    """
+    for light in lights:
+        light.hide_render = True
+    scratch = bpy.data.images.new('device_radio_cd_room_light', width=image.size[0], height=image.size[1], alpha=True,
+                                  float_buffer=True)
+    scratch.pixels.foreach_set(np.zeros(len(scratch.pixels), dtype=np.float32))
+    bake_into(objects, scratch, margin=2, coverage=0.001)
+    own = np.empty(len(scratch.pixels), dtype=np.float32)
+    scratch.pixels.foreach_get(own)
+    own = own.reshape(-1, 4)
+    mask = own[:, 3] > 0.5
+    assert 0 < mask.mean() < 0.05, ('The room-light bake covers', float(mask.mean()))
+    pixels = np.empty(len(image.pixels), dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    pixels = pixels.reshape(-1, 4)
+    pixels[mask, :3] = own[mask, :3]
+    image.pixels.foreach_set(pixels.ravel())
+    for light in lights:
+        light.hide_render = False
+    print('ROOM LIGHT only for', [o.name for o in objects], 'texels', int(mask.sum()), flush=True)
 
 
 def rim_height(z):
@@ -570,11 +633,13 @@ def stage_closeup(args, work):
     liner_abs = abs_material('CD well liner', '#1f2024', 0.6)
     spindle = abs_material('CD turntable', '#3a3c42', 0.4)
     lens = abs_material('CD pickup lens', '#1a2a55', 0.1)
-    steel = abs_material('CD rails and screws', '#8b8e95', 0.35, metallic=1.0)
+    # A diffuse bake gives a metal nothing to mirror at night, so it bakes black: steel bakes as its own grey.
+    steel = abs_material('CD rails and screws', '#6e7178', 0.35)
     cream = abs_material('CD hinge ABS', '#c9c8c2', 0.5)
     lid_parts = [lid_underside(lid, charcoal), lid_fittings(plane, charcoal)]
+    barrels = hinge_barrels(cream)
     well_parts = [liner(well, liner_abs), turntable(well, spindle), *pickup(well, liner_abs, lens, steel),
-                  *slot_lips_and_screws(well, liner_abs, steel), hinge_barrels(cream)]
+                  *slot_lips_and_screws(well, liner_abs, steel), barrels]
     parts = lid_parts + well_parts
     triangles = sum(len(p.vertices) - 2 for obj in parts for p in obj.data.polygons)
     print('PARTS', len(parts), 'triangles', triangles, flush=True)
@@ -586,13 +651,15 @@ def stage_closeup(args, work):
     for obj in [lid, *lid_parts]:
         obj.matrix_world = opening @ obj.matrix_world
     unwrap(parts, CLOSEUP_SIZE)
-    lamp_glow()
+    drop_body_floor(radio, well)
+    lights = lamp_glow()
     path = work / 'device_radio_cd.png'
     if not args.skip_bake:
         image = bpy.data.images.new('device_radio_cd_bake', width=CLOSEUP_SIZE, height=CLOSEUP_SIZE, alpha=False,
                                     float_buffer=True)
         print('BAKE_START device_radio_cd', flush=True)
         bake_into(parts, image, margin=4)
+        without_glow([barrels], lights, image)
         save_png(image, path)
         print('BAKE_DONE device_radio_cd', flush=True)
     if args.render:

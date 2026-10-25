@@ -25,6 +25,8 @@ import {
   triangleBounds,
   uvIdentity,
   uvSha256,
+  WELL_FLOOR,
+  wellFloorTriangles,
 } from './radio-geometry.mjs';
 import { verifyRadioCloseup } from './verify.mjs';
 
@@ -64,13 +66,20 @@ for (const material of document.getRoot().listMaterials()) {
   material.setExtension('KHR_materials_unlit', unlit.createUnlit());
 }
 
-// 3. Which base triangles are the lid and the keys. The rocker splits at its pivot: ▷II above, ■ below.
+// 3. Which base triangles are the lid and the keys (the rocker splits at its pivot: ▷II above, ■ below), and the
+//    tub floor the liner covers (WELL_FLOOR).
 const measured = JSON.parse(await readFile(join(work, 'radio-closeup.json'), 'utf8'));
 const meshByName = new Map(base.map((mesh) => [mesh.name, mesh]));
-const part = (name, triangles) => {
-  const mesh = meshByName.get(RADIO_PARTS[name === 'rockerTop' || name === 'rockerBottom' ? 'rocker' : name].mesh);
-  return { mesh: mesh.name, ...encodeTriangles(triangles), bounds: triangleBounds(mesh, triangles) };
-};
+const part = (
+  name,
+  triangles,
+  mesh = meshByName.get(RADIO_PARTS[name.startsWith('rocker') ? 'rocker' : name].mesh),
+) => ({
+  mesh: mesh.name,
+  ...encodeTriangles(triangles),
+  bounds: triangleBounds(mesh, triangles),
+});
+const bodyMesh = meshByName.get(WELL_FLOOR.mesh);
 const component = (name) => findComponent(meshByName.get(RADIO_PARTS[name].mesh), RADIO_PARTS[name].bounds);
 const rocker = component('rocker');
 const rockerMesh = meshByName.get(RADIO_PARTS.rocker.mesh);
@@ -87,6 +96,7 @@ const parts = {
   ),
   previous: part('previous', component('previous').triangles),
   next: part('next', component('next').triangles),
+  wellFloor: part('wellFloor', wellFloorTriangles(bodyMesh, measured.well), bodyMesh),
 };
 
 const scene = document.getRoot().getDefaultScene() ?? document.getRoot().listScenes()[0];
