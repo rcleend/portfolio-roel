@@ -155,13 +155,15 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.54 kB |
+| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.55 kB |
 | Entry CSS | + 0.15 kB | + 0.00 kB |
-| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.69 kB |
+| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 1.73 kB: the radio's own + 2.70, less 0.97 the TV's shaders give back since the build ships GLSL without comments (`scripts/glslMinify.ts`) |
 | `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.63 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 34.2, pending the captain's word: `bundle-budgets.json`) | 34.1 kB |
-| Placeholder audio | 5.5 MB | 4.94 MB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.66 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (held at 33.8, pending the captain's word: `bundle-budgets.json`) | 33.73 kB |
+| Close-up asset `radio-closeup.glb`, lazy (the well's parts and their 512 px atlas, meshopt with filters) | | 56.8 kB |
+| `radio-skin-2k.webp`, lazy, the close-up's sharper skin (2048², unbranded) | 280 kB | 170.6 kB |
+| Placeholder audio (only the track that plays is fetched) | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
 Measured in the real app (development server, Chromium on an M-series Mac, the radio prepared at idle; `e2e/radio-flow.spec.ts` holds pick → sound to 1.0 s, 1.5 s for a disc chosen before it is out, and 0.35 s under reduced motion):
