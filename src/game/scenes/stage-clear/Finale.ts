@@ -1,6 +1,7 @@
 import { type CharacterId, nextLevelTeaser } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
+import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { mod } from '@/engine/math/scalar';
 import { easeOutBack } from '@/engine/motion/easing';
 import { blink } from '@/engine/motion/oscillators';
@@ -13,7 +14,7 @@ import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
 import { envelopeSheet } from '../level-select/art/icons';
 import type { TeaserSlot } from '../level-select/missions';
-import { Postcards } from '../level-select/Postcards';
+import { type PostcardInks, Postcards } from '../level-select/Postcards';
 import type { GameStep } from '../params';
 import { SlamTitle } from './SlamTitle';
 import { drawSpotlight } from './spotlight';
@@ -24,6 +25,8 @@ const TITLE_TIMING = { letterStart: (index: number) => 0.15 + index * 0.04, fall
 const CARD = { x: 111, y: 46, w: 98, h: 82 } as const;
 const CARD_IN = { start: 0.9, end: 1.25 } as const;
 const BUTTONS_AT = 1.5;
+/** The props' outline in the night sky's navy. */
+const PROP_OUTLINE = palette.navy;
 
 /**
  * Shown once every mission is cleared: "ALL MISSIONS COMPLETE!", then the
@@ -37,7 +40,7 @@ export class Finale {
   readonly #postcards: Postcards;
   readonly #body: Paragraph;
   readonly #cursor = SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor');
-  readonly #envelope = SpriteSheet.compile(envelopeSheet, 'mission-select/envelope');
+  readonly #envelope = SpriteSheet.compile(envelopeSheet(PROP_OUTLINE), 'mission-select/envelope');
   readonly #buttons: readonly { readonly action: FinaleAction; readonly button: Button }[];
   #time = 0;
   #focus = 0;
@@ -47,7 +50,7 @@ export class Finale {
     this.#characterId = characterId;
     const { text } = services;
     this.#title = new SlamTitle(['ALL MISSIONS COMPLETE!'], text.title, 1);
-    this.#postcards = new Postcards(services);
+    this.#postcards = new Postcards(services, nightSkyPostcard(text.prompt));
     this.#body = new Paragraph(
       nextLevelTeaser.body,
       { ...text.body, fill: palette.white },
@@ -121,6 +124,19 @@ export class Finale {
     gfx.sprite(this.#envelope, 'idle', this.#time, addressX, 218);
     gfx.text(address, addressX + 15, 219, { ...text.body, fill: palette.lavender });
   }
+}
+
+/** The locked postcard in the menu's indigo, the scheme the rest of the finale is drawn in. */
+function nightSkyPostcard(prompt: TextStyle): PostcardInks {
+  return {
+    outline: palette.ink,
+    folder: palette.navy,
+    folderEdge: palette.violet,
+    classified: [palette.indigo, palette.navy],
+    hatch: palette.violet,
+    prop: PROP_OUTLINE,
+    mark: prompt,
+  };
 }
 
 const STAR_COUNT = 48;

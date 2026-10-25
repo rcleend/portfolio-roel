@@ -6,8 +6,8 @@ import type { GameServices } from '../../services';
 import { drawHud } from '../../ui/hud/Hud';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { HudTracker } from '../level/HudTracker';
-import { drawStage } from '../level/render/drawStage';
 import { levelRenderKit } from '../level/render/renderKit';
+import { StageRenderer } from '../level/render/StageRenderer';
 import type { GameScene, GameStep, ShowcaseParams } from '../params';
 import { DEMO_SEED } from './demos';
 import { resolveShowcase } from './params';
@@ -32,6 +32,7 @@ export class ShowcaseScene implements GameScene<ShowcaseParams | undefined> {
   #run: ShowcaseRun | null = null;
   #art: LevelArt | null = null;
   #hud = new HudTracker();
+  readonly #stage = new StageRenderer();
 
   constructor(services: GameServices) {
     this.#services = services;
@@ -69,7 +70,7 @@ export class ShowcaseScene implements GameScene<ShowcaseParams | undefined> {
     const art = this.#art;
     if (!run || !art) return;
     const kit = levelRenderKit(this.#services, this.#levelText, run.world, art);
-    drawStage(gfx, run.world, kit, run.time);
+    this.#stage.draw(gfx, run.world, kit, run.time);
     drawHud(gfx, kit, this.#hud.hud(run.world, run.time, 'keyboard'));
   }
 

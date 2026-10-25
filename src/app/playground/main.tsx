@@ -4,6 +4,7 @@ import { AssetStore } from '@/engine/assets/AssetStore';
 import { loadLookLibrary } from '@/game/art/looks/load';
 import { createGameAudio } from '@/game/audio/createGameAudio';
 import { loadGameResources } from '@/game/resources';
+import { preloadSceneArt } from '@/game/scenes';
 import { boardTiles } from './boards/board';
 import { PLAYGROUND_BOARDS } from './boards/catalog';
 import { Playground } from './Playground';
@@ -35,9 +36,14 @@ declare global {
 async function main(): Promise<void> {
   const root = document.getElementById('root');
   if (!root) throw new Error('playground.html is missing #root');
-  // Fonts, level art and every registered look load once here and are shared by every preview on the page.
+  // Fonts, level art, every registered look and the lineup with the Terraria designs and customer concepts it
+  // draws load once here, shared by every preview on the page.
   const assets = new AssetStore();
-  const [resources, library] = await Promise.all([loadGameResources(assets), loadLookLibrary(assets)]);
+  const [resources, library] = await Promise.all([
+    loadGameResources(assets),
+    loadLookLibrary(assets),
+    preloadSceneArt('lineup', assets),
+  ]);
   const loop = new PreviewLoop();
   window.__playground = {
     boards: Object.fromEntries(

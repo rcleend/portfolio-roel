@@ -313,7 +313,7 @@ export class World implements SkillWorld {
     }
     for (const { slot, running } of triggered.casts) {
       this.#skills.push(running);
-      player.strike('skill', this.#time, 0.4);
+      player.cast(slot.skill.id, this.#time, 0.4);
       feedback.sfx(slot.skill.sfx);
       feedback.emit({ kind: 'skillCast', skillId: slot.skill.id });
     }

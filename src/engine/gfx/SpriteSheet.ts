@@ -35,6 +35,8 @@ export interface AtlasAnimation {
   readonly anchors?: Readonly<Record<string, readonly Vec2[]>>;
 }
 
+const NO_ANCHORS: readonly Vec2[] = [];
+
 /**
  * A sprite sheet with time-based animation playback, drawn the same way
  * whether it was authored as pixel art or shipped as a PNG with its JSON.
@@ -132,6 +134,11 @@ export class SpriteSheet<A extends string = string> {
   anchor(animation: A, name: string, time: number): Vec2 | null {
     const points = this.#animation(animation).anchors?.[name];
     return points?.[this.frameIndex(animation, time)] ?? null;
+  }
+
+  /** Anchor `name` of every frame of the animation, in frame order and frame pixels; empty where it has none. */
+  anchors(animation: A, name: string): readonly Vec2[] {
+    return this.#animation(animation).anchors?.[name] ?? NO_ANCHORS;
   }
 
   /**

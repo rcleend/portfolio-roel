@@ -3,7 +3,9 @@ import type * as AssetsModule from '../src/engine/assets/AssetStore';
 import type { SpriteSheet } from '../src/engine/gfx/SpriteSheet';
 import type * as LoadModule from '../src/game/art/looks/load';
 import type * as SelectionModule from '../src/game/art/looks/selection';
-import type { ShowcaseParams } from '../src/game/scenes/params';
+import type * as ConceptsModule from '../src/game/art/looks/terraria/customer-concepts/concepts';
+import type * as DesignsModule from '../src/game/art/looks/terraria/designs';
+import type { LineupParams, ShowcaseParams } from '../src/game/scenes/params';
 import { trackErrors } from './helpers';
 
 /** Showcase demos worth one look each: every hero's moves, the customer, and every skill with its owner. */
@@ -47,7 +49,9 @@ test('fails loudly on an unknown look, naming the known ones', async ({ page }) 
   await page.goto(`/?${new URLSearchParams({ host: 'flat', looks: '{"customer":"neon"}' })}`);
   await expect
     .poll(() => errors.join('\n'))
-    .toContain('looks.customer must be one of classic, arcade, portrait, hibit, got "neon"');
+    .toContain(
+      'looks.customer must be one of classic, arcade, portrait, hibit, terraria, terraria-revised, terraria-hooded, got "neon"',
+    );
 });
 
 /**
@@ -109,5 +113,119 @@ test('loads every registered look and draws every sheet crisply', async ({ page 
   });
   expect(report.problems).toEqual([]);
   expect(report.drawn).toBeGreaterThan(50);
+  expect(errors).toEqual([]);
+});
+
+/**
+ * The lineup loads the Terraria designs and their revision itself, outside
+ * the look selection: draw each one as the lineup does, crisp, and no taller
+ * than the classic heroes, whose height the captain asked them not to outgrow.
+ */
+test('opens the Terraria lineup and draws every design crisply, no taller than the classic heroes', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  // The harness must fetch the designs before the lineup's first frame, or the scene throws.
+  await open(page, { scene: 'lineup' });
+  const report = await page.evaluate(async () => {
+    const designsPath = '/src/game/art/looks/terraria/designs.ts';
+    const loadPath = '/src/game/art/looks/load.ts';
+    const selectionPath = '/src/game/art/looks/selection.ts';
+    const storePath = '/src/engine/assets/AssetStore.ts';
+    const { REVISED_TERRARIA_DESIGNS, TERRARIA_DESIGNS, loadTerrariaDesigns, terrariaDesignSheet } = (await import(
+      designsPath
+    )) as typeof DesignsModule;
+    const { loadLooks } = (await import(loadPath)) as typeof LoadModule;
+    const { DEFAULT_LOOKS } = (await import(selectionPath)) as typeof SelectionModule;
+    const { AssetStore } = (await import(storePath)) as typeof AssetsModule;
+    const assets = new AssetStore();
+    const classicHeroes = { hackerman: 'classic', artsy: 'classic', strategy: 'classic' } as const;
+    const [, looks] = await Promise.all([
+      loadTerrariaDesigns(assets),
+      loadLooks({ ...DEFAULT_LOOKS, characters: classicHeroes }, assets),
+    ]);
+
+    /** The standing frame's drawn rows and whether any pixel is half see-through. */
+    const measure = (sheet: SpriteSheet) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = sheet.width;
+      canvas.height = sheet.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      sheet.drawFrame(ctx, 'idle', 0, sheet.origin.x, sheet.origin.y);
+      const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data.filter((_, i) => i % 4 === 3);
+      const rows = [...Array(canvas.height).keys()].filter((y) =>
+        alpha.subarray(y * canvas.width, (y + 1) * canvas.width).some((value) => value > 0),
+      );
+      return {
+        height: rows.length === 0 ? 0 : (rows.at(-1) ?? 0) - (rows[0] ?? 0) + 1,
+        soft: alpha.some((value) => value !== 0 && value !== 255),
+      };
+    };
+    const classic = Object.values(looks.characters).map((look) => measure(look.sheet).height);
+    const designs = [...TERRARIA_DESIGNS, ...REVISED_TERRARIA_DESIGNS].map((design) => ({
+      id: `${design.look}/${design.hero}`,
+      ...measure(terrariaDesignSheet(assets, design)),
+    }));
+    return { classic: Math.min(...classic), designs };
+  });
+  expect(report.designs).not.toHaveLength(0);
+  for (const design of report.designs) {
+    expect(design.height, design.id).toBeGreaterThan(0);
+    expect(design.height, design.id).toBeLessThanOrEqual(report.classic);
+    expect(design.soft, design.id).toBe(false);
+  }
+  expect(await page.evaluate(() => window.__arcade?.state().scene)).toBe('lineup');
+  expect(errors).toEqual([]);
+});
+
+/**
+ * The customer concepts load the same way: the lineup stands each one,
+ * shouting and won over, and every pose is drawn crisply, standing on the
+ * feet line.
+ */
+test('opens the customers lineup on every concept and draws each pose crisply on the feet line', async ({ page }) => {
+  const errors = trackErrors(page);
+  // The harness must fetch the concepts before the lineup's first frame, or the scene throws.
+  await open(page, { scene: 'lineup', params: JSON.stringify({ cast: 'customers' }) });
+  const report = await page.evaluate(async () => {
+    const conceptsPath = '/src/game/art/looks/terraria/customer-concepts/concepts.ts';
+    const storePath = '/src/engine/assets/AssetStore.ts';
+    const { CONCEPT_POSES, CUSTOMER_CONCEPTS, customerConceptSheet, loadCustomerConcepts } = (await import(
+      conceptsPath
+    )) as typeof ConceptsModule;
+    const { AssetStore } = (await import(storePath)) as typeof AssetsModule;
+    const assets = new AssetStore();
+    await loadCustomerConcepts(assets);
+    const arcade = window.__arcade;
+    if (!arcade) throw new Error('no harness');
+    return CUSTOMER_CONCEPTS.flatMap((concept) => {
+      const params: LineupParams = { cast: 'customers', customer: concept.id };
+      arcade.goTo('lineup', params);
+      arcade.step(2);
+      const sheet = customerConceptSheet(assets, concept);
+      return CONCEPT_POSES.map((pose) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = sheet.width;
+        canvas.height = sheet.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no 2d context');
+        sheet.drawFrame(ctx, pose, 0, sheet.origin.x, sheet.origin.y);
+        const alpha = ctx.getImageData(0, 0, canvas.width, canvas.height).data.filter((_, i) => i % 4 === 3);
+        const rows = [...Array(canvas.height).keys()].filter((y) =>
+          alpha.subarray(y * canvas.width, (y + 1) * canvas.width).some((value) => value > 0),
+        );
+        return {
+          name: `${concept.id} ${pose}`,
+          drawn: rows.length > 0,
+          feet: rows.at(-1) === sheet.origin.y - 1,
+          soft: alpha.some((value) => value !== 0 && value !== 255),
+        };
+      });
+    });
+  });
+  expect(report).toHaveLength(6);
+  for (const pose of report) expect(pose, pose.name).toMatchObject({ drawn: true, feet: true, soft: false });
+  expect(await page.evaluate(() => window.__arcade?.state().scene)).toBe('lineup');
   expect(errors).toEqual([]);
 });

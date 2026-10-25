@@ -2,7 +2,7 @@ import type { CharacterId, SkillId } from '@/content';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { AttackVisual } from '../../entities/shots/AttackVisual';
 import type { SkillVisual } from '../../skills/SkillVisual';
-import type { CharacterAnimation, CustomerAnimation, SkillIconAnimation } from './contracts';
+import type { CustomerAnimation, HeroAnimation, SkillIconAnimation } from './contracts';
 import type { LookId } from './ids';
 import type { LookSelection } from './selection';
 
@@ -20,7 +20,7 @@ export interface Looks {
 
 export interface HeroLook {
   readonly lookId: LookId;
-  readonly sheet: SpriteSheet<CharacterAnimation>;
+  readonly sheet: SpriteSheet<HeroAnimation>;
   readonly attack: AttackVisual;
 }
 
@@ -42,4 +42,19 @@ export type SkillLooks = { readonly [K in SkillId]: SkillLook<K> };
 /** Every skill's icon on show, e.g. to size a row of slots for the largest. */
 export function skillIcons(looks: Looks): readonly SpriteSheet<SkillIconAnimation>[] {
   return Object.values(looks.skills).map((skill) => skill.icon);
+}
+
+/**
+ * How tall a figure draws over `animation`: from its feet up to the highest
+ * `head` anchor its frames mark, else its whole frame, as in a look that fills
+ * it. Lay out around a figure by this rather than by its frame, so a look drawn
+ * smaller than its frame (the Terraria looks: classic's size in 64 × 64 frames)
+ * stands as close to its labels as classic does.
+ */
+export function figureHeight<A extends string>(sheet: SpriteSheet<A>, animation: A): number {
+  const heads = sheet.anchors(animation, 'head');
+  if (heads.length === 0) return sheet.height;
+  let top = sheet.origin.y;
+  for (const head of heads) top = Math.min(top, head.y);
+  return sheet.origin.y - top;
 }

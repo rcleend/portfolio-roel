@@ -107,6 +107,34 @@ describe('Customer', () => {
     expect(customer.centerX).toBeGreaterThan(330);
   });
 
+  it('counts how far it walks in pixels of its art, for legs that keep pace with the ground', () => {
+    const harness = new Harness();
+    harness.calm = true;
+    harness.player = { x: 220, feet: 200 };
+    const regular = new Customer(REGULAR_CUSTOMER, 400, 200);
+    harness.run(regular, 2);
+    expect(regular.centerX).toBeLessThan(400 - REGULAR_CUSTOMER.walkSpeed);
+    expect(regular.walked).toBeCloseTo(400 - regular.centerX, 6);
+    const won = new Customer(ESCALATED_CUSTOMER, 400, 200, { kind: 'won', since: harness.time });
+    harness.run(won, 2);
+    expect(won.centerX).toBeGreaterThan(440);
+    expect(won.walked).toBeCloseTo((won.centerX - 400) / ESCALATED_CUSTOMER.scale, 6);
+  });
+
+  it('counts no steps against a wall', () => {
+    const collision = flatWorld();
+    for (let row = 0; row < 12; row++) collision.grid.set(14, row, 'solid');
+    const harness = new Harness(collision);
+    harness.calm = true;
+    harness.player = { x: 100, feet: 200 };
+    const customer = new Customer(REGULAR_CUSTOMER, 260, 200);
+    harness.run(customer, 3);
+    const walked = customer.walked;
+    harness.run(customer, 1);
+    expect(customer.body.x).toBe(15 * 16);
+    expect(customer.walked).toBe(walked);
+  });
+
   it('cannot move or shout while stunned', () => {
     const harness = new Harness();
     harness.player = { x: 200, feet: 200 };

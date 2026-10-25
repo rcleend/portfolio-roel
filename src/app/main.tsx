@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createGame } from '@/game/createGame';
+import { preloadSceneArt } from '@/game/scenes';
 import { App } from './App';
 import { watchInputModality } from './a11y/inputModality';
 import { readHarnessConfig } from './harness/config';
@@ -19,6 +20,10 @@ function main(): void {
     ...(config.seed === null ? {} : { seed: config.seed }),
     ...(config.looks === null ? {} : { looks: config.looks }),
     openLink,
+  }).then(async (created) => {
+    // A development scene the harness opens may draw art the game never loads; it must be in before the first frame.
+    if (config.scene !== null) await preloadSceneArt(config.scene, created.services.assets);
+    return created;
   });
   createRoot(root).render(
     <StrictMode>

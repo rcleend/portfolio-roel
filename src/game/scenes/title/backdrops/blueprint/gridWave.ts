@@ -1,7 +1,7 @@
 import type { TitleFrame } from '../TitleBackdrop';
 import { shadeOf } from './inks';
 import type { PenCanvas } from './pen';
-import { FRAME, GRID, isMajorColumn, isMajorRow, TITLE_BLOCK } from './sheet';
+import { FRAME, GRID, isMajorColumn, isMajorRow } from './sheet';
 import { ripple } from './timeline';
 
 const LEFT = FRAME.x + GRID.cell;
@@ -34,8 +34,7 @@ const SPANS = new Int16Array(4);
  * `outer` around (cx, cy): a few pixels of every grid line, so a wave reads
  * as the grid itself lighting up rather than a circle drawn over it. Major
  * lines take `majorColor`. Lines stop where the sheet stops printing them,
- * at the frame and at the title block in its bottom-right corner. Costs at
- * most two rectangles per grid line.
+ * at the frame. Costs at most two rectangles per grid line.
  */
 export function lightGrid(
   ctx: PenCanvas,
@@ -47,10 +46,8 @@ export function lightGrid(
   majorColor: string,
 ): void {
   if (outer <= 0) return;
-  const block = TITLE_BLOCK.box;
   for (let x = LEFT; x < RIGHT; x += GRID.cell) {
-    const end = x >= block.x ? block.y - 1 : BOTTOM - 1;
-    const spans = crossing(x - cx, cy, inner, outer, FRAME.y + 1, end);
+    const spans = crossing(x - cx, cy, inner, outer, FRAME.y + 1, BOTTOM - 1);
     if (spans === 0) continue;
     ctx.fillStyle = isMajorColumn(x) ? majorColor : minorColor;
     for (let s = 0; s < spans; s++) {
@@ -59,8 +56,7 @@ export function lightGrid(
     }
   }
   for (let y = TOP; y < BOTTOM; y += GRID.cell) {
-    const end = y >= block.y ? block.x - 1 : RIGHT - 1;
-    const spans = crossing(y - cy, cx, inner, outer, FRAME.x + 1, end);
+    const spans = crossing(y - cy, cx, inner, outer, FRAME.x + 1, RIGHT - 1);
     if (spans === 0) continue;
     ctx.fillStyle = isMajorRow(y) ? majorColor : minorColor;
     for (let s = 0; s < spans; s++) {

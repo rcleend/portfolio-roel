@@ -18,6 +18,14 @@ describe('Bitmap', () => {
     expect(() => new Bitmap(0, 4)).toThrow(RangeError);
   });
 
+  it('bounds what it paints, transparent margins left out', () => {
+    const bitmap = new Bitmap(5, 4);
+    expect(bitmap.bounds()).toBeNull();
+    bitmap.set(1, 2, { r: 0, g: 0, b: 0, a: 255 });
+    bitmap.set(3, 1, { r: 0, g: 0, b: 0, a: 255 });
+    expect(bitmap.bounds()).toEqual({ x: 1, y: 1, w: 3, h: 2 });
+  });
+
   it('fills a mask with a colour or a per-pixel paint, at an offset', () => {
     const bitmap = new Bitmap(3, 1);
     const mask = Mask.fromRows(['#.#']);

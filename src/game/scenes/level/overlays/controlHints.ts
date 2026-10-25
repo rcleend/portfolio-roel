@@ -24,6 +24,14 @@ const HINT_ROW: readonly Hint[] = [
 const GAP = 7;
 const Y = 225;
 
+/**
+ * The top of the hints' strip from when it shows until it has blinked out,
+ * or null outside that: the screen rows from there down are the HUD's.
+ */
+export function controlHintsTop(time: number): number | null {
+  return time < HINTS.from || time > HINTS.until ? null : Y - 4;
+}
+
 /** A strip of key caps along the bottom for the first seconds of a level. */
 export function drawControlHints(gfx: Gfx, text: TextStyles, device: 'keyboard' | 'gamepad', time: number): void {
   if (time < HINTS.from || time > HINTS.until) return;

@@ -19,6 +19,25 @@ const LOOKS: Readonly<Record<LookId, Choice>> = {
   },
   portrait: { id: 'portrait', name: 'Portrait', description: 'Slim and realistic, with selective coloured outlines.' },
   hibit: { id: 'hibit', name: 'Hi-bit', description: 'Modern high-fidelity pixel art: rich ramps and lavish effects.' },
+  // Named as the Terraria Roels board names them, the look "before" its revision.
+  terraria: {
+    id: 'terraria',
+    name: 'Terraria · before',
+    description:
+      'The three Roels as Terraria players and a customer yelling into his phone, animated the way Terraria animates its own.',
+  },
+  'terraria-revised': {
+    id: 'terraria-revised',
+    name: 'Terraria · revised',
+    description:
+      "Terraria's hairstyle 143, its lock flicking a pixel as he runs and comes down (still under a cap), flatter glasses and the DESIGNER's cap with one spot.",
+  },
+  'terraria-hooded': {
+    id: 'terraria-hooded',
+    name: 'Terraria · hood up',
+    description:
+      'The revised ENGINEER with his hood pulled up, moving with his head and shoulders, his hair still under it.',
+  },
 };
 
 /** The looks each piece has been drawn in: a look shows up as soon as its folder is registered. */
@@ -30,8 +49,17 @@ const SAME_LOOK: Choice = {
   description: "The skill's own look, where the hero has been drawn in it; classic otherwise.",
 };
 
+/**
+ * `look` as a choice among `looks`: the Terraria look is "before" only beside
+ * its revision, so a piece drawn in no revision (the customer) calls it plain Terraria.
+ */
+function lookChoice(look: LookId, looks: readonly LookId[]): Choice {
+  if (look !== 'terraria' || looks.includes('terraria-revised')) return LOOKS[look];
+  return { ...LOOKS.terraria, name: 'Terraria' };
+}
+
 function lookPicker(id: string, label: string, looks: readonly LookId[], current: LookId): Picker {
-  return { id, label, choices: looks.map((look) => LOOKS[look]), current };
+  return { id, label, choices: looks.map((look) => lookChoice(look, looks)), current };
 }
 
 /** The pick of `picker` as a look, if it is one. */
@@ -100,7 +128,12 @@ function skillSubject(skill: SkillId, hero: Character): Subject {
     label: skills[skill].name,
     pickers: [
       lookPicker('look', 'Look', offer.skills[skill], DEFAULT_LOOKS.skills[skill]),
-      { id: 'hero', label: hero.name, choices: [SAME_LOOK, ...heroLooks.map((look) => LOOKS[look])], current: 'same' },
+      {
+        id: 'hero',
+        label: hero.name,
+        choices: [SAME_LOOK, ...heroLooks.map((look) => lookChoice(look, heroLooks))],
+        current: 'same',
+      },
       lookPicker('customer', 'Customer', offer.customer, DEFAULT_LOOKS.customer),
     ],
     timeline: demoTimeline({ demo: 'skill', skill }),

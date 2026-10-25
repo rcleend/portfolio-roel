@@ -48,4 +48,19 @@ describe('CameraFollow', () => {
       expect(Number.isInteger(camera.view.x)).toBe(true);
     }
   });
+
+  it('reads its edges at rest through a shake', () => {
+    // Held against the start of the level, so only the shake moves the view.
+    const camera = new CameraFollow(320, 240, 2000);
+    const target = { x: 20, facing: 1, vx: 0 } as const;
+    camera.snapTo(target);
+    const rest = { x: camera.view.x, y: camera.view.y };
+    camera.shake(5, 1);
+    const views = Array.from({ length: 20 }, () => {
+      camera.update(target, DT);
+      expect([camera.left, camera.top]).toEqual([rest.x, rest.y]);
+      return camera.view;
+    });
+    expect(views.some((view) => view.x !== rest.x || view.y !== rest.y)).toBe(true);
+  });
 });

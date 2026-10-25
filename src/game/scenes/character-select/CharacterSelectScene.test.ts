@@ -51,6 +51,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     stageClear: record('stageClear'),
     specimen: record('specimen'),
     showcase: record('showcase'),
+    lineup: record('lineup'),
   };
   const director = new Director<GameSceneMap, Action>(factories);
   const small = BitmapFont.fromGlyphData(smallFont);

@@ -9,17 +9,22 @@ import { skillIconSheets } from '../icons';
 const FLASK_SECONDS = 0.7;
 /** The flask's bottom sits this far below the top of the hero's frame (34 px above classic's feet). */
 const FLASK_DROP = 6;
+/** …or this far above the top of the head, on a look that marks it (a `head` anchor, docs/LOOKS.md). */
+const FLASK_OVER_HEAD = 3;
 
 /** Classic UX ELIXIR: a pink flask pops up over the hero's head and is drained; customers glow with a pink heart and sparkles. */
 export const look = defineSkillLook('ux-elixir', {
   icon: skillIconSheets['ux-elixir'],
   visual: () => ({
     active: (gfx, elixir, caster, layer) => {
-      if (layer !== 'front' || elixir.age > FLASK_SECONDS) return;
+      // A hero who poses UX ELIXIR his own way drinks his own potion, so the flask would be a second one.
+      if (layer !== 'front' || elixir.age > FLASK_SECONDS || caster.posesOwn('ux-elixir')) return;
       // The potion pops up above the hero's head, tips, and is gone.
       const rise = segment(elixir.age, 0, 0.25, easeOutBack);
       const x = Math.round(caster.x - 3);
-      const y = Math.round(caster.feet - (caster.height - FLASK_DROP) - rise * 10);
+      const head = caster.anchor('head');
+      const top = head ? head.y - FLASK_OVER_HEAD : caster.feet - (caster.height - FLASK_DROP);
+      const y = Math.round(top - rise * 10);
       drawFlask(gfx, x, y, elixir.age > 0.45);
     },
     effect: (gfx, fx) => {

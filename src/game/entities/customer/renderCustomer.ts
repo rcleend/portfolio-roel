@@ -1,10 +1,15 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
+import { customerLabelArt } from '../../art/fx/customerLabel';
 import { drawSpriteScaled } from '../../art/fx/drawScaled';
 import type { CustomerAnimation } from '../../art/looks/contracts';
+import type { GameFonts } from '../../fonts';
+import { palette } from '../../palette';
 import type { UxElixirState } from '../../skills/SkillVisual';
 import type { RenderKit } from '../RenderKit';
 import type { Customer } from './Customer';
+import type { LabelFocus, LabelLayout, LabelScreen } from './label';
+import { REGULAR_CUSTOMER } from './tuning';
 
 /** The bits of the level's rules that change how a customer is drawn. */
 export interface CustomerRules {
@@ -17,21 +22,34 @@ export interface CustomerRules {
 const PIP = { w: 4, h: 3, gap: 1 } as const;
 /** Frame 1 of `walk` has both feet planted: the "standing" pose. */
 const STANDING_TIME = 1 / 6 + 1e-6;
-/** The sprite height everything above a customer was placed for: classic's frame. */
-const TUNED_HEIGHT = 40;
+/**
+ * Art pixels a customer walks per second of its `walk`: every look draws its
+ * walk to plant the feet at a regular customer's pace, so the cycle plays by
+ * distance walked over this, slower for a slowed or scaled-up customer.
+ */
+const WALK_PACE = REGULAR_CUSTOMER.walkSpeed;
+/** How high above his feet classic's standing customer's head reaches: what everything above a customer was placed for. */
+const TUNED_HEAD = 30;
+/** How far below the top of its 40 px frame classic's head sits; a look without a `head` anchor is taken to stand the same way. */
+const TUNED_HEADROOM = 10;
 
 /**
  * How far everything shown above a customer — pips, hearts, steam, the +MRR
- * pop — must rise so a look's taller sprite does not wear it on its face.
- * Zero for classic; the hitbox, and so play, never changes.
+ * pop — must rise so a look's taller sprite does not wear it on its face:
+ * measured from the standing frame's `head` anchor where the look marks one,
+ * else from its frame's top. Zero for classic, negative for a look whose head
+ * stands lower; the hitbox, and so play, never changes.
  */
 export function overheadLift(kit: RenderKit, scale: number): number {
-  return (kit.looks.customer.sheet.height - TUNED_HEIGHT) * scale;
+  const sheet = kit.looks.customer.sheet;
+  const head = sheet.anchor('walk', 'head', STANDING_TIME);
+  const height = head ? sheet.origin.y - head.y : sheet.height - TUNED_HEADROOM;
+  return (height - TUNED_HEAD) * scale;
 }
 
 /** Draws a customer: the right animation for their mood, hit flash, and the frustration meter above their head. */
 export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rules: CustomerRules): void {
-  const { animation, time } = pose(customer, kit.time);
+  const { animation, time } = customerPose(customer, kit.time);
   // Hits flicker white on alternate frames and a charge is telegraphed in red, both brief enough to keep the sprite readable.
   const hitFlash = customer.isFlashing(kit.time) && blink(kit.time, 1 / 60, 1 / 60);
   const windingUp = customer.mood.kind === 'chargeWindup' && blink(kit.time, 2 / 60, 6 / 60);
@@ -66,7 +84,56 @@ export function renderCustomer(gfx: Gfx, kit: RenderKit, customer: Customer, rul
   }
 }
 
-function pose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
+/** What drawing the labels needs of the render kit. */
+export interface LabelKit extends Pick<RenderKit, 'time' | 'reducedMotion'> {
+  readonly fonts: Pick<GameFonts, 'small'>;
+}
+
+/**
+ * Lays out this frame's labels under the customers' feet ("Unhappy customer"
+ * until won over) on `screen` in `labels`, which remembers the rows they
+ * took. `drawCustomerLabels` then draws them, a layer at a time.
+ */
+export function layOutCustomerLabels(
+  kit: LabelKit,
+  labels: LabelLayout,
+  customers: readonly Customer[],
+  player: LabelFocus,
+  screen: LabelScreen,
+): void {
+  const { sizes } = customerLabelArt(kit.fonts.small);
+  labels.update(customers, sizes, player, screen, kit.time, kit.reducedMotion);
+}
+
+/**
+ * Draws one layer of the labels last laid out in `labels`, `(dx, dy)` from
+ * where the layout put them: 'behind', before any character, the few that
+ * meet one, so a sprite always stands in front of a label it meets;
+ * 'front', after the foreground, all the others, so no post cuts a word out
+ * of them.
+ */
+export function drawCustomerLabels(
+  gfx: Gfx,
+  kit: LabelKit,
+  labels: LabelLayout,
+  layer: 'behind' | 'front',
+  dx = 0,
+  dy = 0,
+): void {
+  const shown = labels.shown;
+  if (shown === 0) return;
+  const front = layer === 'front';
+  const bitmaps = customerLabelArt(kit.fonts.small).bitmaps();
+  for (let index = 0; index < shown; index++) {
+    const label = labels.label(index);
+    if (label.front !== front) continue;
+    const bitmap = bitmaps[label.frame.picture];
+    gfx.image(bitmap.image, label.x + dx, label.y + dy, bitmap.draw);
+  }
+}
+
+/** The animation a customer's mood plays, and how far into it they are at `now`. */
+export function customerPose(customer: Customer, now: number): { animation: CustomerAnimation; time: number } {
   const age = customer.moodAge(now);
   switch (customer.mood.kind) {
     case 'won':
@@ -81,10 +148,10 @@ function pose(customer: Customer, now: number): { animation: CustomerAnimation; 
     case 'chargeWindup':
       return { animation: 'shout', time: age };
     case 'charge':
-      return { animation: 'walk', time: age * 2.5 };
+      return { animation: 'walk', time: customer.walked / WALK_PACE };
     default:
       return Math.abs(customer.body.vx) > 1
-        ? { animation: 'walk', time: now }
+        ? { animation: 'walk', time: customer.walked / WALK_PACE }
         : { animation: 'walk', time: STANDING_TIME };
   }
 }
@@ -102,7 +169,7 @@ function drawFrustration(gfx: Gfx, customer: Customer, lift: number, calm: boole
     gfx.fillRect(x, top, PIP.w, PIP.h, '#3a2240');
     if (fill <= 0) continue;
     const w = fill >= 1 ? PIP.w : Math.ceil(PIP.w * fill);
-    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : '#ff3a4a');
+    gfx.fillRect(x, top, w, PIP.h, calm ? '#ff9ad8' : palette.scarlet);
     gfx.fillRect(x, top, w, 1, calm ? '#ffd0ef' : '#ff9a9a');
   }
 }

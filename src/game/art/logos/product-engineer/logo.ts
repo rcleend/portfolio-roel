@@ -1,4 +1,5 @@
 import { Bitmap } from '../raster/Bitmap';
+import type { PixelBox } from '../raster/Mask';
 import { type InitialScale, type Lettering, SLANT, setLettering } from './lettering';
 import { paintLettering } from './paint';
 import { measureShelf, type Shelf } from './shelf';
@@ -14,6 +15,11 @@ export interface LogoLine {
   readonly shine: Bitmap;
   /** Top-left of the line's upright cap box inside `image`, where its first letter starts on the cap line; align lines on this point. */
   readonly origin: { readonly x: number; readonly y: number };
+  /**
+   * What `image` actually paints, outline and extrusion included, inside its
+   * transparent margin: lay lines out by this, not by the image's own box.
+   */
+  readonly ink: PixelBox;
   /** Cap height of the line. */
   readonly height: number;
   /** Upright width of the set word, from `origin` to the last letter's right edge. */
@@ -59,11 +65,15 @@ function paintLine(word: string, index: 0 | 1, initial?: InitialScale): LogoLine
   const lettering: Lettering = setLettering(word, { height: LINE_HEIGHTS[index], seed, initial });
   const last = lettering.letters[lettering.letters.length - 1];
   const width = last ? last.x + last.w - lettering.origin.x : 0;
+  const image = paintLettering(lettering, seed);
+  const ink = image.bounds();
+  if (!ink) throw new Error(`Title logo: "${word}" paints nothing`);
   return {
     word,
-    image: paintLettering(lettering, seed),
+    image,
     shine: paintShine(lettering),
     origin: lettering.origin,
+    ink,
     height: lettering.height,
     width,
     capWidth: Math.round(width + lettering.height * SLANT),

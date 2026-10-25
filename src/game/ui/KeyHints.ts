@@ -10,10 +10,15 @@ import type { ButtonState } from './Button';
 /** The menu keys a select screen offers; each one presses the action it is named after. */
 export type HintKey = Extract<Action, 'confirm' | 'back'>;
 
-/** Colours of the control legends: lavender keys, quiet slate labels, and the brighter pair a clickable key lights up in. */
+/**
+ * Colours of the control legends: lavender keys, quiet steel labels, and the
+ * brighter pair a clickable key lights up in. The legends run along the foot
+ * of the select screens, where the blueprint paper is banded at its
+ * lightest, so quiet still has to clear 3:1 there.
+ */
 export const HINT_COLORS = {
   key: palette.lavender,
-  label: '#6a6f8f',
+  label: palette.steel,
   litKey: palette.white,
   litLabel: palette.lavender,
 } as const;

@@ -76,6 +76,7 @@ export class Customer {
   #nextCharge = 0;
   #flashUntil = Number.NEGATIVE_INFINITY;
   #grounded = false;
+  #walked = 0;
 
   /** Spawns standing with feet at (x, feetY), `x` being the body's centre. */
   constructor(tuning: CustomerTuning, x: number, feetY: number, mood: CustomerMood = { kind: 'patrol' }) {
@@ -89,6 +90,16 @@ export class Customer {
 
   get mood(): CustomerMood {
     return this.#mood;
+  }
+
+  /**
+   * How far the customer has moved, in pixels of its art (world pixels over
+   * its draw scale): a walk cycle played by distance rather than time keeps
+   * the feet planted at any speed, as Terraria drives a walker's frames from
+   * its velocity.
+   */
+  get walked(): number {
+    return this.#walked;
   }
 
   /** Seconds since the current mood began, for animation timing. */
@@ -270,7 +281,9 @@ export class Customer {
       if (mood.kind === 'charge') this.#endCharge(ctx);
     }
     this.body.vy = Math.min(this.body.vy + GRAVITY * dt, MAX_FALL);
+    const from = this.body.x;
     const contacts = moveBody(this.body, dt, ctx.collision);
+    this.#walked += Math.abs(this.body.x - from) / this.tuning.scale;
     this.#grounded = contacts.grounded;
     if (contacts.wall !== 0) {
       if (mood.kind === 'patrol') this.facing = contacts.wall === 1 ? -1 : 1;

@@ -2,9 +2,9 @@ import { characters, type SkillId, skills } from '@/content';
 import type { PixelImage } from '@/engine/gfx/canvas';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { SpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
-import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS, SKILL_ICON_ANIMATIONS } from './contracts';
+import { CHARACTER_ANIMATIONS, CUSTOMER_ANIMATIONS, type HeroAnimation, SKILL_ICON_ANIMATIONS } from './contracts';
 import type { HeroLook, Looks, SkillLooks } from './Looks';
-import { DEFAULT_LOOKS } from './selection';
+import type { LookSelection } from './selection';
 
 /** Frame sizes for `sizedLooks`; the defaults are classic's. */
 export interface LookSizes {
@@ -15,13 +15,27 @@ export interface LookSizes {
 
 const CLASSIC_SIZES: LookSizes = { hero: 40, customer: 40, icon: 16 };
 
+/** Classic for every piece: what `sizedLooks` stands in for. */
+const CLASSIC_SELECTION: LookSelection = {
+  characters: Object.fromEntries(
+    characters.map((character) => [character.id, 'classic']),
+  ) as LookSelection['characters'],
+  customer: 'classic',
+  skills: Object.fromEntries(
+    (Object.keys(skills) as SkillId[]).map((id) => [id, 'classic']),
+  ) as LookSelection['skills'],
+};
+
 /**
  * Looks of the given sizes that draw nothing, for tests that lay out or step
  * scenes without a canvas. Lives next to the looks so every test can share it;
  * production code never imports it.
  */
 export function sizedLooks(sizes: LookSizes = CLASSIC_SIZES): Looks {
-  const hero = blankSheet(CHARACTER_ANIMATIONS, sizes.hero, { x: Math.floor(sizes.hero / 2), y: sizes.hero });
+  const hero = blankSheet<HeroAnimation>(CHARACTER_ANIMATIONS, sizes.hero, {
+    x: Math.floor(sizes.hero / 2),
+    y: sizes.hero,
+  });
   const customer = blankSheet(CUSTOMER_ANIMATIONS, sizes.customer, {
     x: Math.floor(sizes.customer / 2),
     y: sizes.customer,
@@ -33,7 +47,7 @@ export function sizedLooks(sizes: LookSizes = CLASSIC_SIZES): Looks {
     attack: { shot: () => {}, impact: () => {}, hit: () => {} },
   };
   return {
-    selection: DEFAULT_LOOKS,
+    selection: CLASSIC_SELECTION,
     characters: Object.fromEntries(characters.map((character) => [character.id, heroLook])) as Looks['characters'],
     customer: { lookId: 'classic', sheet: customer },
     skills: Object.fromEntries(

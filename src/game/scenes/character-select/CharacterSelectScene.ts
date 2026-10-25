@@ -6,7 +6,7 @@ import { IDLE_POINTER, type PointerSnapshot } from '@/engine/input/InputSnapshot
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
-import { skillIcons } from '../../art/looks/Looks';
+import { figureHeight, skillIcons } from '../../art/looks/Looks';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
 import { iconSlotSize } from '../../ui/iconSlot';
@@ -195,10 +195,10 @@ export class CharacterSelectScene implements GameScene {
   #depart(): void {
     this.#departed = true;
     // The iris closes on the middle of the hero, however tall the look draws them.
-    const hero = this.#services.looks.characters[this.#character.id].sheet;
+    const tall = figureHeight(this.#services.looks.characters[this.#character.id].sheet, 'idle');
     const transition = this.#services.settings.reducedMotion
       ? fade()
-      : iris({ x: STAGE.x, y: STAGE.y - Math.round(hero.height / 2), duration: 0.6 });
+      : iris({ x: STAGE.x, y: STAGE.y - Math.round(tall / 2), duration: 0.6 });
     this.#services.director.goTo('levelSelect', {}, transition);
   }
 

@@ -2,16 +2,20 @@ import { context2d, createCanvas } from '@/engine/gfx/canvas';
 import { ditherOn } from '@/engine/gfx/dither';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { lerp } from '@/engine/math/scalar';
+import { shadeOf } from '../../title/backdrops/blueprint/inks';
 
 /**
- * A stage spotlight falling from the top of the card onto the pedestal: two
+ * A stage spotlight falling from the top of the card onto the pedestal:
  * flat bands widening downwards, joined to the dark backdrop by a dithered
- * edge. Static, so it is rasterised once and blitted.
+ * edge. Each band is a blueprint ramp step above the one around it, the
+ * outermost on the step the card's field ends on, so the beam's rim fades
+ * into the field's foot where the light pools. Static, so it is rasterised
+ * once and blitted.
  */
 const BANDS = [
-  { color: '#1b1554', scale: 1 },
-  { color: '#251d6b', scale: 0.66 },
-  { color: '#2f2682', scale: 0.36 },
+  { color: shadeOf(2), scale: 1 },
+  { color: shadeOf(3), scale: 0.66 },
+  { color: shadeOf(4), scale: 0.36 },
 ] as const;
 const TOP_HALF_WIDTH = 9;
 const BOTTOM_HALF_WIDTH = 36;

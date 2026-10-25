@@ -5,6 +5,7 @@ export const emailLink: ProfileLink = { kind: 'email', label: 'rcleende@gmail.co
 
 export const profile: Profile = {
   name: 'Roel Leenders',
+  site: 'Portfolio',
   headline: 'Product Engineer',
   location: 'Amsterdam, NL',
   summary:

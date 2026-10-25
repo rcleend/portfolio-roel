@@ -70,6 +70,45 @@ test.describe('playground', () => {
     expect(errors).toEqual([]);
   });
 
+  test("stands the Terraria designs and their revision beside the game's cast on every backdrop", async ({ page }) => {
+    const errors = trackErrors(page);
+    const boards = await openPlayground(page, '?zoom=1');
+    const lineups = [...new Set((boards.roels ?? []).map((key) => key.split('/')[1]))];
+    expect(lineups.length).toBeGreaterThan(1);
+    for (const lineup of lineups) {
+      const tile = (cast: string) => `[data-board="roels"] [data-tile="roels/${lineup}/${cast}"] canvas`;
+      const [game, terraria, revised] = [tile('game'), tile('terraria'), tile('revised')];
+      await page.locator(revised).scrollIntoViewIfNeeded();
+      // Tiles out of view are not drawn, so wait for all three to have caught up before comparing.
+      await expect
+        .poll(
+          async () => new Set(await Promise.all([game, terraria, revised].map((canvas) => pixels(page, canvas)))).size,
+        )
+        .toBe(3);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test("stands every Terraria customer concept beside the game's customer on every backdrop", async ({ page }) => {
+    const errors = trackErrors(page);
+    const boards = await openPlayground(page, '?zoom=1');
+    const keys = boards['customers-terraria'] ?? [];
+    const lineups = [...new Set(keys.map((key) => key.split('/')[1]))];
+    expect(lineups.length).toBeGreaterThan(1);
+    for (const lineup of lineups) {
+      const game = `[data-board="customers-terraria"] [data-tile="customers-terraria/${lineup}/game"] canvas`;
+      const concepts = keys.filter((key) => key.startsWith(`customers-terraria/${lineup}/`) && !key.endsWith('/game'));
+      expect(concepts).toHaveLength(3);
+      for (const concept of concepts) {
+        const tile = `[data-board="customers-terraria"] [data-tile="${concept}"] canvas`;
+        await page.locator(tile).scrollIntoViewIfNeeded();
+        // Tiles out of view are not drawn, so wait for both to have caught up before comparing.
+        await expect.poll(async () => (await pixels(page, tile)) !== (await pixels(page, game))).toBe(true);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('drives every preview from the keyboard transport', async ({ page }) => {
     const errors = trackErrors(page);
     await openPlayground(page);
