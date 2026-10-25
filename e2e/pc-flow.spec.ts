@@ -65,14 +65,25 @@ async function lookAround(page: Page, go: () => Promise<void> = () => page.mouse
 
 /** Moves the paused clock on in frames, so the room draws and React renders between timers as in real time. */
 async function advance(page: Page, ms: number): Promise<void> {
-  for (let elapsed = 0; elapsed < ms; elapsed += FRAME) await page.clock.runFor(Math.min(FRAME, ms - elapsed));
+  for (let elapsed = 0; elapsed < ms; elapsed += FRAME) await step(page, Math.min(FRAME, ms - elapsed));
+}
+
+/**
+ * Moves the paused clock on by `ms`, then waits for the page to drain the real tasks the clock does not hold (React's
+ * renders and effects; a background-priority task runs only once nothing more urgent is queued). On a loaded machine
+ * the clock could otherwise run on before an effect has set the timers it starts, and the screen would look slower
+ * than it is.
+ */
+async function step(page: Page, ms: number): Promise<void> {
+  await page.clock.runFor(ms);
+  await page.evaluate(() => scheduler.postTask(() => {}, { priority: 'background' }));
 }
 
 /** Moves the paused clock on frame by frame until `check` passes; returns how long that took. */
 async function advanceUntil(page: Page, check: () => Promise<boolean>, limitMs = 3000): Promise<number> {
   for (let elapsed = 0; elapsed <= limitMs; elapsed += FRAME) {
     if (await check()) return elapsed;
-    await page.clock.runFor(FRAME);
+    await step(page, FRAME);
   }
   throw new Error(`Still waiting after ${limitMs} ms`);
 }

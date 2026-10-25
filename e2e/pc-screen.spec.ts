@@ -22,9 +22,17 @@ async function openLab(page: Page, query: string): Promise<void> {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }
 
-/** Advances the page's clock in small steps, so React renders between timers as it would in real time. */
+/**
+ * Advances the page's clock in small steps, so React renders between timers as it would in real time. React's
+ * renders and effects run on real tasks the paused clock does not hold: each step waits for the page to drain them
+ * (a background-priority task runs only once nothing more urgent is queued), or on a loaded machine the clock could
+ * run on before an effect has set the timers it starts, and the storyboard would look slower than it is.
+ */
 async function advance(page: Page, ms: number, step = 20): Promise<void> {
-  for (let elapsed = 0; elapsed < ms; elapsed += step) await page.clock.runFor(Math.min(step, ms - elapsed));
+  for (let elapsed = 0; elapsed < ms; elapsed += step) {
+    await page.clock.runFor(Math.min(step, ms - elapsed));
+    await page.evaluate(() => scheduler.postTask(() => {}, { priority: 'background' }));
+  }
 }
 
 const pcState = (page: Page) => page.evaluate(() => window.__pcLab?.state());
