@@ -1299,8 +1299,10 @@ DIE_CUT_MARGIN = 0.0015
 #: Tape acceptance (4.3): overhang over its wall, and on-sheet tape over the art round it. Pale tape cannot read
 #: lighter than pale art (lit, the on-sheet halves read 0.05-0.46 display luma), so the on-sheet rule binds every tape
 #: whose art reads darker than TAPE_DARK_ART: all 38 such tapes of the shipped layout read >= 1.32 (TAPE_ART_MIN
-#: leaves a margin), while those over paler art are reported, not gated (the share was 76% against a 75% floor).
+#: leaves a margin). Over all of the art the spec's share holds too: at least TAPE_SHEET_SHARE of the on-sheet tapes
+#: read TAPE_ART_MIN lighter (79% of the shipped layout's 76), so a layout cannot quietly move its tapes onto pale art.
 TAPE_ART_MIN, TAPE_DARK_ART, TAPE_RING_PX = 1.15, 0.06, 3
+TAPE_SHEET_SHARE = 0.75
 #: The overhang over its own bare wall, per surface: the back wall's sage plaster, and the pale slope, where even
 #: white tape lit as the paint is can read only its albedo over the paint's: the white paper tape reads 1.13-1.21 over
 #: 25 slope overhangs (the cream masking tape read 1.01-1.09 there), so the slope holds 1.10, a deliberate departure
@@ -1983,6 +1985,8 @@ def stage_compose(args, work):
     assert not weak_walls, f'tape overhangs too dark on the wall: {weak_walls}'
     assert on_dark, 'no on-sheet tape lies over dark art: the on-sheet tape gate would compare nothing'
     assert not dull, f'on-sheet tapes no lighter than the dark art round them: {dull}'
+    assert lighter >= TAPE_SHEET_SHARE, \
+        f'only {lighter * 100:.0f}% of the on-sheet tapes read lighter than their art (floor {TAPE_SHEET_SHARE:.0%})'
 
 
 # ---------------------------------------------------------------- stages

@@ -90,9 +90,9 @@ to `bake.py`. This is an offline authoring job.
    field, die-cuts the sticker, and writes the 2K atlas and the 1K built per island. It fails
    when a tape overhang reads under 1.3 times its bare wall (1.10 on the pale slope, where white
    paper tape can read only its albedo over the paint's: 1.13-1.21 measured), when an on-sheet tape over art darker
-   than 0.06 display luma reads under 1.15 times that art (tape over paler art is reported in
-   `posters-tapes.json`, not gated), or when the flat art is grainier than 1.1 times the room
-   wall at the same brightness. The wall's grain comes from `WORK/posters-wall-baseline.png`,
+   than 0.06 display luma reads under 1.15 times that art, when under 75 % of all on-sheet tapes
+   read 1.15 times their art (each one is in `posters-tapes.json`), or when the flat art is
+   grainier than 1.1 times the room wall at the same brightness. The wall's grain comes from `WORK/posters-wall-baseline.png`,
    which `build-posters.mjs` writes from the room build's own bake when the work folder has it
    and from the wall atlas `room.glb` ships otherwise; without it the stage stops. A skirt side
    whose outer ring does not reach the wall's own value (its mean under 0.99, or any 1 cm
@@ -104,7 +104,7 @@ to `bake.py`. This is an offline authoring job.
    contract in `posters-geometry.mjs` (below) and publishes `posters.glb`, `posters-2k.webp` and
    `posters-1k.webp` as `lazyFiles` (merged by name with the radio's; `room.glb` is untouched).
    A rebuild from the same layout and masters gives a byte-identical `posters.glb`; the atlases
-   differ only by the bake's sampling noise (PSNR ≈ 45 dB at 2K and 46 dB at 1K on Metal, as with
+   differ only by the bake's sampling noise (PSNR ≈ 46–47 dB at 2K and 45–46 dB at 1K on Metal, as with
    the radio's skin). About 6.5 min per layout with `ROOM_BAKE_DEVICE=METAL`, most of it the
    beauty pass (≈ 290 s) and the under pass (≈ 160 s). Those two stay one Blender process each,
    over SPEC 5.2's two-minute guide: each is one bake call over the whole atlas, so that its
