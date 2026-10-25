@@ -9,8 +9,8 @@ import type { TextStyles } from '../../fonts';
 import { palette } from '../../palette';
 import { drawIconSlot } from '../../ui/iconSlot';
 import { Paragraph } from '../../ui/Paragraph';
-import { type WindowTheme, windowThemes } from '../../ui/theme';
-import { INK, shadeOf } from '../title/backdrops/blueprint/inks';
+import { windowThemes } from '../../ui/theme';
+import { LIT_WINDOW } from '../title/backdrops/blueprint/inks';
 import { classThemes } from './classThemes';
 import { BIO_Y, DETAILS, NAME_Y, PROMPT_Y, type SelectLayout, SKILL_NAME_HEIGHT, SKILLS_Y } from './layout';
 
@@ -21,14 +21,6 @@ const NAME_HEIGHT = 18;
 const PROMPT = 'PICK YOUR ROEL';
 /** A slow, even cursor blink: the prompt is waiting, not urging like PRESS START. */
 const PROMPT_CURSOR_BLINK = frames(36);
-/** A lit skill's slot: the card's bevel and field in the blueprint's inks, where the others stay steel. */
-const LIT_SLOT: WindowTheme = {
-  outline: shadeOf(0),
-  light: shadeOf(INK.white),
-  mid: shadeOf(INK.mid),
-  dark: shadeOf(4),
-  fill: { stops: [shadeOf(2), shadeOf(1), shadeOf(0)], bands: 3, dither: 'bayer2' },
-};
 
 export interface DetailsRenderOptions {
   readonly character: Character;
@@ -92,7 +84,7 @@ export class DetailsPanel {
       x: row.x,
       y: row.y,
       size: slotSize,
-      theme: lit ? LIT_SLOT : windowThemes.steel,
+      theme: lit ? LIT_WINDOW : windowThemes.steel,
     });
     gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - SKILL_NAME_HEIGHT) / 2), {
       ...this.#text.label,
