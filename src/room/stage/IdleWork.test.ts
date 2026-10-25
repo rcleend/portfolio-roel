@@ -213,21 +213,44 @@ describe('IdleWork', () => {
       expect(idle.timeouts.at(-1)).toBe(1000);
     });
 
-    it('runs no slice for a task whose units outgrow it, nor for a task without one', () => {
+    it('runs no slice for a task whose units outgrow it, once three have shown it, nor for a task without one', () => {
       work.start();
       moment = 'moving';
-      work.add(logging(log, 'a', 3, 8), { urgent: () => true, sliceMs: 6 });
+      work.add(logging(log, 'a', 5, 8), { urgent: () => true, sliceMs: 6 });
+      for (let frame = 0; frame < 3; frame++) idle.timeOut();
+      expect(log).toEqual(['a:1', 'a:2', 'a:3']);
       idle.timeOut();
-      expect(log).toEqual(['a:1']);
-      idle.timeOut();
-      expect(log).toEqual(['a:1']);
+      expect(log).toEqual(['a:1', 'a:2', 'a:3']);
       work.dispose();
       const other = new IdleWork(() => 'moving', idle);
       other.start();
       other.add(logging(log, 'b', 1, 1), { urgent: () => true });
       expect(idle.timeouts.at(-1)).toBe(1000);
       idle.timeOut();
-      expect(log).toEqual(['a:1']);
+      expect(log).toEqual(['a:1', 'a:2', 'a:3']);
+    });
+
+    it('lets no single long first unit of a kind end the slices: a slow first strip is not what the strips cost', () => {
+      work.start();
+      moment = 'moving';
+      // Measured on a phone at 6x CPU: the first copy out of a fresh bitmap 7.6 ms, the strips after it 1-2 ms.
+      const costs = [7.6, 1, 2, 1, 1, 2, 1, 1];
+      work.add(
+        (function* (): IdleTask {
+          now += 3;
+          log.push('a:setup');
+          for (const [strip, ms] of costs.entries()) {
+            yield QUIET;
+            now += ms;
+            log.push(`a:s${strip + 1}`);
+          }
+        })(),
+        { urgent: () => true, sliceMs: 6.5 },
+      );
+      // Frames that leave no idle period: one unit after each.
+      for (let frame = 0; frame <= costs.length; frame++) idle.timeOut();
+      expect(log).toEqual(['a:setup', ...costs.map((_, strip) => `a:s${strip + 1}`)]);
+      expect(work.pending).toBe(false);
     });
 
     it('judges a sliced task by its typical unit, so one long unit (a GC pause) does not end its slices', () => {
@@ -461,6 +484,54 @@ describe('IdleWork', () => {
       vi.advanceTimersByTime(250);
       idle.idle(50);
       expect(log).toEqual(['a:cpu', 'a:quiet', 'b:cpu', 'b:quiet']);
+    });
+
+    it('runs small uploads between the frames, one per idle period that can hold the previous unit', () => {
+      const strips = (name: string, setupMs: number, stripMs: number): IdleTask =>
+        (function* (): IdleTask {
+          now += setupMs;
+          log.push(`${name}:setup`);
+          for (let strip = 1; strip <= 3; strip++) {
+            yield QUIET;
+            now += stripMs;
+            log.push(`${name}:s${strip}`);
+          }
+        })();
+      work.add(strips('small', 2, 1), { smallUploads: true, estimateMs: 2 });
+      work.add(strips('kept', 2, 1), { estimateMs: 2 });
+      // An upload has its idle period to itself: nothing follows the set-up unit into it but the next one.
+      idle.idle(5);
+      expect(log).toEqual(['small:setup']);
+      // The first strip is judged by the 2 ms set-up unit, and each strip has an idle period to itself.
+      idle.idle(1.5);
+      expect(log).toEqual(['small:setup']);
+      idle.idle(50);
+      expect(log).toEqual(['small:setup', 'small:s1']);
+      idle.idle(1);
+      idle.idle(1);
+      expect(log).toEqual(['small:setup', 'small:s1', 'small:s2', 'small:s3']);
+      // A task without small uploads keeps its strips for a quiet moment.
+      idle.idle(50);
+      expect(log.slice(4)).toEqual(['kept:setup']);
+      expect(work.pending).toBe(true);
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log.slice(5)).toEqual(['kept:s1', 'kept:s2', 'kept:s3']);
+    });
+
+    it('hurries a sliced task whose urgency turned on after it was queued', () => {
+      let urgent = false;
+      work.add(logging(log, 'a', 2, 1), { urgent: () => urgent, sliceMs: 6 });
+      expect(idle.timeouts.at(-1)).toBe(1000);
+      urgent = true;
+      moment = 'moving';
+      work.hurry();
+      // The long request is replaced by one that waits a frame.
+      expect(idle.waiting).toBe(1);
+      expect(idle.timeouts.at(-1)).toBe(16);
+      idle.timeOut();
+      expect(log).toEqual(['a:1']);
     });
 
     it('keeps a unit for a quiet moment: the tasks behind it go first', () => {

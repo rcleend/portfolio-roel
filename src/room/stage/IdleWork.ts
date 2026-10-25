@@ -19,11 +19,10 @@ export const QUIET = 'quiet';
  * - `moving`: the camera flies or the TV turns on or off. Nothing runs but urgent work
  *   (`IdleTaskOptions`): a unit invisible on a still frame is a dropped frame in motion.
  * - `playing`: the game runs on the TV, the visitor uses the computer's live screen, or the radio's
- *   discs float. A CPU
- *   unit runs only when the idle period left can hold it, judged by how long its task's previous
- *   unit took (a task's units are alike) or, for a task's first, its own estimate or else the
- *   longest unit run so far; so
- *   no frame is late. On a device too slow for that, the work waits for a quiet moment or for the
+ *   discs float. A CPU unit (or a small upload, `IdleTaskOptions.smallUploads`) runs only when the
+ *   idle period left can hold it, judged by how long its task's previous unit took (a task's units
+ *   are alike) or, for a task's first, its own estimate or else the longest unit run so far; so no
+ *   frame is late. On a device too slow for that, the work waits for a quiet moment or for the
  *   flight that needs it.
  * - `quiet`: nothing plays (the TV still dark, a paused game, the room view). Any unit runs,
  *   until the idle period is spent and always at least one.
@@ -52,8 +51,9 @@ const RETRY_MS = 250;
 /** What a unit is assumed to cost before one has been timed: none starts in a sliver of idle time. */
 const FIRST_UNIT_ESTIMATE_MS = 4;
 /**
- * A sliced task's units are judged by the median of this many of its last of the same kind (CPU work or uploads): one
- * long one (a GC pause) is not its cost, and a set-up unit is not what its uploads cost.
+ * A sliced task's units are judged by the median of this many of its last of the same kind (CPU work or uploads), and
+ * not before this many have been timed: one long one (a GC pause, the first copy out of a fresh bitmap) is not its
+ * cost, and a set-up unit is not what its uploads cost.
  */
 const SLICE_SAMPLE = 3;
 
@@ -104,6 +104,13 @@ export interface IdleTaskOptions {
    * first steps at a TV whose game leaves a slow CPU short idle periods) waits for the game to rest.
    */
   readonly estimateMs?: number;
+  /**
+   * Its uploads (`QUIET`) are small enough to go between a playing game's frames: while something plays they are not
+   * kept for a quiet moment but run like CPU units, when the idle period left can hold the task's previous unit, and
+   * each with an idle period to itself, as an upload has in motion, so no frame's GPU work carries more than one. The
+   * posters' 1 MB strips go up at the TV this way, so the first flight has nothing left to upload.
+   */
+  readonly smallUploads?: boolean;
 }
 
 interface Queued {
@@ -112,6 +119,7 @@ interface Queued {
   readonly patienceMs: number | undefined;
   readonly estimateMs: number | undefined;
   readonly sliceMs: number | undefined;
+  readonly smallUploads: boolean;
   /** Since when its next unit has waited (queued, or its last unit ran). */
   since: number;
   /** The task's next unit waits for a quiet moment. */
@@ -134,7 +142,8 @@ interface Queued {
  * Tasks run first queued, first served, from `start()` on, except that urgent work goes ahead of the
  * rest: a task the visitor waits on never waits behind one nobody does (the room's own uploads, which
  * may not fit between the radio's frames for as long as its discs float). While something plays, the
- * tasks whose next unit waits for a quiet moment step aside for the ones behind them, and so does a
+ * tasks whose next unit waits for a quiet moment (and is not a small upload) step aside for the ones
+ * behind them, and so does a
  * task whose next unit does not fit the idle period left for one behind it whose unit does: a slow
  * CPU's ten-millisecond unit at the head of the queue never holds a one-millisecond unit behind it
  * for as long as the game plays.
@@ -173,6 +182,7 @@ export class IdleWork {
       patienceMs: options.patienceMs,
       estimateMs: options.estimateMs,
       sliceMs: options.sliceMs,
+      smallUploads: options.smallUploads === true,
       since: performance.now(),
       quiet: false,
       lastUnit: null,
@@ -181,7 +191,16 @@ export class IdleWork {
       dropped: false,
     };
     this.queue.push(queued);
-    // A sliced task that is urgent now must not wait out a request made with the long timeout, nor a look again later.
+    this.hurry();
+    return () => this.drop(queued);
+  }
+
+  /**
+   * Looks at the queue again now that a queued task's `urgent` may have turned true (the caller changed what it
+   * reads): a sliced task that is urgent now does not wait out a request made with the long timeout, nor a look again
+   * later. `add` does this for the task it queues.
+   */
+  hurry(): void {
     if (this.timeout() === SLICE_WAIT_MS) {
       if (this.handle !== null && this.handleTimeout > SLICE_WAIT_MS) {
         this.scheduler.cancel(this.handle);
@@ -193,7 +212,6 @@ export class IdleWork {
       }
     }
     this.schedule();
-    return () => this.drop(queued);
   }
 
   /** Lets the queue run; until then tasks only collect (the room's first frame comes first). */
@@ -244,9 +262,9 @@ export class IdleWork {
           break;
         }
         // A unit kept for a quiet moment is an upload whose cost lands on the GPU, after the main thread has timed it:
-        // in motion one such unit has an idle period to itself, so a fast CPU does not put a whole texture on one
-        // frame's GPU work.
-        const upload = moving && next.quiet;
+        // in motion, and for small uploads while something plays, one such unit has an idle period to itself, so a
+        // fast CPU does not put a whole texture on one frame's GPU work.
+        const upload = next.quiet && (moving || (playing && next.smallUploads));
         if (upload && ran) break;
         if (playing ? left < this.expected(next) : ran && left <= 0) {
           if (moving) {
@@ -273,7 +291,8 @@ export class IdleWork {
 
   /**
    * The first task whose next unit may run in this moment, urgent ones first: while something plays or moves, a unit
-   * kept for a quiet moment waits unless its task is urgent, and in motion only urgent work runs. Behind no urgent work
+   * kept for a quiet moment waits unless its task is urgent (or, while something plays, its uploads are small), and in
+   * motion only urgent work runs. Behind no urgent work
    * while something plays, the first whose unit fits the `left` ms of idle time goes, else the first that may run.
    */
   private next(moving: boolean, playing: boolean, left: number): Queued | undefined {
@@ -281,7 +300,7 @@ export class IdleWork {
     if (urgent || moving) return urgent;
     let first: Queued | undefined;
     for (const queued of this.queue) {
-      if (playing && queued.quiet) continue;
+      if (playing && queued.quiet && !queued.smallUploads) continue;
       if (!playing || left >= this.expected(queued)) return queued;
       first ??= queued;
     }
@@ -340,12 +359,16 @@ export class IdleWork {
 
 /**
  * A sliced task's next unit may follow a frame that left no idle period (see `IdleTaskOptions.sliceMs`) while its
- * units of that kind typically fit the slice: the median of its last few (the lower one of two), its first taken at
- * its word. The posters' upload sets up its program and storage in one CPU unit that a slow CPU takes longer than a
- * slice over, then copies strips that fit one: the strips are judged by the strips.
+ * units of that kind typically fit the slice: the median of its last SLICE_SAMPLE, and until that many have been
+ * timed they are taken at their word, since one sample cannot tell a one-off from the rule (a slow phone's first copy
+ * out of a fresh bitmap measured 7.6-20.9 ms at 6x CPU, the strips after it 0.3-5 ms). The posters' upload sets up its
+ * storage in one CPU unit that a slow CPU may take longer than a slice over, then copies strips that fit one: the
+ * strips are judged by the strips.
  */
 function fitsSlice(queued: Queued): boolean {
   if (queued.sliceMs === undefined) return false;
-  const sorted = [...(queued.quiet ? queued.recent.upload : queued.recent.cpu)].sort((a, b) => a - b);
+  const sample = queued.quiet ? queued.recent.upload : queued.recent.cpu;
+  if (sample.length < SLICE_SAMPLE) return true;
+  const sorted = [...sample].sort((a, b) => a - b);
   return (sorted[(sorted.length - 1) >> 1] ?? 0) <= queued.sliceMs;
 }
