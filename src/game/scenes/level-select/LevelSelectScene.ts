@@ -1,6 +1,7 @@
 import { type CharacterId, getCharacter } from '@/content';
 import { fade, iris } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
+import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { containsPoint, type Rect } from '@/engine/math/Rect';
 import { mod } from '@/engine/math/scalar';
 import { easeOutBack } from '@/engine/motion/easing';
@@ -13,6 +14,7 @@ import type { GameScene, GameStep, LevelSelectParams } from '../params';
 import { InkStamp } from './art/InkStamp';
 import { BriefingPanel } from './BriefingPanel';
 import { drawBackdrop } from './backdrop';
+import { blueprintPostcards, blueprintPrompt, MISSION_INK } from './blueprint';
 import { cardRect, FOCUS_LIFT, HEADER_Y, KEY_HINTS, previewRect } from './layout';
 import { buildSlots, initialFocus, type Slot } from './missions';
 import { Postcards } from './Postcards';
@@ -41,6 +43,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
   readonly #route: RouteStrip;
   readonly #deployStamp: InkStamp;
   readonly #keys: KeyHints;
+  readonly #styles: { readonly heading: TextStyle; readonly player: TextStyle };
   #characterId: CharacterId = 'hackerman';
   #panel: BriefingPanel | null = null;
   #slots: readonly Slot[] = [];
@@ -59,14 +62,18 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
 
   constructor(services: GameServices) {
     this.#services = services;
-    this.#postcards = new Postcards(services);
-    this.#route = new RouteStrip({ ...services.text.label, fill: palette.lavender });
+    this.#postcards = new Postcards(services, blueprintPostcards(services.text.prompt));
+    this.#route = new RouteStrip({ ...services.text.label, fill: MISSION_INK.route });
     this.#deployStamp = new InkStamp(
       'DEPLOY!',
       { ...services.text.label, fill: palette.red },
       { paper: palette.white },
     );
     this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
+    this.#styles = {
+      heading: blueprintPrompt(services.text.prompt),
+      player: { ...services.text.hud, fill: MISSION_INK.secondary, outline: MISSION_INK.outline },
+    };
   }
 
   /** `params` may be missing when the scene is opened from the dev harness without any. */
@@ -198,10 +205,9 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
   }
 
   #renderHeader(gfx: Gfx): void {
-    const { text } = this.#services;
-    gfx.text('MISSION SELECT', 8, HEADER_Y, text.prompt);
+    gfx.text('MISSION SELECT', 8, HEADER_Y, this.#styles.heading);
     const player = getCharacter(this.#characterId).name;
-    gfx.text(`1P ${player}`, gfx.width - 8, HEADER_Y + 2, { ...text.hud, fill: palette.lavender }, { align: 'right' });
+    gfx.text(`1P ${player}`, gfx.width - 8, HEADER_Y + 2, this.#styles.player, { align: 'right' });
   }
 
   #renderFocusFrame(gfx: Gfx): void {

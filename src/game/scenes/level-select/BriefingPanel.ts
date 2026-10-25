@@ -13,7 +13,9 @@ import { TypewriterText } from '../../ui/TypewriterText';
 import { windowThemes } from '../../ui/theme';
 import { drawWindow, windowContent } from '../../ui/Window';
 import type { GameStep } from '../params';
+import { LIT_WINDOW } from '../title/backdrops/blueprint/inks';
 import { envelopeSheet } from './art/icons';
+import { blueprintPrompt, MISSION_INK } from './blueprint';
 import { PANEL } from './layout';
 import type { MissionSlot, Slot, TeaserSlot } from './missions';
 
@@ -35,7 +37,7 @@ export class BriefingPanel {
   readonly #services: GameServices;
   readonly #characterId: CharacterId;
   readonly #cursor = SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor');
-  readonly #envelope = SpriteSheet.compile(envelopeSheet, 'mission-select/envelope');
+  readonly #envelope = SpriteSheet.compile(envelopeSheet(MISSION_INK.outline), 'mission-select/envelope');
   readonly #contact: Button;
   readonly #styles: {
     readonly heading: TextStyle;
@@ -43,6 +45,7 @@ export class BriefingPanel {
     readonly copy: TextStyle;
     readonly target: TextStyle;
     readonly targetValue: TextStyle;
+    readonly mark: TextStyle;
   };
   #slot: Slot | null = null;
   #briefing: TypewriterText | null = null;
@@ -55,16 +58,17 @@ export class BriefingPanel {
     const { text } = services;
     this.#styles = {
       heading: { ...text.label, fill: palette.gold },
-      context: { ...text.body, fill: palette.lavender },
+      context: { ...text.body, fill: MISSION_INK.secondary },
       copy: { ...text.body, fill: palette.white },
       target: { ...text.label, fill: palette.green },
       targetValue: { ...text.label, fill: palette.white },
+      mark: blueprintPrompt(text.prompt),
     };
     const inner = windowContent(PANEL);
     this.#contact = new Button({
       label: 'CONTACT',
       bounds: { x: inner.x + 12, y: inner.y + 56, w: 88, h: 20 },
-      theme: windowThemes.indigo,
+      theme: LIT_WINDOW,
       style: { ...text.label, fill: palette.gold },
       cursor: this.#cursor,
     });
@@ -154,7 +158,7 @@ export class BriefingPanel {
     const feetY = inner.y + inner.h - 2;
     gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, feetY, { flipX: true });
     if (blink(this.#time, frames(32), frames(16))) {
-      gfx.text('?', inner.x + inner.w - 40, feetY - hero.height - 12, this.#services.text.prompt);
+      gfx.text('?', inner.x + inner.w - 40, feetY - hero.height - 12, this.#styles.mark);
     }
   }
 }

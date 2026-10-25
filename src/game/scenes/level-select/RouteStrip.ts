@@ -4,6 +4,7 @@ import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { bob } from '@/engine/motion/oscillators';
 import { palette } from '../../palette';
 import { planeSheet } from './art/icons';
+import { MISSION_INK } from './blueprint';
 import { ROUTE_Y } from './layout';
 import { routePose, stopToX } from './route';
 
@@ -20,10 +21,11 @@ const GAP = 2;
 /**
  * The flight path under the postcards: SF → Berlin → "?" in career order,
  * flown by a small plane. Legs already flown are drawn in gold; the leg to
- * the visitor's team is a dimmer, still-to-be-written dotted line.
+ * the visitor's team is a dimmer, still-to-be-written dotted line in the
+ * blueprint's construction ink.
  */
 export class RouteStrip {
-  readonly #plane = SpriteSheet.compile(planeSheet, 'mission-select/plane');
+  readonly #plane = SpriteSheet.compile(planeSheet(MISSION_INK.outline), 'mission-select/plane');
   readonly #label: TextStyle;
 
   constructor(label: TextStyle) {
@@ -36,15 +38,15 @@ export class RouteStrip {
       const from = stops[i];
       if (!from) return;
       const future = i === stops.length - 2;
-      dashed(gfx, from.x, stop.x, ROUTE_Y, future ? palette.violet : palette.gold, future ? 1 : 0);
+      dashed(gfx, from.x, stop.x, ROUTE_Y, future ? MISSION_INK.future : palette.gold, future ? 1 : 0);
     });
     for (const stop of stops) {
       if (stop.open) {
         gfx.text('?', stop.x - 2, ROUTE_Y - 4, this.#label);
         continue;
       }
-      gfx.fillRect(stop.x - 2, ROUTE_Y - 2, 5, 5, palette.ink);
-      gfx.fillRect(stop.x - 1, ROUTE_Y - 1, 3, 3, stop.reached ? palette.gold : palette.lavender);
+      gfx.fillRect(stop.x - 2, ROUTE_Y - 2, 5, 5, MISSION_INK.outline);
+      gfx.fillRect(stop.x - 1, ROUTE_Y - 1, 3, 3, stop.reached ? palette.gold : MISSION_INK.route);
     }
 
     const pose = routePose(time);
@@ -52,9 +54,10 @@ export class RouteStrip {
     const y = ROUTE_Y - 5 - (pose.flying ? bob(time, 1, 0.5) : 0);
     if (pose.flying) {
       // A short contrail: three puffs spaced behind the tail, thinning out.
-      gfx.pixel(x - 9, y + 1, palette.lilac);
-      gfx.pixel(x - 12, y + 1, palette.lavender);
-      gfx.pixel(x - 15, y + 1, palette.violet);
+      const { contrail } = MISSION_INK;
+      gfx.pixel(x - 9, y + 1, contrail[0]);
+      gfx.pixel(x - 12, y + 1, contrail[1]);
+      gfx.pixel(x - 15, y + 1, contrail[2]);
     }
     gfx.sprite(this.#plane, 'fly', time, x, y);
   }
