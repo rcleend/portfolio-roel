@@ -9,8 +9,12 @@ class ManualIdle implements IdleScheduler {
   private readonly callbacks = new Map<number, (budget: IdleBudget) => void>();
   private next = 1;
 
-  request(run: (budget: IdleBudget) => void): number {
+  /** The timeout of every request so far. */
+  readonly timeouts: number[] = [];
+
+  request(run: (budget: IdleBudget) => void, timeoutMs: number): number {
     this.callbacks.set(this.next, run);
+    this.timeouts.push(timeoutMs);
     return this.next++;
   }
 
@@ -29,6 +33,14 @@ class ManualIdle implements IdleScheduler {
     this.callbacks.delete(handle);
     const end = now + ms;
     run({ timeRemaining: () => Math.max(0, end - now) });
+  }
+
+  /** Runs the pending callback as the browser does once its timeout passes without an idle period. */
+  timeOut(): void {
+    const [handle, run] = [...this.callbacks][0] ?? [];
+    if (handle === undefined || !run) throw new Error('No idle callback is waiting');
+    this.callbacks.delete(handle);
+    run({ timeRemaining: () => 0 });
   }
 }
 
@@ -178,6 +190,148 @@ describe('IdleWork', () => {
       expect(log).toEqual(['a:cpu', 'a:quiet']);
     });
 
+    it('gives a sliced urgent task one unit after each frame that leaves no idle period or too short a one, while its units fit', () => {
+      work.start();
+      work.add(logging(log, 'big', 1, 14));
+      idle.idle(50);
+      moment = 'moving';
+      let urgent = true;
+      work.add(logging(log, 'a', 4, 5), { urgent: () => urgent, sliceMs: 6 });
+      work.add(logging(log, 'b', 1, 1), { urgent: () => true });
+      // While it is urgent its request waits one frame for an idle period, not a second.
+      expect(idle.timeouts.at(-1)).toBe(16);
+      idle.timeOut();
+      expect(log).toEqual(['big:1', 'a:1']);
+      idle.timeOut();
+      expect(log).toEqual(['big:1', 'a:1', 'a:2']);
+      // An idle period too short for a 5 ms unit still takes one, and only one.
+      idle.idle(3);
+      expect(log).toEqual(['big:1', 'a:1', 'a:2', 'a:3']);
+      urgent = false;
+      idle.timeOut();
+      expect(log).toEqual(['big:1', 'a:1', 'a:2', 'a:3']);
+      expect(idle.timeouts.at(-1)).toBe(1000);
+    });
+
+    it('runs no slice for a task whose units outgrow it, nor for a task without one', () => {
+      work.start();
+      moment = 'moving';
+      work.add(logging(log, 'a', 3, 8), { urgent: () => true, sliceMs: 6 });
+      idle.timeOut();
+      expect(log).toEqual(['a:1']);
+      idle.timeOut();
+      expect(log).toEqual(['a:1']);
+      work.dispose();
+      const other = new IdleWork(() => 'moving', idle);
+      other.start();
+      other.add(logging(log, 'b', 1, 1), { urgent: () => true });
+      expect(idle.timeouts.at(-1)).toBe(1000);
+      idle.timeOut();
+      expect(log).toEqual(['a:1']);
+    });
+
+    it('judges a sliced task by its typical unit, so one long unit (a GC pause) does not end its slices', () => {
+      work.start();
+      moment = 'moving';
+      const costs = [1, 30, 1, 1, 1];
+      work.add(
+        (function* (): IdleTask {
+          for (const [unit, ms] of costs.entries()) {
+            now += ms;
+            log.push(`a:${unit + 1}`);
+            if (unit < costs.length - 1) yield;
+          }
+        })(),
+        { urgent: () => true, sliceMs: 6 },
+      );
+      for (let frame = 0; frame < costs.length; frame++) idle.timeOut();
+      expect(log).toEqual(['a:1', 'a:2', 'a:3', 'a:4', 'a:5']);
+    });
+
+    it("judges a sliced task's uploads by its uploads, not by a set-up unit longer than a slice", () => {
+      work.start();
+      moment = 'moving';
+      work.add(
+        (function* (): IdleTask {
+          // A slow CPU sets up the posters' program and storage in 10 ms, then copies 1 ms strips.
+          now += 10;
+          log.push('a:setup');
+          for (let strip = 1; strip <= 3; strip++) {
+            yield QUIET;
+            now += 1;
+            log.push(`a:strip${strip}`);
+          }
+        })(),
+        { urgent: () => true, sliceMs: 6 },
+      );
+      idle.timeOut();
+      expect(log).toEqual(['a:setup']);
+      // An idle period shorter than the set-up unit still takes a strip, and so does a frame that leaves none.
+      idle.idle(7);
+      expect(log).toEqual(['a:setup', 'a:strip1']);
+      idle.timeOut();
+      idle.timeOut();
+      expect(log).toEqual(['a:setup', 'a:strip1', 'a:strip2', 'a:strip3']);
+      expect(work.pending).toBe(false);
+    });
+
+    it('gives an upload (a unit kept for a quiet moment) an idle period to itself while something moves', () => {
+      work.start();
+      moment = 'moving';
+      work.add(
+        (function* (): IdleTask {
+          log.push('a:cpu');
+          for (let strip = 1; strip <= 3; strip++) {
+            yield QUIET;
+            log.push(`a:strip${strip}`);
+          }
+        })(),
+        { urgent: () => true },
+      );
+      // Its CPU unit does not take an upload along, however long the idle period.
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu']);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:strip1']);
+      idle.idle(50);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'a:strip1', 'a:strip2', 'a:strip3']);
+      // At rest, uploads go together again.
+      moment = 'quiet';
+      work.add(
+        (function* (): IdleTask {
+          yield QUIET;
+          log.push('b:strip1');
+          yield QUIET;
+          log.push('b:strip2');
+        })(),
+      );
+      idle.idle(50);
+      expect(log.slice(4)).toEqual(['b:strip1', 'b:strip2']);
+    });
+
+    it('cuts short a long wait once a sliced task is urgent', () => {
+      work.start();
+      work.add(logging(log, 'a', 1));
+      expect(idle.waiting).toBe(1);
+      work.add(logging(log, 'b', 1), { urgent: () => true, sliceMs: 6 });
+      expect(idle.waiting).toBe(1);
+      expect(idle.timeouts).toEqual([1000, 16]);
+    });
+
+    it('cuts short a look again later once a sliced task is urgent', () => {
+      work.start();
+      moment = 'moving';
+      // Nothing may run in motion: the queue looks again in 250 ms.
+      work.add(logging(log, 'a', 1));
+      idle.idle(50);
+      expect(idle.waiting).toBe(0);
+      work.add(logging(log, 'b', 1), { urgent: () => true, sliceMs: 6 });
+      expect(idle.timeouts.at(-1)).toBe(16);
+      idle.timeOut();
+      expect(log).toEqual(['b:1']);
+    });
+
     it('stops within an idle period as soon as something starts moving', () => {
       work.start();
       work.add(
@@ -222,6 +376,46 @@ describe('IdleWork', () => {
       // The first needs the 6 ms a's unit took; the rest only the 2 ms b's own took.
       idle.idle(6);
       expect(log).toEqual(['a:1', 'b:1', 'b:2', 'b:3']);
+    });
+
+    it("judges a task's first unit by its own estimate when it has one, then by what that unit took", () => {
+      work.add(logging(log, 'heavy', 1, 14));
+      idle.idle(50);
+      work.add(logging(log, 'light', 3, 2), { estimateMs: 1 });
+      // The 14 ms the heavy unit took does not hold back a unit expected to take 1 ms.
+      idle.idle(1.5);
+      expect(log).toEqual(['heavy:1', 'light:1']);
+      // Its first unit took 2 ms: 1.5 ms of idle time is no longer enough for the next.
+      idle.idle(1.5);
+      expect(log).toEqual(['heavy:1', 'light:1']);
+      idle.idle(4);
+      expect(log).toEqual(['heavy:1', 'light:1', 'light:2', 'light:3']);
+    });
+
+    it('lets a unit that fits the idle period go ahead of one at the head of the queue that does not', () => {
+      work.add(logging(log, 'heavy', 2, 10));
+      idle.idle(12);
+      expect(log).toEqual(['heavy:1']);
+      work.add(logging(log, 'light', 2, 1), { estimateMs: 1 });
+      // The heavy task's 10 ms unit does not fit 5 ms of idle time; the light one's units do, and go first.
+      idle.idle(5);
+      expect(log).toEqual(['heavy:1', 'light:1', 'light:2']);
+      // The head of the queue still goes first in an idle period that can hold it.
+      work.add(logging(log, 'after', 1, 1), { estimateMs: 1 });
+      idle.idle(12);
+      expect(log).toEqual(['heavy:1', 'light:1', 'light:2', 'heavy:2', 'after:1']);
+    });
+
+    it('never lets a unit that fits go ahead of urgent work', () => {
+      work.add(logging(log, 'big', 1, 14));
+      idle.idle(50);
+      work.add(logging(log, 'light', 1, 1), { estimateMs: 1 });
+      work.add(logging(log, 'urgent', 1, 1), { urgent: () => true });
+      // The urgent task's first unit is judged by the 14 ms one: it waits, and so does the light one behind it.
+      idle.idle(5);
+      expect(log).toEqual(['big:1']);
+      idle.idle(16);
+      expect(log).toEqual(['big:1', 'urgent:1', 'light:1']);
     });
 
     it('runs urgent work that has waited out its patience, one unit per idle period, only while urgent', () => {
@@ -339,6 +533,33 @@ describe('IdleWork', () => {
     expect(() => idle.idle(5)).toThrow('broken');
     idle.idle();
     expect(log).toEqual(['b:1', 'c:1']);
+  });
+
+  it('ends a dropped task, so its finally blocks run, also when it is dropped from inside its own unit', () => {
+    work.start();
+    const ended: string[] = [];
+    function* holding(name: string, during?: () => void): IdleTask {
+      try {
+        now += 1;
+        log.push(`${name}:1`);
+        during?.();
+        yield;
+        log.push(`${name}:2`);
+      } finally {
+        ended.push(name);
+      }
+    }
+    // Dropped between its units: the next never runs, the finally does.
+    const dropA = work.add(holding('a'));
+    idle.idle(1);
+    dropA();
+    expect(ended).toEqual(['a']);
+    // Dropped from inside its own unit: ended once that unit returns.
+    let dropB = (): void => {};
+    dropB = work.add(holding('b', () => dropB()));
+    idle.idle(50);
+    expect(log).toEqual(['a:1', 'b:1']);
+    expect(ended).toEqual(['a', 'b']);
   });
 
   it('does nothing once disposed', () => {
