@@ -199,6 +199,20 @@ Copyright: original game publishers/artists.
 Included as user-requested physical game-case decoration. Copyright remains
 with the respective owners.
 
+WALL DECORATION — THIRD-PARTY ARTWORK, NOT CLEARED FOR PUBLISHING
+
+posters.glb, posters-2k.webp, posters-1k.webp (loaded lazily after the TV view):
+29 posters, prints, flyers, a sticker and cut-outs on the walls, the sloped
+ceiling and a corkboard, dressing the room as late 2007. Every image is
+third-party copyrighted artwork (Radiohead/Stanley Donwood, Rage Against the
+Machine, Goldenvoice, Guerilla Union, Green Day/Reprise, Activision, Electronic
+Arts, Bethesda/ZeniMax, Jagex, Nickelodeon/Paramount, Lucasfilm, The LEGO Group/
+TT Games). It is used by the site owner's choice as placeholder decoration for
+now and must be cleared or replaced before publishing. Per-image source URLs,
+rights holders and crops: tools/room/assets/posters/SOURCES.md. The paper, tape,
+pins and corkboard are scene-built geometry baked in the room's own Cycles scene.
+Recipe: tools/room/posters.py and tools/room/posters.mjs.
+
 VISUAL REFERENCE — NOT REDISTRIBUTED
 
 Sean Hadeler, "90's Teen Boy's Bedroom"

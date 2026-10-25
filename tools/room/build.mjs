@@ -36,3 +36,5 @@ await run(blender, [
 await run(process.execPath, ['tools/room/optimize.mjs', '--work', work]);
 // The radio's close-up is cut from radio-base.glb: rebuild it on the new base (docs/ROOM.md › The CD player).
 await run(process.execPath, ['tools/room/build-radio.mjs']);
+// The posters are baked in the same scene and published beside the radio's lazy files (docs/ROOM.md › Posters).
+await run(process.execPath, ['tools/room/build-posters.mjs']);

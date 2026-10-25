@@ -27,7 +27,14 @@ for (const file of manifest.files) {
     throw new Error(`Unexpected room file: ${file.name}`);
   }
 }
-for (const file of manifest.files) await copyFile(join(source, file.name), join(target, file.name));
+// The lazy files (the radio's close-up, the posters) are imported with the build they belong to.
+const lazy = manifest.lazyFiles ?? [];
+for (const file of lazy) {
+  if (!/^(radio-closeup\.glb|radio-skin-2k\.webp|posters\.glb|posters-[12]k\.webp)$/.test(file.name)) {
+    throw new Error(`Unexpected lazy room file: ${file.name}`);
+  }
+}
+for (const file of [...manifest.files, ...lazy]) await copyFile(join(source, file.name), join(target, file.name));
 await copyFile(join(source, 'manifest.json'), join(target, 'manifest.json'));
 await writeRuntimeManifest(root, manifest);
 console.log(`Synced verified revision 6: ${(report.totalBytes / 1e6).toFixed(2)} MB`);

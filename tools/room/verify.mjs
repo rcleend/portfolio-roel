@@ -8,6 +8,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import validator from 'gltf-validator';
 import { MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { layoutViolations, POSTERS_TOPICS, toBlender, triangleOnSurface } from './posters-geometry.mjs';
 import {
   components,
   decodeTriangles,
@@ -368,6 +369,141 @@ export async function verifyRadioCloseup(directory, manifest) {
   };
 }
 
+/** The posters' lazy files (tools/room/posters.mjs): one glb and two texture tiers, one of which a visitor fetches. */
+export const POSTERS_LAZY_FILES = ['posters.glb', 'posters-2k.webp', 'posters-1k.webp'];
+const POSTERS_MAX_BYTES = 80_000;
+const POSTERS_MAX_TRIANGLES = 3000;
+const POSTERS_TIER_CAPS = { 'posters-2k.webp': [2048, 1024, 480_000], 'posters-1k.webp': [1024, 512, 170_000] };
+/**
+ * A skirt side's outer ring after encoding, its mean over the wall it shows (the stage asserts 0.99 before encoding,
+ * and the local step along it; WebP may cost 0.005).
+ */
+const POSTERS_RING_MIN = 0.985;
+/** The resident share of decoded texture pixels the posters may take (the 2K tier). */
+const POSTERS_MAX_PIXELS = 2_200_000;
+
+/**
+ * The posters' contract (docs/ROOM.md "Posters"): lazy files match manifest.lazyFiles beside the radio's, one
+ * unlit node with exactly two primitives and no image, every item carries its emitted-geometry box and every
+ * triangle lies in one item's box, on the back wall or the slope and outside every keep-out (posters-geometry.mjs),
+ * the layout holds the eleven topics and only its declared overlaps, the tiers' sizes, caps and decoded pixels, and
+ * every skirt's outer ring decodes to ≈ 1 in both tiers (no seam where the multiply ends).
+ */
+export async function verifyPosters(directory, manifest) {
+  await MeshoptDecoder.ready;
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  assert.ok(Array.isArray(manifest.lazyFiles), 'manifest.lazyFiles is missing: run pnpm build:posters');
+  for (const name of LAZY_FILES) {
+    assert.ok(
+      manifest.lazyFiles.some((file) => file.name === name),
+      `The radio's ${name} left manifest.lazyFiles`,
+    );
+  }
+  const bytes = {};
+  for (const name of POSTERS_LAZY_FILES) {
+    const entry = manifest.lazyFiles.find((file) => file.name === name);
+    assert.ok(entry, `Missing lazy manifest entry: ${name}`);
+    bytes[name] = await readFile(join(directory, name));
+    assert.equal(bytes[name].length, entry.bytes, `${name}: stale byte count`);
+    assert.equal(createHash('sha256').update(bytes[name]).digest('hex'), entry.sha256, `${name}: stale hash`);
+  }
+  const glb = bytes['posters.glb'];
+  assert.ok(glb.length <= POSTERS_MAX_BYTES, `posters.glb is ${glb.length} B`);
+  const result = await validator.validateBytes(new Uint8Array(glb), { uri: 'posters.glb' });
+  assert.equal(result.issues.numErrors, 0, `posters.glb: ${JSON.stringify(result.issues.messages)}`);
+  assert.equal(result.issues.numWarnings, 0, `posters.glb: ${JSON.stringify(result.issues.messages)}`);
+  const root = (await io.readBinary(new Uint8Array(glb))).getRoot();
+  assert.equal(root.listTextures().length, 0, 'posters.glb must not embed an image');
+  const nodes = root.listNodes();
+  assert.equal(nodes.length, 1, 'posters.glb must be one node');
+  const primitives = nodes[0].getMesh()?.listPrimitives() ?? [];
+  assert.equal(primitives.length, 2, 'posters.glb must have exactly two primitives (cards, skirts)');
+  const extras = nodes[0].getExtras();
+  assert.equal(extras.posters, 1, 'posters.glb: missing its extras');
+  assert.ok(Array.isArray(extras.decor) && extras.decor.length > 0, 'posters.glb: no decor boxes');
+  const layout = JSON.parse(await readFile(new URL('./assets/posters/layout.json', import.meta.url), 'utf8'));
+  assert.deepEqual(layoutViolations(layout), [], 'posters: the layout breaks its contract');
+  assert.deepEqual([...layout.topics].sort(), [...POSTERS_TOPICS].sort(), "posters: the layout's topic list");
+  const keys = [...layout.items.map((item) => item.key), 'corkboard'].sort();
+  assert.deepEqual(extras.decor.map(({ decor_id: id }) => id).sort(), keys, 'posters: an item without its box');
+  const contains = ({ min, max }, p) => p.every((v, axis) => v >= min[axis] - 1e-4 && v <= max[axis] + 1e-4);
+  // Quantized positions are scaled and offset back to the room by the node's transform.
+  const m = nodes[0].getWorldMatrix();
+  const world = ([x, y, z]) => [0, 1, 2].map((r) => m[r] * x + m[4 + r] * y + m[8 + r] * z + m[12 + r]);
+  let triangles = 0;
+  let maxOffset = 0;
+  for (const primitive of primitives) {
+    assert.ok(primitive.getMaterial()?.getExtension('KHR_materials_unlit'), 'posters.glb: outside the bake');
+    // Without normals three.js compiles programs of its own for the posters (+1 opaque, see posters.mjs).
+    assert.ok(primitive.getAttribute('NORMAL'), 'posters.glb: a primitive without normals');
+    const position = primitive.getAttribute('POSITION');
+    const indices = primitive.getIndices();
+    const skirts = primitive.getMaterial()?.getAlphaMode() === 'BLEND';
+    for (let t = 0; t < indices.getCount(); t += 3) {
+      triangles++;
+      const points = [0, 1, 2].map((k) => world(position.getElement(indices.getScalar(t + k), [])));
+      // One item emitted the whole triangle, so one item's box holds all three corners.
+      assert.ok(
+        extras.decor.some((box) => points.every((p) => contains(box, p))),
+        `posters.glb: a triangle outside every item's box (${JSON.stringify(points)})`,
+      );
+      // Spec section 2: on the back wall or the slope, never the knee wall; inside its surface (a skirt may run on
+      // into the room's corner or behind the slope, where the wall hides it); outside every keep-out.
+      const at = triangleOnSurface(layout, points.map(toBlender));
+      assert.ok(at.surface, `posters.glb: a triangle off the back wall and the slope (${JSON.stringify(points)})`);
+      assert.ok(skirts || at.inside, `posters.glb: a card triangle leaves the ${at.surface}`);
+      assert.deepEqual(at.keepouts, [], `posters.glb: a triangle enters a keep-out (${JSON.stringify(points)})`);
+      maxOffset = Math.max(maxOffset, at.offset);
+    }
+  }
+  assert.ok(triangles <= POSTERS_MAX_TRIANGLES, `posters.glb has ${triangles} triangles`);
+  for (const { decor_id: id, min, max } of extras.decor) {
+    assert.ok(typeof id === 'string' && min.every((v, axis) => v <= max[axis]), `posters.glb: bad decor box ${id}`);
+  }
+
+  const rings = {};
+  for (const [name, [width, height, cap]] of Object.entries(POSTERS_TIER_CAPS)) {
+    const image = sharp(bytes[name]);
+    const meta = await image.metadata();
+    assert.equal(meta.format, 'webp');
+    assert.ok(meta.width === width && meta.height === height, `${name} must be exactly ${width}×${height}`);
+    assert.ok(meta.width * meta.height <= POSTERS_MAX_PIXELS, `${name} decodes to ${meta.width * meta.height} pixels`);
+    assert.ok(bytes[name].length <= cap, `${name} is ${bytes[name].length} B (cap ${cap})`);
+    const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+    const scale = width / extras.atlas[0];
+    let worstMean = 1;
+    // Each skirt side lists the runs of 1 cm segments of its outer 2 px that the wall shows whole (the compose stage's
+    // list); at the 1K a run is read at half the coordinates, at least one texel.
+    for (const [side, rects] of Object.entries(extras.skirtRings)) {
+      let sum = 0;
+      let texels = 0;
+      for (const rect of rects) {
+        const [rx, ry] = rect.map((v) => Math.floor(v * scale));
+        const [rw, rh] = rect.slice(2).map((v) => Math.max(1, Math.floor(v * scale)));
+        for (let py = ry; py < ry + rh; py++) {
+          for (let px = rx; px < rx + rw; px++) sum += data[(py * info.width + px) * info.channels] / 255;
+        }
+        texels += rw * rh;
+      }
+      const mean = sum / texels;
+      assert.ok(mean >= POSTERS_RING_MIN, `${name}: ${side}'s outer ring decodes to ${mean.toFixed(3)}`);
+      worstMean = Math.min(worstMean, mean);
+    }
+    rings[name] = Math.round(worstMean * 1000) / 1000;
+  }
+  return {
+    glbBytes: glb.length,
+    triangles,
+    items: extras.decor.length,
+    maxOffsetMm: Math.round(maxOffset * 10000) / 10,
+    tier2kBytes: bytes['posters-2k.webp'].length,
+    tier1kBytes: bytes['posters-1k.webp'].length,
+    worstRing: rings,
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const directory = resolve(process.argv[2] ?? 'public/room');
   const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8'));
@@ -377,4 +513,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   }
   console.log(JSON.stringify(await verifyRoomAssets(directory, manifest), null, 2));
   console.log(JSON.stringify({ radio: await verifyRadioCloseup(directory, manifest) }, null, 2));
+  console.log(JSON.stringify({ posters: await verifyPosters(directory, manifest) }, null, 2));
 }

@@ -134,7 +134,10 @@ const entry = (name, bytes, validated) => ({
   sha256: createHash('sha256').update(bytes).digest('hex'),
   ...(validated ? { validationErrors: 0, validationWarnings: 0 } : {}),
 });
-const published = { ...manifest, lazyFiles: [entry(CLOSEUP_FILE, closeup, true), entry(SKIN_FILE, skin, false)] };
+const ours = [entry(CLOSEUP_FILE, closeup, true), entry(SKIN_FILE, skin, false)];
+// Merged by name: other stages' lazy files (the posters) stay as they are.
+const kept = (manifest.lazyFiles ?? []).filter((file) => !ours.some((own) => own.name === file.name));
+const published = { ...manifest, lazyFiles: [...kept, ...ours] };
 await writeFile(join(staging, BASE_FILE), await readFile(join(target, BASE_FILE)));
 console.log('Radio contracts:', JSON.stringify(await verifyRadioCloseup(staging, published)));
 await writeFile(join(target, CLOSEUP_FILE), closeup);
