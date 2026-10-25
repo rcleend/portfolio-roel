@@ -102,6 +102,11 @@ describe('PostersSlot', () => {
     loader.events().onShown();
     expect(slot.state).toBe('ready');
     await expect(slot.ready).resolves.toBe(true);
+    // A context loss takes them down until they are back: the stats never read ready over a bare wall.
+    loader.events().onLost();
+    expect(slot.state).toBe('loading');
+    loader.events().onShown();
+    expect(slot.state).toBe('ready');
   });
 
   it('goes off when the wall fails after staging', async () => {

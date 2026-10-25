@@ -14,6 +14,11 @@ import { anyInView, decorBoxes } from './posterVisibility';
  */
 export const POSTERS_SKIRTS_ORDER = 1;
 export const POSTERS_CARDS_ORDER = 2;
+/**
+ * Fading in (late bytes), the cards are transparent and draw first in the transparent pass, before the power LED's
+ * halo and the screen fade (0) and the screen glow (10), all of which are in front of the walls.
+ */
+export const POSTERS_FADING_CARDS_ORDER = -1;
 
 /**
  * Everything the lazy PosterWall runs that the room's chunk already carries (three.js, the camera rig, the device
@@ -52,6 +57,7 @@ export const posterKit = {
   anyInView,
   skirtsOrder: POSTERS_SKIRTS_ORDER,
   cardsOrder: POSTERS_CARDS_ORDER,
+  fadingCardsOrder: POSTERS_FADING_CARDS_ORDER,
   /**
    * The cards: the room's opaque unlit program, pulled 1 unit towards the camera over the wall, drawn after the skirts
    * (POSTERS_CARDS_ORDER) so that wherever a card or its tape is, it is what shows.

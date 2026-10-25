@@ -30,7 +30,6 @@ interface Setup {
   readonly inView?: () => boolean;
   /** The glb's fetch fails. */
   readonly glbFails?: boolean;
-  readonly reducedMotion?: boolean;
   /** The glb parses but has no posters node (one from before the contract, say). */
   readonly staleGlb?: boolean;
   /** compileAsync's promises settle only when the test resolves them (`compiles`). */
@@ -58,6 +57,7 @@ function setup(options: Setup = {}) {
   // IdleWork's contract: a drop takes the task off the queue and ends it, so its `finally` runs.
   const queue: { task: IdleTask; options: IdleTaskOptions }[] = [];
   const background = {
+    hurry: vi.fn(),
     add: (task: IdleTask, taskOptions: IdleTaskOptions = {}) => {
       const queued = { task, options: taskOptions };
       queue.push(queued);
@@ -154,6 +154,7 @@ function setup(options: Setup = {}) {
     anyInView: options.inView ?? (() => false),
     skirtsOrder: 1,
     cardsOrder: 2,
+    fadingCardsOrder: -1,
     cardsMaterial: () => new MeshBasicMaterial(),
     skirtsMaterial: () => new MeshBasicMaterial(),
   } as unknown as PosterKit;
@@ -161,7 +162,7 @@ function setup(options: Setup = {}) {
   const loader = {
     parseAsync: async () => ({ scene: options.staleGlb === true ? new Group() : gltfScene() }),
   } as unknown as GLTFLoader;
-  const events = { onStaged: vi.fn(), onShown: vi.fn(), onFailed: vi.fn() };
+  const events = { onStaged: vi.fn(), onShown: vi.fn(), onLost: vi.fn(), onFailed: vi.fn() };
   const wall = new PosterWall(
     {
       stage,
@@ -170,7 +171,6 @@ function setup(options: Setup = {}) {
       loader,
       assetBaseUrl: 'https://example.test/room/',
       anisotropy: 4,
-      reducedMotion: { matches: options.reducedMotion === true } as MediaQueryList,
     },
     kit,
     events,
@@ -187,6 +187,7 @@ function setup(options: Setup = {}) {
   return {
     wall,
     events,
+    background,
     queue,
     runUnits,
     frame,
@@ -212,7 +213,10 @@ const flush = async () => {
   for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
-/** At the TV with the bytes in hand: the parse runs as ordinary background work and the wall is staged. */
+/**
+ * At the TV with the bytes in hand: the parse runs as ordinary background work and the wall is staged (on a hardware
+ * GPU its upload is queued, not run).
+ */
 async function staged(options: Setup = {}) {
   const context = setup(options);
   await flush();
@@ -249,8 +253,32 @@ describe('PosterWall', () => {
     expect(queue[0]?.options.estimateMs).toBeLessThanOrEqual(4);
   });
 
-  it('decodes and parses at the TV and uploads nothing there; the first departure puts it up, between frames', async () => {
-    const { wall, events, queue, runUnits, targets, flyTo, node } = await staged();
+  it('on a hardware GPU, decodes, parses and uploads at the TV, between the game frames and hidden there', async () => {
+    const { wall, events, background, queue, runUnits, bitmaps, flyTo, node } = await staged();
+    expect(events.onStaged).toHaveBeenCalledOnce();
+    // The upload is ordinary background work at the TV, its strips small enough to go between a playing game's frames.
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.options.smallUploads).toBe(true);
+    expect(queue[0]?.options.urgent?.()).toBe(false);
+    expect(queue[0]?.options.estimateMs).toBeGreaterThan(0);
+    // Unit 1 (the storage and the program), then one unit per strip: every one of them an upload.
+    expect(runUnits()).toEqual(Array.from({ length: STRIPS + 1 }, () => QUIET));
+    await flush();
+    expect(wall.texturePixels).toBe(2048 * 1024);
+    expect(wall.shown).toBe(true);
+    expect(events.onShown).toHaveBeenCalledOnce();
+    expect(bitmaps[0]?.close).toHaveBeenCalledOnce();
+    // At rest at the TV with nothing of it in frame: hidden, and drawn from the first frame of the first flight.
+    expect(node()?.visible).toBe(false);
+    flyTo('room');
+    expect(node()?.visible).toBe(true);
+    wall.depart();
+    expect(queue).toHaveLength(0);
+    expect(background.hurry).toHaveBeenCalledOnce();
+  });
+
+  it('on a software GPU, uploads nothing at the TV; the first departure puts it up, between frames', async () => {
+    const { wall, events, queue, runUnits, targets, flyTo, node } = await staged({ lite: true });
     expect(events.onStaged).toHaveBeenCalledOnce();
     expect(queue).toHaveLength(0);
     expect(targets).toHaveLength(0);
@@ -261,7 +289,6 @@ describe('PosterWall', () => {
     expect(queue).toHaveLength(1);
     expect(queue[0]?.options.sliceMs).toBeGreaterThan(0);
     expect(queue[0]?.options.urgent?.()).toBe(true);
-    // Unit 1 (the storage and the program), then one unit per strip: every one of them an upload.
     expect(runUnits()).toEqual(Array.from({ length: STRIPS + 1 }, () => QUIET));
     await flush();
     expect(wall.texturePixels).toBe(2048 * 1024);
@@ -269,6 +296,32 @@ describe('PosterWall', () => {
     expect(events.onShown).toHaveBeenCalledOnce();
     // Shown in flight, with nothing of it in frame yet: simply drawn.
     expect(node()?.visible).toBe(true);
+  });
+
+  it('makes an upload still under way at the first departure urgent, and hurries the queue', async () => {
+    const { wall, background, queue, runUnits, flyTo } = await staged();
+    runUnits(3);
+    expect(queue[0]?.options.urgent?.()).toBe(false);
+    flyTo('room');
+    wall.depart();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.options.urgent?.()).toBe(true);
+    expect(background.hurry).toHaveBeenCalledOnce();
+    runUnits();
+    await flush();
+    expect(wall.shown).toBe(true);
+    // Back at rest at the TV, a later upload (after a context loss) is ordinary work again.
+    expect(queue[0]?.options.urgent?.() ?? false).toBe(false);
+  });
+
+  it('closes a bitmap decoded before the glb parsed when disposed in between', async () => {
+    const { wall, queue, bitmaps } = setup();
+    await flush();
+    // The parse is queued and the image decoded, in no field yet.
+    expect(queue).toHaveLength(1);
+    wall.dispose();
+    await flush();
+    expect(bitmaps[0]?.close).toHaveBeenCalledOnce();
   });
 
   it('holds a reduced-motion cut only to the room view, and only while what is left needs no network', async () => {
@@ -324,6 +377,8 @@ describe('PosterWall', () => {
     expect(wall.shown).toBe(true);
     expect(animations).toHaveLength(1);
     expect(cardsMaterial.transparent).toBe(true);
+    // Fading, the cards draw first among the transparent objects, all of which are in front of the walls.
+    expect(cards?.renderOrder).toBe(-1);
     const start = performance.now();
     // A frame's timestamp may precede the fade's start: it never goes below 0.
     frame(start - 50);
@@ -338,22 +393,20 @@ describe('PosterWall', () => {
     expect(cards?.renderOrder).toBe(2);
   });
 
-  it('pops late bytes in under reduced motion and on the lite path, which also drops the skirts', async () => {
-    for (const options of [{ reducedMotion: true }, { lite: true }]) {
-      const { wall, runUnits, frame, animations, flyTo, land, meshes } = setup({ inView: () => true, ...options });
-      flyTo('room');
-      land();
-      wall.depart();
-      frame(performance.now());
-      await flush();
-      runUnits();
-      await flush();
-      runUnits();
-      await flush();
-      expect(wall.shown).toBe(true);
-      expect(animations).toHaveLength(0);
-      expect(meshes().skirts === undefined).toBe(options.lite === true);
-    }
+  it('pops late bytes in on the lite path, which also drops the skirts', async () => {
+    const { wall, runUnits, frame, animations, flyTo, land, meshes } = setup({ inView: () => true, lite: true });
+    flyTo('room');
+    land();
+    wall.depart();
+    frame(performance.now());
+    await flush();
+    runUnits();
+    await flush();
+    runUnits();
+    await flush();
+    expect(wall.shown).toBe(true);
+    expect(animations).toHaveLength(0);
+    expect(meshes().skirts).toBeUndefined();
   });
 
   it('after a context restore during the upload, closes the old bitmap, starts over and is shown again', async () => {
@@ -394,8 +447,27 @@ describe('PosterWall', () => {
     expect(events.onShown).toHaveBeenCalledOnce();
   });
 
-  it('after a context restore while staged at the TV, swaps the bitmap and puts it up on the departure', async () => {
-    const { wall, queue, runUnits, canvas, bitmaps, flyTo } = await staged();
+  it('after a context restore at the TV, decodes again and puts it up there again, hidden', async () => {
+    const { wall, events, queue, runUnits, canvas, bitmaps, node } = await staged();
+    runUnits();
+    await flush();
+    expect(wall.shown).toBe(true);
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(events.onLost).toHaveBeenCalledOnce();
+    expect(wall.shown).toBe(false);
+    await flush();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.options.urgent?.()).toBe(false);
+    runUnits();
+    await flush();
+    expect(wall.shown).toBe(true);
+    expect(events.onShown).toHaveBeenCalledTimes(2);
+    expect(bitmaps[1]?.close).toHaveBeenCalledOnce();
+    expect(node()?.visible).toBe(false);
+  });
+
+  it('after a context restore while staged at the TV on a software GPU, swaps the bitmap and puts it up on the departure', async () => {
+    const { wall, queue, runUnits, canvas, bitmaps, flyTo } = await staged({ lite: true });
     canvas.dispatchEvent(new Event('webglcontextrestored'));
     await flush();
     expect(bitmaps[0]?.close).toHaveBeenCalledOnce();

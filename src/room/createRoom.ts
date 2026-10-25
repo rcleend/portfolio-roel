@@ -217,7 +217,6 @@ export function createRoom(options: CreateRoomOptions): Room {
       loader: assets.loader,
       assetBaseUrl,
       anisotropy: scene.anisotropy,
-      reducedMotion,
     });
     const { background } = scene;
     // Work ahead of need never delays the first frame.

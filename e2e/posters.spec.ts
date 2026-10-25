@@ -11,6 +11,15 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
 const POSTERS_DRAW_CALLS = POSTERS_PATH === 'lite' ? 1 : 2;
 
 const POSTER_FILE = /\/posters(?:-1k|-2k)?\.(?:webp|glb)$/;
+/**
+ * Where the walls get to at the TV: up (uploaded between the game's frames, hidden there) on a hardware GPU, decoded and
+ * parsed with only the upload left on the lite path, which uploads on the first departure.
+ */
+const AT_TV = POSTERS_PATH === 'full' ? 'ready' : 'staged';
+
+/** Waits until the walls have got as far at the TV as they get there (AT_TV). */
+const doneAtTv = (page: Page, timeout = 10_000) =>
+  page.waitForFunction((state) => window.__roomLab?.room.stats.posters === state, AT_TV, { timeout });
 
 const stats = (page: Page) => page.evaluate(() => window.__roomLab?.room.stats);
 
@@ -136,16 +145,17 @@ test.describe('the decorated walls', () => {
     expect(errors).toEqual([]);
   });
 
-  test('fetch one tier and the glb at the TV, upload nothing there, and show before the room view settles', async ({
+  test('fetch one tier and the glb at the TV, upload it there on a hardware GPU, and show before the room view settles', async ({
     page,
   }) => {
     const errors = trackErrors(page);
     const requested = trackPosterRequests(page);
     await atTv(page);
     await expect.poll(() => requested.length, { timeout: 10_000 }).toBe(2);
-    // At the TV the bytes are decoded on the CPU only: nothing is on the GPU and the walls are not shown yet.
-    await page.waitForFunction(() => window.__roomLab?.room.stats.posters === 'staged', null, { timeout: 10_000 });
-    expect((await stats(page))?.postersTexturePixels).toBe(0);
+    // On a hardware GPU the atlas goes up between the game's frames at the TV (hidden there); the lite path keeps it
+    // on the CPU until the first departure.
+    await doneAtTv(page);
+    expect((await stats(page))?.postersTexturePixels).toBe(POSTERS_PATH === 'full' ? 2048 * 1024 : 0);
     const postersAtSettle = await page.evaluate(
       () =>
         new Promise<string | undefined>((resolve) => {
@@ -234,31 +244,65 @@ test.describe('under reduced motion', () => {
   test('the cut from the TV opens on decorated walls once their bytes are decoded there', async ({ page }) => {
     const errors = trackErrors(page);
     await atTv(page);
-    // The cut never holds for the network (PosterWall.holdsCut), only for what is left of bytes already in hand.
-    await page.waitForFunction(() => window.__roomLab?.room.stats.posters === 'staged', null, { timeout: 10_000 });
+    // The cut never holds for the network (PosterWall.holdsCut), only for what is left of bytes already in hand (on
+    // the lite path the upload; on a hardware GPU nothing is left by then).
+    await doneAtTv(page);
     expect(await postersWhenTheVeilLifts(page)).toBe('ready');
     expect(errors).toEqual([]);
   });
 
-  test('on a slow CPU too, the walls are staged at the TV and up when the veil lifts', { tag: '@frames' }, async ({
+  test('on a slow CPU too, the walls get as far at the TV and are up when the veil lifts', { tag: '@frames' }, async ({
     page,
   }) => {
     test.setTimeout(60_000);
-    // At 6x the TV-side units (the import and fetch, the parse) must not queue behind the room's longer units for the
-    // whole stay at the TV (IdleWork runs the first queued unit that fits the idle period), and the held black runs
-    // what is left (the program, the strips) in whole idle periods, so the cut still opens on decorated walls.
+    // At 6x the TV-side units (the import and fetch, the parse, on a hardware GPU the program and the strips) must not
+    // queue behind the room's longer units for the whole stay at the TV (IdleWork runs the first queued unit that fits
+    // the idle period); on the lite path the held black runs what is left (the strips) in whole idle periods, so the cut
+    // still opens on decorated walls.
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
     const errors = trackErrors(page);
     await atTv(page);
-    await page.waitForFunction(() => window.__roomLab?.room.stats.posters === 'staged', null, { timeout: 15_000 });
+    await doneAtTv(page, 15_000);
     expect(await postersWhenTheVeilLifts(page)).toBe('ready');
+    expect(errors).toEqual([]);
+  });
+
+  test('late bytes fade in here too: a fade is not motion', async ({ page }) => {
+    const errors = trackErrors(page);
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(POSTER_FILE, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await atTv(page);
+    await settleAt(page, 'room');
+    expect((await stats(page))?.posters).toBe('loading');
+    release();
+    const fadingWhenShown = await page.evaluate(
+      () =>
+        new Promise<boolean>((resolve) => {
+          const look = () => {
+            const shown = window.__roomLab?.room.stats;
+            if (shown?.posters === 'ready') resolve(shown.postersFading);
+            else requestAnimationFrame(look);
+          };
+          look();
+        }),
+      null,
+    );
+    expect(fadingWhenShown).toBe(POSTERS_PATH === 'full');
+    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+    expect((await stats(page))?.postersFading).toBe(false);
     expect(errors).toEqual([]);
   });
 
   test('a cut to the computer or the radio never waits for the walls, hidden at rest there', async ({ page }) => {
     await atTv(page, '&mockradio=1');
-    await page.waitForFunction(() => window.__roomLab?.room.stats.posters === 'staged', null, { timeout: 10_000 });
+    await doneAtTv(page);
     // Their black lasts as long as without the posters: no hold (the radio's own hold waits on its close-up only).
     const heldFrames = await page.evaluate(
       () =>

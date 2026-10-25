@@ -17,11 +17,18 @@ export const POSTERS_TIER_FILES: Readonly<Record<PosterTier, string>> = {
 /** The late-bytes arrival: pieces already in frame fade in over this long rather than pop. */
 export const POSTERS_FADE_MS = 300;
 /**
- * The upload's units may follow a flight frame that left no idle period (IdleTaskOptions.sliceMs) while they take at
- * most this long: measured at 6× CPU on an Apple GPU, unit 1 takes 5.8 ms and a strip 0.3-4 ms beside a 9.8 ms
- * flight frame at 16:10, so frame and unit stay inside 16.7 ms.
+ * After an early departure, the upload's units left may follow a flight frame that left no idle period
+ * (IdleTaskOptions.sliceMs) while they take at most this long: measured at 6× CPU on an Apple GPU, a strip takes
+ * 0.3-5 ms beside a 9.8 ms flight frame at 16:10, so frame and unit stay inside 16.7 ms.
  */
 const UPLOAD_SLICE_MS = 6.5;
+/**
+ * What the upload's first unit (the storage and the program) is judged by at the TV (IdleTaskOptions.estimateMs),
+ * rather than the heaviest unit the room has run: measured at 6× CPU on an Apple GPU between the playing game's
+ * frames, 3.9-4.5 ms on a desktop and a phone, so it waits for an idle period that holds it; the strips after it are
+ * judged by what it and they then take (0.1-4 ms).
+ */
+const UPLOAD_ESTIMATE_MS = 4;
 /**
  * What the glb's parse is judged by at the TV (IdleTaskOptions.estimateMs), rather than the heaviest unit the room has
  * run: measured at 6× CPU, the parse and the Meshopt decode it starts take 1.6-2.8 ms together, so it fits any idle
@@ -37,7 +44,6 @@ export interface PosterWallContext {
   readonly loader: GLTFLoader;
   readonly assetBaseUrl: string;
   readonly anisotropy: number;
-  readonly reducedMotion: MediaQueryList;
 }
 
 export interface PosterWallEvents {
@@ -45,6 +51,8 @@ export interface PosterWallEvents {
   readonly onStaged: () => void;
   /** The texture is complete, the program compiled and the node shown (or resting hidden at a pose). */
   readonly onShown: () => void;
+  /** A context loss took the atlas: the node is hidden until it is up again (onShown). */
+  readonly onLost: () => void;
   /** The posters will not show this page load (a failed fetch, decode or parse). */
   readonly onFailed: (error: unknown) => void;
 }
@@ -59,9 +67,11 @@ interface PostersNode {
 
 /**
  * The decorated walls (docs/ROOM.md › Posters): one node, two primitives sharing one baked, unlit atlas. The tier is
- * decided once, at the TV, and that tier and the glb are fetched and decoded there on the CPU only; the upload rides
- * the first frames of the first flight as urgent background work (one unit for the program and the storage, then
- * strips), and the node is shown once complete, normally before any piece enters the flight's frame.
+ * decided once, at the TV, and that tier and the glb are fetched and decoded there; on a hardware GPU the upload (one
+ * unit for the program and the storage, then strips) goes between the playing game's frames there too, the node
+ * hidden, so the first flight has nothing left to do but draw it. What is left at the first departure (all of it on a
+ * software GPU, whose GPU is the CPU drawing the game) rides that flight's first frames as urgent background work, and
+ * the node is shown once complete, normally before any piece enters the flight's frame.
  */
 export class PosterWall {
   readonly #context: PosterWallContext;
@@ -74,6 +84,8 @@ export class PosterWall {
   /** The tier's encoded bytes, kept for a context loss. */
   #bytes: ArrayBuffer | null = null;
   #bitmap: ImageBitmap | null = null;
+  /** The first decode, until settled: a dispose before the parse closes its bitmap through it. */
+  #image: Promise<ImageBitmap> | null = null;
   #target: DataTexture | null = null;
   #fetching = false;
   /** The tier decoded and the glb's bytes fetched: what is left needs no network. */
@@ -156,7 +168,7 @@ export class PosterWall {
     return now - this.#heldSince < this.#kit.cutHoldMs;
   }
 
-  /** The camera leaves the TV for the first time: what is fetched goes up now, between the flight's frames. */
+  /** The camera leaves the TV for the first time: what is left goes up now, between the flight's frames. */
   depart(): void {
     if (this.#departed) return;
     this.#departed = true;
@@ -164,6 +176,8 @@ export class PosterWall {
     this.#fetch();
     this.#queueParse();
     this.#queueUpload();
+    // An upload already under way at the TV is urgent from now on: its next unit need not wait out a long request.
+    this.#context.background.hurry();
   }
 
   dispose(): void {
@@ -176,6 +190,12 @@ export class PosterWall {
     this.#dropUpload?.();
     this.#bitmap?.close();
     this.#bitmap = null;
+    // Decoded while the glb's parse was still queued, the bitmap is in no field yet (closing twice is harmless).
+    this.#image?.then(
+      (bitmap) => bitmap.close(),
+      () => {},
+    );
+    this.#image = null;
     this.#bytes = null;
     this.#target?.dispose();
     const node = this.#node;
@@ -208,6 +228,7 @@ export class PosterWall {
         this.#decoded = true;
         return bitmap;
       });
+    this.#image = image;
     // The glb's parse (Meshopt) is one unit of background work: it fits a frame. A glb without the posters' node (one
     // from before the contract, say) fails like a parse that throws.
     const node = bytesOf(POSTERS_FILE).then(
@@ -224,6 +245,7 @@ export class PosterWall {
     );
     Promise.all([image, node]).then(
       ([bitmap, parsed]) => {
+        this.#image = null;
         if (this.#disposed) {
           bitmap.close();
           return;
@@ -236,6 +258,7 @@ export class PosterWall {
       },
       (error: unknown) => {
         // The image may have decoded while the glb failed.
+        this.#image = null;
         image.then(
           (bitmap) => bitmap.close(),
           () => {},
@@ -266,18 +289,26 @@ export class PosterWall {
     parse();
   }
 
-  /** Once the visitor has left the TV and the bitmap is in hand: urgent until shown, so it goes between frames. */
+  /**
+   * Once the bitmap is in hand: on a hardware GPU at once, its strips between the playing game's frames
+   * (IdleTaskOptions.smallUploads), else from the first departure; urgent from then until shown.
+   */
   #queueUpload(): void {
-    if (!this.#departed || !this.#bitmap || !this.#node || this.#dropUpload || this.#shown || this.#disposed) return;
-    this.#dropUpload = this.#context.background.add(this.#upload(this.#bitmap, this.#node), this.#urgency());
+    if (!this.#bitmap || !this.#node || this.#dropUpload || this.#shown || this.#disposed) return;
+    if (this.#lite && !this.#departed) return;
+    this.#dropUpload = this.#context.background.add(this.#upload(this.#bitmap, this.#node), {
+      ...this.#urgency(),
+      smallUploads: true,
+      estimateMs: UPLOAD_ESTIMATE_MS,
+    });
   }
 
   /** The parse's and the upload's urgency: from the first departure until shown, between the flight's frames. */
   #urgency(): IdleTaskOptions {
     const { views } = this.#context;
     return {
-      // After a context loss at the TV the strips wait for the visitor to look around again.
-      urgent: () => !this.#shown && (views.view !== 'tv' || views.moving),
+      // At the TV (before the first departure, or after a context loss there) the units fit the game's idle periods.
+      urgent: () => this.#departed && !this.#shown && (views.view !== 'tv' || views.moving),
       sliceMs: UPLOAD_SLICE_MS,
     };
   }
@@ -318,30 +349,37 @@ export class PosterWall {
   }
 
   /**
-   * At the first frame the texture is complete and the program compiled. With no piece in frame (the normal case,
-   * early in the first flight) it is simply shown; pieces already in frame (late bytes) fade in on the full path.
+   * At the first frame the texture is complete and the program compiled. At rest at the TV, PC or radio it stays
+   * hidden where no piece is in frame; with no piece in frame (the normal case: before the first departure, or early
+   * in the first flight) it is simply shown; pieces already in frame (late bytes) fade in on the full path, under
+   * reduced motion too (a fade is not motion, and the room's own cuts fade).
    */
   #reveal(): void {
     const node = this.#node;
     if (!node || !this.#complete || !this.#compiled || this.#shown || this.#disposed) return;
     this.#shown = true;
-    const { views, stage, reducedMotion } = this.#context;
+    const { views, stage } = this.#context;
     const inView = this.#kit.anyInView(node.boxes, stage.camera);
     if (!views.moving && views.view !== 'room' && !inView) node.root.visible = false;
-    else if (inView && !this.#lite && !reducedMotion.matches) this.#fade(node);
+    else if (inView && !this.#lite) this.#fade(node);
     else node.root.visible = true;
     stage.loop.invalidate();
     this.#events.onShown();
   }
 
-  /** Cards and skirts from 0 to 1 over POSTERS_FADE_MS; the cards return to the opaque program after. */
+  /**
+   * Cards and skirts from 0 to 1 over POSTERS_FADE_MS; the cards return to the opaque program after. Fading, the cards
+   * draw first among the transparent objects (PosterKit.fadingCardsOrder), behind every one of them in the room.
+   */
   #fade(node: PostersNode): void {
     const cards = node.cards.material as MeshBasicMaterial;
     const skirts = node.skirts.material as MeshBasicMaterial;
     setFading(cards, true);
+    node.cards.renderOrder = this.#kit.fadingCardsOrder;
     node.root.visible = true;
     const finish = (): void => {
       setFading(cards, false);
+      node.cards.renderOrder = this.#kit.cardsOrder;
       skirts.opacity = 1;
       this.#stopFade = null;
     };
@@ -420,6 +458,7 @@ export class PosterWall {
     this.#shown = false;
     this.#complete = false;
     this.#compiled = false;
+    this.#events.onLost();
     const generation = this.#generation;
     decode(bytes).then(
       (bitmap) => {
