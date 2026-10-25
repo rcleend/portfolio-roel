@@ -10,7 +10,8 @@ import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
  * screen with the screen experience inside it. Once the visitor is in the
  * room with the PC's chunks loaded, the page's clock is paused and moved on
  * frame by frame, so the camera, the startup cues and the timing budgets
- * (docs/PC.md, docs/ROOM.md) are checked on exact ticks.
+ * (docs/PC.md, docs/ROOM.md) are checked on exact ticks. What a test only
+ * sets up, and does not time, may run on the flowing clock before that.
  */
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
@@ -61,6 +62,28 @@ async function lookAround(page: Page, go: () => Promise<void> = () => page.mouse
   // A second ahead, so a busy machine cannot make the pause land in the page's past.
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await advance(page, SETTLE_MS);
+}
+
+/** How often a wait on the flowing clock looks: a few frames, so it adds no more than that to the test. */
+const FLOWING_POLL = { intervals: [100] };
+
+/** On the flowing clock, waits until the camera rests in the room view. */
+async function restInRoom(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.evaluate(() => window.__room?.view === 'room' && window.__room.settled), FLOWING_POLL)
+    .toBe(true);
+}
+
+/**
+ * Waits on the flowing clock until the camera rests in the room view, then pauses the clock there as `lookAround`
+ * leaves it. For a test that only needs the room settled before what it times: stepping a settle frame by frame
+ * costs two browser round trips per frame, which on a loaded machine add up to seconds.
+ */
+async function pauseInRoom(page: Page): Promise<void> {
+  await restInRoom(page);
+  // A second ahead, so a busy machine cannot make the pause land in the page's past.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await step(page, FRAME);
 }
 
 /** Moves the paused clock on in frames, so the room draws and React renders between timers as in real time. */
@@ -500,15 +523,23 @@ async function handOffDifference(page: Page, moment: string): Promise<number> {
 
 test('a warm visit is readable within 0.65 s, where the visitor left off', async ({ page }) => {
   await openRoom(page);
-  await lookAround(page);
-  await sitDown(page);
-  await untilReader(page);
+  // The first visit only warms the computer up (its chunks, the open reader, the place in it) and times nothing, so
+  // it runs on the flowing clock: stepped frame by frame it would cost about 900 browser round trips, which under
+  // the full suite's load alone outlast the test timeout.
+  await page.mouse.click(WALL.x, WALL.y);
+  await restInRoom(page);
+  const pc = await anchor(page, 'pc');
+  await page.mouse.click(pc.x, pc.y);
+  // In real time: the flight, the screen's first load and its startup, which a loaded machine stretches. Only once
+  // reading has begun does the place in the document stay: until then the reader puts the visitor at the top.
+  await expect.poll(() => pcState(page), { ...FLOWING_POLL, timeout: 15_000 }).toBe('reader');
   await pane(page).evaluate((element) => {
     element.scrollTop = 600;
   });
   await page.mouse.click(WALL.x, WALL.y);
-  await advance(page, SETTLE_MS);
+  await pauseInRoom(page);
 
+  // The warm visit itself is stepped and timed frame by frame, like every other visit here.
   await sitDown(page);
   expect(await untilReader(page)).toBeLessThanOrEqual(650);
   await expect(reader(page)).toBeVisible();
