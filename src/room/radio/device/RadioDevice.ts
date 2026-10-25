@@ -3,6 +3,7 @@ import { FLIGHT_MS, REDUCED_FADE_MS } from '../../camera/CameraRig';
 import { boxCorners } from '../../camera/framing';
 import { projectToPage } from '../../camera/pageProjection';
 import { type IdleTask, QUIET } from '../../stage/IdleWork';
+import { isSlow } from '../../stage/slowDevice';
 import { PowerLed } from '../../tv/PowerLed';
 import {
   CLOSEUP_FILE,
@@ -20,7 +21,7 @@ import { Choreography, type DiscSample, discHeirs, type Moment } from './choreog
 import { assembleParts, type CloseUpExtras, type RadioParts } from './closeUpAsset';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
-import { isSlow, wantsSkin } from './deviceTier';
+import { wantsSkin } from './deviceTier';
 import { keyShade, rockerDegrees, sideKeyTravel } from './keyMotion';
 import { Lcd } from './Lcd';
 import { blinks } from './lcdSegments';

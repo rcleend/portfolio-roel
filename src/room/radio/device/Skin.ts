@@ -1,16 +1,6 @@
-import {
-  type Box2,
-  DataTexture,
-  LinearFilter,
-  LinearMipmapLinearFilter,
-  type MeshBasicMaterial,
-  RGBAFormat,
-  SRGBColorSpace,
-  Texture,
-  UnsignedByteType,
-  Vector2,
-} from 'three';
+import type { DataTexture, MeshBasicMaterial, Texture } from 'three';
 import { type IdleTask, type IdleTaskOptions, QUIET } from '../../stage/IdleWork';
+import { allocateStripTarget, STRIP_ROWS, type StripRenderer, uploadStrips } from '../../stage/stripUpload';
 
 /**
  * The radio's 2K skin (docs/ROOM.md › The CD player): the radio's own atlas re-baked at 2048², sharp in the frontal
@@ -22,14 +12,11 @@ import { type IdleTask, type IdleTaskOptions, QUIET } from '../../stage/IdleWork
  * 1K atlas and decodes the bytes again.
  */
 
-/** Rows a strip uploads: 2048 × 128 × 4 B = 1 MB, about a millisecond. */
-export const SKIN_STRIP_ROWS = 128;
+/** Rows a strip uploads (the shared strip uploader's 1 MB strips, src/room/stage/stripUpload.ts). */
+export const SKIN_STRIP_ROWS = STRIP_ROWS;
 
 /** What the skin needs of three's renderer. */
-export interface SkinRenderer {
-  initTexture(texture: Texture): void;
-  copyTextureToTexture(source: Texture, target: Texture, region: Box2 | null, position: Vector2 | null): void;
-}
+export type SkinRenderer = StripRenderer;
 
 export interface SkinOptions {
   readonly renderer: SkinRenderer;
@@ -150,41 +137,15 @@ export class Skin {
     try {
       // Every strip is an upload: it waits for a quiet moment, or (the task urgent at the radio) goes between frames.
       yield QUIET;
-      const { width, height } = bitmap;
-      const target = new DataTexture(null, width, height, RGBAFormat, UnsignedByteType);
-      // The glTF atlas's settings: no flip, sRGB, mipmaps, the room's anisotropy.
-      target.flipY = false;
-      target.colorSpace = SRGBColorSpace;
-      target.generateMipmaps = true;
-      target.minFilter = LinearMipmapLinearFilter;
-      target.magFilter = LinearFilter;
-      target.anisotropy = anisotropy;
-      target.source.dataReady = false;
+      const target = allocateStripTarget(renderer, bitmap.width, bitmap.height, anisotropy);
       this.#target = target;
-      // Storage for every level, nothing in it yet. Only a texture marked for upload gets any: unmarked, three binds
-      // no texture at all, every strip fails (GL_INVALID_VALUE) and the radio draws black.
-      target.needsUpdate = true;
-      renderer.initTexture(target);
       yield QUIET;
-      const source = new Texture(bitmap);
-      const region = { min: new Vector2(), max: new Vector2(), isBox2: true } as unknown as Box2;
-      const at = new Vector2();
-      for (let row = 0; row < height; row += SKIN_STRIP_ROWS) {
-        const last = row + SKIN_STRIP_ROWS >= height;
-        region.min.set(0, row);
-        region.max.set(width, Math.min(height, row + SKIN_STRIP_ROWS));
-        at.set(0, row);
-        // The mipmaps only once, with the last strip.
-        target.generateMipmaps = last;
-        renderer.copyTextureToTexture(source, target, region, at);
-        if (!last) yield QUIET;
-      }
-      target.generateMipmaps = true;
+      yield* uploadStrips(renderer, bitmap, target, SKIN_STRIP_ROWS);
       this.#atlas = this.#options.materials[0]?.map ?? null;
       this.#show(target);
       // Only the old atlas's GPU copy goes: its image stays, to fall back on.
       this.#atlas?.dispose();
-      this.#pixels = width * height;
+      this.#pixels = bitmap.width * bitmap.height;
       this.#stage = 'shown';
       this.#cancel = null;
       this.#options.invalidate();
@@ -205,7 +166,7 @@ export class Skin {
   #stop(): void {
     this.#cancel?.();
     this.#cancel = null;
-    // A task dropped before its end never reaches its `finally`.
+    // A task dropped before its first unit never reaches its `finally` (one that has started runs it as it is dropped).
     this.#bitmap?.close();
     this.#bitmap = null;
   }
