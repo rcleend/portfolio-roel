@@ -2,7 +2,7 @@
   "generatedBy": "tools/room/optimize.mjs",
   "sourceRevision": 6,
   "artDirection": "After hours — crafted miniature",
-  "totalBytes": 6967499,
+  "totalBytes": 6967714,
   "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
   "atlases": {
     "01_TV_surfaces": 2048,
@@ -62,8 +62,8 @@
     {
       "name": "CREDITS.txt",
       "source": "Retained source attribution + revision 6 modifications",
-      "bytes": 10967,
-      "sha256": "ef6f4ddf7e46c8cba647250e9f3155842950d554a1af40b801adaab821db96b5"
+      "bytes": 11182,
+      "sha256": "0184bba247b775458561ee38ddbf76a5725e4c68dbb80fc098cdee70e7e313d1"
     }
   ],
   "lazyFiles": [
