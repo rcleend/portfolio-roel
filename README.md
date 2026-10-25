@@ -12,7 +12,7 @@ Requires Node 24 and pnpm 10.
 pnpm install
 pnpm dev            # http://localhost:5173
 pnpm check          # type-check, lint (Biome), unit tests (Vitest) incl. the architecture boundary test
-pnpm e2e            # Playwright smoke tests (Chromium)
+pnpm e2e            # Playwright smoke tests (Chromium); the @frames timing tests run alone after the rest
 pnpm build          # production bundle in dist/
 pnpm report:bundle  # a production build with its manifest: gzip sizes against bundle-budgets.json
 ```

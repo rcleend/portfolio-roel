@@ -416,7 +416,9 @@ test.describe('performance', () => {
     expect((await stats(page))?.programs).toBe(BASE_PROGRAMS + 1);
   });
 
-  test('keeps the flights to and from the radio, and the arrival, free of long frames at 6× CPU', async ({ page }) => {
+  test('keeps the flights to and from the radio, and the arrival, free of long frames at 6× CPU', {
+    tag: '@frames',
+  }, async ({ page }) => {
     await open(page);
     await lookAround(page);
     // Prepared ahead of need, as for a visitor who looked around first: the device, the player and the prints.

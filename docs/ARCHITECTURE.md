@@ -405,5 +405,5 @@ A board (`app/playground/boards/`) is a titled grid of tiles comparing every cho
 
 - TypeScript `strict` with `noUncheckedIndexedAccess`; no `any`; named exports.
 - Small, single-purpose modules. Comments explain *why*, not *what*.
-- Unit tests (Vitest) sit next to the code they test; end-to-end smoke tests (Playwright) live in `e2e/`.
+- Unit tests (Vitest) sit next to the code they test; end-to-end smoke tests (Playwright) live in `e2e/`. Tests tagged `@frames` time real frames under CPU throttling, so `playwright.config.ts` runs them one at a time after the parallel suite.
 - `pnpm check` runs type-check, lint (Biome), unit tests and the architecture boundary test.

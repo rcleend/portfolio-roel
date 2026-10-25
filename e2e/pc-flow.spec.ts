@@ -648,7 +648,9 @@ test.describe('performance', () => {
     expect((await stats(page))?.programs).toBe(BASE_PROGRAMS);
   });
 
-  test('keeps every flight to and from the computer free of long frames at 6× CPU', async ({ page }) => {
+  test('keeps every flight to and from the computer free of long frames at 6× CPU', { tag: '@frames' }, async ({
+    page,
+  }) => {
     await page.goto('/?seed=1');
     await waitForRunning(page);
     await page.mouse.click(WALL.x, WALL.y);
