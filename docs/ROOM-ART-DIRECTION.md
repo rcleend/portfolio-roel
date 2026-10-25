@@ -2,7 +2,8 @@
 
 The room keeps its composition, attic shell, furniture, electronics, guitar and game
 cases, with improved finishes, edge treatment and night lighting. The floor pillow,
-ceiling beams and wall posters/cards are removed. A supplied folded rug replaces the old rug.
+ceiling beams and the old wall posters/cards are removed. A supplied folded rug replaces the old rug.
+The walls and the sloped ceiling are decorated as a 2007 teenager's attic (§ Posters).
 
 Browser captures from the room lab, with the same camera and test picture:
 
@@ -70,7 +71,8 @@ shadow maps or a postprocessing stack for that appearance.
   darkness. Furniture and electronics share the same bake. AgX contrast and exposure
   remain at the original settings.
 - **Room:** the same wall and ceiling geometry gets matte, muted plaster and cream trim.
-  Wooden ceiling beams and all wall posters, cards and masking tape are removed.
+  Wooden ceiling beams and the old wall posters, cards and masking tape are removed; the
+  decorated walls (§ Posters) are a separate lazy layer baked in the same light.
   The original floor's footprint and top height are preserved while its mesh becomes
   shallow oak boards with small seams and rounded edges. The original wood scan adds
   natural grain and pores while the new floor's warm oak colors remain.
@@ -131,6 +133,40 @@ shadow maps or a postprocessing stack for that appearance.
   Hidden box-body caps beneath the fitted game-box lids are removed: their coplanar
   surfaces caused black stripes and depth fighting in WebGL.
 
+## Posters
+
+The walls take the reference room's habit of covering every free surface with what its
+owner loved, dated 2007 and limited to eleven of Roel's childhood topics: Avatar: The Last
+Airbender, Oblivion, Guitar Hero III, Star Wars, Radiohead's In Rainbows, Rage Against the
+Machine, LEGO Star Wars, SSX 3, RuneScape, Green Day and Call of Duty 4. Every piece is the
+original artwork (sources in `tools/room/assets/posters/SOURCES.md`; third-party, to be
+cleared or replaced before publishing).
+
+- **Composition:** a focal music corner above the dresser (In Rainbows, The Battle of Los
+  Angeles overlapping it, the 2007 RATM reunion flyers, the Radiohead bear sticker across a
+  seam, the RATM wordmark strip, a CoD4 SAS print, LEGO Star Wars, American Idiot under the
+  slope); the Green Day 2004 poster over a RuneScape Void Knight print with the RuneScape 2
+  logo taped across it, between the window and the dresser; an uneven frieze over the window
+  (Guitar Hero III, Avatar, the Green Day 2005 tour banner, SSX 3); the Oblivion box art as a
+  store promo left of the window above a corkboard of six pinned, overlapping pieces; and on
+  the slope Star Wars 1977 Style A, Avatar Book 2, Revenge of the Sith, two folded magazine
+  pull-outs and the Battle of Kvatch print near the ridge. Nothing on the knee wall, nothing
+  near the window casing and nothing in the resting TV, PC or radio frames.
+- **Physical detail:** tape is lit geometry in the bake, so each strip catches the
+  window's blue or the lamp's tungsten and casts its own small shadow; overhangs ramp down
+  from the card to the wall. The back wall has cream masking tape; the pale slope has
+  white paper tape, which still reads a little brighter than the ivory around it. Paper
+  sits 1 + 0.75 · n mm off the wall by layer, with a baked contact shadow (the skirt)
+  multiplied onto the wall around it. The skirt only darkens, and it is baked without
+  the tape, so a strip carries only its own shadow and no dark ring. The Radiohead bear
+  sticker is die-cut: outside the bear, its card carries the wall and poster edge under
+  it. The magazine pull-outs' folds are real ridges and valleys in the bake mesh. Curled
+  corners, pins and the cork's grain are in the bake, not in runtime lighting.
+- **Fidelity in the browser:** one 2048 × 1024 atlas (or 1024 × 512 on small screens,
+  low-memory devices, Save-Data, slow links and software GPUs), its texel density set by the closest
+  resting view each piece is seen in, loaded only after the first frame and uploaded in
+  strips on the way into the room (docs/ROOM.md › Posters).
+
 ## Boundaries and tradeoffs
 
 This adopts the reference's material discipline and baked-light approach; it does not
@@ -157,6 +193,13 @@ extend each island's own color to limit dark seams when textures are filtered.
 The CD player adds nothing to that first load: `radio-closeup.glb` (56 KB, 2,366 triangles,
 one 512² atlas) and `radio-skin-2k.webp` (179 KB) are lazy files fetched only when the radio
 is prepared, the skin only on screens where the radio lands wider than 900 render pixels.
+The posters add none of their art to it, only the room code that triggers them (about 1.7 kB
+gzip in the room chunk): `posters.glb`
+(30 KB, 1,535 triangles) and one atlas tier, `posters-2k.webp` (239 KB, 2048 × 1024) or
+`posters-1k.webp` (89 KB, 1024 × 512), are lazy files fetched and decoded behind the opening TV
+view and uploaded on the first departure. They add 2.1 million decoded texture pixels (0.5 million
+at 1K), one shader program and two room-view draw calls; the TV, PC and radio views draw none of
+them (docs/ROOM.md › Posters › Frames and budgets).
 
 Texture allocation stays below revision 5 despite the sharper front-facing atlases, because
 static devices no longer ship separate normal/roughness maps. More geometry goes to

@@ -75,6 +75,42 @@ to `bake.py`. This is an offline authoring job.
    (the first-load `files`, `totalBytes` and size table are untouched). About 45 s with
    `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte; Metal skin bakes
    differ between runs by a few pixels.
+5. `build-posters.mjs` (`pnpm build:posters`, run by `pnpm build:room` after the radio): the
+   decorated walls (docs/ROOM.md › Posters), from `tools/room/assets/posters/layout.json` and
+   the artwork masters in `POSTERS_SOURCE` (not committed: `masters.json` pins their SHA-256 and
+   size, `SOURCES.md` their origin). `posters.py --stage layout` validates the layout (the
+   keep-outs, tapes, pins and skirts included; declared overlaps on distinct layers; the eleven
+   topics), derives every shipped piece (cards 1 + 0.75 · n mm off the wall, tape overhangs
+   that ramp down to it, curled corners, skirts, the corkboard and pins) and packs the atlas
+   islands at their real size. `--stage bake` builds the detailed sheets, the tape as lit
+   geometry, the pins and the cork in the restyled scene and bakes them onto the shipped
+   pieces, one whole-atlas pass per Blender process (`beauty`, `under` for the die-cut
+   sticker, `bare` and `shadow` for the skirts' factor, `albedo` and `normal` as OIDN guides).
+   `--stage compose` (no scene) denoises, derives each skirt side's factor normalised by its far
+   field, die-cuts the sticker, and writes the 2K atlas and the 1K built per island. It fails
+   when a tape overhang reads under 1.3 times its bare wall (1.10 on the pale slope, where white
+   paper tape can read only its albedo over the paint's: 1.13-1.21 measured), when an on-sheet tape over art darker
+   than 0.06 display luma reads under 1.15 times that art (tape over paler art is reported in
+   `posters-tapes.json`, not gated), or when the flat art is grainier than 1.1 times the room
+   wall at the same brightness. The wall's grain comes from `WORK/posters-wall-baseline.png`,
+   which `build-posters.mjs` writes from the room build's own bake when the work folder has it
+   and from the wall atlas `room.glb` ships otherwise; without it the stage stops. A skirt side
+   whose outer ring does not reach the wall's own value (its mean under 0.99, or any 1 cm
+   segment darkening the wall by more than 0.02 of full scale, about 5 levels in 255) is widened
+   and the loop runs again (at most four layouts). `posters.mjs` then checks that every tape
+   overhang starts on its card's own surface (within 0.1 mm, curled corners included), builds
+   `posters.glb` from the shipped geometry with each item's box in the node's extras, converts
+   to unlit, compresses (Meshopt; WebP for both tiers), validates it against the geometry
+   contract in `posters-geometry.mjs` (below) and publishes `posters.glb`, `posters-2k.webp` and
+   `posters-1k.webp` as `lazyFiles` (merged by name with the radio's; `room.glb` is untouched).
+   A rebuild from the same layout and masters gives a byte-identical `posters.glb`; the atlases
+   differ only by the bake's sampling noise (PSNR ≈ 45 dB at 2K and 46 dB at 1K on Metal, as with
+   the radio's skin). About 6.5 min per layout with `ROOM_BAKE_DEVICE=METAL`, most of it the
+   beauty pass (≈ 290 s) and the under pass (≈ 160 s). Those two stay one Blender process each,
+   over SPEC 5.2's two-minute guide: each is one bake call over the whole atlas, so that its
+   samples, its margin and the denoise see one image, and splitting it by island group would trade
+   that for several partial bakes into one image; run `pnpm build:posters` in the background and
+   follow its log.
 
 Individual stages can be run for iteration:
 
@@ -104,12 +140,12 @@ the square rotated rug, desktop node names and geometry budget, seven animated w
 meshes and the 48-second clip. It also checks
 both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z
 with planar UVs (the computer's flat live screen and projector UVs depend on it), removal of
-the pillow/wall posters/ceiling beams and the unchanged TV aperture position. For the radio
+the pillow/old wall posters/ceiling beams and the unchanged TV aperture position. For the radio
 it checks the lazy files' bytes and hashes, the close-up's size (≤ 80 KB), validator result,
 single 512² atlas and triangle budget, its fingerprints of the current `radio-base.glb` (a room
 rebuild without `pnpm build:radio` fails here), that the cut lid is one component spanning the
 lid and the rocker one piece, the side keys mirror each other, the lid clears the antenna through
-0–90°, and that the skin is exactly 2048² and ≤ 280 KB. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
+0–90°, and that the skin is exactly 2048² and ≤ 280 KB. For the posters it checks the lazy files' bytes and hashes, that `posters.glb` is ≤ 80 KB, validator-clean, unlit, one node of two primitives (cards, skirts) with no embedded image, ≤ 3,000 triangles, the geometry contract of `posters-geometry.mjs` (exactly the eleven topics; the layout's keep-outs, surface bounds and declared overlaps; every triangle inside its own item's box and on that item's surface, at most 30 mm off it; the decoded atlas exactly the tier's pixels), the tiers' exact sizes (2048 × 1024 ≤ 480 KB, 1024 × 512 ≤ 170 KB) and that every skirt side's outer ring decodes to the wall's own value in both tiers (each run of the side's ring, as the glb's extras list it, means ≥ 0.985 after encoding; sides a keep-out caps or a neighbouring card covers are listed by the compose stage instead). The compose stage itself fails on the tape's measured visibility. `scripts/inspect-tv-screen.mjs` provides a finer ray-cast aperture measurement.
 
 Use `pnpm e2e room.spec.ts touch.spec.ts pc-monitor.spec.ts radio-deck.spec.ts no-webgl.spec.ts` to exercise
 room/TV/computer/radio navigation, power-on, keyboard/touch input, the computer's live screen and
