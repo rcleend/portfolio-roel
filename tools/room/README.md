@@ -55,7 +55,12 @@ to `bake.py`. This is an offline authoring job.
 3. `optimize.mjs`: converts baked emissions to `KHR_materials_unlit`, compresses images
    to WebP and geometry to Meshopt with 16-bit UVs/positions, runs the glTF validator
    and asset-contract checks, then updates `public/room`, its hash manifest and the
-   generated loading-progress weights in `src/room/assets/roomAssetSizes.json`.
+   generated loading-progress weights in `src/room/assets/roomAssetSizes.json`. The radio's
+   atlas first loses the source model's brand, model and marketing lettering:
+   `debrand.mjs` lists each one as a rect in atlas UV space and refills it from the moulding
+   on either side, so one table serves the 1K atlas and the 2K skin. `debrand-base.mjs`
+   repaints an already shipped `radio-base.glb` the same way (its geometry and UVs proven
+   untouched) and leaves a clean one alone; `verify.mjs` fails on any lettering left.
 4. `build-radio.mjs` (`pnpm build:radio`, also the last step of `pnpm build:room`): the CD
    player's lazy close-up, from the restyled `ROOM_BUILD_DIR/room-source.blend` (never saved).
    `radio_closeup.py --stage skin` re-runs `bake.py`'s own preparation and unwrap for the

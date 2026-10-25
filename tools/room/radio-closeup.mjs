@@ -14,6 +14,7 @@ import { dedup, meshopt, prune, textureCompress, weld } from '@gltf-transform/fu
 import validator from 'gltf-validator';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { debrandImage } from './debrand.mjs';
 import {
   centroidY,
   encodeTriangles,
@@ -123,7 +124,10 @@ const validation = await validator.validateBytes(new Uint8Array(closeup), { uri:
 if (validation.issues.numErrors || validation.issues.numWarnings) {
   throw new Error(`${CLOSEUP_FILE}: ${JSON.stringify(validation.issues)}`);
 }
-await sharp(join(work, 'radio-skin-2k.png')).webp({ quality: 90 }).toFile(join(staging, SKIN_FILE));
+// The source model's lettering is painted out of the skin (tools/room/debrand.mjs) before it is encoded.
+await sharp(await debrandImage(sharp, join(work, 'radio-skin-2k.png')))
+  .webp({ quality: 90 })
+  .toFile(join(staging, SKIN_FILE));
 const skin = await readFile(join(staging, SKIN_FILE));
 
 // 4. Publish: the lazy files sit beside the first-load ones, which stay byte-identical.

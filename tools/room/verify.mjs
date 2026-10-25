@@ -8,6 +8,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import validator from 'gltf-validator';
 import { MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { letteringResidue, UNBRANDED } from './debrand.mjs';
 import {
   components,
   decodeTriangles,
@@ -29,6 +30,12 @@ const SKIN_SIZE = 2048;
 const SKIN_MAX_BYTES = 280_000;
 /** The open lid must never come closer than this to the antenna behind it. */
 const LID_ANTENNA_CLEARANCE = 0.003;
+
+/** The radio is unbranded: none of its atlases may carry the source model's lettering (tools/room/debrand.mjs). */
+async function assertUnbranded(image, label) {
+  const residue = await letteringResidue(sharp, image);
+  assert.ok(residue <= UNBRANDED, `${label}: brand lettering is back (residue ${residue.toFixed(1)}): see debrand.mjs`);
+}
 
 /** Asset-level regression checks for the contracts consumed by the room runtime. */
 export async function verifyRoomAssets(directory, manifest) {
@@ -58,6 +65,7 @@ export async function verifyRoomAssets(directory, manifest) {
       const [width, height] = texture.getSize();
       assert.ok(width <= 2048 && height <= 2048, `${filename}: oversized texture`);
       texturePixels += width * height;
+      if (filename === 'radio-base.glb') await assertUnbranded(texture.getImage(), filename);
     }
     for (const mesh of doc.getRoot().listMeshes()) {
       for (const primitive of mesh.listPrimitives()) {
@@ -355,6 +363,7 @@ export async function verifyRadioCloseup(directory, manifest) {
     `The opening lid comes ${(clearance * 1000).toFixed(1)} mm from the antenna`,
   );
 
+  await assertUnbranded(bytes['radio-skin-2k.webp'], 'radio-skin-2k.webp');
   const skin = await sharp(bytes['radio-skin-2k.webp']).metadata();
   assert.equal(skin.format, 'webp');
   assert.ok(skin.width === SKIN_SIZE && skin.height === SKIN_SIZE, 'radio-skin-2k.webp must be exactly 2048²');
