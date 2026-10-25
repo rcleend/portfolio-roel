@@ -99,8 +99,10 @@ interface Queued {
  * still, uploading textures before the flights that draw them) on idle time, never on a frame in
  * motion and never making a frame late while something plays (see `IdleMoment`).
  *
- * Tasks run first queued, first served, from `start()` on; while something plays, the tasks whose
- * next unit waits for a quiet moment step aside for the ones behind them.
+ * Tasks run first queued, first served, from `start()` on, except that urgent work goes ahead of the
+ * rest: a task the visitor waits on never waits behind one nobody does (the room's own uploads, which
+ * may not fit between the radio's frames for as long as its discs float). While something plays, the
+ * tasks whose next unit waits for a quiet moment step aside for the ones behind them.
  */
 export class IdleWork {
   private readonly queue: Queued[] = [];
@@ -177,11 +179,7 @@ export class IdleWork {
         // In motion only urgent work runs, and only as it may while something plays.
         const moving = moment === 'moving';
         const playing = moment !== 'quiet';
-        // While something plays or moves, a unit kept for a quiet moment waits, unless its task is urgent.
-        const next = this.queue.find((queued) => {
-          const urgent = queued.urgent?.() === true;
-          return (!playing || !queued.quiet || urgent) && (!moving || urgent);
-        });
+        const next = this.next(moving, playing);
         if (!next) {
           later = this.queue.length > 0;
           break;
@@ -198,6 +196,20 @@ export class IdleWork {
       this.schedule(later);
     }
   };
+
+  /**
+   * The first task whose next unit may run in this moment, urgent ones first: while something plays or moves, a unit
+   * kept for a quiet moment waits unless its task is urgent, and in motion only urgent work runs.
+   */
+  private next(moving: boolean, playing: boolean): Queued | undefined {
+    let first: Queued | undefined;
+    for (const queued of this.queue) {
+      const urgent = queued.urgent?.() === true;
+      if (urgent) return queued;
+      if (!first && !moving && (!playing || !queued.quiet)) first = queued;
+    }
+    return first;
+  }
 
   private outOfPatience(queued: Queued): boolean {
     const { patienceMs } = queued;

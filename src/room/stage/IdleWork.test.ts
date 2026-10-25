@@ -298,6 +298,30 @@ describe('IdleWork', () => {
       idle.idle(5);
       expect(log).toEqual(['b:1']);
     });
+
+    it('puts urgent work ahead of a task nobody waits on, even one that has not started', () => {
+      // The skin's last strip with its mipmaps, between the float's frames: the longest unit so far.
+      work.add(logging(log, 'skin', 1, 13.5), { urgent: () => true });
+      idle.idle(50);
+      // The room's own uploads, queued as the camera left the TV: never stepped, so judged by that 13.5 ms.
+      work.add(logging(log, 'room', 1, 1));
+      // The radio's prints, at the radio: urgent and patient.
+      for (const name of ['print1', 'print2', 'print3']) {
+        work.add(logging(log, name, 1, 1), { urgent: () => true, patienceMs: 400 });
+      }
+      // The discs float: 8 ms between frames, for two seconds.
+      for (let frame = 0; frame < 120; frame++) {
+        now += 16;
+        vi.advanceTimersByTime(16);
+        if (idle.waiting > 0) idle.idle(8);
+      }
+      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1']);
+      // The room's own work waits for a quiet moment that can hold it, as before.
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1', 'room:1']);
+    });
   });
 
   it('drops a cancelled task, and keeps going past one that throws', () => {
