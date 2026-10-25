@@ -24,6 +24,7 @@ import { isSlow, wantsSkin } from './deviceTier';
 import { keyShade, rockerDegrees, sideKeyTravel } from './keyMotion';
 import { Lcd } from './Lcd';
 import { blinks } from './lcdSegments';
+import { LID } from './lidMotion';
 import { MonotonicClock } from './monotonicClock';
 import { decodeSkin, fetchSkin, Skin } from './Skin';
 
@@ -52,8 +53,11 @@ export const WAITED_ON_PATIENCE_MS = 400;
 const PRINT_FADE_MS = 260;
 /** Cue stereo spread. */
 const PAN_WIDTH = 0.6;
-/** Below this lid angle (degrees) the well and the lid's underside are hidden, and a seated disc with them. */
-const SEATED_HIDDEN_BELOW_DEGREES = 0.5;
+/**
+ * Below this lid angle (degrees) the well and the lid's underside are hidden, and a seated disc with them. Above
+ * the lid's latch rebound, so a lid bouncing off its latch never shows them for a frame (the gap is under 3 mm).
+ */
+const SEATED_HIDDEN_BELOW_DEGREES = LID.reboundDegrees + 0.3;
 
 /** One unit of the room's background work that runs `work` (on its first and only step). */
 // biome-ignore lint/correctness/useYield: a single unit: the whole body is the unit's work.

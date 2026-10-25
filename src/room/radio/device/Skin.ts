@@ -110,7 +110,7 @@ export class Skin {
     if (this.#stage !== 'shown' && this.#stage !== 'uploading') return;
     this.#stop();
     if (this.#atlas) this.#show(this.#atlas);
-    this.#target?.dispose();
+    // Its GPU copy went with the old context: disposing it would ask the new one to delete a texture it never had.
     this.#target = null;
     this.#pixels = 0;
     this.#stage = this.#bytes ? 'fetched' : 'abandoned';

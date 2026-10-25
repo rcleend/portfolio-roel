@@ -281,6 +281,20 @@
   }
 }
 
+/*
+ * On a touch screen a tap on a CD is a pick, and its attention starts with the finger going down: the plate shows
+ * only under a finger that stays (about 250 ms), never as a flash under every tap.
+ */
+.radio[data-coarse="true"] .radio__caption[data-visible="true"] {
+  transition: opacity 120ms ease-out 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio[data-coarse="true"] .radio__caption[data-visible="true"] {
+    transition: opacity 0s linear 250ms;
+  }
+}
+
 @media print {
   .radio {
     display: none;
