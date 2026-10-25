@@ -4,6 +4,7 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
+import { figureHeight } from '../../art/looks/Looks';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { Button } from '../../ui/Button';
@@ -154,7 +155,8 @@ export class BriefingPanel {
     const feetY = inner.y + inner.h - 2;
     gfx.sprite(hero, 'idle', this.#time, inner.x + inner.w - 26, feetY, { flipX: true });
     if (blink(this.#time, frames(32), frames(16))) {
-      gfx.text('?', inner.x + inner.w - 40, feetY - hero.height - 12, this.#services.text.prompt);
+      // A thought mark over his head, however much empty frame the look draws around him.
+      gfx.text('?', inner.x + inner.w - 40, feetY - figureHeight(hero, 'idle') - 12, this.#services.text.prompt);
     }
   }
 }

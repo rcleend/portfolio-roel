@@ -43,3 +43,18 @@ export type SkillLooks = { readonly [K in SkillId]: SkillLook<K> };
 export function skillIcons(looks: Looks): readonly SpriteSheet<SkillIconAnimation>[] {
   return Object.values(looks.skills).map((skill) => skill.icon);
 }
+
+/**
+ * How tall a figure draws over `animation`: from its feet up to the highest
+ * `head` anchor its frames mark, else its whole frame, as in a look that fills
+ * it. Lay out around a figure by this rather than by its frame, so a look drawn
+ * smaller than its frame (the Terraria looks: classic's size in 64 × 64 frames)
+ * stands as close to its labels as classic does.
+ */
+export function figureHeight<A extends string>(sheet: SpriteSheet<A>, animation: A): number {
+  const heads = sheet.anchors(animation, 'head');
+  if (heads.length === 0) return sheet.height;
+  let top = sheet.origin.y;
+  for (const head of heads) top = Math.min(top, head.y);
+  return sheet.origin.y - top;
+}

@@ -4,6 +4,7 @@ import type { TextStyle } from '@/engine/gfx/TextStyle';
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
+import { figureHeight } from '../../art/looks/Looks';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { windowThemes } from '../../ui/theme';
@@ -100,7 +101,10 @@ export class ResultsPanel {
   /** The tally's row spacing: as roomy as classic, unless the victory pair below stands taller. */
   #rowHeight(inner: Rect, characterId: CharacterId, rows: number): number {
     const { looks } = this.#services;
-    const pairHeight = Math.max(looks.characters[characterId].sheet.height, looks.customer.sheet.height);
+    const pairHeight = Math.max(
+      figureHeight(looks.characters[characterId].sheet, 'victory'),
+      figureHeight(looks.customer.sheet, 'happy'),
+    );
     const room = victoryFloor(inner) - pairHeight - (inner.y + 3) - RECORD_SPACE;
     return Math.max(MIN_ROW_HEIGHT, Math.min(ROW_HEIGHT, Math.floor(room / rows)));
   }
