@@ -242,33 +242,41 @@ function Caption({ album, anchor, muted }: { album: Album | null; anchor: DiscAn
   // Keeps the last disc's words while fading out.
   const [shown, setShown] = useState<{ album: Album; anchor: DiscAnchor } | null>(null);
   if (album && anchor && (shown?.album !== album || shown.anchor !== anchor)) setShown({ album, anchor });
-  const visible = album !== null && anchor !== null;
-  if (!shown) return null;
-  const seconds = Math.round(shown.album.tracks.reduce((sum, track) => sum + track.seconds, 0));
-  const count = shown.album.tracks.length;
+  // The plate is in the document from the start, empty and hidden: an element inserted already visible takes its end
+  // style at once, so the first attention of a visit would skip the fade (and a finger's 250 ms hold) and flash.
   return (
     <div
       className="radio__caption radio__plate"
       aria-hidden="true"
-      data-visible={visible}
+      data-visible={album !== null && anchor !== null}
       // Under a floating disc; over the one in the player, so the radio's keys stay in sight.
-      data-above={shown.anchor.inPlayer}
-      style={
-        {
-          '--x': `${shown.anchor.x}px`,
-          '--y': `${shown.anchor.y + (shown.anchor.inPlayer ? -shown.anchor.radius - 10 : shown.anchor.radius + 10)}px`,
-        } as CSSProperties
-      }
+      data-above={shown?.anchor.inPlayer ?? false}
+      style={shown ? captionPosition(shown.anchor) : undefined}
     >
+      {shown ? <CaptionWords album={shown.album} muted={muted} /> : null}
+    </div>
+  );
+}
+
+function captionPosition(anchor: DiscAnchor): CSSProperties {
+  const gap = anchor.radius + 10;
+  return { '--x': `${anchor.x}px`, '--y': `${anchor.y + (anchor.inPlayer ? -gap : gap)}px` } as CSSProperties;
+}
+
+function CaptionWords({ album, muted }: { album: Album; muted: boolean }) {
+  const seconds = Math.round(album.tracks.reduce((sum, track) => sum + track.seconds, 0));
+  const count = album.tracks.length;
+  return (
+    <>
       <span className="radio__caption-title">
-        {shown.album.title} — {shown.album.artist}
+        {album.title} — {album.artist}
       </span>
       <span>
         {count} {count === 1 ? 'track' : 'tracks'} · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-        {shown.album.placeholder ? <span className="radio__tag">placeholder</span> : null}
+        {album.placeholder ? <span className="radio__tag">placeholder</span> : null}
         {muted ? <span className="radio__tag">Sound is off</span> : null}
       </span>
-    </div>
+    </>
   );
 }
 

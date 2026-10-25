@@ -523,6 +523,57 @@ test.describe('on a phone', () => {
     expect((await sound(page))?.paused).toBe(false);
   });
 
+  test("the visit's first tap on a CD picks it without flashing its caption", async ({ page }) => {
+    await open(page);
+    await page.touchscreen.tap(195, 90);
+    await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+    await settled(page);
+    await goToRadio(page, true);
+    // Every frame from here: the plate's opacity, and when the finger went down and came up, in the page's time.
+    await page.evaluate(() => {
+      const record = window as unknown as { __plate: [number, number][]; __finger: Record<string, number> };
+      record.__plate = [];
+      record.__finger = {};
+      const canvas = document.querySelector('canvas');
+      for (const type of ['pointerdown', 'pointerup']) {
+        canvas?.addEventListener(
+          type,
+          () => {
+            record.__finger[type] ??= performance.now();
+          },
+          { capture: true },
+        );
+      }
+      const sample = (): void => {
+        const plate = document.querySelector('.radio__caption');
+        record.__plate.push([performance.now(), plate ? Number(getComputedStyle(plate).opacity) : 0]);
+        if (record.__plate.length < 90) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    // A real finger: down for 100 ms, then up (Playwright's own tap lifts it at once).
+    const cdp = await page.context().newCDPSession(page);
+    const lowTide = await disc(page, 'low-tide');
+    const point = { x: lowTide.x, y: lowTide.y };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await waitAudible(page);
+
+    const { plate, finger } = await page.evaluate(() => {
+      const record = window as unknown as { __plate: [number, number][]; __finger: Record<string, number> };
+      return { plate: record.__plate, finger: record.__finger };
+    });
+    const down = finger.pointerdown ?? Number.NaN;
+    const up = finger.pointerup ?? Number.NaN;
+    expect(up - down).toBeGreaterThan(0);
+    // The caption shows only under a finger that stays 250 ms; one lifted sooner never shows it at all. A finger the
+    // loaded page delivered late is held for longer, so only its first 250 ms count.
+    const hold = up - down < 250 ? Number.POSITIVE_INFINITY : 250;
+    const seen = plate.filter(([time, opacity]) => time >= down && time - down < hold && opacity > 0);
+    expect(seen).toEqual([]);
+  });
+
   test.describe('held sideways', () => {
     test.use({ viewport: { width: 844, height: 390 } });
 
