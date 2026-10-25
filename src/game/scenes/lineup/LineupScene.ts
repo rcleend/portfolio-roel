@@ -1,9 +1,10 @@
 import { getCharacter } from '@/content';
+import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawParallax } from '@/engine/gfx/Parallax';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
-import { customerConceptSheet } from '../../art/looks/terraria/customer-concepts/concepts';
-import { terrariaDesignSheet } from '../../art/looks/terraria/designs';
+import { customerConceptSheet, loadCustomerConcepts } from '../../art/looks/terraria/customer-concepts/concepts';
+import { loadTerrariaDesigns, terrariaDesignSheet } from '../../art/looks/terraria/designs';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
@@ -39,6 +40,11 @@ interface Figure {
   readonly caption: string | null;
 }
 
+/** Downloads the designs and concepts the lineup stands, which the game itself never loads. */
+export async function loadLineupArt(assets: AssetStore): Promise<void> {
+  await Promise.all([loadTerrariaDesigns(assets), loadCustomerConcepts(assets)]);
+}
+
 /**
  * Development-only lineup (`?scene=lineup`): characters standing still side
  * by side at native size, each labelled under its feet, on the select
@@ -51,9 +57,9 @@ interface Figure {
  * Terraria ENGINEER, the game's customer unless `customer` names a Terraria
  * concept (art/looks/terraria/customer-concepts/), which then stands beside
  * the game's for scale too. The designs and concepts load with whoever opens
- * the scene (`preloadSceneArt`). Heroes play their idle on the scene's own
- * clock, so a design blinks as it will in the game, and customers their
- * moods; nothing else moves.
+ * the scene (`preloadSceneArt`, through `loadLineupArt`). Heroes play their
+ * idle on the scene's own clock, so a design blinks as it will in the game,
+ * and customers their moods; nothing else moves.
  */
 export class LineupScene implements GameScene<LineupParams | undefined> {
   readonly #services: GameServices;
