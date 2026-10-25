@@ -155,12 +155,12 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 
 | Metric | Budget | Measured |
 | --- | ---: | ---: |
-| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.55 kB |
+| Entry JS: the room host's lazy slot, the hotspot and the input-modality watcher, against `feat/pc-desktop` | + 0.60 kB | + 0.54 kB |
 | Entry CSS | + 0.15 kB | + 0.00 kB |
-| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.67 kB |
+| Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | + 2.5 kB (pending the captain's word: `bundle-budgets.json`) | + 2.69 kB |
 | `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.6 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 34.2, pending the captain's word: `bundle-budgets.json`) | 33.97 kB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.63 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (raised to 34.2, pending the captain's word: `bundle-budgets.json`) | 34.1 kB |
 | Placeholder audio | 5.5 MB | 4.94 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
 
@@ -169,9 +169,9 @@ Measured in the real app (development server, Chromium on an M-series Mac, the r
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
 | Pick → sound | 0.94 s | 0.93 s (a phone: 0.95 s) |
-| A keyboard pick the moment the camera lands, the disc still inside the radio | 1.41 s | |
+| A keyboard pick the moment the camera lands, the disc still inside the radio (it seats at its own climb's pace, so a later pick is heard sooner) | 1.61 s at the landing, 1.50 s 100 ms after it, 1.40 s 200 ms after it (where the e2e's Enter lands) | |
 | Long animation frames over 50 ms in the flights to and from the radio, the arrival until the discs are up, an insert and a swap | none | none |
-| The prints on the discs after an eager click (the radio clicked as soon as the camera rests in the room) | 1.25–1.35 s, before the shelf is up | |
+| The prints on the discs after an eager click (the radio clicked as soon as the camera rests in the room, the pointer moving over the discs now and then) | handed to the device at 1.10–1.15 s, on every disc by 3.0 s, as they turn over to their labels (5 of 5 runs; urgent idle work runs before the room's own) | |
 | Frames over 2 s at the computer with a disc playing | 0 | |
 | Media elements, `decodeAudioData` calls, audio contexts of the radio's own | 1, 0, 1 | |
 
