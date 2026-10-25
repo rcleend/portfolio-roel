@@ -115,8 +115,9 @@ await document.transform(
   weld(),
   dedup(),
   prune({ keepAttributes: true }),
-  textureCompress({ encoder: sharp, targetFormat: 'webp', quality: 90 }),
-  meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizeTexcoord: 16, quantizePosition: 16 }),
+  textureCompress({ encoder: sharp, targetFormat: 'webp', quality: 90, effort: 100 }),
+  // 'high' adds meshopt's filters (octahedral normals): the parts are unlit, so their normals only need to exist.
+  meshopt({ encoder: MeshoptEncoder, level: 'high', quantizeTexcoord: 16, quantizePosition: 16 }),
 );
 await io.write(join(staging, CLOSEUP_FILE), document);
 const closeup = await readFile(join(staging, CLOSEUP_FILE));
@@ -126,7 +127,7 @@ if (validation.issues.numErrors || validation.issues.numWarnings) {
 }
 // The source model's lettering is painted out of the skin (tools/room/debrand.mjs) before it is encoded.
 await sharp(await debrandImage(sharp, join(work, 'radio-skin-2k.png')))
-  .webp({ quality: 90 })
+  .webp({ quality: 90, effort: 6 })
   .toFile(join(staging, SKIN_FILE));
 const skin = await readFile(join(staging, SKIN_FILE));
 

@@ -69,15 +69,15 @@
   "lazyFiles": [
     {
       "name": "radio-closeup.glb",
-      "bytes": 65056,
-      "sha256": "d34a1466009b730deedb5140e031ef02ecc591061f2c158ed584d8492927f603",
+      "bytes": 56752,
+      "sha256": "8106c3abfa37898c6bfbf7df250c9f3b1952d9ad06f58ff02da685c724be3d50",
       "validationErrors": 0,
       "validationWarnings": 0
     },
     {
       "name": "radio-skin-2k.webp",
-      "bytes": 177046,
-      "sha256": "6d01a7f8f781087f341ab0ad7dd7fa1064697458b6107d7af9110d24d6b2c33e"
+      "bytes": 170594,
+      "sha256": "c496878c2af989c239cf07a2c7982f3904db07c140a8833a0bdd1b70d0448259"
     }
   ]
 }
