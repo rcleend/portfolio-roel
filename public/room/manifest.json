@@ -69,8 +69,8 @@
   "lazyFiles": [
     {
       "name": "radio-closeup.glb",
-      "bytes": 56028,
-      "sha256": "b4af2b754fc0f9a659ef4c5dad8c592756f4d9124a6818a43f13360808d6fc76",
+      "bytes": 65056,
+      "sha256": "d34a1466009b730deedb5140e031ef02ecc591061f2c158ed584d8492927f603",
       "validationErrors": 0,
       "validationWarnings": 0
     },

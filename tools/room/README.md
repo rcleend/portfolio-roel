@@ -69,7 +69,8 @@ to `bake.py`. This is an offline authoring job.
    `--stage closeup` splits the lid off the radio, measures the well (its floor plane, the
    rim heights, the slot), models the parts an open lid reveals (liner, turntable and nubs,
    pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens the
-   lid to 84° about its hinge, bakes them into one 512² atlas in the same lit scene, returns the
+   lid to 84° about its hinge, bakes them into one 512² atlas in the same lit scene plus a soft
+   glow from the lava lamp's side (the room's lamp only grazes the rim), returns the
    lid to its closed pose and exports `radio-closeup-raw.glb` with the measurements in
    `radio-closeup.json`. `radio-closeup.mjs` then proves the skin's UVs match the shipped
    `radio-base.glb` (≤ 2/65535; measured 0.5), finds the lid, the rocker's halves and the side

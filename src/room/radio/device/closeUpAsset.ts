@@ -20,9 +20,6 @@ import { cutTriangles, indexedBounds, type TriangleCut } from './cutParts';
  * every part has been found where it was measured.
  */
 
-/** The well's and the lid underside's linear brightness over their bake (1 = as baked). */
-export const INTERIOR_LIFT = 1.7;
-
 type Vec3 = readonly [number, number, number];
 type Bounds = readonly [Vec3, Vec3];
 
@@ -242,9 +239,6 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
   well.visible = false;
   lidInner.visible = false;
   const atlas = (well.material as MeshBasicMaterial).map ?? null;
-  // The bake lights the well as a shut box, so its liner comes out near-black; on screen the lid is open under the
-  // lamp. A small linear lift keeps the liner's ribs, the turntable and the rails readable instead of a dark void.
-  for (const mesh of [well, lidInner]) (mesh.material as MeshBasicMaterial).color.setScalar(INTERIOR_LIFT);
 
   // Everything fits: the shipped meshes give up their parts, together.
   for (const cut of cuts) cut.commit();

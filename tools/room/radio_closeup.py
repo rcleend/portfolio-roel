@@ -321,6 +321,37 @@ SLOT_HALF = 0.001
 LID_SKIN = 0.0025
 
 
+#: The room bake's lava lamp is a 10 cm point 15 cm above the radio's top and 62 cm to its left (bake.py), so its
+#: light grazes the open well and never reaches past the rim: the liner, the turntable and the lid's underside bake
+#: near-black. Its glass glows over a hand's width, though. The close-up stage alone adds that glow as a soft panel
+#: on the lamp's side, aimed at the well: the parts read as moulded plastic, lit from the lamp and falling off to the
+#: far side, at night. Nothing else is baked in this stage, so no other atlas sees it. The glass glows paler than
+#: the spill it throws on the wall, so the panel's colour is half the lamp's and half a warm white: the plastic stays
+#: grey-brown rather than turning the lamp's orange.
+LAMP = 'Lava lamp amber spill'
+GLOW_OFFSET = 0.26  # m from the well's centre, along the lamp's bearing and as far up
+GLOW_SIZE = 0.18
+GLOW_ENERGY = 1.8  # W
+GLOW_WARMTH = 0.5
+GLASS_WHITE = (1.0, 0.86, 0.72)
+
+
+def lamp_glow():
+    lamp = bpy.data.objects[LAMP]
+    centre = b((OPENING[0] + OPENING[1]) / 2, rim_height(SPINDLE_Z), (OPENING[2] + OPENING[3]) / 2)
+    bearing = lamp.matrix_world.translation - centre
+    bearing.z = 0
+    position = centre + bearing.normalized() * GLOW_OFFSET + Vector((0, 0, GLOW_OFFSET))
+    data = bpy.data.lights.new('CD well lamp glow', 'AREA')
+    data.energy, data.size = GLOW_ENERGY, GLOW_SIZE
+    data.color = [GLOW_WARMTH * own + (1 - GLOW_WARMTH) * glass for own, glass in zip(lamp.data.color, GLASS_WHITE)]
+    glow = bpy.data.objects.new(data.name, data)
+    glow.location = position
+    glow.rotation_euler = (centre - position).to_track_quat('-Z', 'Y').to_euler()
+    bpy.context.scene.collection.objects.link(glow)
+    return glow
+
+
 def rim_height(z):
     """The opening's rim, which follows the lid's slope from 1.0425 at the back to 1.081 at the front."""
     return 1.0425 + (z + 2.165) * (1.081 - 1.0425) / (2.165 - 1.936)
@@ -555,6 +586,7 @@ def stage_closeup(args, work):
     for obj in [lid, *lid_parts]:
         obj.matrix_world = opening @ obj.matrix_world
     unwrap(parts, CLOSEUP_SIZE)
+    lamp_glow()
     path = work / 'device_radio_cd.png'
     if not args.skip_bake:
         image = bpy.data.images.new('device_radio_cd_bake', width=CLOSEUP_SIZE, height=CLOSEUP_SIZE, alpha=False,
