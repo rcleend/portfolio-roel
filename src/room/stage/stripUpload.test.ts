@@ -1,18 +1,29 @@
 import { type Box2, LinearMipmapLinearFilter, SRGBColorSpace, type Texture, type Vector2 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { QUIET } from './IdleWork';
-import { allocateStripTarget, STRIP_ROWS, type StripRenderer, uploadStrips } from './stripUpload';
+import {
+  allocateStripTarget,
+  STRIP_ROWS,
+  type StripRenderer,
+  UNPACK_SUBRECT_PARAMETERS,
+  uploadStrips,
+} from './stripUpload';
 
 function fakeRenderer() {
   const copies: { rows: [number, number]; at: number; mipmaps: boolean }[] = [];
   const allocated: Texture[] = [];
+  /** three's state cache: copyTextureToTexture reads the unpack parameters from it, or from the GPU when uncached. */
+  const cache = new Map<number, number>();
+  const syncs: number[] = [];
   // As three does it: storage only for a texture marked for upload; a copy into one without storage fails.
   const renderer: StripRenderer = {
+    state: { pixelStorei: (name, value) => cache.set(name, value) },
     initTexture: (texture) => {
       if (texture.version > 0) allocated.push(texture);
     },
     copyTextureToTexture: (_source: Texture, target: Texture, region: Box2 | null, position: Vector2 | null) => {
       if (!allocated.includes(target)) throw new Error('GL_INVALID_VALUE: the target has no storage');
+      for (const name of UNPACK_SUBRECT_PARAMETERS) if (!cache.has(name)) syncs.push(name);
       copies.push({
         rows: [region?.min.y ?? -1, region?.max.y ?? -1],
         at: position?.y ?? -1,
@@ -20,7 +31,7 @@ function fakeRenderer() {
       });
     },
   };
-  return { renderer, copies, allocated };
+  return { renderer, copies, allocated, cache, syncs };
 }
 
 const image = (width: number, height: number) => ({ width, height, close: () => {} }) as unknown as ImageBitmap;
@@ -35,6 +46,14 @@ describe('stripUpload', () => {
     expect(target.minFilter).toBe(LinearMipmapLinearFilter);
     expect(target.anisotropy).toBe(4);
     expect(target.image).toMatchObject({ width: 2048, height: 1024 });
+  });
+
+  it('fills the unpack cache of three with the defaults, so no strip reads one back from the GPU', () => {
+    const { renderer, cache, syncs } = fakeRenderer();
+    const target = allocateStripTarget(renderer, 2048, 1024, 4);
+    expect([...cache.entries()]).toEqual(UNPACK_SUBRECT_PARAMETERS.map((name) => [name, 0]));
+    for (const _ of uploadStrips(renderer, image(2048, 1024), target));
+    expect(syncs).toEqual([]);
   });
 
   it('copies 1 MB strips top to bottom, one per unit, mipmaps only with the last', () => {

@@ -20,8 +20,16 @@ import { type IdleUnit, QUIET } from './IdleWork';
 /** Rows a strip uploads: 2048 × 128 × 4 B = 1 MB, about a millisecond. */
 export const STRIP_ROWS = 128;
 
+/**
+ * The unpack parameters three's `copyTextureToTexture` saves and restores around every copy (WebGL 2 names, values
+ * fixed by the spec): ROW_LENGTH, SKIP_ROWS, SKIP_PIXELS, SKIP_IMAGES, IMAGE_HEIGHT.
+ */
+export const UNPACK_SUBRECT_PARAMETERS: readonly number[] = [0x0cf2, 0x0cf3, 0x0cf4, 0x806d, 0x806e];
+
 /** What a strip upload needs of three's renderer. */
 export interface StripRenderer {
+  /** three's GL state cache (WebGLState). */
+  readonly state: { pixelStorei(name: number, value: number): void };
   initTexture(texture: Texture): void;
   copyTextureToTexture(source: Texture, target: Texture, region: Box2 | null, position: Vector2 | null): void;
 }
@@ -48,7 +56,19 @@ export function allocateStripTarget(
   // (GL_INVALID_VALUE) and whatever samples it draws black.
   target.needsUpdate = true;
   renderer.initTexture(target);
+  primeUnpackState(renderer);
   return target;
+}
+
+/**
+ * Puts the unpack parameters' WebGL 2 defaults (0) in three's state cache. three reads the current values to restore
+ * them after each copy, from the cache when it has them and otherwise with `gl.getParameter`, which waits for the GPU
+ * to finish everything queued before it: on the page's first strip, the flight's frames and the room's uploads
+ * (measured on a software GPU: 250-780 ms of main thread, in the first flight). Setting a cached value is free, and
+ * setting an uncached one is one `pixelStorei`, which waits for nothing.
+ */
+function primeUnpackState(renderer: StripRenderer): void {
+  for (const name of UNPACK_SUBRECT_PARAMETERS) renderer.state.pixelStorei(name, 0);
 }
 
 /**

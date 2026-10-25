@@ -9,6 +9,7 @@ function setup(options: { readonly fail?: 'fetch' | 'decode' } = {}) {
   // As three does it: initTexture gives a texture storage only when it is marked for upload (version > 0), and a
   // copy into a texture without storage fails (in WebGL, GL_INVALID_VALUE into whatever is bound: the radio black).
   const renderer: SkinRenderer = {
+    state: { pixelStorei: () => {} },
     initTexture: (texture) => {
       if (texture.version > 0) allocated.push(texture);
     },
