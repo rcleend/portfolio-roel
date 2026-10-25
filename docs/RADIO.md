@@ -161,7 +161,7 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 | First-load JavaScript, entry and room chunk together | + 0.60 kB | + 0.46 kB |
 | `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
 | `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.65 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (held at 33.8, pending the captain's word: `bundle-budgets.json`) | 33.75 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (held at 33.6, pending the captain's word: `bundle-budgets.json`) | 33.50 kB (33.75 before the posters moved the strip uploader and the slow-device rule into the room chunk, docs/ROOM.md › Posters) |
 | Close-up asset `radio-closeup.glb`, lazy (the well's parts and their 512 px atlas, meshopt with filters) | 80 kB | 59.1 kB |
 | `radio-skin-2k.webp`, lazy, the close-up's sharper skin (2048², unbranded) | 280 kB | 170.6 kB |
 | Placeholder audio (only the track that plays is fetched) | 5.5 MB | 4.94 MB |
