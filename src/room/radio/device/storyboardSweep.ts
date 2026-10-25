@@ -12,6 +12,13 @@ import { discsTouch } from './discContact';
  * disc, disc against the radio) or jumped (moved further than JUMP_M between two samples) on the way.
  */
 
+/**
+ * How long one sweep may take. A sweep steps the whole choreography frame by frame through hundreds of scenarios: about
+ * 1-2 s on its own, but CPU-bound, so beside the rest of the suite on a loaded machine it can take 5-10 s. Vitest's 5 s
+ * default would then fail a sweep that found nothing; this bound only catches a sweep that no longer ends.
+ */
+export const SWEEP_TIMEOUT_MS = 60_000;
+
 export const LAYOUTS = [
   { width: 1440, height: 900, bottom: 0, right: 0 },
   { width: 3440, height: 1440, bottom: 0, right: 0 },

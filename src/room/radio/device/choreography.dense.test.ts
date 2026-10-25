@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conceal, type Event, LAYOUTS, pick, sweep } from './storyboardSweep';
+import { conceal, type Event, LAYOUTS, pick, SWEEP_TIMEOUT_MS, sweep } from './storyboardSweep';
 
 /**
  * The storyboard sweep, densely, for the shipped shelf of five discs: where the leave, the swap and a change of mind
@@ -144,12 +144,16 @@ const GROUPS: readonly (readonly [string, () => Scenario[]])[] = [
 describe(`the dense storyboard sweep, ${COUNT} discs`, () => {
   for (const layout of LAYOUTS) {
     for (const [group, scenarios] of GROUPS) {
-      it(`keeps the discs apart through the ${group} at ${layout.width} × ${layout.height}`, () => {
-        const contacts = scenarios().flatMap(({ name, events, from, to }) =>
-          sweep(layout, COUNT, events, from, to).map((contact) => `${name}: ${contact}`),
-        );
-        expect(contacts.slice(0, 8)).toEqual([]);
-      });
+      it(
+        `keeps the discs apart through the ${group} at ${layout.width} × ${layout.height}`,
+        () => {
+          const contacts = scenarios().flatMap(({ name, events, from, to }) =>
+            sweep(layout, COUNT, events, from, to).map((contact) => `${name}: ${contact}`),
+          );
+          expect(contacts.slice(0, 8)).toEqual([]);
+        },
+        SWEEP_TIMEOUT_MS,
+      );
     }
   }
 });

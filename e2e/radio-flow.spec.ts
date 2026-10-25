@@ -91,11 +91,36 @@ async function pressModelKey(page: Page, key: 'play-pause' | 'stop' | 'previous'
   await page.mouse.click(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
-/** Frames the room draws over `ms` of real time. */
+/**
+ * Frames the room draws in a window of exactly `ms` of the page's own time. The window is counted frame by frame in
+ * the page, so neither the test's round trips nor a timer that fires late on a loaded machine can widen it (a tick
+ * twice a second gives at most 4 in 2 s, never the 5 a window a few ms too long can catch).
+ */
 async function framesOver(page: Page, ms: number): Promise<number> {
-  const before = (await stats(page))?.framesRendered ?? 0;
-  await page.waitForTimeout(ms);
-  return ((await stats(page))?.framesRendered ?? 0) - before;
+  return page.evaluate(
+    (length) =>
+      new Promise<number>((resolve) => {
+        const drawn = () => window.__room?.stats.framesRendered ?? 0;
+        let start: number | null = null;
+        let before = 0;
+        let last = 0;
+        // Read at every frame whose time falls in [start, start + length): what the room had drawn by then.
+        const look = (now: number) => {
+          const count = drawn();
+          if (start === null) {
+            start = now;
+            before = count;
+          } else if (now - start >= length) {
+            resolve(last - before);
+            return;
+          }
+          last = count;
+          requestAnimationFrame(look);
+        };
+        requestAnimationFrame(look);
+      }),
+    ms,
+  );
 }
 
 /** How many media elements have ever been asked to play. */

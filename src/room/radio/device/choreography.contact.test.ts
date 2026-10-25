@@ -4,7 +4,18 @@ import { discSlots } from '../discLayout';
 import { Choreography, type DiscSample } from './choreography';
 import { discsTouch } from './discContact';
 import { DISC_MOTION } from './discMotion';
-import { arrive, conceal, type Event, LAYOUTS, MARGIN, pick, radioContact, stage, sweep } from './storyboardSweep';
+import {
+  arrive,
+  conceal,
+  type Event,
+  LAYOUTS,
+  MARGIN,
+  pick,
+  radioContact,
+  SWEEP_TIMEOUT_MS,
+  stage,
+  sweep,
+} from './storyboardSweep';
 
 /**
  * The storyboard sweep: no disc ever passes through another, nor through the radio (its body outside the well, the
@@ -203,43 +214,51 @@ describe('the storyboard sweep', () => {
   });
 
   for (const layout of LAYOUTS) {
-    it(`packs up by the camera's landing (the lid by its bound) when the visitor leaves mid-pick at ${layout.width} × ${layout.height}`, () => {
-      const late: string[] = [];
-      for (const count of COUNTS) {
-        for (const { name, events, leave, swap } of leavesMidPick(count)) {
-          const { choreography, ids } = stage(layout, count);
-          const queue = [...arrive, ...events].sort((a, b) => a[0] - b[0]);
-          const landed = leave + LANDING_MS;
-          const shut = leave + shutBy(count, swap);
-          for (let t = 0; t <= shut; t += 16) {
-            while (queue.length > 0 && (queue[0]?.[0] ?? Number.POSITIVE_INFINITY) <= t) {
-              const [at, act] = queue.shift() as Event;
-              choreography.advance(at);
-              act(choreography, ids);
+    it(
+      `packs up by the camera's landing (the lid by its bound) when the visitor leaves mid-pick at ${layout.width} × ${layout.height}`,
+      () => {
+        const late: string[] = [];
+        for (const count of COUNTS) {
+          for (const { name, events, leave, swap } of leavesMidPick(count)) {
+            const { choreography, ids } = stage(layout, count);
+            const queue = [...arrive, ...events].sort((a, b) => a[0] - b[0]);
+            const landed = leave + LANDING_MS;
+            const shut = leave + shutBy(count, swap);
+            for (let t = 0; t <= shut; t += 16) {
+              while (queue.length > 0 && (queue[0]?.[0] ?? Number.POSITIVE_INFINITY) <= t) {
+                const [at, act] = queue.shift() as Event;
+                choreography.advance(at);
+                act(choreography, ids);
+              }
+              choreography.advance(t);
             }
-            choreography.advance(t);
-          }
-          // Every disc is in by the landing while the lid is shut by it; past that, by the time the lid is shut.
-          const inBy = count <= SHUT_BY_LANDING ? landed : shut;
-          const out = choreography.sample(inBy).discs.filter((disc) => disc.visible && disc.phase !== 'seated');
-          const lid = choreography.sample(shut).lid;
-          if (lid > 0 || choreography.lidDegrees(shut + 100) > 0 || out.length > 0) {
-            late.push(
-              `${count} discs, ${name}: lid ${lid.toFixed(1)}° at +${shut - leave} ms, ${out.length} disc(s) out`,
-            );
+            // Every disc is in by the landing while the lid is shut by it; past that, by the time the lid is shut.
+            const inBy = count <= SHUT_BY_LANDING ? landed : shut;
+            const out = choreography.sample(inBy).discs.filter((disc) => disc.visible && disc.phase !== 'seated');
+            const lid = choreography.sample(shut).lid;
+            if (lid > 0 || choreography.lidDegrees(shut + 100) > 0 || out.length > 0) {
+              late.push(
+                `${count} discs, ${name}: lid ${lid.toFixed(1)}° at +${shut - leave} ms, ${out.length} disc(s) out`,
+              );
+            }
           }
         }
-      }
-      expect(late).toEqual([]);
-    });
+        expect(late).toEqual([]);
+      },
+      SWEEP_TIMEOUT_MS,
+    );
 
     describe(`${layout.width} × ${layout.height}`, () => {
-      it.each(COUNTS)('keeps %i discs apart and clear of the radio in every scenario', (count) => {
-        const contacts = scenarios(count).flatMap(({ name, events, from, to }) =>
-          sweep(layout, count, events, from, to).map((contact) => `${name}: ${contact}`),
-        );
-        expect(contacts.slice(0, 8)).toEqual([]);
-      });
+      it.each(COUNTS)(
+        'keeps %i discs apart and clear of the radio in every scenario',
+        (count) => {
+          const contacts = scenarios(count).flatMap(({ name, events, from, to }) =>
+            sweep(layout, count, events, from, to).map((contact) => `${name}: ${contact}`),
+          );
+          expect(contacts.slice(0, 8)).toEqual([]);
+        },
+        SWEEP_TIMEOUT_MS,
+      );
     });
   }
 });
