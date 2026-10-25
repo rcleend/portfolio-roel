@@ -41,6 +41,13 @@ const FACINGS: readonly Facing[] = ['right', 'left'];
 /** The hero whose game sprite stands beside the designs: the one the showcase plays by default. */
 const SCALE_HERO: CharacterId = 'hackerman';
 
+/**
+ * What a scale stand is labelled: its part in the lineup, the figure as the
+ * game draws it. Not the look it wears, which is whatever the game picks: an
+ * id such as TERRARIA-REVISED is wider than the five stands of a cast leave it.
+ */
+export const SCALE_LABEL = 'IN GAME';
+
 /** Who stands in line, left to right. */
 export function standsFor(cast: Exclude<Lineup['cast'], 'customers'>): readonly Stand[] {
   if (cast === 'game') return characters.map((hero) => ({ hero: hero.id, design: null, scale: false }));

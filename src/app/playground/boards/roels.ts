@@ -15,16 +15,17 @@ export const LINEUP_BACKDROPS: readonly { readonly id: Backdrop; readonly title:
 ];
 
 /**
- * The cast the game ships, so it is today's pick, beside the Terraria designs that may replace it: the look's
- * as they are, and the revision drawn to compare with them. The look's are named "before" rather than
+ * The cast the game ships, so it is today's pick, beside the Terraria designs: the look's as they were before
+ * the revision, and the revision with the hooded ENGINEER. The look's are named "before" rather than
  * "current", which the board already says of the game's pick. Each choice's id is the lineup's cast.
  */
 const CASTS: readonly (Choice & { readonly id: Cast })[] = [
-  { id: 'game', name: 'Classic', description: 'The three heroes as the game draws them today.' },
+  { id: 'game', name: 'In game', description: 'The three heroes as the game draws them today.' },
   {
     id: 'terraria',
     name: 'Terraria · before',
-    description: 'The Terraria designs as they are before the revision, with a classic hero beside them for scale.',
+    description:
+      "The Terraria designs as they were before the revision, with the game's ENGINEER beside them for scale.",
   },
   {
     id: 'revised',
@@ -59,7 +60,7 @@ export const roelsBoard: Board = {
   id: 'roels',
   title: 'Terraria Roels',
   summary:
-    'The Terraria designs and their revision idling next to the classic heroes, on the select screen and on each stage.',
+    'The Terraria designs and their revision idling next to the heroes the game ships, on the select screen and on each stage.',
   rows: LINEUP_BACKDROPS.map(({ id, title }) => ({ subject: lineupSubject(id, title), title })),
   compares: 'cast',
   shares: [],

@@ -32,9 +32,9 @@ function animation(spec: SpriteSheetSpec, name: string): SpriteAnimationSpec {
 const seconds = (spec: SpriteAnimationSpec): number => spec.frames / spec.fps;
 
 describe('the Terraria customer', () => {
-  it('is offered as the terraria look, while the game keeps drawing the classic one', () => {
+  it('is offered as the terraria look, and is the one the game draws', () => {
     expect(lookRegistry.offer.customer).toContain('terraria');
-    expect(DEFAULT_LOOKS.customer).toBe('classic');
+    expect(DEFAULT_LOOKS.customer).toBe('terraria');
   });
 
   it('loops walk, shout, stunned and happy and plays hurt once', async () => {

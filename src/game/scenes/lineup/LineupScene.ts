@@ -1,9 +1,10 @@
 import { getCharacter } from '@/content';
+import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawParallax } from '@/engine/gfx/Parallax';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
-import { customerConceptSheet } from '../../art/looks/terraria/customer-concepts/concepts';
-import { terrariaDesignSheet } from '../../art/looks/terraria/designs';
+import { customerConceptSheet, loadCustomerConcepts } from '../../art/looks/terraria/customer-concepts/concepts';
+import { loadTerrariaDesigns, terrariaDesignSheet } from '../../art/looks/terraria/designs';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
@@ -14,7 +15,7 @@ import { classThemes } from '../character-select/classThemes';
 import { drawPlayPlane } from '../level/render/playPlane';
 import type { GameScene, GameStep, LineupParams } from '../params';
 import { arenaStage } from '../showcase/arena';
-import { customerStandsFor, customersScaleHero, standsFor, standX } from './cast';
+import { customerStandsFor, customersScaleHero, SCALE_LABEL, standsFor, standX } from './cast';
 import { type Lineup, type LineupCustomer, resolveLineup } from './params';
 
 /** Feet on the stages' ground line; the select screen's paper gets a floor line there to compare heights. */
@@ -39,6 +40,11 @@ interface Figure {
   readonly caption: string | null;
 }
 
+/** Downloads the designs and concepts the lineup stands, which the game itself never loads. */
+export async function loadLineupArt(assets: AssetStore): Promise<void> {
+  await Promise.all([loadTerrariaDesigns(assets), loadCustomerConcepts(assets)]);
+}
+
 /**
  * Development-only lineup (`?scene=lineup`): characters standing still side
  * by side at native size, each labelled under its feet, on the select
@@ -50,10 +56,12 @@ interface Figure {
  * and then mirrored to face left as the game shows it, beside the
  * Terraria ENGINEER, the game's customer unless `customer` names a Terraria
  * concept (art/looks/terraria/customer-concepts/), which then stands beside
- * the game's for scale too. The designs and concepts load with whoever opens
- * the scene (`preloadSceneArt`). Heroes play their idle on the scene's own
- * clock, so a design blinks as it will in the game, and customers their
- * moods; nothing else moves.
+ * the game's for scale too. A figure standing for scale is labelled by that
+ * part (`SCALE_LABEL`), not by the look it wears. The designs and concepts
+ * load with whoever opens the scene (`preloadSceneArt`, through
+ * `loadLineupArt`). Heroes play their
+ * idle on the scene's own clock, so a design blinks as it will in the game,
+ * and customers their moods; nothing else moves.
  */
 export class LineupScene implements GameScene<LineupParams | undefined> {
   readonly #services: GameServices;
@@ -91,11 +99,10 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
         };
       }
       const look = looks.characters[stand.hero];
-      const lookName = look.lookId.toUpperCase();
       const idle = { sheet: look.sheet, animation: 'idle', flipX: false } as const;
       return stand.scale
-        ? { ...idle, label: lookName, color: palette.steel, caption: null }
-        : { ...idle, label: hero.className, color: accent, caption: lookName };
+        ? { ...idle, label: SCALE_LABEL, color: palette.steel, caption: null }
+        : { ...idle, label: hero.className, color: accent, caption: look.lookId.toUpperCase() };
     });
   }
 
@@ -114,7 +121,7 @@ export class LineupScene implements GameScene<LineupParams | undefined> {
     const customers = customerStandsFor(customer).map((stand): Figure => {
       const sheet = stand.concept ? customerConceptSheet(assets, stand.concept) : looks.customer.sheet;
       const posed = { sheet, animation: stand.pose, flipX: stand.facing === 'left' };
-      if (stand.scale) return { ...posed, label: lookName, color: palette.steel, caption: null };
+      if (stand.scale) return { ...posed, label: SCALE_LABEL, color: palette.steel, caption: null };
       const happy = stand.pose === 'happy';
       return {
         ...posed,

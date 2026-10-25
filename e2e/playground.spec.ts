@@ -70,20 +70,19 @@ test.describe('playground', () => {
     expect(errors).toEqual([]);
   });
 
-  test('stands the Terraria designs and their revision beside the classic cast on every backdrop', async ({ page }) => {
+  test("stands the Terraria designs and their revision beside the game's cast on every backdrop", async ({ page }) => {
     const errors = trackErrors(page);
     const boards = await openPlayground(page, '?zoom=1');
     const lineups = [...new Set((boards.roels ?? []).map((key) => key.split('/')[1]))];
     expect(lineups.length).toBeGreaterThan(1);
     for (const lineup of lineups) {
       const tile = (cast: string) => `[data-board="roels"] [data-tile="roels/${lineup}/${cast}"] canvas`;
-      const [classic, terraria, revised] = [tile('game'), tile('terraria'), tile('revised')];
+      const [game, terraria, revised] = [tile('game'), tile('terraria'), tile('revised')];
       await page.locator(revised).scrollIntoViewIfNeeded();
       // Tiles out of view are not drawn, so wait for all three to have caught up before comparing.
       await expect
         .poll(
-          async () =>
-            new Set(await Promise.all([classic, terraria, revised].map((canvas) => pixels(page, canvas)))).size,
+          async () => new Set(await Promise.all([game, terraria, revised].map((canvas) => pixels(page, canvas)))).size,
         )
         .toBe(3);
     }

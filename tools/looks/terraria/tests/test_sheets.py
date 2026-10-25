@@ -21,12 +21,12 @@ ART = TOOL.parents[2] / 'src' / 'game' / 'art' / 'looks'
 if str(TOOL) not in sys.path:
     sys.path.insert(0, str(TOOL))
 
-from generate import animations  # noqa: E402
+from generate import LAYERED_MOVES, animations, layers  # noqa: E402
 from kit import revision  # noqa: E402
 from kit.art import CLOTH, Art  # noqa: E402
 from kit.body import EYES, HAIR_MOTION, HEAD  # noqa: E402
 from kit.outfits import CAP as LOOK_CAP, OUTFITS, Outfit  # noqa: E402
-from kit.pose import Pose, Stroke, strokes  # noqa: E402
+from kit.pose import Pose, Stroke, compose, strokes  # noqa: E402
 
 HEROES = ('hackerman', 'artsy', 'strategy')
 
@@ -173,6 +173,59 @@ class Poses(unittest.TestCase):
                 mx, my = frame.anchors['mouth']
                 self.assertTrue(cork, f'{where} has no cork')
                 self.assertLessEqual(min(max(abs(x - mx), abs(y - my)) for x, y in cork), 2, where)
+
+
+def over(*layers: Image.Image) -> Image.Image:
+    """The layers painted bottom first, as the game draws a hero acting on the move."""
+    picture = Image.new('RGBA', layers[0].size, (0, 0, 0, 0))
+    for layer in layers:
+        picture.alpha_composite(layer)
+    return picture
+
+
+class Layers(unittest.TestCase):
+    """The legs of every move a hero attacks or casts on, and the upper body of every attack and skill pose."""
+
+    def test_every_action_drawn_over_its_own_legs_is_the_whole_pose(self) -> None:
+        # So the split loses nothing, and the far arm, painted behind the legs in the whole pose and over them
+        # when split, never crosses them.
+        for sheet in SHEETS:
+            outfit = sheet.outfit
+            for animation in (animation for animation, layer in layers(sheet.hero) if layer == 'upper'):
+                for index, frame in enumerate(animation.frames):
+                    where = f'{sheet.folder} {animation.name}[{index}]'
+                    split = over(compose(outfit, frame.pose, where, 'legs'), compose(outfit, frame.pose, where, 'upper'))
+                    self.assertEqual(split.tobytes(), compose(outfit, frame.pose, where).tobytes(), where)
+
+    def test_the_rows_play_in_step_with_the_moves_and_poses_they_split(self) -> None:
+        for sheet in SHEETS:
+            _, meta = load(sheet.folder, 'sheet')
+            rows = {animation['name']: animation for animation in meta['animations']}
+            for animation, layer in layers(sheet.hero):
+                split, whole = rows[f'{animation.name}-{layer}'], rows[animation.name]
+                where = f"{sheet.folder} {split['name']}"
+                self.assertEqual((split['frames'], split['fps'], split['loop']),
+                                 (whole['frames'], whole['fps'], whole['loop']), where)
+                # The game reads the pose's anchors off its upper body, and nothing off the legs.
+                self.assertEqual(split.get('anchors', {}), whole['anchors'] if layer == 'upper' else {}, where)
+            names = {name for name in rows if name.endswith(('-legs', '-upper'))}
+            self.assertEqual(names, {f'{animation.name}-{layer}' for animation, layer in layers(sheet.hero)},
+                             sheet.folder)
+
+    def test_every_attack_and_skill_on_the_move_is_one_figure(self) -> None:
+        # Whatever stride or jump the legs are in, the torso meets them.
+        for sheet in SHEETS:
+            image, meta = load(sheet.folder, 'sheet')
+            legs = [(name, picture) for name in (f'{move}-legs' for move in LAYERED_MOVES)
+                    for picture in frames(image, meta, name)]
+            for animation in meta['animations']:
+                if not animation['name'].endswith('-upper'):
+                    continue
+                for index, upper in enumerate(frames(image, meta, animation['name'])):
+                    for name, picture in legs:
+                        sizes = sorted(len(part) for part in figures(over(picture, upper)))
+                        self.assertTrue(all(size <= LIGHT for size in sizes[:-1]),
+                                        f"{sheet.folder} {animation['name']}[{index}] over {name} splits: {sizes}")
 
 
 def every_frame(sheet: Sheet):

@@ -1,14 +1,12 @@
 import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { SceneFactories } from '@/engine/core/Director';
-import { loadCustomerConcepts } from '../art/looks/terraria/customer-concepts/concepts';
-import { loadTerrariaDesigns } from '../art/looks/terraria/designs';
 import type { Action } from '../input/bindings';
 import type { GameServices } from '../services';
 import { BootScene } from './boot/BootScene';
 import { CharacterSelectScene } from './character-select/CharacterSelectScene';
 import { LevelScene } from './level/LevelScene';
 import { LevelSelectScene } from './level-select/LevelSelectScene';
-import { LineupScene } from './lineup/LineupScene';
+import type { LineupScene } from './lineup/LineupScene';
 import type { GameSceneMap, SceneId } from './params';
 import { ShowcaseScene } from './showcase/ShowcaseScene';
 import { SpecimenScene } from './specimen/SpecimenScene';
@@ -33,7 +31,7 @@ export function createSceneFactories(services: () => GameServices): SceneFactori
     stageClear: () => new StageClearScene(services()),
     specimen: () => new SpecimenScene(services()),
     showcase: () => new ShowcaseScene(services()),
-    lineup: () => new LineupScene(services()),
+    lineup: () => new (lineupScene())(services()),
   };
 }
 
@@ -55,10 +53,25 @@ export function isSceneId(value: unknown): value is SceneId {
 }
 
 /**
- * Downloads art a development scene draws that the game itself never loads,
- * so the scene can read it synchronously: the harness awaits this before
- * opening the scene it is asked for.
+ * The lineup, once `preloadSceneArt` has fetched it. It stands designs the
+ * game never draws, so it and their art stay out of the visitor's download
+ * (docs/ARCHITECTURE.md › Looks).
+ */
+let lineup: typeof LineupScene | null = null;
+
+function lineupScene(): typeof LineupScene {
+  if (!lineup) throw new Error('The lineup is a development scene: await preloadSceneArt("lineup") before opening it');
+  return lineup;
+}
+
+/**
+ * Downloads a development scene the game itself never opens, and the art it
+ * draws, so the scene can read it synchronously: the harness and the
+ * playground await this before opening it.
  */
 export async function preloadSceneArt(id: SceneId, assets: AssetStore): Promise<void> {
-  if (id === 'lineup') await Promise.all([loadTerrariaDesigns(assets), loadCustomerConcepts(assets)]);
+  if (id !== 'lineup') return;
+  const module = await import('./lineup/LineupScene');
+  await module.loadLineupArt(assets);
+  lineup = module.LineupScene;
 }

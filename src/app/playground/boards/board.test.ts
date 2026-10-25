@@ -128,7 +128,7 @@ describe('the looks boards', () => {
 });
 
 describe('the Terraria Roels board', () => {
-  it('stands the classic cast, marked current, beside the Terraria designs and their revision on every backdrop', () => {
+  it('stands the cast the game ships, marked current, beside the Terraria designs and their revision on every backdrop', () => {
     const rows = boardRows(roelsBoard, {});
     expect(rows.map(({ row }) => row.title)).toEqual(['MENU BLUEPRINT', ...levels.map((level) => level.city)]);
     for (const { tiles } of rows) {

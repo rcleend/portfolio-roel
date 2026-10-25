@@ -33,8 +33,16 @@ export function LoadingScreen({ progress, failed, leaving, onLeft }: LoadingScre
     if (!canvas) return;
     const art = new LoadingArt(canvas);
     artRef.current = art;
-    // Reduced motion: a still frame, redrawn by the progress effect below.
-    if (reducedMotion) return;
+    if (reducedMotion) {
+      // A still frame, redrawn by the progress effect below, and once more when the characters have decoded.
+      let mounted = true;
+      void art.ready.then(() => {
+        if (mounted) art.draw(0, progressRef.current, failed);
+      });
+      return () => {
+        mounted = false;
+      };
+    }
     let handle = 0;
     const start = performance.now();
     const frame = (now: number): void => {

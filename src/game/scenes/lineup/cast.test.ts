@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { characters } from '@/content';
 import { CUSTOMER_CONCEPTS } from '../../art/looks/terraria/customer-concepts/concepts';
 import { REVISED_TERRARIA_DESIGNS, TERRARIA_DESIGNS } from '../../art/looks/terraria/designs';
-import { customerStandsFor, customersScaleHero, standsFor, standX } from './cast';
+import { customerStandsFor, customersScaleHero, SCALE_LABEL, standsFor, standX } from './cast';
 
 describe('the lineup cast', () => {
   it('stands every Terraria design beside one hero as the game draws them, for scale', () => {
@@ -49,6 +49,12 @@ describe('the lineup cast', () => {
       ]);
     },
   );
+
+  it('labels a scale stand no longer than the class names the stands beside it carry', () => {
+    // The five-stand casts leave a label 64 px; a look id such as TERRARIA-REVISED ran into its neighbours.
+    const longest = Math.max(...characters.map((hero) => hero.className.length));
+    expect(SCALE_LABEL.length).toBeLessThanOrEqual(longest);
+  });
 
   it('spreads the stands evenly across the screen', () => {
     expect([0, 1, 2, 3, 4].map((index) => standX(index, 5, 320))).toEqual([32, 96, 160, 224, 288]);

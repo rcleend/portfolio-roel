@@ -139,7 +139,11 @@ test('opens the Terraria lineup and draws every design crisply, no taller than t
     const { DEFAULT_LOOKS } = (await import(selectionPath)) as typeof SelectionModule;
     const { AssetStore } = (await import(storePath)) as typeof AssetsModule;
     const assets = new AssetStore();
-    const [, looks] = await Promise.all([loadTerrariaDesigns(assets), loadLooks(DEFAULT_LOOKS, assets)]);
+    const classicHeroes = { hackerman: 'classic', artsy: 'classic', strategy: 'classic' } as const;
+    const [, looks] = await Promise.all([
+      loadTerrariaDesigns(assets),
+      loadLooks({ ...DEFAULT_LOOKS, characters: classicHeroes }, assets),
+    ]);
 
     /** The standing frame's drawn rows and whether any pixel is half see-through. */
     const measure = (sheet: SpriteSheet) => {

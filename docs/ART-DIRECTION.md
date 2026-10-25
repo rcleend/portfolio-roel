@@ -120,6 +120,14 @@ Every product engineer's dream chart on a 1996 phosphor metrics terminal: a hock
 - Reduced motion: no impact frame, rays, flare or overload; the glass brightens in steps, the grid lights without stuttering, the rocket eases instead of accelerating, a few pieces drift down without spinning, the cursor and the live dot hold steady and the tape scrolls at half speed.
 - Wit: the curve is the startup curve (wiggles of false hope, the trough of sorrow, then the hockey stick), the line goes through the 100 % ceiling, the readout says "LEENDERS CORP · Q4 1996" like the copyright, and the ticker quotes the CV's real metrics straight from the content, with what went down (churn, unhappy customers) in cool cyan.
 
+## Characters
+
+The heroes and the Unhappy Customer are Terraria players (docs/LOOKS.md › The Terraria look): 30 px tall at native size, every frame composed from one shared set of hand-placed parts and posed a drawing per limb, as Terraria poses its player. The heroes wear the look's revision (swept hair that moves a frame behind the body, flat glasses); the customer is the man on the phone. The skills keep the classic look's icons and effects.
+
+- A prop exists only while it is used: the ENGINEER's keyboard, the DESIGNER's Stratocaster and potion, the STRATEGIST's star.
+- Attacks and skills work on the move the Terraria way: running, jumping or falling, the legs keep the move while the arms swing the item, so a prop shows whenever the hero uses it.
+- Whatever the game draws around a character lands on the art: complaint bubbles leave from the customer's mouth, shots from the hero's hand, the frustration meter over the head, at the escalated customer's 2× too.
+
 ## Character select
 
 Layout follows a classic RPG select (portrait card left, details right) but rendered as Neo Geo pixel UI:

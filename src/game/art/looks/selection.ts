@@ -9,16 +9,17 @@ export interface LookSelection {
 }
 
 /**
- * The looks the game ships with. Promoting one of the captain's picks is a
- * one-line change here.
+ * The looks the game ships with: the revised Terraria heroes, the Terraria
+ * customer and classic's skills. Promoting another of the captain's picks is
+ * a one-line change here; only the looks named here are downloaded.
  */
 export const DEFAULT_LOOKS: LookSelection = {
   characters: {
-    hackerman: 'classic',
-    artsy: 'classic',
-    strategy: 'classic',
+    hackerman: 'terraria-revised',
+    artsy: 'terraria-revised',
+    strategy: 'terraria-revised',
   },
-  customer: 'classic',
+  customer: 'terraria',
   skills: {
     'full-stack-attack': 'classic',
     'agent-summon': 'classic',

@@ -8,12 +8,12 @@ import type { Timeline } from './timeline';
 
 type Backdrop = NonNullable<LineupParams['backdrop']>;
 
-/** The customer the game ships, so it is today's pick, beside the Terraria concepts that may replace it. */
+/** The customer the game ships, so it is today's pick, beside the Terraria concepts it was chosen from. */
 const CUSTOMER: Picker = {
   id: 'customer',
   label: 'Customer',
   choices: [
-    { id: 'game', name: 'Classic', description: 'The Unhappy Customer as the game draws it today.' },
+    { id: 'game', name: 'In game', description: 'The Unhappy Customer as the game draws it today.' },
     ...CUSTOMER_CONCEPTS.map(({ id, name, description }) => ({ id, name, description })),
   ],
   current: 'game',
@@ -45,7 +45,7 @@ export const customersBoard: Board = {
   id: 'customers-terraria',
   title: 'Terraria customers',
   summary:
-    'Three Terraria concepts for the Unhappy Customer, shouting and won over, each facing right and then left as the game mirrors it, beside a Terraria hero and the classic customer, on the select screen and on each stage.',
+    "Three Terraria concepts for the Unhappy Customer, shouting and won over, each facing right and then left as the game mirrors it, beside a Terraria hero and the game's customer, on the select screen and on each stage.",
   rows: LINEUP_BACKDROPS.map(({ id, title }) => ({ subject: customersSubject(id, title), title })),
   compares: 'customer',
   shares: [],
