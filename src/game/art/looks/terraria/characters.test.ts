@@ -47,9 +47,12 @@ function animation(spec: SpriteSheetSpec, name: string): SpriteAnimationSpec {
 
 const seconds = (spec: SpriteAnimationSpec): number => spec.frames / spec.fps;
 
-/** `skill` and every skill the hero poses his own way (`skill-<skillId>`), each played for one cast. */
+/** `skill` and every skill the hero poses his own way (`skill-<skillId>`), each played for one cast, and their upper bodies. */
 const skillPoses = (spec: SpriteSheetSpec): SpriteAnimationSpec[] =>
   spec.animations.filter((candidate) => candidate.name === 'skill' || candidate.name.startsWith('skill-'));
+
+/** The row a layer splits, or the row itself if it is whole. */
+const whole = (name: string): string => name.replace(/-(legs|upper)$/, '');
 
 /** Every hero each Terraria look draws: all three, or the ENGINEER alone with his hood up. */
 const drawn = TERRARIA_LOOKS.flatMap((look) =>
@@ -84,7 +87,7 @@ describe('the Terraria looks', () => {
 describe.each(drawn)('the %s %s', (look, hero) => {
   it('loops idle, run, fall and victory and plays the rest once', async () => {
     const { sheet } = await sheets(look, hero);
-    for (const spec of sheet.animations) expect(spec.loop, spec.name).toBe(LOOPING.includes(spec.name));
+    for (const spec of sheet.animations) expect(spec.loop, spec.name).toBe(LOOPING.includes(whole(spec.name)));
   });
 
   it('attacks for exactly one cooldown, and skills and hurts for as long as the game holds them', async () => {
@@ -104,9 +107,11 @@ describe.each(drawn)('the %s %s', (look, hero) => {
     }
   });
 
-  it('marks the top of his head on every frame, drawn smaller than his frame as he is', async () => {
+  it('marks the top of his head on every frame he is drawn whole or from the waist up, drawn smaller than his frame', async () => {
     const { sheet } = await sheets(look, hero);
-    for (const spec of sheet.animations) expect(spec.anchors.head, spec.name).toHaveLength(spec.frames);
+    for (const spec of sheet.animations) {
+      expect(spec.anchors.head ?? [], spec.name).toHaveLength(spec.name.endsWith('-legs') ? 0 : spec.frames);
+    }
     // About classic's 31 px above the feet: the HUD and the skills that clear the head need it.
     const [crown] = animation(sheet, 'idle').anchors.head ?? [];
     expect(sheet.origin.y - (crown?.y ?? 0)).toBeLessThanOrEqual(32);
@@ -123,8 +128,22 @@ describe.each(drawn)('the %s %s', (look, hero) => {
 
   it('poses UX ELIXIR its own way for the DESIGNER, who drinks it, and shares one pose for every other skill', async () => {
     const { sheet } = await sheets(look, hero);
-    const own = sheet.animations.map((spec) => spec.name).filter((name) => name.startsWith('skill-'));
-    expect(own).toEqual(hero === 'artsy' ? ['skill-ux-elixir'] : []);
+    const own = sheet.animations.map((spec) => whole(spec.name)).filter((name) => name.startsWith('skill-'));
+    expect(new Set(own)).toEqual(new Set(hero === 'artsy' ? ['skill-ux-elixir'] : []));
+  });
+
+  it('keeps the legs of a run, a jump or a fall under every attack and skill pose, the Terraria way', async () => {
+    const { sheet } = await sheets(look, hero);
+    const names = sheet.animations.map((spec) => spec.name);
+    const poses = names.filter(
+      (name) => name === 'attack' || name === 'skill' || /^skill-[a-z-]+(?<!-upper)$/.test(name),
+    );
+    expect(names.filter((name) => name !== whole(name))).toEqual([
+      'run-legs',
+      'jump-legs',
+      'fall-legs',
+      ...poses.map((pose) => `${pose}-upper`),
+    ]);
   });
 
   it('draws a projectile and an impact for spriteAttack, and its variants', async () => {

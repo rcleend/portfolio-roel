@@ -48,8 +48,18 @@ def near_arm(outfit: Outfit, name: str) -> Arm:
     return Arm(outfit.hang, (10, 30)) if name == 'hang' else NEAR_ARMS[name]
 
 
-def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
-    """The figure's drawings in painting order, each dyed and moved into place."""
+# The parts of the figure a sheet drawn in layers splits it into (docs/LOOKS.md): 'whole', or its 'legs' alone, or
+# the 'upper' body, everything else, which the game draws over the legs of whatever move the hero is making.
+LAYERS = ('whole', 'legs', 'upper')
+
+
+def strokes(outfit: Outfit, pose: Pose, where: str, layer: str = 'whole') -> List[Stroke]:
+    """The figure's drawings in painting order, each dyed and moved into place: all of them, or one layer's.
+
+    Split, the far arm, which Terraria draws behind the legs, goes with the upper body, which is drawn over them;
+    the tests hold every action to looking the same either way, so that never shows."""
+    if layer not in LAYERS:
+        raise ValueError(f'{where}: no layer {layer!r} (expected one of {LAYERS})')
     body = (pose.body[0], pose.body[1] - pose.lift)
     ground = (0, -pose.lift)
     top = Dye(outfit.top)
@@ -62,6 +72,9 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
     for hip in HIPS:
         check_joint(legs, hip, f'{where}: legs {pose.legs}')
 
+    legs_stroke = Stroke(legs, Dye(outfit.legs, outfit.shoes), ground)
+    if layer == 'legs':
+        return [legs_stroke]
     front = [Stroke(part, dye, body) for part, dye in outfit.front]
 
     def props(layer: str) -> List[Stroke]:
@@ -69,7 +82,7 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
 
     return [
         Stroke(far.art, top, body),
-        Stroke(legs, Dye(outfit.legs, outfit.shoes), ground),
+        *((legs_stroke,) if layer == 'whole' else ()),
         *(Stroke(part, dye, body) for part, dye in outfit.torso),
         Stroke(HEAD, Dye(), body),
         Stroke(outfit.hair[pose.hair], Dye(), body),
@@ -86,8 +99,8 @@ def strokes(outfit: Outfit, pose: Pose, where: str) -> List[Stroke]:
     ]
 
 
-def compose(outfit: Outfit, pose: Pose, where: str) -> Image.Image:
-    return paint(strokes(outfit, pose, where), where)
+def compose(outfit: Outfit, pose: Pose, where: str, layer: str = 'whole') -> Image.Image:
+    return paint(strokes(outfit, pose, where, layer), where)
 
 
 def hand(outfit: Outfit, pose: Pose) -> Point:

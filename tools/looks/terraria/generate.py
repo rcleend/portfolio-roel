@@ -7,7 +7,8 @@
 Every frame is composed from the hand-placed parts in kit/ (body.py, outfits.py, limbs.py, props.py), posed
 the way Terraria poses its player (pose.py, moves.py, heroes.py), so no frame is ever drawn twice by hand
 and the head is the same pixels in all of them. Writes, per hero, characters/<hero>/sheet.png + .json (the
-eight hero animations and any skill he poses his own way, 64 x 64 frames, feet on the bottom-centre origin)
+eight hero animations, any skill he poses his own way and their layers, 64 x 64 frames, feet on the bottom-centre
+origin)
 and attack.png + .json (its projectile, impact and muzzle strip), both as docs/LOOKS.md describes them, in
 looks/terraria/. Beside it the revision's looks (kit/revision.py), terraria-revised and terraria-hooded, get
 characters/<hero>/sheet.png + .json, the same moves in the revision's head; their attack is the look's own.
@@ -38,6 +39,10 @@ from kit.pose import carried, compose, grounded  # noqa: E402
 from kit.sheet import Strip, pack  # noqa: E402
 
 HERO_ANIMATIONS = ('idle', 'run', 'jump', 'fall', 'attack', 'skill', 'hurt', 'victory')
+# The moves whose legs the hero keeps while he attacks or casts, as Terraria keeps a walking or airborne
+# player's legs and swings the item with the arms: each is split into `<move>-legs`, and every attack and skill
+# pose into `<pose>-upper`, which the game draws over them (docs/LOOKS.md).
+LAYERED_MOVES = ('run', 'jump', 'fall')
 
 
 def animations(hero: str) -> List[Animation]:
@@ -54,14 +59,26 @@ def animations(hero: str) -> List[Animation]:
     return shared + own
 
 
-def strip(design: str, outfit: Outfit, animation: Animation) -> Strip:
-    """`animation` worn in `outfit`; `design` names the sheet in errors."""
+def layers(hero: str) -> List[Tuple[Animation, str]]:
+    """The split rows after the whole-figure ones: each layered move's legs, then every action's upper body."""
+    moves = {move.name: move for move in animations(hero)}
+    actions = [move for move in moves.values() if move.name == 'attack' or move.name.startswith('skill')]
+    return [(moves[name], 'legs') for name in LAYERED_MOVES] + [(move, 'upper') for move in actions]
+
+
+def strip(design: str, outfit: Outfit, animation: Animation, layer: str = 'whole') -> Strip:
+    """`animation` worn in `outfit`, or one `layer` of it as `<name>-<layer>`; `design` names the sheet in errors."""
+    row = animation.name if layer == 'whole' else f'{animation.name}-{layer}'
     pictures = []
     for index, frame in enumerate(animation.frames):
-        where = f'{design} {animation.name}[{index}]'
-        picture = compose(outfit, frame.pose, where)
-        check_feet(picture, frame.pose, where)
+        where = f'{design} {row}[{index}]'
+        picture = compose(outfit, frame.pose, where, layer)
+        if layer != 'upper':
+            check_feet(picture, frame.pose, where)
         pictures.append(picture)
+    if layer == 'legs':
+        # The legs mark nothing: the game reads every anchor off the pose drawn over them.
+        return Strip(row, animation.fps, animation.loop, tuple(pictures), {})
     names = sorted({name for frame in animation.frames for name in frame.anchors})
     anchors = {}
     for name in names:
@@ -71,7 +88,7 @@ def strip(design: str, outfit: Outfit, animation: Animation) -> Strip:
         anchors[name] = tuple(to_frame(frame.anchors[name]) for frame in animation.frames)
     # Every frame marks the top of his head, since the hero is drawn smaller than his frame (docs/LOOKS.md).
     anchors['head'] = tuple(to_frame(carried(CROWN, frame.pose)) for frame in animation.frames)
-    return Strip(animation.name, animation.fps, animation.loop, tuple(pictures), anchors)
+    return Strip(row, animation.fps, animation.loop, tuple(pictures), anchors)
 
 
 def check_feet(picture, pose, where: str) -> None:
@@ -82,8 +99,10 @@ def check_feet(picture, pose, where: str) -> None:
 
 
 def sheet(design: str, hero: str, outfit: Outfit) -> Tuple[bytes, bytes]:
-    """The PNG and JSON of the sheet at `design`: every animation of `hero`, worn in `outfit`."""
-    return pack([strip(design, outfit, animation) for animation in animations(hero)], FRAME, ORIGIN)
+    """The PNG and JSON of the sheet at `design`: every animation of `hero`, worn in `outfit`, then its layers."""
+    whole = [strip(design, outfit, animation) for animation in animations(hero)]
+    split = [strip(design, outfit, animation, layer) for animation, layer in layers(hero)]
+    return pack(whole + split, FRAME, ORIGIN)
 
 
 def outputs() -> Dict[str, bytes]:
