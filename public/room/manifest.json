@@ -2,7 +2,7 @@
   "generatedBy": "tools/room/optimize.mjs",
   "sourceRevision": 6,
   "artDirection": "After hours — crafted miniature",
-  "totalBytes": 6971710,
+  "totalBytes": 6968629,
   "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
   "atlases": {
     "01_TV_surfaces": 2048,
@@ -46,8 +46,8 @@
     {
       "name": "radio-base.glb",
       "source": "radio-raw.glb",
-      "bytes": 881828,
-      "sha256": "2454bf03d2546375914aefcf6a0df0ab4f4a9f21de9dd8e1cc96787cc9d2d086",
+      "bytes": 878532,
+      "sha256": "3e1db9236e51086af5c5266377034c784ab799707f4b4a99de59b536f6a3f0f6",
       "validationErrors": 0,
       "validationWarnings": 0
     },
@@ -62,22 +62,22 @@
     {
       "name": "CREDITS.txt",
       "source": "Retained source attribution + revision 6 modifications",
-      "bytes": 11882,
-      "sha256": "c6db36a9854001275bf927bdb676354e1998d16ff8e04452a7278057e67c9911"
+      "bytes": 12097,
+      "sha256": "989f4cab2bd0022aba76db687299259c51c6e83e2354080de9a19147d3f11d7c"
     }
   ],
   "lazyFiles": [
     {
       "name": "radio-closeup.glb",
-      "bytes": 56028,
-      "sha256": "b4af2b754fc0f9a659ef4c5dad8c592756f4d9124a6818a43f13360808d6fc76",
+      "bytes": 59132,
+      "sha256": "0b2d9353bb183f5ae8936bb9e6d9531664a1ffccc73b0800535e8dc68bd30c71",
       "validationErrors": 0,
       "validationWarnings": 0
     },
     {
       "name": "radio-skin-2k.webp",
-      "bytes": 178820,
-      "sha256": "d2245a0a12908ab551ddc1d4910c4e6766434f0ef239f49d6f16862dcde61ca6"
+      "bytes": 170594,
+      "sha256": "c496878c2af989c239cf07a2c7982f3904db07c140a8833a0bdd1b70d0448259"
     },
     {
       "name": "posters.glb",

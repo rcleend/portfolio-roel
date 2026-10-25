@@ -78,7 +78,10 @@ async function untilDiscsUp(page: Page): Promise<void> {
 
 /** Where a disc of the shelf is on the page at the radio (its floating slot, or the seat). */
 async function disc(page: Page, id: string) {
-  const found = await page.evaluate((name) => window.__room?.radio.deck?.layout.discs.find((d) => d.disc === name), id);
+  const find = () => page.evaluate((name) => window.__room?.radio.deck?.layout.discs.find((d) => d.disc === name), id);
+  // On a loaded machine the lid can reach its angle before the device has published the discs' places.
+  await expect.poll(async () => (await find()) !== undefined, { message: `No disc ${id} at the radio` }).toBe(true);
+  const found = await find();
   if (!found) throw new Error(`No disc ${id} at the radio`);
   return found;
 }

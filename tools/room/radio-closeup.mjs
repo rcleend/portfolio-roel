@@ -14,6 +14,7 @@ import { dedup, meshopt, prune, textureCompress, weld } from '@gltf-transform/fu
 import validator from 'gltf-validator';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { debrandImage } from './debrand.mjs';
 import {
   centroidY,
   encodeTriangles,
@@ -24,6 +25,8 @@ import {
   triangleBounds,
   uvIdentity,
   uvSha256,
+  WELL_FLOOR,
+  wellFloorTriangles,
 } from './radio-geometry.mjs';
 import { verifyRadioCloseup } from './verify.mjs';
 
@@ -63,13 +66,20 @@ for (const material of document.getRoot().listMaterials()) {
   material.setExtension('KHR_materials_unlit', unlit.createUnlit());
 }
 
-// 3. Which base triangles are the lid and the keys. The rocker splits at its pivot: ▷II above, ■ below.
+// 3. Which base triangles are the lid and the keys (the rocker splits at its pivot: ▷II above, ■ below), and the
+//    tub floor the liner covers (WELL_FLOOR).
 const measured = JSON.parse(await readFile(join(work, 'radio-closeup.json'), 'utf8'));
 const meshByName = new Map(base.map((mesh) => [mesh.name, mesh]));
-const part = (name, triangles) => {
-  const mesh = meshByName.get(RADIO_PARTS[name === 'rockerTop' || name === 'rockerBottom' ? 'rocker' : name].mesh);
-  return { mesh: mesh.name, ...encodeTriangles(triangles), bounds: triangleBounds(mesh, triangles) };
-};
+const part = (
+  name,
+  triangles,
+  mesh = meshByName.get(RADIO_PARTS[name.startsWith('rocker') ? 'rocker' : name].mesh),
+) => ({
+  mesh: mesh.name,
+  ...encodeTriangles(triangles),
+  bounds: triangleBounds(mesh, triangles),
+});
+const bodyMesh = meshByName.get(WELL_FLOOR.mesh);
 const component = (name) => findComponent(meshByName.get(RADIO_PARTS[name].mesh), RADIO_PARTS[name].bounds);
 const rocker = component('rocker');
 const rockerMesh = meshByName.get(RADIO_PARTS.rocker.mesh);
@@ -86,6 +96,7 @@ const parts = {
   ),
   previous: part('previous', component('previous').triangles),
   next: part('next', component('next').triangles),
+  wellFloor: part('wellFloor', wellFloorTriangles(bodyMesh, measured.well), bodyMesh),
 };
 
 const scene = document.getRoot().getDefaultScene() ?? document.getRoot().listScenes()[0];
@@ -114,8 +125,9 @@ await document.transform(
   weld(),
   dedup(),
   prune({ keepAttributes: true }),
-  textureCompress({ encoder: sharp, targetFormat: 'webp', quality: 90 }),
-  meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizeTexcoord: 16, quantizePosition: 16 }),
+  textureCompress({ encoder: sharp, targetFormat: 'webp', quality: 90, effort: 100 }),
+  // 'high' adds meshopt's filters (octahedral normals): the parts are unlit, so their normals only need to exist.
+  meshopt({ encoder: MeshoptEncoder, level: 'high', quantizeTexcoord: 16, quantizePosition: 16 }),
 );
 await io.write(join(staging, CLOSEUP_FILE), document);
 const closeup = await readFile(join(staging, CLOSEUP_FILE));
@@ -123,7 +135,10 @@ const validation = await validator.validateBytes(new Uint8Array(closeup), { uri:
 if (validation.issues.numErrors || validation.issues.numWarnings) {
   throw new Error(`${CLOSEUP_FILE}: ${JSON.stringify(validation.issues)}`);
 }
-await sharp(join(work, 'radio-skin-2k.png')).webp({ quality: 90 }).toFile(join(staging, SKIN_FILE));
+// The source model's lettering is painted out of the skin (tools/room/debrand.mjs) before it is encoded.
+await sharp(await debrandImage(sharp, join(work, 'radio-skin-2k.png')))
+  .webp({ quality: 90, effort: 6 })
+  .toFile(join(staging, SKIN_FILE));
 const skin = await readFile(join(staging, SKIN_FILE));
 
 // 4. Publish: the lazy files sit beside the first-load ones, which stay byte-identical.

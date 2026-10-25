@@ -104,22 +104,28 @@ shadow maps or a postprocessing stack for that appearance.
   disks are removed. The existing screen mapping and desk interaction are preserved.
   One shared 2K PC atlas preserves keycap and curved-mouse detail in the close-up.
 - **CD player:** clicking the radio, its cabinet or the lava lamp sits the camera over the
-  CFD-V31L at a 24° pitch; its lid opens and the collection rises out of the disc slot.
+  boombox at a 24° pitch; its lid opens and the collection rises out of the disc slot.
+  The boombox carries no brand: the source model's maker and model lettering and its
+  marketing marks are painted out of every atlas from the moulding beside them, while the
+  function labels (band, function, tone, the dial, the tape keys) stay.
   What an open lid reveals did not exist in the source model, so the lid underside (ribs,
   clamp puck, latch hook), hinge barrels, well liner, dark turntable with three ball-clamp
   nubs, pickup sled with its blue lens on two rails and the slot's lips and screws are new
   geometry in the radio's own language, baked open in the room's own Cycles scene, lights,
-  AgX and exposure. They stay dark at night, as the bake says: the lamp-lit seated disc is
-  the bright subject in a dark well. Visitors who reach for the radio on a capable screen
-  get its atlas re-baked at 2K on the identical UVs. The discs are drawn, not baked: the
-  bake's own three sources (the lilac ambient, the lava lamp, the moon) by name, a silver
-  foil that reflects the dark room and draws the lamp's spoke and rainbow across its tracks,
-  matte ink under a varnish glint and a smoky hub, so plain silver discs already read as
-  CDs in the night palette rather than as stickers. Their data side, which faces the camera
-  as they rise and go home, is a lit silver mirror with the lamp's spoke and rainbow and a
-  polished rim, never a flat grey; the placeholder prints are a CD's (a skyline, a tide
-  across the label), not a record's grooves. Nothing added carries a mark; the
-  model's own prints stay as shipped.
+  AgX and exposure. The room's lamp only grazes the rim, so the close-up's bake adds the
+  lava lamp's glass glow from its side and a faint bounce from the far side: the well and
+  the lid's underside read as grey-brown moulded plastic, lit on the lamp's side and darker
+  across the well, still at night, and the lamp-lit seated disc stays the bright subject.
+  The hinge barrels outside the well keep the room's light alone. Visitors who reach for
+  the radio on a capable screen get its atlas re-baked at 2K on the identical UVs. The
+  discs are drawn, not baked: the bake's own three sources (the lilac ambient, the lava
+  lamp, the moon) by name, a silver foil that reflects the dark room and draws the lamp's
+  spoke and rainbow across its tracks, matte ink under a varnish glint and a smoky hub, so
+  plain silver discs already read as CDs in the night palette rather than as stickers.
+  Their data side, which faces the camera as they rise and go home, is a lit silver mirror
+  with the lamp's spoke and rainbow and a polished rim, never a flat grey; the placeholder
+  prints are a CD's (a skyline, a tide across the label), not a record's grooves. Nothing
+  added carries a mark.
 - **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
   The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
   settle under gravity into a supported pile reaching the bottom; three original

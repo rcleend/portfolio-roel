@@ -41,6 +41,38 @@ export const RADIO_PARTS = {
     ],
   },
 };
+/**
+ * The tub floor the close-up's liner covers: the body's upward-facing triangles whose centroid lies inside the
+ * liner's floor and whose corners stay this close (m) to its plane. The source floor is not flat (up to ±1.3 mm
+ * about the fitted plane), so where the liner's pickup pocket and magazine slit go down into the radio, and where
+ * the floor rises through the liner at the back, the body's own floor would cover them: the runtime draws these
+ * triangles only while the lid is shut, and tools/room/radio_closeup.py leaves them out of the close-up's bake.
+ */
+export const WELL_FLOOR = { mesh: 'Radio_Imported_Part_00_base', band: 0.0025, minNormalY: 0.8 };
+
+/** The body triangles under the liner (WELL_FLOOR), for the well measured by radio_closeup.py. */
+export function wellFloorTriangles(mesh, well) {
+  const [ax, az, a0] = well.floor;
+  const triangles = [];
+  const corner = (t, c, r) => mesh.world[mesh.indices[t * 3 + c] * 3 + r];
+  for (let t = 0; t < mesh.indices.length / 3; t++) {
+    const cx = (corner(t, 0, 0) + corner(t, 1, 0) + corner(t, 2, 0)) / 3;
+    const cz = (corner(t, 0, 2) + corner(t, 1, 2) + corner(t, 2, 2)) / 3;
+    if (cx < well.minX || cx > well.maxX || cz < well.minZ || cz > well.maxZ) continue;
+    let near = true;
+    for (let c = 0; c < 3; c++) {
+      const plane = ax * corner(t, c, 0) + az * corner(t, c, 2) + a0;
+      near &&= Math.abs(corner(t, c, 1) - plane) <= WELL_FLOOR.band;
+    }
+    if (!near) continue;
+    const e1 = [0, 1, 2].map((r) => corner(t, 1, r) - corner(t, 0, r));
+    const e2 = [0, 1, 2].map((r) => corner(t, 2, r) - corner(t, 0, r));
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (n[1] / Math.hypot(...n) >= WELL_FLOOR.minNormalY) triangles.push(t);
+  }
+  return triangles;
+}
+
 /** Vertices this close are one point when parts are told apart (the source splits them at UV seams). */
 export const WELD = 1e-4;
 /** A part needing more ranges than this is stored as base64 Uint32 triangle indices instead. */

@@ -14,14 +14,11 @@ import { cutTriangles, indexedBounds, type TriangleCut } from './cutParts';
 
 /**
  * The radio's close-up (`radio-closeup.glb`, built by tools/room/radio-closeup.mjs): the parts an open lid reveals,
- * baked open, plus the extras that say which triangles of the shipped radio-base.glb are its lid and keys. This
- * module checks the close-up was cut for exactly the radio on screen, cuts the moving parts out and hangs them on
- * their pivots; a mismatch makes the radio scenery rather than broken: nothing of the shipped radio changes until
- * every part has been found where it was measured.
+ * baked open, plus the extras that say which triangles of the shipped radio-base.glb are its lid, its keys and the
+ * tub floor under the close-up's liner. This module checks the close-up was cut for exactly the radio on screen, cuts
+ * the moving parts out and hangs them on their pivots; a mismatch makes the radio scenery rather than broken: nothing
+ * of the shipped radio changes until every part has been found where it was measured.
  */
-
-/** The well's and the lid underside's linear brightness over their bake (1 = as baked). */
-export const INTERIOR_LIFT = 1.7;
 
 type Vec3 = readonly [number, number, number];
 type Bounds = readonly [Vec3, Vec3];
@@ -47,6 +44,8 @@ export interface CloseUpExtras {
     readonly rockerBottom: TriangleList;
     readonly previous: TriangleList;
     readonly next: TriangleList;
+    /** The body's tub floor under the close-up's liner (tools/room/radio-geometry.mjs WELL_FLOOR). */
+    readonly wellFloor: TriangleList;
   };
   readonly hinge: { readonly point: Vec3; readonly axis: Vec3; readonly openDegrees: number };
   readonly rocker: { readonly pivot: Vec3; readonly axis: Vec3; readonly tiltDegrees: number };
@@ -122,6 +121,11 @@ export interface RadioParts {
   readonly next: Mesh;
   readonly keyAxis: Vector3;
   readonly well: Mesh;
+  /**
+   * The shipped radio's own tub floor, which the well's liner covers and its pickup pocket and magazine slit go
+   * down through: show it only while the well is hidden.
+   */
+  readonly wellFloor: Mesh;
   /** The materials that carry the radio's skin (the shared baked one and the key faces' shaded clones). */
   readonly skinMaterials: readonly MeshBasicMaterial[];
   /** The key faces' own materials (for their shading). */
@@ -143,12 +147,12 @@ function hang(mesh: Mesh, parent: Object3D, world: Matrix4): void {
   parent.add(mesh);
 }
 
-const PART_NAMES = ['lid', 'rockerTop', 'rockerBottom', 'previous', 'next'] as const;
+const PART_NAMES = ['lid', 'rockerTop', 'rockerBottom', 'previous', 'next', 'wellFloor'] as const;
 type PartName = (typeof PART_NAMES)[number];
 
 /**
- * Cuts the lid and keys out of the radio's meshes by the close-up's lists, checks every part landed where the
- * close-up measured it, and hangs the moving parts and the close-up's meshes on their pivots under `root`.
+ * Cuts the lid, keys and tub floor out of the radio's meshes by the close-up's lists, checks every part landed where
+ * the close-up measured it, and hangs the moving parts and the close-up's meshes on their pivots under `root`.
  * Throws when anything does not match, before the shipped meshes change: until the returned parts are restored
  * (or the device is disposed) the radio's base meshes lack the cut triangles, never before.
  */
@@ -204,6 +208,7 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
   const rockerBottom = part('rockerBottom', keyMaterials.rockerBottom);
   const previous = part('previous', keyMaterials.previous);
   const next = part('next', keyMaterials.next);
+  const wellFloor = part('wellFloor');
 
   gltf.scene.updateMatrixWorld(true);
   const node = (name: string): Mesh => {
@@ -233,6 +238,7 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
     hang(side.part, holder, side.source.matrixWorld);
     holders.push(holder);
   }
+  hang(wellFloor.part, root, wellFloor.source.matrixWorld);
   const wellWorld = well.matrixWorld.clone();
   const innerWorld = lidInner.matrixWorld.clone();
   well.removeFromParent();
@@ -242,9 +248,6 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
   well.visible = false;
   lidInner.visible = false;
   const atlas = (well.material as MeshBasicMaterial).map ?? null;
-  // The bake lights the well as a shut box, so its liner comes out near-black; on screen the lid is open under the
-  // lamp. A small linear lift keeps the liner's ribs, the turntable and the rails readable instead of a dark void.
-  for (const mesh of [well, lidInner]) (mesh.material as MeshBasicMaterial).color.setScalar(INTERIOR_LIFT);
 
   // Everything fits: the shipped meshes give up their parts, together.
   for (const cut of cuts) cut.commit();
@@ -260,6 +263,7 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
     next: next.part,
     keyAxis: new Vector3().fromArray(extras.keyTravel.axis).normalize(),
     well,
+    wellFloor: wellFloor.part,
     skinMaterials: [baseMaterial, ...Object.values(keyMaterials)],
     keyMaterials,
     atlas,
@@ -267,9 +271,9 @@ export function assembleParts(gltf: GLTF, meshes: ReadonlyMap<string, Mesh>, roo
       if (restored) return;
       restored = true;
       for (const cut of cuts) cut.restore();
-      for (const object of [lidPivot, rockerPivot, ...holders, well]) object.removeFromParent();
+      for (const object of [lidPivot, rockerPivot, ...holders, well, wellFloor.part]) object.removeFromParent();
       for (const material of Object.values(keyMaterials)) material.dispose();
-      for (const mesh of [lid.part, rockerTop.part, rockerBottom.part, previous.part, next.part]) {
+      for (const mesh of [lid.part, rockerTop.part, rockerBottom.part, previous.part, next.part, wellFloor.part]) {
         // The children share the shipped meshes' attributes: disposing them must free only their own index.
         const { geometry } = mesh;
         for (const name of Object.keys(geometry.attributes)) geometry.deleteAttribute(name);

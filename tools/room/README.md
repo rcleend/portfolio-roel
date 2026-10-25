@@ -55,7 +55,12 @@ to `bake.py`. This is an offline authoring job.
 3. `optimize.mjs`: converts baked emissions to `KHR_materials_unlit`, compresses images
    to WebP and geometry to Meshopt with 16-bit UVs/positions, runs the glTF validator
    and asset-contract checks, then updates `public/room`, its hash manifest and the
-   generated loading-progress weights in `src/room/assets/roomAssetSizes.json`.
+   generated loading-progress weights in `src/room/assets/roomAssetSizes.json`. The radio's
+   atlas first loses the source model's brand, model and marketing lettering:
+   `debrand.mjs` lists each one as a rect in atlas UV space and refills it from the moulding
+   on either side, so one table serves the 1K atlas and the 2K skin. `debrand-base.mjs`
+   repaints an already shipped `radio-base.glb` the same way (its geometry and UVs proven
+   untouched) and leaves a clean one alone; `verify.mjs` fails on any lettering left.
 4. `build-radio.mjs` (`pnpm build:radio`, also the last step of `pnpm build:room`): the CD
    player's lazy close-up, from the restyled `ROOM_BUILD_DIR/room-source.blend` (never saved).
    `radio_closeup.py --stage skin` re-runs `bake.py`'s own preparation and unwrap for the
@@ -63,18 +68,22 @@ to `bake.py`. This is an offline authoring job.
    are identical) and bakes its atlas at 2048² into `radio-skin-2k.png` plus a UV probe.
    `--stage closeup` splits the lid off the radio, measures the well (its floor plane, the
    rim heights, the slot), models the parts an open lid reveals (liner, turntable and nubs,
-   pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens the
-   lid to 84° about its hinge, bakes them into one 512² atlas in the same lit scene, returns the
-   lid to its closed pose and exports `radio-closeup-raw.glb` with the measurements in
-   `radio-closeup.json`. `radio-closeup.mjs` then proves the skin's UVs match the shipped
-   `radio-base.glb` (≤ 2/65535; measured 0.5), finds the lid, the rocker's halves and the side
-   keys in the shipped base as triangle lists, writes them with the base's geometry and UV
-   fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED into
-   the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and validates it,
-   and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles` in the manifest
-   (the first-load `files`, `totalBytes` and size table are untouched). About 45 s with
-   `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte; Metal skin bakes
-   differ between runs by a few pixels.
+   pickup and rails, slot lips and screws, hinge barrels, the moulded lid underside), opens
+   the lid to 84° about its hinge, leaves the body's own tub floor under the liner out (it
+   would seal the pickup pocket and the slit from every light), bakes them into one 512²
+   atlas in the same lit scene plus a soft glow from the lava lamp's side (the room's lamp
+   only grazes the rim) and a faint bounce from the far side, re-bakes the hinge barrels
+   outside the well in the room's light alone, returns the lid to its closed pose and
+   exports `radio-closeup-raw.glb` with the measurements in `radio-closeup.json`.
+   `radio-closeup.mjs` then proves the skin's UVs match the shipped `radio-base.glb` (≤
+   2/65535; measured 0.5), finds the lid, the rocker's halves, the side keys and the tub
+   floor in the shipped base as triangle lists, writes them with the base's geometry and UV
+   fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED
+   into the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and
+   validates it, and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles`
+   in the manifest (the first-load `files`, `totalBytes` and size table are untouched).
+   About 45 s with `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte;
+   Metal skin bakes differ between runs by a few pixels.
 5. `build-posters.mjs` (`pnpm build:posters`, run by `pnpm build:room` after the radio): the
    decorated walls (docs/ROOM.md › Posters), from `tools/room/assets/posters/layout.json` and
    the artwork masters in `POSTERS_SOURCE` (not committed: `masters.json` pins their SHA-256 and

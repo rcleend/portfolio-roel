@@ -69,6 +69,7 @@ function defaultParts(): CloseUpExtras['parts'] {
     rockerBottom: list('Keys', [4, 5]),
     previous: list('Keys', [1, 2]),
     next: list('Keys', [8]),
+    wellFloor: list('Lid', [3]),
   };
 }
 
@@ -89,6 +90,10 @@ describe('assembleParts', () => {
     expect(triangleXs(parts.rockerBottom.geometry)).toEqual([4, 5]);
     expect(triangleXs(parts.previous.geometry)).toEqual([1, 2]);
     expect(triangleXs(parts.next.geometry)).toEqual([8]);
+    expect(triangleXs(parts.wellFloor.geometry)).toEqual([3]);
+    expect(parts.wellFloor.parent).toBe(root);
+    const lid = meshes.get('Lid');
+    expect(lid && triangleXs(lid.geometry)).toEqual([0]);
     const keys = meshes.get('Keys');
     expect(keys && triangleXs(keys.geometry)).toEqual([0, 3, 9]);
   });

@@ -664,6 +664,7 @@ class Device implements RadioDevice {
     parts.lidPivot.rotation.x = -MathUtils.degToRad(lid);
     const open = lid > SEATED_HIDDEN_BELOW_DEGREES;
     parts.well.visible = open;
+    parts.wellFloor.visible = !open;
     parts.lidInner.visible = open;
     this.#discs.apply(discs, this.#attention, (sample) => sample.phase === 'seated' && !open);
     const rocker = keys.rockerKey ? rockerDegrees(keys.rockerKey, keys.rockerTravel) : 0;

@@ -10,6 +10,7 @@ import { dedup, meshopt, prune, textureCompress, weld } from '@gltf-transform/fu
 import validator from 'gltf-validator';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { debrandImage } from './debrand.mjs';
 import { writeRuntimeManifest } from './runtime-manifest.mjs';
 import { verifyRoomAssets } from './verify.mjs';
 
@@ -50,6 +51,12 @@ for (const [key, filename] of files) {
     if (tint) material.setBaseColorFactor([...tint, 1]);
   }
   for (const animation of doc.getRoot().listAnimations()) animation.setName('Lava flow');
+  // The radio's atlas loses the source model's lettering before it is compressed (tools/room/debrand.mjs).
+  if (key === 'radio') {
+    for (const texture of doc.getRoot().listTextures()) {
+      texture.setImage(await debrandImage(sharp, texture.getImage())).setMimeType('image/png');
+    }
+  }
   await doc.transform(
     weld(),
     dedup(),
