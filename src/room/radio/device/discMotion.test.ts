@@ -189,10 +189,20 @@ describe('the pick', () => {
       expect(arriving.length()).toBeGreaterThan(0.0005);
       expect(leaving.length() / arriving.length()).toBeCloseTo(1, 1);
       expect(arriving.angleTo(leaving)).toBeLessThan(0.05);
-      // No stop anywhere from the shelf to over the seat: only the slide's ease-out comes to rest, on the seat axis.
-      for (let t = fly.start + 1; t < fly.end; t += 4) expect(speed(fly, t)).toBeGreaterThan(0.0003);
-      for (let t = over.start; t < over.end - pick.slideMs * 0.2; t += 4)
-        expect(speed(over, t)).toBeGreaterThan(0.0003);
+      // From the wind-up's rest it builds speed evenly (no jump where the two meet), then never stops from the
+      // shelf to over the seat, where the drop takes over before the slide's ease-out comes to rest.
+      expect(speed(antic, antic.end - 0.5)).toBeLessThan(0.00003);
+      expect(speed(fly, fly.start + 0.5)).toBeLessThan(0.00006);
+      for (let t = fly.start + 4; t <= fly.start + pick.launchMs; t += 4) {
+        expect(speed(fly, t)).toBeGreaterThan(speed(fly, t - 4));
+      }
+      for (let t = fly.start + pick.launchMs; t < fly.end; t += 4) expect(speed(fly, t)).toBeGreaterThan(0.0003);
+      const fall = drop(approachPoint(), over.end - pick.dropLeadMs, over);
+      for (let t = over.start; t < fall.start; t += 4) expect(speed(over, t)).toBeGreaterThan(0.0003);
+      expect(fall.at(fall.start).position.distanceTo(over.at(fall.start).position)).toBeLessThan(1e-9);
+      for (let t = fall.start + 0.5; t < fall.start + pick.dropMs; t += 2) {
+        expect(speed(fall, t)).toBeGreaterThan(0.00015);
+      }
     }
   });
 

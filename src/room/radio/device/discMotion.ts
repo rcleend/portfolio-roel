@@ -85,6 +85,11 @@ export const DISC_MOTION = {
     outward: 0.1,
     lift: 0.035,
     leaveSlope: 1.6,
+    /**
+     * The wind-up ends at rest at the bottom of its dip, so the flight builds its leaving speed over its first
+     * `launchMs` (a constant push) instead of jumping to it: one speed where the two meet, no jolt.
+     */
+    launchMs: 60,
     shrinkFrom: 0.35,
     /** Shares of the flight: upright until the first, flat from the second (low, in front of the radio). */
     flatFrom: 0.4,
@@ -103,7 +108,13 @@ export const DISC_MOTION = {
     glideSlope: 1,
     /** Back over the seat, flat, under the discs hanging above it. */
     slideMs: 150,
-    dropMs: 110,
+    /** The fall from the approach onto the spindle: 93 mm in 145 ms is about g. */
+    dropMs: 145,
+    /**
+     * The drop begins this long before the slide has eased out over the seat, so the disc settles onto the spindle
+     * as it lines up instead of hanging still above it first. It has fallen under a centimetre by then.
+     */
+    dropLeadMs: 35,
     bounce: 0.0015,
     bounceMs: 50,
     spinTau: 120,
@@ -136,6 +147,11 @@ export const DISC_MOTION = {
     clearance: 0.012,
     /** It sets off so as to wait no longer than this in front of the radio, flat, for the well to clear. */
     aimMs: 80,
+    /**
+     * A wait in front of the radio this short or shorter is flown instead: the flight takes that much longer and
+     * glides through the front point as the well clears, so the incoming disc never stops there.
+     */
+    glideWaitMs: 120,
   },
   /** A disc called back mid-flight in front of the shelf goes home the way it came, in front. */
   home: { ms: 520, forward: 0.15, outward: 0.08 },
@@ -454,9 +470,19 @@ const FLAT = seatOrientation();
  * The flight's slope on arrival at the front point that makes its speed there the slide's starting speed: the
  * cubic's end tangent is 3 · glideIn per unit of `u`, the slide's start is glideSlope · frontOfSeat per slideMs.
  */
-export function glideArrivalSlope(): number {
+export function glideArrivalSlope(duration: number = DISC_MOTION.pick.flightMs): number {
   const { pick } = DISC_MOTION;
-  return (pick.glideSlope * pick.frontOfSeat * pick.flightMs) / (3 * pick.glideIn * pick.slideMs);
+  return (pick.glideSlope * pick.frontOfSeat * duration) / (3 * pick.glideIn * pick.slideMs);
+}
+
+/**
+ * The flight's own clock, 0 → 1: from rest it speeds up evenly over the first `launch` of it (a share), then runs
+ * evenly, `1 / (1 − launch / 2)` as fast as a plain clock (so it still ends at 1, on time).
+ */
+export function launchWarp(x: number, launch: number): number {
+  if (launch <= 0) return x;
+  const warped = x < launch ? (x * x) / (2 * launch) : x - launch / 2;
+  return warped / (1 - launch / 2);
 }
 
 /**
@@ -484,14 +510,16 @@ export function insertFlight(
   const above = glide
     ? front.clone().addScaledVector(FRONT, pick.glideIn).setX(from.position.x)
     : new Vector3(from.position.x, front.y + 0.07, front.z + 0.05);
-  const arrival = glide ? glideArrivalSlope() : 0;
+  const launch = clamp01(pick.launchMs / duration);
+  // The warp runs its last stretch 1 / (1 − launch / 2) as fast, so the arrival slope is scaled back by as much.
+  const arrival = glide ? glideArrivalSlope(duration) * (1 - launch / 2) : 0;
   return {
     start,
     end: start + duration,
     at(t) {
       const linear = clamp01((t - start) / duration);
-      // The anticipation was the wind-up, so it leaves at once.
-      const u = hermiteEase(linear, pick.leaveSlope, arrival);
+      // The anticipation was the wind-up: it leaves from rest, up to its leaving speed within launchMs.
+      const u = hermiteEase(launchWarp(linear, launch), pick.leaveSlope, arrival);
       const turn = easeInOutCubic(clamp01((linear - pick.flatFrom) / (pick.flatBy - pick.flatFrom)));
       const position = cubic(from.position, out, above, front, u);
       const acrossShare = clamp01((u - pick.acrossFrom) / (1 - pick.acrossFrom));
@@ -525,8 +553,11 @@ export function slide(side: number, start: number, glide: boolean): PoseSegment 
   };
 }
 
-/** The drop onto the spindle (gravity: easeInQuad), then the 1.5 mm bounce off the turntable. */
-export function drop(from: Vector3, start: number): PoseSegment {
+/**
+ * The drop onto the spindle (gravity: easeInQuad), then the 1.5 mm bounce off the turntable. With `carry` (the
+ * slide, still easing out over the seat) it falls from wherever the slide has it, so the two moves overlap.
+ */
+export function drop(from: Vector3, start: number, carry?: PoseSegment): PoseSegment {
   const { pick } = DISC_MOTION;
   const seat = seatPose();
   const contact = start + pick.dropMs;
@@ -536,7 +567,8 @@ export function drop(from: Vector3, start: number): PoseSegment {
     at(t) {
       if (t < contact) {
         const u = clamp01((t - start) / pick.dropMs);
-        return { position: from.clone().lerp(seat.position, u * u), orientation: seat.orientation, scale: 1 };
+        const above = carry && t < carry.end ? carry.at(t).position : from.clone();
+        return { position: above.lerp(seat.position, u * u), orientation: seat.orientation, scale: 1 };
       }
       const bounce = Math.sin(Math.PI * clamp01((t - contact) / pick.bounceMs)) * pick.bounce;
       return {

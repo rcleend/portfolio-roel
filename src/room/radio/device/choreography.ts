@@ -819,12 +819,15 @@ export class Choreography {
     const departure = antic.end;
     // It slides over the seat once every disc leaving the player (behind the shelf) is clear of its way: when that
     // is before it gets there, it glides through the front point without a stop.
-    const glide = wellClear <= departure + pick.flightMs;
-    const fly = insertFlight(antic.at(antic.end), eye, departure, pick.flightMs, glide);
+    // One that would only wait a beat there (a swap aims for that) flies a little slower and glides through instead.
+    const short = wellClear - (departure + pick.flightMs);
+    const flightMs = short > 0 && short <= DISC_MOTION.swap.glideWaitMs ? pick.flightMs + short : pick.flightMs;
+    const glide = wellClear <= departure + flightMs;
+    const fly = insertFlight(antic.at(antic.end), eye, departure, flightMs, glide);
     const slideStart = Math.max(fly.end, wellClear);
     const over = slide(0, slideStart, glide);
-    const dropStart = over.end;
-    const fall = drop(approachPoint(), dropStart);
+    const dropStart = over.end - pick.dropLeadMs;
+    const fall = drop(approachPoint(), dropStart, over);
     const segments: PhasedSegment[] = [
       ...arriving,
       ...(wait > 0
@@ -840,7 +843,7 @@ export class Choreography {
       ...(slideStart > fly.end
         ? [{ ...still(fly.at(fly.end), fly.end, slideStart), phase: 'inserting' as const }]
         : []),
-      { ...over, phase: 'inserting' },
+      { ...over, end: dropStart, phase: 'inserting' },
       { ...fall, phase: 'dropping' },
     ];
     return { segments, flown: fly.end, slideStart, dropStart, contact: dropStart + pick.dropMs };

@@ -21,7 +21,7 @@ const LANDING = 1100;
 const FRAME = 16;
 const { pick } = DISC_MOTION;
 /** A pick's contact and ▷II's press bottom (the sound), after the pick. */
-const CONTACT = pick.anticipationMs + pick.flightMs + pick.slideMs + pick.dropMs;
+const CONTACT = pick.anticipationMs + pick.flightMs + pick.slideMs - pick.dropLeadMs + pick.dropMs;
 const BOTTOM = CONTACT + pick.pressAfter + pick.pressDownMs;
 
 function setup(reduced = false, slow = false) {
