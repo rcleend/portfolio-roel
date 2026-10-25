@@ -109,7 +109,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     cpuCanvases: stage.softwareGpu,
     overlay,
     pose: rig.viewpoint('pc'),
-    isInView: () => views.view !== 'tv' || views.moving,
+    // The glass is on screen in the room and at the computer, and may be on any flight. The TV's and the radio's
+    // frames keep it out of sight, so a minute on its clock waits for the next flight there rather than drawing a
+    // frame of a radio otherwise at rest.
+    isInView: () => views.moving || views.view === 'room' || views.view === 'pc',
     background,
   });
   const lava = new LavaLamp({

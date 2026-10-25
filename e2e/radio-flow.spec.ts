@@ -93,20 +93,36 @@ async function pressModelKey(page: Page, key: 'play-pause' | 'stop' | 'previous'
 
 /**
  * Frames the room draws in a window of exactly `ms` of the page's own time. The window is counted frame by frame in
- * the page, so neither the test's round trips nor a timer that fires late on a loaded machine can widen it (a tick
- * twice a second gives at most 4 in 2 s, never the 5 a window a few ms too long can catch).
+ * the page, so neither the test's round trips nor a timer that fires late on a loaded machine can widen it. With
+ * `offBeat`, the window opens that long after the next frame drawn, so a tick's frames (the paused time's blink twice a
+ * second, the playing clock's once) fall inside it, not on its edges: there a first frame drawn late on a loaded machine
+ * and the rest on time would fit one tick more than the rate allows.
  */
-async function framesOver(page: Page, ms: number): Promise<number> {
+async function framesOver(page: Page, ms: number, offBeat = 0): Promise<number> {
   return page.evaluate(
-    (length) =>
+    ([length, offset]) =>
       new Promise<number>((resolve) => {
         const drawn = () => window.__room?.stats.framesRendered ?? 0;
+        // A tick that never comes (nothing draws) opens the window after this long anyway.
+        const beatPatience = 1500;
+        let first: number | null = null;
+        let seen = drawn();
+        let beat: number | null = offset > 0 ? null : Number.NEGATIVE_INFINITY;
         let start: number | null = null;
         let before = 0;
         let last = 0;
         // Read at every frame whose time falls in [start, start + length): what the room had drawn by then.
         const look = (now: number) => {
           const count = drawn();
+          first ??= now;
+          if (beat === null) {
+            if (count !== seen || now - first >= beatPatience) beat = now;
+            seen = count;
+          }
+          if (beat === null || now - beat < offset) {
+            requestAnimationFrame(look);
+            return;
+          }
           if (start === null) {
             start = now;
             before = count;
@@ -119,7 +135,7 @@ async function framesOver(page: Page, ms: number): Promise<number> {
         };
         requestAnimationFrame(look);
       }),
-    ms,
+    [ms, offBeat] as const,
   );
 }
 
@@ -364,6 +380,9 @@ test.describe('performance', () => {
     // the sharper skin's one as it swaps in, should a busy machine bring it this late.
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(9000);
+    // A minute turning on the computer's clock (it was visited first, so its picture keeps time) waits for the next
+    // flight: the radio's frame keeps the computer out of sight.
+    await page.evaluate(() => window.__room?.pc.invalidateStill());
     const pixels = (await stats(page))?.radioTexturePixels ?? 0;
     const resting = await framesOver(page, 2000);
     const skinLanded = ((await stats(page))?.radioTexturePixels ?? 0) !== pixels;
@@ -374,13 +393,13 @@ test.describe('performance', () => {
     await waitAudible(page);
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(9000);
-    expect(await framesOver(page, 2000)).toBeLessThanOrEqual(2);
+    expect(await framesOver(page, 2000, 500)).toBeLessThanOrEqual(2);
     // Paused, still within the visitor's attention: the blinking time, past the float's rest.
     await pressModelKey(page, 'play-pause');
     await expect.poll(async () => (await sound(page))?.paused).toBe(true);
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(9000);
-    expect(await framesOver(page, 2000)).toBeLessThanOrEqual(4);
+    expect(await framesOver(page, 2000, 250)).toBeLessThanOrEqual(4);
     await pressModelKey(page, 'play-pause');
     await waitAudible(page);
 
