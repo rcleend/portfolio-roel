@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseHex, type Rgba } from '@/engine/gfx/color';
+import { rampAt } from '../../../../art/logos/raster/ramp';
 import { TITLE_LAYOUT } from '../../layout';
 import { INK, RAMP_RGBA } from './inks';
-import { LETTER_HEIGHT } from './lettering';
-import { exposeSheet, FRAME, insideFrame, sheetSteps, TITLE_BLOCK } from './sheet';
+import { exposeSheet, FRAME, insideFrame, printOnPaper, sheetSteps } from './sheet';
 
 const { width, height } = TITLE_LAYOUT.screen;
 const { impact } = TITLE_LAYOUT;
@@ -57,11 +57,9 @@ describe('blueprint sheet', () => {
     expect(corner).toBeLessThan(paperLuminance(0, height - 30, 40, height));
   });
 
-  it('prints the grid a step or two above the paper it crosses', () => {
-    const { box } = TITLE_BLOCK;
+  it('prints the grid a step or two above the paper it crosses, corner to corner', () => {
     for (let y = FRAME.y + 1; y < FRAME.y + FRAME.h - 1; y++) {
       for (let x = FRAME.x + 1; x < FRAME.x + FRAME.w - 1; x++) {
-        if (x >= box.x && y >= box.y) continue;
         const lift = (lined[y * width + x] as number) - (paper[y * width + x] as number);
         const onGrid = x % 8 === 0 || y % 8 === 0;
         expect(onGrid ? [1, 2] : [0], `${x},${y}`).toContain(lift);
@@ -75,10 +73,14 @@ describe('blueprint sheet', () => {
     expect(paper[(FRAME.y + 20) * width + FRAME.x]).toBeLessThan(INK.ghost);
   });
 
-  it('leaves the revision cell blank for the letter the backdrop climbs through', () => {
-    const { x, y } = TITLE_BLOCK.revision;
-    for (let row = y; row < y + LETTER_HEIGHT; row++) {
-      for (let col = x; col < x + 3; col++) expect(lined[row * width + col]).toBeLessThan(INK.ghost);
+  it("prints a screen's own lines a fine grid line's step above the paper, the paper as the title lights it", () => {
+    const pattern = (x: number, y: number): boolean => x === impact.x || (x + y) % 5 === 0;
+    const printed = printOnPaper(pattern);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const step = (paper[y * width + x] as number) + (pattern(x, y) ? 1 : 0);
+        expect(printed.get(x, y), `${x},${y}`).toEqual(rampAt(RAMP_RGBA, step));
+      }
     }
   });
 

@@ -1,7 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createGame } from '@/game/createGame';
+import { preloadSceneArt } from '@/game/scenes';
 import { App } from './App';
+import { watchInputModality } from './a11y/inputModality';
 import { readHarnessConfig } from './harness/config';
 import { chooseHost, detectWebGL } from './hosts';
 import { openLink } from './links/openLink';
@@ -11,12 +13,17 @@ import './styles.css';
 function main(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root element');
+  watchInputModality();
   const config = readHarnessConfig(window.location.search, import.meta.env.DEV);
   // Kick off the game's downloads before React's first render; the app shows progress meanwhile.
   const loading = createGame({
     ...(config.seed === null ? {} : { seed: config.seed }),
     ...(config.looks === null ? {} : { looks: config.looks }),
     openLink,
+  }).then(async (created) => {
+    // A development scene the harness opens may draw art the game never loads; it must be in before the first frame.
+    if (config.scene !== null) await preloadSceneArt(config.scene, created.services.assets);
+    return created;
   });
   createRoot(root).render(
     <StrictMode>

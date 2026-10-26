@@ -18,8 +18,18 @@ export interface PowerLedPlacement {
   readonly facing: Vector3;
 }
 
+/** The TV's lens and halo; another device may mount a smaller LED. */
 const LED_RADIUS = 0.0024;
 const HALO_RADIUS = 0.016;
+/** How far the halo floats in front of the TV's lens. */
+const HALO_LIFT = 0.0008;
+
+export interface PowerLedSize {
+  /** Radius of the emissive lens (m). */
+  readonly lensRadius: number;
+  /** Radius of the additive halo around it (m). */
+  readonly haloRadius: number;
+}
 const OFF_COLOR = new Color('#2b0b08');
 const ON_COLOR = new Color('#ff4a2e');
 const RAMP_UP_MS = 70;
@@ -41,8 +51,8 @@ void main() {
 `;
 
 /**
- * The TV's power indicator. The TV asset has no LED of its own, so a tiny emissive lens
- * with a soft additive halo is mounted on the front panel next to the power button.
+ * A device's power indicator: a tiny emissive lens with a soft additive halo. The TV asset has no LED of its own,
+ * so one is mounted on its front panel next to the power button; the radio lights its painted OPR lamp with one.
  */
 export class PowerLed {
   private readonly group = new Group();
@@ -54,11 +64,12 @@ export class PowerLed {
   constructor(
     parent: Object3D,
     placement: PowerLedPlacement,
-    private readonly loop: RenderLoop,
+    private readonly loop: Pick<RenderLoop, 'animate'>,
+    size: PowerLedSize = { lensRadius: LED_RADIUS, haloRadius: HALO_RADIUS },
   ) {
-    this.lens = new Mesh(new CircleGeometry(LED_RADIUS, 16), new MeshBasicMaterial({ color: OFF_COLOR.clone() }));
+    this.lens = new Mesh(new CircleGeometry(size.lensRadius, 16), new MeshBasicMaterial({ color: OFF_COLOR.clone() }));
     this.halo = new Mesh(
-      new CircleGeometry(HALO_RADIUS, 24),
+      new CircleGeometry(size.haloRadius, 24),
       new ShaderMaterial({
         uniforms: { uColor: { value: ON_COLOR.clone() }, uLevel: { value: 0 } },
         vertexShader: HALO_VERTEX,
@@ -68,7 +79,8 @@ export class PowerLed {
         depthWrite: false,
       }),
     );
-    this.halo.position.z = 0.0008;
+    // Just proud of the lens, scaled with it.
+    this.halo.position.z = HALO_LIFT * (size.lensRadius / LED_RADIUS);
     this.halo.visible = false;
     this.group.add(this.lens, this.halo);
     this.group.name = 'PowerLed';

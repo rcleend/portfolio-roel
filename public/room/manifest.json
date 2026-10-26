@@ -1,43 +1,100 @@
 {
-  "generatedBy": "scripts/sync-room-assets.mjs",
-  "sourceRevision": 5,
-  "totalBytes": 7873921,
+  "generatedBy": "tools/room/optimize.mjs",
+  "sourceRevision": 6,
+  "artDirection": "After hours — crafted miniature",
+  "totalBytes": 6968629,
+  "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
+  "atlases": {
+    "01_TV_surfaces": 2048,
+    "02_Desk_surfaces": 2048,
+    "03_Room_surfaces": 2048,
+    "03_Room_window": 2048,
+    "03_Room_floor": 2048,
+    "04_Drawer_surfaces": 2048,
+    "04_Drawer_guitar": 1024,
+    "device_tv_front": 2048,
+    "device_tv_rear": 1024,
+    "device_pc": 2048,
+    "device_radio": 1024,
+    "device_ps2": 1024
+  },
   "files": [
     {
       "name": "room.glb",
-      "source": "room.glb",
-      "bytes": 5461004,
-      "sha256": "991332e2d487adfab4a56fcbfcdff886ab863dd45f9840c22f89cd719da76b3a"
+      "source": "room-raw.glb",
+      "bytes": 4454152,
+      "sha256": "ccf0778fbbe3ece39b9f2ad6a7cfd882a6aa8584567f5e94bf0eb9de28ff20b4",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "tv-high.glb",
-      "source": "assets/tv-high.glb",
-      "bytes": 556912,
-      "sha256": "667fd68286d978076587acbc24019ab78e69a500269f95a694db828ed3affdea"
+      "source": "tv-raw.glb",
+      "bytes": 322180,
+      "sha256": "8cb1e703ead5e482b93d335e4ac94a34ad1ae547ab4a2f129c2c291da95386c5",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "pc-base.glb",
-      "source": "assets/pc-base.glb",
-      "bytes": 269724,
-      "sha256": "a87ec131294b44050074014e15e547db4946945f8b132f83cc20a3149d44eb96"
+      "source": "pc-raw.glb",
+      "bytes": 531940,
+      "sha256": "f4649f61b16bab25afebce60b5853a1f00fef41e77a13335264a70e70dda7738",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "radio-base.glb",
-      "source": "assets/radio-base.glb",
-      "bytes": 518904,
-      "sha256": "cbf0807cc42d3f0db83442925bb5e153142a74e8bc5ff08ef54e6bf8e8f5d385"
+      "source": "radio-raw.glb",
+      "bytes": 878532,
+      "sha256": "3e1db9236e51086af5c5266377034c784ab799707f4b4a99de59b536f6a3f0f6",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "ps2-base.glb",
-      "source": "assets/ps2-base.glb",
-      "bytes": 1060236,
-      "sha256": "b3b8e8b870ef02171b3143b256f521d82f1577509e3b233daff22c68da6d7e67"
+      "source": "ps2-raw.glb",
+      "bytes": 769728,
+      "sha256": "4e966f8983f03318baad076638b9b938df22e913bd50a98cfd9780199b4806fe",
+      "validationErrors": 0,
+      "validationWarnings": 0
     },
     {
       "name": "CREDITS.txt",
-      "source": "licenses/ASSET-CREDITS.txt",
-      "bytes": 7141,
-      "sha256": "ddb4494235f71c58cf4f5e27af6ce00cfe3134e159dc7ac87458f2f524d06d2e"
+      "source": "Retained source attribution + revision 6 modifications",
+      "bytes": 12097,
+      "sha256": "989f4cab2bd0022aba76db687299259c51c6e83e2354080de9a19147d3f11d7c"
+    }
+  ],
+  "lazyFiles": [
+    {
+      "name": "radio-closeup.glb",
+      "bytes": 59132,
+      "sha256": "0b2d9353bb183f5ae8936bb9e6d9531664a1ffccc73b0800535e8dc68bd30c71",
+      "validationErrors": 0,
+      "validationWarnings": 0
+    },
+    {
+      "name": "radio-skin-2k.webp",
+      "bytes": 170594,
+      "sha256": "c496878c2af989c239cf07a2c7982f3904db07c140a8833a0bdd1b70d0448259"
+    },
+    {
+      "name": "posters.glb",
+      "bytes": 30168,
+      "sha256": "3218f15a7ebb68b1688ed94233d479deb24a1e4c16e05923d5ce488e3ec54020",
+      "validationErrors": 0,
+      "validationWarnings": 0
+    },
+    {
+      "name": "posters-2k.webp",
+      "bytes": 238510,
+      "sha256": "d06fcec1d8749f3ab4c3fa679c13942bca115bc4d25edd2dd9a92c1409fa0698"
+    },
+    {
+      "name": "posters-1k.webp",
+      "bytes": 89038,
+      "sha256": "96ed99b7ecf7af7e1fab538a242ff163fdcf2c9eaac607b9246548b5ff1cdca7"
     }
   ]
 }

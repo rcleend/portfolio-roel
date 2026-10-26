@@ -1,0 +1,81 @@
+/*
+ * The screen's root, laid out in desktop layout px and scaled to the picture
+ * (transform-origin top left). Its pointer art comes from cursors.ts.
+ */
+.pc-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  outline: none;
+  color: #000;
+  font:
+    11px Tahoma,
+    Verdana,
+    "Segoe UI",
+    "DejaVu Sans",
+    sans-serif;
+  text-align: left;
+  cursor: var(--pc-cursor);
+  transform-origin: 0 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pc-screen[data-busy="true"],
+.pc-screen[data-busy="true"] * {
+  cursor: var(--pc-busy-cursor);
+}
+
+/* While the scripted cursor is on stage the real one hides: never two arrows. */
+.pc-screen[data-scripted-cursor],
+.pc-screen[data-scripted-cursor] * {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat every control's own cursor for the sequence's length. */
+  cursor: none !important;
+}
+
+.pc-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 12px;
+  height: 19px;
+  pointer-events: none;
+}
+
+.pc-cursor__press {
+  transform-origin: 0 0;
+}
+
+.pc-cursor svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.pc-cursor .pc-cursor__busy,
+.pc-cursor[data-busy="true"] .pc-cursor__arrow {
+  display: none;
+}
+
+.pc-cursor[data-busy="true"] .pc-cursor__busy {
+  display: block;
+}
+
+.pc-screen__announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The print stylesheet prints the semantic résumé; none of the computer does. */
+@media print {
+  .pc-screen,
+  .pc-popout {
+    /* biome-ignore lint/complexity/noImportantStyles: beats the inline styles the screen is positioned with. */
+    display: none !important;
+  }
+}

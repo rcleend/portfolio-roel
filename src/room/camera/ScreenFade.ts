@@ -22,6 +22,10 @@ export class ScreenFade {
     this.mesh.visible = false;
   }
 
+  get opacity(): number {
+    return this.mesh.visible ? (this.mesh.material.uniforms.uOpacity?.value as number) : 0;
+  }
+
   set opacity(value: number) {
     const uniform = this.mesh.material.uniforms.uOpacity;
     if (uniform) uniform.value = value;

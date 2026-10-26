@@ -1,10 +1,17 @@
 import { type Material, Mesh, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import { assembleRoom, forEachTexture, type RoomScene } from './assembleRoom';
+import { assembleRoom, type RoomScene } from './assembleRoom';
 import { loadRoomAssets } from './assets/roomAssets';
+import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
 import type { Interactable } from './interaction/Interactable';
+import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
+import { ScreenOverlay } from './pc/ScreenOverlay';
+import { type PostersPath, PostersSlot, type PostersState } from './posters/PostersSlot';
+import type { RadioDoor } from './radio/RadioDeck';
+import { RadioDoorHandle } from './radio/RadioDoor';
 import { RoomStage } from './stage/RoomStage';
+import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
@@ -12,6 +19,11 @@ import type { RoomView } from './viewState';
 export interface CreateRoomOptions {
   /** Element the room's canvas fills; its size drives the framing. */
   readonly container: HTMLElement;
+  /**
+   * Covers exactly the same box as `container`; the room puts the monitor's live screen in it. Keep it outside any
+   * role="application" so screen readers can browse the document. Defaults to `container`.
+   */
+  readonly overlayContainer?: HTMLElement;
   readonly surface: GameSurface;
   /** Download progress, 0–1. */
   readonly onProgress?: (fraction: number) => void;
@@ -21,6 +33,8 @@ export interface CreateRoomOptions {
   readonly maxPixelRatio?: number;
   /** Upper bound for drawing-buffer pixels (default 3 000 000). */
   readonly maxDrawingBufferPixels?: number;
+  /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
+  readonly posters?: boolean;
 }
 
 export interface Room {
@@ -28,6 +42,8 @@ export interface Room {
   readonly ready: Promise<void>;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
+  /** True while the camera rests at `view`, false while it flies there. */
+  readonly settled: boolean;
   readonly powerState: PowerState;
   /** Lights the power LED and runs the CRT turn-on; resolves when the picture is up. */
   powerOn(): Promise<void>;
@@ -36,13 +52,29 @@ export interface Room {
   focusTv(): void;
   /** Pauses the game, disables its input and pulls back to show the whole room. */
   showRoom(): void;
+  /** Flies straight in front of the monitor; the game stays paused with its input off. */
+  focusPc(): void;
+  /** Flies to the CD player on the cabinet; the game stays paused with its input off. */
+  focusRadio(): void;
+  /** Called as the camera sets off towards another view. */
   onViewChange(listener: (view: RoomView) => void): () => void;
+  /** Called as the camera comes to rest at the view. */
+  onSettle(listener: (view: RoomView) => void): () => void;
   /** Keeps the TV framing clear of app overlays (CSS-pixel strips of the viewport). */
   setFramingInsets(insets: FramingInsets): void;
-  /** Adds a clickable prop (PC, radio, poster…); returns its unregister function. */
+  /** Adds a clickable prop (radio, poster…); returns its unregister function. */
   registerInteractable(interactable: Interactable): () => void;
+  /** The computer's monitor; usable before `ready` (calls are remembered). */
+  readonly pc: PcMonitor;
+  /** The CD player; usable before `ready` (calls are remembered). */
+  readonly radio: RadioDoor;
+  /** Where the TV, the computer and the radio sit in the settled room view, for the current viewport. */
+  readonly anchors: readonly PropAnchor[];
+  onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
   /** Diagnostics for the dev lab and performance checks. */
   readonly stats: RoomStats;
+  /** Resolves true once the decorated walls are shown, false when they will not be this page load. */
+  readonly postersReady: Promise<boolean>;
   dispose(): void;
 }
 
@@ -53,6 +85,30 @@ export interface RoomStats {
   readonly drawCalls: number;
   readonly triangles: number;
   readonly pixelRatio: number;
+  /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
+  readonly programs: number;
+  /** Pixels of the monitor's texture (0 in standby before the first paint). */
+  readonly pcTexturePixels: number;
+  /** True while work ahead of need (texture uploads, pick chunks, the monitor's still) waits for idle moments. */
+  readonly backgroundPending: boolean;
+  /** The radio's close-up is loaded, cut and prepared (the lid will not wait for it). */
+  readonly radioReady: boolean;
+  /** Pixels of the radio's lazy textures on the GPU: labels, close-up atlas, LCD, 2K skin. */
+  readonly radioTexturePixels: number;
+  /** Current lid angle in degrees (0 closed). */
+  readonly radioLidDegrees: number;
+  /** Ambient motion is scheduling frames. */
+  readonly radioAmbient: boolean;
+  /** The decorated walls: none this page load, on their way, or shown (docs/ROOM.md › Posters). */
+  readonly posters: PostersState;
+  /** Pixels of the posters' atlas on the GPU. */
+  readonly postersTexturePixels: number;
+  /** How the loaded walls draw (PostersSlot.path). */
+  readonly postersPath: PostersPath | null;
+  /** Late bytes are fading in. */
+  readonly postersFading: boolean;
+  /** The reduced-motion cut's veil: 0 clear, 1 black. */
+  readonly screenFade: number;
 }
 
 /**
@@ -63,42 +119,118 @@ export function createRoom(options: CreateRoomOptions): Room {
   const { surface } = options;
   const stage = new RoomStage(options);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const overlay = new ScreenOverlay(options.overlayContainer ?? options.container, reducedMotion);
+  const pc = new PcMonitorHandle(overlay);
+  const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
+  const posters = new PostersSlot(options.posters ?? true);
+  const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
   let framingInsets: FramingInsets | null = null;
+  let anchors: readonly PropAnchor[] = [];
+  const anchorListeners = new Set<(anchors: readonly PropAnchor[]) => void>();
   const queuedInteractables = new Map<Interactable, () => void>();
 
   const views = new ViewController({
     surface,
-    moveCamera: (view, arrived) => {
+    moveCamera: (from, to, arrived) => {
       // Before the room has loaded there is no flight to wait for.
       if (!scene) return arrived();
       const loaded = scene;
-      loaded.rig.goTo(view, () => {
-        arrived();
-        loaded.refreshCursor();
-      });
+      // Any still the flight shows is painted and uploaded now, before its first frame.
+      loaded.monitor.prepare(from, to);
+      // A first reduced-motion visit to the radio stays black until its device is ready, so it is one cut to the
+      // open radio, not a closed radio that then snaps open; the first cut to the room view also waits for the
+      // posters once their bytes are in hand, so it lands on decorated walls.
+      const holdCut = (): boolean =>
+        (to === 'radio' && radio.available && radio.prepared === null) || posters.holdsCut(to);
+      loaded.rig.goTo(
+        to,
+        () => {
+          arrived();
+          loaded.refreshCursor();
+        },
+        { holdCut },
+      );
       loaded.refreshCursor();
     },
     releasePointer: () => scene?.tvInput.release(),
+    revealScreen: () => {
+      scene?.monitor.land();
+      pc.reveal();
+    },
+    concealScreen: () => pc.conceal(),
+    // The device times its lid from the click, against the flight's own clock (FLIGHT_MS, REDUCED_FADE_MS).
+    approachRadio: () => radio.deck?.approach(performance.now()),
+    revealRadio: () => radio.deck?.reveal(),
+    concealRadio: () => radio.deck?.conceal(),
+    // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
+    whenReady: (view) => (view === 'radio' && !radio.deck ? radio.load() : null),
+  });
+  // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
+  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds). The
+  // posters fetched at the TV go up between that flight's frames: their departure only queues the work.
+  const stopPreload = views.onChange(() => {
+    stopPreload();
+    posters.depart();
+    requestAnimationFrame(() => setTimeout(() => disposed || radio.preload(), 0));
   });
 
-  const ready = loadRoomAssets(options.assetBaseUrl ?? defaultAssetBaseUrl(), options.onProgress ?? (() => {})).then(
-    (assets) => {
-      if (disposed) return;
-      scene = assembleRoom({ stage, assets, surface, views, reducedMotion });
-      if (framingInsets) scene.rig.setFramingInsets(framingInsets);
-      for (const [interactable] of queuedInteractables) {
-        queuedInteractables.set(interactable, scene.register(interactable));
-      }
-      return firstFrame(stage);
-    },
-  );
+  const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {})).then((assets) => {
+    if (disposed) return;
+    scene = assembleRoom({
+      stage,
+      assets,
+      surface,
+      views,
+      reducedMotion,
+      overlay,
+      radio,
+      onAnchorsChange: (next) => {
+        anchors = next;
+        for (const listener of anchorListeners) listener(next);
+      },
+    });
+    if (framingInsets) scene.setFramingInsets(framingInsets);
+    for (const [interactable] of queuedInteractables) {
+      queuedInteractables.set(interactable, scene.register(interactable));
+    }
+    pc.attach(scene.monitor);
+    if (scene.radioModel) {
+      radio.attach({
+        model: scene.radioModel,
+        rig: scene.rig,
+        stage,
+        views,
+        background: scene.background,
+        loader: assets.loader,
+        assetBaseUrl,
+        anisotropy: scene.anisotropy,
+      });
+    } else {
+      radio.unavailable(new Error('The room assets lack the radio'));
+    }
+    posters.attach({
+      stage,
+      views,
+      background: scene.background,
+      loader: assets.loader,
+      assetBaseUrl,
+      anisotropy: scene.anisotropy,
+    });
+    const { background } = scene;
+    // Work ahead of need never delays the first frame.
+    return firstFrame(stage).then(() => background.start());
+  });
 
   return {
     ready,
+    postersReady: posters.ready,
     get view() {
       return views.view;
+    },
+    get settled() {
+      return !views.moving;
     },
     get powerState() {
       return scene?.television.powerState ?? 'off';
@@ -113,10 +245,13 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
     focusTv: () => views.request('tv'),
     showRoom: () => views.request('room'),
+    focusPc: () => views.request('pc'),
+    focusRadio: () => views.request('radio'),
     onViewChange: (listener) => views.onChange(listener),
+    onSettle: (listener) => views.onSettle(listener),
     setFramingInsets(insets) {
       framingInsets = insets;
-      scene?.rig.setFramingInsets(insets);
+      scene?.setFramingInsets(insets);
     },
     registerInteractable(interactable) {
       queuedInteractables.set(interactable, scene ? scene.register(interactable) : () => {});
@@ -125,8 +260,18 @@ export function createRoom(options: CreateRoomOptions): Room {
         queuedInteractables.delete(interactable);
       };
     },
+    pc,
+    radio,
+    get anchors() {
+      return anchors;
+    },
+    onAnchorsChange(listener) {
+      anchorListeners.add(listener);
+      return () => anchorListeners.delete(listener);
+    },
     get stats(): RoomStats {
-      const { calls, triangles } = stage.renderer.info.render;
+      const { renderer } = stage;
+      const { calls, triangles } = renderer.info.render;
       return {
         framesRendered: stage.loop.framesRendered,
         renderLoopIdle: stage.loop.idle,
@@ -134,14 +279,31 @@ export function createRoom(options: CreateRoomOptions): Room {
         drawCalls: calls,
         triangles,
         pixelRatio: stage.size.pixelRatio,
+        programs: renderer.info.programs?.length ?? 0,
+        pcTexturePixels: scene?.monitor.texturePixels ?? 0,
+        backgroundPending: scene?.background.pending ?? false,
+        radioReady: radio.prepared !== null,
+        radioTexturePixels: radio.prepared?.texturePixels ?? 0,
+        radioLidDegrees: radio.prepared?.lidDegrees(performance.now()) ?? 0,
+        radioAmbient: radio.prepared?.ambient ?? false,
+        posters: posters.state,
+        postersTexturePixels: posters.texturePixels,
+        postersPath: posters.path,
+        postersFading: posters.fading,
+        screenFade: scene?.fade.opacity ?? 0,
       };
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      pc.detach();
+      radio.dispose();
+      posters.dispose();
       scene?.dispose();
       scene = null;
       views.dispose();
+      overlay.dispose();
+      anchorListeners.clear();
       queuedInteractables.clear();
       disposeObjectTree(stage.scene);
       stage.dispose();

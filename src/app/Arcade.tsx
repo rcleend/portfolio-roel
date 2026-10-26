@@ -63,7 +63,13 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   return (
     <>
       <div id="game" data-phase={startup.phase}>
-        <Host surface={created.surface} powered={powering} insets={touch ? padInsets : NO_INSETS} events={events} />
+        <Host
+          surface={created.surface}
+          powered={powering}
+          insets={touch ? padInsets : NO_INSETS}
+          events={events}
+          muted={audio.muted}
+        />
       </div>
       <SoundToggle muted={audio.muted} onToggle={audio.toggleMuted} />
       <ViewHint view={view} active={running && startup.host === 'room'} touch={touch} />

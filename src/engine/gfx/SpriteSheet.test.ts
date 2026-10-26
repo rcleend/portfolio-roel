@@ -68,6 +68,17 @@ describe('anchors', () => {
     expect(sheet.anchor('idle', 'muzzle', 0)).toBeNull();
   });
 
+  it('lists the anchor of every frame, and none where an animation has none', () => {
+    expect(sheet.anchors('attack', 'muzzle')).toEqual([
+      { x: 50, y: 30 },
+      { x: 52, y: 31 },
+      { x: 54, y: 29 },
+      { x: 40, y: 28 },
+    ]);
+    expect(sheet.anchors('attack', 'hand')).toEqual([]);
+    expect(sheet.anchors('idle', 'muzzle')).toEqual([]);
+  });
+
   it('lands on the pixel the sprite paints, facing either way', () => {
     // Drawn at (100, 200): the frame spans x 68–131 and y 136–199, mirrored around x = 100.
     expect(sheet.toScreen({ x: 50, y: 30 }, 100, 200)).toEqual({ x: 118, y: 166 });

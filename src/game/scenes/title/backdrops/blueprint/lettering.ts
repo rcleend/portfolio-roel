@@ -5,7 +5,7 @@ import { shadeOf } from './inks';
 
 /**
  * Drafting lettering: single-stroke 3 × 5 capitals, the smallest legible
- * hand on a 320 × 240 sheet, for the title block, the dimensions and the
+ * hand on a 320 × 240 sheet, for the zone margin, the dimensions and the
  * plotter's labels. M, N, W and Ø need more room and get it; 0 is square so
  * it never reads as O.
  */
@@ -345,8 +345,8 @@ export function letteredWidth(text: string): number {
 
 /**
  * A few characters pre-lettered in a few inks, for text that changes from
- * frame to frame (ticking dimensions, the revision letter): drawing it is a
- * copy per character, with nothing laid out or allocated.
+ * frame to frame (the ticking dimensions): drawing it is a copy per
+ * character, with nothing laid out or allocated.
  */
 export class LetteringAtlas {
   readonly #canvas: HTMLCanvasElement;

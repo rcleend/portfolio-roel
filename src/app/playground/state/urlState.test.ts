@@ -82,8 +82,10 @@ describe('the URL state', () => {
       lockups: { backdrop: TITLE_DEFAULTS.backdrop },
       backdrops: { lockup: TITLE_DEFAULTS.lockup },
       characters: {},
+      roels: {},
       skills: {},
       customer: {},
+      'customers-terraria': {},
     });
   });
 });

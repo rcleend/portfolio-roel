@@ -23,7 +23,7 @@ export function useAudioWiring(
   }, [audio, muted]);
 
   useEffect(() => {
-    audio.setPaused(view === 'room');
+    audio.setPaused(view !== 'tv');
   }, [audio, view]);
 
   const toggleMuted = (): void => {

@@ -1,11 +1,24 @@
 import { MathUtils, type PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { easeInOutCubic, easeOutCubic } from '../motion/easing';
+import { type PcFramingModel, pcViewpoint } from '../pc/pcFraming';
 import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { TvModel } from '../tv/tvModel';
 import type { RoomView } from '../viewState';
-import { cloneViewpoint, fovForAspect, interpolateViewpoint, type Viewpoint } from './cameraPath';
+import {
+  cloneViewpoint,
+  craneControl,
+  type DeviceLeg,
+  deviceLegProgress,
+  type FlightPath,
+  type FlightProgress,
+  flightShape,
+  interpolateViewpoint,
+  uniformProgress,
+  type Viewpoint,
+} from './cameraPath';
 import { boxCorners, FULL_VIEWPORT, frameSubject, type NdcRegion, regionFromInsets } from './framing';
+import { roomViewpoint } from './roomFraming';
 import type { ScreenFade } from './ScreenFade';
 
 /** CSS-pixel strips of the viewport covered by app overlays (e.g. a touch pad). */
@@ -18,6 +31,9 @@ export interface FramingInsets {
 
 export const NO_INSETS: FramingInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
+/** The radio's resting pose for a viewport (radioFraming.ts › radioPoseSolver). */
+export type RadioPoseSolver = (viewport: ViewportSize) => Viewpoint;
+
 // A long lens flattens the set into a "product shot" of the TV.
 const TV_FOV = 28;
 // Beyond this distance a portrait framing would back the camera into the desk; widen the
@@ -29,56 +45,71 @@ const TV_MARGIN = 0.06;
 // Looking down slightly shows the top of the cabinet: depth without losing "straight on".
 const TV_PITCH_DEGREES = 4;
 
-/** The Blender review's "whole room" preset: window, desk, posters and the TV in one shot. */
-const ROOM_WIDE = { eye: new Vector3(-0.55, 1.62, 2.1), target: new Vector3(0.25, 1.12, -1.1), minHorizontalFov: 72 };
-/**
- * A tall screen cannot hold the whole room, and the TV must stay in shot to be clicked
- * back into, so portrait turns towards the TV corner: lava lamp, guitar, TV and console.
- */
-const ROOM_TALL = { eye: new Vector3(-0.25, 1.5, 2.25), target: new Vector3(1.55, 0.85, -0.6), minHorizontalFov: 50 };
-const ROOM_FOV = 64;
-const ROOM_MAX_FOV = 84;
-/** Aspect ratios between which the room view blends from the tall to the wide framing. */
-const ROOM_TALL_ASPECT = 0.62;
-const ROOM_WIDE_ASPECT = 1.15;
-
-const FLIGHT_MS = 1100;
+/** One motion language: every flight, the computer's and the radio's included, takes the same time. */
+export const FLIGHT_MS = 1100;
 const FLIGHT_LIFT = 0.16;
-const REDUCED_FADE_MS = 140;
+/** Under reduced motion a move is a fade to black this long, a cut, and a fade back as long. */
+export const REDUCED_FADE_MS = 140;
+/** The longest a cut stays black waiting for what it cuts to (the radio's device on a first visit). */
+export const MAX_CUT_HOLD_MS = 1200;
+
+export interface FlightOptions {
+  /** Under reduced motion, hold the black after the cut while this says so (at most MAX_CUT_HOLD_MS). */
+  readonly holdCut?: () => boolean;
+}
 
 const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
 
 /**
- * Owns where the camera is: the computed TV framing, the room overview, the flight between
- * them and a subtle pointer parallax in the room view.
+ * Owns the TV, room, computer and radio viewpoints, the flights between them and a subtle pointer
+ * parallax in the room view.
  */
 export class CameraRig {
-  private readonly poses: Record<RoomView, Viewpoint>;
+  /** The TV, room and computer poses for the current viewport; the radio's is solved when first needed. */
+  private readonly poses: Record<Exclude<RoomView, 'radio'>, Viewpoint>;
+  /** The radio's pose for the current viewport, disc count and control insets; null until asked for again. */
+  private radioPose: Viewpoint | null = null;
   private current: Viewpoint;
+  private settledView: RoomView = 'tv';
   private region: NdcRegion = FULL_VIEWPORT;
   private insets: FramingInsets = NO_INSETS;
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
   private stopFlight: (() => void) | null = null;
+  /** The current cut holds its black (see `veiled`). */
+  private holdingBlack = false;
   private readonly parallax = new Vector2();
   private readonly parallaxGoal = new Vector2();
   private parallaxActive = false;
   private parallaxEnabled = false;
+  /** Solves the radio's pose; set by the radio's deck once its code has loaded (null: the room's pose). */
+  private radioSolver: RadioPoseSolver | null = null;
 
   constructor(
     private readonly camera: PerspectiveCamera,
     private readonly loop: RenderLoop,
     private readonly tv: TvModel,
+    private readonly pc: PcFramingModel,
     private readonly reducedMotion: MediaQueryList,
     private readonly fade: ScreenFade,
   ) {
-    this.poses = { tv: this.computeTvPose(), room: this.computeRoomPose() };
+    this.poses = { tv: this.computeTvPose(), room: roomViewpoint(1), pc: pcViewpoint(pc, 1) };
     this.current = cloneViewpoint(this.poses.tv);
     this.apply();
   }
 
   get moving(): boolean {
     return this.stopFlight !== null;
+  }
+
+  /** A reduced-motion cut holds its black: the camera is at its destination and nothing on screen moves. */
+  get veiled(): boolean {
+    return this.moving && this.holdingBlack;
+  }
+
+  /** The pose the camera rests at in `view`, for the current viewport. */
+  viewpoint(view: RoomView): Viewpoint {
+    return cloneViewpoint(this.pose(view));
   }
 
   resize(viewport: ViewportSize): void {
@@ -89,24 +120,43 @@ export class CameraRig {
 
   setFramingInsets(insets: FramingInsets): void {
     this.insets = insets;
-    this.resize(this.viewport);
+    this.region = regionFromInsets(this.viewport, insets);
+    // Only the TV's framing keeps clear of overlays; the room and the computer use the whole viewport.
+    this.poses.tv = this.computeTvPose();
+    this.holdPose();
+  }
+
+  /**
+   * How the radio view frames its disc slots clear of the app's controls, from the radio's deck (its framing code
+   * leaves the first load): re-set when the disc count or the controls change. Null rests it at the room's pose.
+   */
+  setRadioFraming(solve: RadioPoseSolver | null): void {
+    this.radioSolver = solve;
+    this.radioPose = null;
+    if (this.settledView === 'radio') this.holdPose();
   }
 
   /** Places the camera at `view` immediately. */
   jumpTo(view: RoomView): void {
     this.stopFlight?.();
     this.stopFlight = null;
-    this.current = cloneViewpoint(this.poses[view]);
+    this.settledView = view;
+    this.current = cloneViewpoint(this.pose(view));
     this.apply();
     this.loop.invalidate();
   }
 
   /** Flies to `view` (or cuts, under reduced motion) and calls `onArrive` once there. */
-  goTo(view: RoomView, onArrive: () => void): void {
+  goTo(view: RoomView, onArrive: () => void, options: FlightOptions = {}): void {
+    const from = this.moving ? null : this.settledView;
     this.stopFlight?.();
+    this.holdingBlack = false;
     this.parallaxEnabled = false;
-    this.parallaxGoal.set(0, 0);
-    const step = this.reducedMotion.matches ? this.cutStep(view, onArrive) : this.flightStep(view, onArrive);
+    this.setParallaxPointer(null);
+    const { lead, crane } = flightShape(from, view);
+    const step = this.reducedMotion.matches
+      ? this.cutStep(view, onArrive, options.holdCut)
+      : this.flightStep(view, lead, crane, onArrive);
     this.stopFlight = this.loop.animate(step);
   }
 
@@ -135,13 +185,31 @@ export class CameraRig {
     this.stopFlight = null;
   }
 
-  private flightStep(view: RoomView, onArrive: () => void): (now: number) => boolean {
+  /**
+   * @param leg 'arriving' or 'departing' for a flight to a device view (the computer, the radio) or from a settled
+   *   one: the look-at leads; null for the TV ↔ room motion.
+   * @param crane which end of the flight is the computer, whose legs crane over the chair; null for the house arc.
+   */
+  private flightStep(
+    view: RoomView,
+    leg: DeviceLeg | null,
+    crane: DeviceLeg | null,
+    onArrive: () => void,
+  ): (now: number) => boolean {
     const from = cloneViewpoint(this.current);
     let start: number | null = null;
     return (now) => {
       start ??= now;
       const t = Math.min(1, (now - start) / FLIGHT_MS);
-      this.current = interpolateViewpoint(from, this.poses[view], easeInOutCubic(t), FLIGHT_LIFT);
+      // Read every frame, so a resize mid-flight lands on the new viewport's pose.
+      const to = this.pose(view);
+      const progress: FlightProgress = leg ? deviceLegProgress(t, leg) : uniformProgress(easeInOutCubic(t));
+      let path: FlightPath = { lift: FLIGHT_LIFT };
+      if (crane) {
+        const [pcEye, otherEye] = crane === 'arriving' ? [to.position, from.position] : [from.position, to.position];
+        path = { control: craneControl(pcEye, otherEye) };
+      }
+      this.current = interpolateViewpoint(from, to, progress, path);
       this.apply();
       if (t < 1) return true;
       this.arrive(view, onArrive);
@@ -149,18 +217,32 @@ export class CameraRig {
     };
   }
 
-  private cutStep(view: RoomView, onArrive: () => void): (now: number) => boolean {
+  /** A fade to black, the cut (held black while `hold` says so, within MAX_CUT_HOLD_MS) and a fade back. */
+  private cutStep(view: RoomView, onArrive: () => void, hold?: () => boolean): (now: number) => boolean {
     let start: number | null = null;
     let cut = false;
+    let fadeInFrom = REDUCED_FADE_MS;
+    let holding = hold !== undefined;
     return (now) => {
       start ??= now;
       const elapsed = now - start;
       if (!cut && elapsed >= REDUCED_FADE_MS) {
         cut = true;
-        this.current = cloneViewpoint(this.poses[view]);
+        this.current = cloneViewpoint(this.pose(view));
         this.apply();
       }
-      const fadeIn = (elapsed - REDUCED_FADE_MS) / REDUCED_FADE_MS;
+      if (cut && holding) {
+        // Black until what the cut shows is ready; once the fade back starts it never holds again.
+        if (hold?.() && elapsed < REDUCED_FADE_MS + MAX_CUT_HOLD_MS) {
+          fadeInFrom = elapsed;
+          this.fade.opacity = 1;
+          this.holdingBlack = true;
+          return true;
+        }
+        holding = false;
+        this.holdingBlack = false;
+      }
+      const fadeIn = (elapsed - fadeInFrom) / REDUCED_FADE_MS;
       this.fade.opacity = cut ? 1 - easeOutCubic(Math.min(1, fadeIn)) : elapsed / REDUCED_FADE_MS;
       if (fadeIn < 1) return true;
       this.fade.opacity = 0;
@@ -171,24 +253,41 @@ export class CameraRig {
 
   private arrive(view: RoomView, onArrive: () => void): void {
     this.stopFlight = null;
+    this.settledView = view;
     this.parallaxEnabled = view === 'room' && !this.reducedMotion.matches;
     onArrive();
   }
 
   private refreshPoses(): void {
-    const settledView = this.moving ? null : this.closestView();
+    const aspect = this.viewport.width / this.viewport.height;
     this.poses.tv = this.computeTvPose();
-    this.poses.room = this.computeRoomPose();
-    if (settledView) {
-      this.current = cloneViewpoint(this.poses[settledView]);
-      this.apply();
-    }
+    this.poses.room = roomViewpoint(aspect);
+    this.poses.pc = pcViewpoint(this.pc, aspect);
+    this.radioPose = null;
+    this.holdPose();
   }
 
-  private closestView(): RoomView {
-    const toTv = this.current.position.distanceToSquared(this.poses.tv.position);
-    const toRoom = this.current.position.distanceToSquared(this.poses.room.position);
-    return toTv <= toRoom ? 'tv' : 'room';
+  /** A camera at rest takes up its view's new pose; a flight reads its destination every frame. */
+  private holdPose(): void {
+    if (this.moving) return;
+    this.current = cloneViewpoint(this.pose(this.settledView));
+    this.apply();
+  }
+
+  /**
+   * The pose `view` rests at. The radio's is solved on first use after a change (a few milliseconds, many on a slow
+   * phone), so the first frame, a resize away from the radio and the app's controls never pay for it.
+   */
+  private pose(view: RoomView): Viewpoint {
+    if (view !== 'radio') return this.poses[view];
+    this.radioPose ??= this.computeRadioPose() ?? this.poses.room;
+    return this.radioPose;
+  }
+
+  private computeRadioPose(): Viewpoint | null {
+    if (!this.radioSolver) return null;
+    const { position, target, fov } = this.radioSolver(this.viewport);
+    return { position, target, fov };
   }
 
   private computeTvPose(): Viewpoint {
@@ -208,17 +307,6 @@ export class CameraRig {
       pose = frameSubject({ points, direction, up, fovY: fov, aspect, region: this.region, margin: TV_MARGIN });
     }
     return { position: pose.position, target: pose.target, fov };
-  }
-
-  private computeRoomPose(): Viewpoint {
-    const aspect = this.viewport.width / this.viewport.height;
-    const wide = MathUtils.smoothstep(aspect, ROOM_TALL_ASPECT, ROOM_WIDE_ASPECT);
-    const minHorizontalFov = MathUtils.lerp(ROOM_TALL.minHorizontalFov, ROOM_WIDE.minHorizontalFov, wide);
-    return {
-      position: ROOM_TALL.eye.clone().lerp(ROOM_WIDE.eye, wide),
-      target: ROOM_TALL.target.clone().lerp(ROOM_WIDE.target, wide),
-      fov: fovForAspect(ROOM_FOV, minHorizontalFov, aspect, ROOM_MAX_FOV),
-    };
   }
 
   private apply(): void {

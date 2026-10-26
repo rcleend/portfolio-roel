@@ -2,12 +2,14 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawNineSlice, type NineSlice } from '@/engine/gfx/NineSlice';
 import { compilePixelArt, pixels } from '@/engine/gfx/PixelArt';
 import type { Rect } from '@/engine/math/Rect';
+import { INK, shadeOf } from '../../title/backdrops/blueprint/inks';
 import { CARD_BORDER } from '../layout';
 
 /**
- * The card's frame: a 5 px raised bevel with rounded corners — a light
- * lavender rim lit from the top-left, a mid band and a dark inner rim —
- * tiled as a nine-slice so the pixels stay 1:1 at any card size.
+ * The card's frame: a 5 px raised bevel with rounded corners in the
+ * blueprint's inks — a near-white rim lit from the top-left, a mid-blue band
+ * and a dark inner rim — tiled as a nine-slice so the pixels stay 1:1 at any
+ * card size.
  */
 const FRAME = pixels(`
   ...oooooo...
@@ -25,9 +27,9 @@ const FRAME = pixels(`
 `);
 
 const PALETTES = {
-  rest: { o: '#0b0a1f', L: '#e4dcff', l: '#9d90e6', m: '#6a5ad0', d: '#1a1446' },
+  rest: { o: shadeOf(0), L: shadeOf(INK.white), l: shadeOf(12), m: shadeOf(8), d: shadeOf(1) },
   // Choosing bleaches the rim for a beat, so the flash reads on the frame as well as inside it.
-  flash: { o: '#0b0a1f', L: '#ffffff', l: '#ffffff', m: '#e4dcff', d: '#a99cf0' },
+  flash: { o: shadeOf(0), L: shadeOf(INK.hot), l: shadeOf(INK.hot), m: shadeOf(INK.white), d: shadeOf(INK.mid) },
 } as const;
 
 export type CardFrameLook = keyof typeof PALETTES;

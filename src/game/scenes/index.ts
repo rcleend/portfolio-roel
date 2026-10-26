@@ -1,3 +1,4 @@
+import type { AssetStore } from '@/engine/assets/AssetStore';
 import type { SceneFactories } from '@/engine/core/Director';
 import type { Action } from '../input/bindings';
 import type { GameServices } from '../services';
@@ -5,6 +6,7 @@ import { BootScene } from './boot/BootScene';
 import { CharacterSelectScene } from './character-select/CharacterSelectScene';
 import { LevelScene } from './level/LevelScene';
 import { LevelSelectScene } from './level-select/LevelSelectScene';
+import type { LineupScene } from './lineup/LineupScene';
 import type { GameSceneMap, SceneId } from './params';
 import { ShowcaseScene } from './showcase/ShowcaseScene';
 import { SpecimenScene } from './specimen/SpecimenScene';
@@ -29,6 +31,7 @@ export function createSceneFactories(services: () => GameServices): SceneFactori
     stageClear: () => new StageClearScene(services()),
     specimen: () => new SpecimenScene(services()),
     showcase: () => new ShowcaseScene(services()),
+    lineup: () => new (lineupScene())(services()),
   };
 }
 
@@ -41,9 +44,34 @@ const SCENE_IDS: readonly SceneId[] = [
   'stageClear',
   'specimen',
   'showcase',
+  'lineup',
 ];
 
 /** Narrows untrusted input (URL parameters, the dev console) to a registered scene id. */
 export function isSceneId(value: unknown): value is SceneId {
   return typeof value === 'string' && (SCENE_IDS as readonly string[]).includes(value);
+}
+
+/**
+ * The lineup, once `preloadSceneArt` has fetched it. It stands designs the
+ * game never draws, so it and their art stay out of the visitor's download
+ * (docs/ARCHITECTURE.md › Looks).
+ */
+let lineup: typeof LineupScene | null = null;
+
+function lineupScene(): typeof LineupScene {
+  if (!lineup) throw new Error('The lineup is a development scene: await preloadSceneArt("lineup") before opening it');
+  return lineup;
+}
+
+/**
+ * Downloads a development scene the game itself never opens, and the art it
+ * draws, so the scene can read it synchronously: the harness and the
+ * playground await this before opening it.
+ */
+export async function preloadSceneArt(id: SceneId, assets: AssetStore): Promise<void> {
+  if (id !== 'lineup') return;
+  const module = await import('./lineup/LineupScene');
+  await module.loadLineupArt(assets);
+  lineup = module.LineupScene;
 }

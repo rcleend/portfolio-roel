@@ -1,0 +1,1229 @@
+{
+  "$comment": "The decorated attic (docs/ROOM.md \"Posters\"). Blender Z-up metres. back = (a: x, b: z) on the wall y = 2.405; slope = (a: y, b: s metres down the slope from the ridge). rot in degrees, CCW as seen from the room. w/h in metres. crop (u0, v0, u1, v1) in source fractions from the TOP-LEFT. Layer n sits 1 + 0.75 n mm off its surface; cork pieces (layer >= 11) at 18.5 mm + 0.5 mm per layer above 10. density = atlas px/cm at the 2K tier. Tape u/v/angle are in the sheet's own frame (metres, degrees). skirtSides: the widths the stage loop settled on (it widens a side whose contact shadow outruns the default), committed so a rebuild bakes once.",
+  "room": {
+    "backY": 2.405,
+    "ridge": [0.95, 3.28],
+    "slopeDir": [0.797, 0, -0.603],
+    "slopeLength": 2.32
+  },
+  "skirt": 0.025,
+  "skirtSides": {
+    "A1": {
+      "b": 0.035
+    },
+    "B1": {
+      "t": 0.045
+    },
+    "E1": {
+      "b": 0.035
+    },
+    "E2": {
+      "b": 0.035
+    },
+    "F1": {
+      "l": 0.035
+    },
+    "F3": {
+      "b": 0.035,
+      "l": 0.065,
+      "r": 0.035
+    },
+    "G1": {
+      "r": 0.035,
+      "t": 0.035
+    },
+    "M2": {
+      "r": 0.035
+    },
+    "M3": {
+      "b": 0.045,
+      "r": 0.045
+    },
+    "M4": {
+      "l": 0.035
+    },
+    "M6": {
+      "b": 0.035
+    },
+    "O1": {
+      "b": 0.035,
+      "l": 0.035,
+      "r": 0.045,
+      "t": 0.035
+    },
+    "R1": {
+      "b": 0.035,
+      "l": 0.035
+    },
+    "R2": {
+      "l": 0.045
+    },
+    "S2": {
+      "b": 0.035
+    },
+    "corkboard": {
+      "l": 0.03,
+      "t": 0.06
+    }
+  },
+  "corkboard": {
+    "x": -2.54,
+    "z": 1.53,
+    "w": 0.46,
+    "h": 0.36
+  },
+  "keepouts": {
+    "back": {
+      "window": [-2.28, 0.98, -0.32, 2.66],
+      "radio": [0.3, -1, 1.7, 1.7]
+    },
+    "slope": {
+      "tv": [-0.6, 2.05, 1.2, 9]
+    }
+  },
+  "overlaps": [
+    ["A1", "F3"],
+    ["B1", "M4"],
+    ["E1", "M2"],
+    ["M1", "M2"],
+    ["M1", "M4"],
+    ["M1", "M6"],
+    ["M2", "M5"],
+    ["M2", "M6"],
+    ["R1", "R2"]
+  ],
+  "atlas": {
+    "size": [2048, 1024],
+    "gutter": 8,
+    "skirtDensity": 2.0
+  },
+  "tapeSize": [0.0525, 0.019],
+  "focal2kMinPx": 505,
+  "topics": [
+    "Avatar",
+    "Call of Duty 4",
+    "Green Day",
+    "Guitar Hero III",
+    "LEGO Star Wars",
+    "Oblivion",
+    "RATM",
+    "Radiohead",
+    "RuneScape",
+    "SSX 3",
+    "Star Wars"
+  ],
+  "items": [
+    {
+      "key": "M1",
+      "topic": "Radiohead",
+      "item": "square promo print",
+      "finish": "matte",
+      "source": "music/radiohead-in-rainbows/in-rainbows-album-cover-4000.jpg",
+      "sourcePx": [4000, 4000],
+      "surface": "back",
+      "a": 0.66,
+      "b": 2.21,
+      "w": 0.6,
+      "h": 0.6,
+      "rot": 1.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.29717,
+          "v": -0.29717,
+          "angle": -45.0,
+          "hiddenFraction": 1.0
+        },
+        {
+          "spot": "BR",
+          "u": 0.29717,
+          "v": -0.29717,
+          "angle": 45.0,
+          "hiddenFraction": 0.95
+        },
+        {
+          "spot": "TR",
+          "u": 0.29717,
+          "v": 0.29717,
+          "angle": 135.0,
+          "lifted": true
+        },
+        {
+          "spot": "TL",
+          "u": -0.29717,
+          "v": 0.29717,
+          "angle": -135.0
+        }
+      ]
+    },
+    {
+      "key": "M2",
+      "topic": "RATM",
+      "item": "square print",
+      "finish": "matte",
+      "source": "music/rage-against-the-machine/ratm-battle-of-los-angeles-cover.jpg",
+      "sourcePx": [3719, 3719],
+      "surface": "back",
+      "a": 1.17,
+      "b": 2.03,
+      "w": 0.5,
+      "h": 0.5,
+      "rot": -3.0,
+      "layer": 2,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.0,
+      "curl": {
+        "BR": 0.014
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.24717,
+          "v": -0.24717,
+          "angle": -45.0
+        },
+        {
+          "spot": "BR",
+          "u": 0.24717,
+          "v": -0.24717,
+          "angle": 45.0,
+          "hiddenFraction": 1.0
+        },
+        {
+          "spot": "TR",
+          "u": 0.24717,
+          "v": 0.24717,
+          "angle": 135.0,
+          "hiddenFraction": 1.0
+        },
+        {
+          "spot": "TL",
+          "u": -0.24717,
+          "v": 0.24717,
+          "angle": -135.0
+        }
+      ]
+    },
+    {
+      "key": "M3",
+      "topic": "RATM",
+      "item": "bumper-sticker strip",
+      "finish": "semi-gloss",
+      "source": "music/rage-against-the-machine/ratm-logo-wordmark.png",
+      "sourcePx": [1342, 162],
+      "surface": "back",
+      "a": 1.06,
+      "b": 2.59,
+      "w": 0.62,
+      "h": 0.0748,
+      "rot": -1.5,
+      "layer": 1,
+      "attach": "tape2ends",
+      "crop": [0, 0, 1, 1],
+      "density": 4.25,
+      "alpha": "white-vinyl",
+      "tapes": [
+        {
+          "spot": "ML",
+          "u": -0.306,
+          "v": 0.0,
+          "angle": 180.0
+        },
+        {
+          "spot": "MR",
+          "u": 0.306,
+          "v": 0.0,
+          "angle": 0.0
+        }
+      ]
+    },
+    {
+      "key": "M4",
+      "topic": "RATM",
+      "item": "flyer",
+      "finish": "matte",
+      "source": "music/rage-against-the-machine/coachella-2007-official-lineup-poster-480x640.jpg",
+      "sourcePx": [480, 640],
+      "surface": "back",
+      "a": 0.33,
+      "b": 1.877,
+      "w": 0.2,
+      "h": 0.2667,
+      "rot": -6.0,
+      "layer": 3,
+      "attach": "tape2top",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "curl": {
+        "BL": 0.008,
+        "BR": 0.005
+      },
+      "tapes": [
+        {
+          "spot": "TL",
+          "u": -0.0976,
+          "v": 0.13015,
+          "angle": -143.13
+        },
+        {
+          "spot": "TR",
+          "u": 0.0976,
+          "v": 0.13015,
+          "angle": 143.13
+        }
+      ]
+    },
+    {
+      "key": "M5",
+      "topic": "RATM",
+      "item": "flyer",
+      "finish": "matte",
+      "source": "music/rage-against-the-machine/rock-the-bells-2007-san-bernardino-set-times-flyer-500x694.jpg",
+      "sourcePx": [500, 694],
+      "surface": "back",
+      "a": 1.47,
+      "b": 1.89,
+      "w": 0.21,
+      "h": 0.2917,
+      "rot": 4.0,
+      "layer": 3,
+      "attach": "tape2top",
+      "crop": [0, 0, 1, 1],
+      "density": 4.0,
+      "curl": {
+        "BR": 0.009
+      },
+      "tapes": [
+        {
+          "spot": "TL",
+          "u": -0.10266,
+          "v": 0.1426,
+          "angle": -144.25
+        },
+        {
+          "spot": "TR",
+          "u": 0.10266,
+          "v": 0.1426,
+          "angle": 144.25
+        }
+      ]
+    },
+    {
+      "key": "M6",
+      "topic": "Radiohead",
+      "item": "die-cut vinyl sticker",
+      "finish": "gloss",
+      "source": "music/radiohead-in-rainbows/radiohead-modified-bear-logo-sticker.png",
+      "sourcePx": [1011, 1024],
+      "surface": "back",
+      "a": 0.93,
+      "b": 1.93,
+      "w": 0.1,
+      "h": 0.1013,
+      "rot": 8.0,
+      "layer": 4,
+      "attach": "none",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "alpha": "die-cut",
+      "tapes": []
+    },
+    {
+      "key": "B1",
+      "topic": "Green Day",
+      "item": "retail poster",
+      "finish": "satin",
+      "source": "music/green-day-american-idiot/green-day-2004-trends-band-poster-1087x1482.jpg",
+      "sourcePx": [1087, 1482],
+      "surface": "back",
+      "a": 0.01,
+      "b": 2.14,
+      "w": 0.58,
+      "h": 0.7907,
+      "rot": 1.5,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.75,
+      "curl": {
+        "TL": 0.012
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.28763,
+          "v": -0.39212,
+          "angle": -36.26
+        },
+        {
+          "spot": "BR",
+          "u": 0.28763,
+          "v": -0.39212,
+          "angle": 36.26,
+          "hiddenFraction": 0.78
+        },
+        {
+          "spot": "TR",
+          "u": 0.28763,
+          "v": 0.39212,
+          "angle": 143.74
+        },
+        {
+          "spot": "TL",
+          "u": -0.28763,
+          "v": 0.39212,
+          "angle": -143.74,
+          "lifted": true
+        }
+      ]
+    },
+    {
+      "key": "R1",
+      "topic": "RuneScape",
+      "item": "home inkjet print",
+      "finish": "matte",
+      "source": "games/runescape/wallpaper-Void_Knight_1920x1200.jpg",
+      "sourcePx": [1920, 1200],
+      "surface": "back",
+      "a": -0.005,
+      "b": 1.4,
+      "w": 0.52,
+      "h": 0.325,
+      "rot": -1.5,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "curl": {
+        "BL": 0.01
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.25661,
+          "v": -0.16038,
+          "angle": -57.99
+        },
+        {
+          "spot": "BR",
+          "u": 0.25661,
+          "v": -0.16038,
+          "angle": 57.99
+        },
+        {
+          "spot": "TR",
+          "u": 0.25661,
+          "v": 0.16038,
+          "angle": 122.01
+        },
+        {
+          "spot": "TL",
+          "u": -0.25661,
+          "v": 0.16038,
+          "angle": -122.01
+        }
+      ]
+    },
+    {
+      "key": "R2",
+      "topic": "RuneScape",
+      "item": "logo printed and cut out",
+      "finish": "matte",
+      "source": "games/runescape/runescape-2-logo-2004-2008-444x142.png",
+      "sourcePx": [444, 142],
+      "surface": "back",
+      "a": 0.04,
+      "b": 1.6,
+      "w": 0.36,
+      "h": 0.1149,
+      "rot": 3.0,
+      "layer": 2,
+      "attach": "tape2ends",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "alpha": "white-paper",
+      "pad": 0.008,
+      "tapes": [
+        {
+          "spot": "ML",
+          "u": -0.176,
+          "v": 0.0,
+          "angle": 180.0
+        },
+        {
+          "spot": "MR",
+          "u": 0.176,
+          "v": 0.0,
+          "angle": 0.0
+        }
+      ]
+    },
+    {
+      "key": "F1",
+      "topic": "Guitar Hero III",
+      "item": "magazine pull-out",
+      "finish": "gloss",
+      "source": "games/guitar-hero-3/gh3-official-wallpaper-4-johnny-napalm-logo-1280x1024.jpg",
+      "sourcePx": [1280, 1024],
+      "surface": "back",
+      "a": -2.3,
+      "b": 2.93,
+      "w": 0.46,
+      "h": 0.368,
+      "rot": -2.5,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "creases": [1, 0],
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.22688,
+          "v": -0.1815,
+          "angle": -51.34
+        },
+        {
+          "spot": "BR",
+          "u": 0.22688,
+          "v": -0.1815,
+          "angle": 51.34
+        },
+        {
+          "spot": "TR",
+          "u": 0.22688,
+          "v": 0.1815,
+          "angle": 128.66
+        },
+        {
+          "spot": "TL",
+          "u": -0.22688,
+          "v": 0.1815,
+          "angle": -128.66
+        }
+      ]
+    },
+    {
+      "key": "A1",
+      "topic": "Avatar",
+      "item": "poster",
+      "finish": "satin",
+      "source": "shows-and-films/avatar-the-last-airbender/avatar-legend-of-aang-international-key-art.jpg",
+      "sourcePx": [2000, 3000],
+      "surface": "back",
+      "a": -1.7,
+      "b": 2.965,
+      "w": 0.33,
+      "h": 0.4952,
+      "rot": 2.5,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.5,
+      "curl": {
+        "BR": 0.016
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.16278,
+          "v": -0.24427,
+          "angle": -33.68
+        },
+        {
+          "spot": "BR",
+          "u": 0.16278,
+          "v": -0.24427,
+          "angle": 33.68,
+          "hiddenFraction": 0.23,
+          "lifted": true
+        },
+        {
+          "spot": "TR",
+          "u": 0.16278,
+          "v": 0.24427,
+          "angle": 146.32
+        },
+        {
+          "spot": "TL",
+          "u": -0.16278,
+          "v": 0.24427,
+          "angle": -146.32
+        }
+      ]
+    },
+    {
+      "key": "F3",
+      "topic": "Green Day",
+      "item": "tour banner print",
+      "finish": "matte",
+      "source": "music/green-day-american-idiot/green-day-american-idiot-tour-2005-promo-banner-959x520.jpg",
+      "sourcePx": [959, 520],
+      "surface": "back",
+      "a": -1.28,
+      "b": 2.87,
+      "w": 0.54,
+      "h": 0.2752,
+      "rot": -1.0,
+      "layer": 2,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 0.94],
+      "density": 4.5,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.26644,
+          "v": -0.13578,
+          "angle": -63.0
+        },
+        {
+          "spot": "BR",
+          "u": 0.26644,
+          "v": -0.13578,
+          "angle": 63.0
+        },
+        {
+          "spot": "TR",
+          "u": 0.26644,
+          "v": 0.13578,
+          "angle": 117.0
+        },
+        {
+          "spot": "TL",
+          "u": -0.26644,
+          "v": 0.13578,
+          "angle": -117.0
+        }
+      ]
+    },
+    {
+      "key": "B3",
+      "topic": "SSX 3",
+      "item": "store promo print",
+      "finish": "matte",
+      "source": "games/ssx-3/ssx3-ps2-na-box-front-scan-3040x4303.jpg",
+      "sourcePx": [3040, 4303],
+      "surface": "back",
+      "a": -0.62,
+      "b": 2.96,
+      "w": 0.4,
+      "h": 0.4158,
+      "rot": -3.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0.02, 0.125, 0.98, 0.83],
+      "density": 4.0,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.19723,
+          "v": -0.20502,
+          "angle": -43.89
+        },
+        {
+          "spot": "BR",
+          "u": 0.19723,
+          "v": -0.20502,
+          "angle": 43.89
+        },
+        {
+          "spot": "TR",
+          "u": 0.19723,
+          "v": 0.20502,
+          "angle": 136.11
+        },
+        {
+          "spot": "TL",
+          "u": -0.19723,
+          "v": 0.20502,
+          "angle": -136.11
+        }
+      ]
+    },
+    {
+      "key": "O1",
+      "topic": "Oblivion",
+      "item": "store promo print",
+      "finish": "matte",
+      "source": "shows-and-films/oblivion/oblivion-2006-box-art-us-pre-release.jpg",
+      "sourcePx": [1524, 1886],
+      "surface": "back",
+      "a": -2.535,
+      "b": 2.25,
+      "w": 0.4,
+      "h": 0.3615,
+      "rot": 2.0,
+      "layer": 1,
+      "attach": "tape3",
+      "crop": [0, 0, 1, 0.73],
+      "density": 4.25,
+      "curl": {
+        "BR": 0.02
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.19703,
+          "v": -0.17807,
+          "angle": -47.89
+        },
+        {
+          "spot": "TR",
+          "u": 0.19703,
+          "v": 0.17807,
+          "angle": 132.11
+        },
+        {
+          "spot": "TL",
+          "u": -0.19703,
+          "v": 0.17807,
+          "angle": -132.11
+        }
+      ]
+    },
+    {
+      "key": "C4",
+      "topic": "SSX 3",
+      "item": "magazine clipping",
+      "finish": "matte",
+      "source": "games/ssx-3/ssx3-official-wallpaper-allegra-adam-warren-1024x768.jpg",
+      "sourcePx": [1024, 768],
+      "surface": "back",
+      "a": -2.645,
+      "b": 1.602,
+      "w": 0.15,
+      "h": 0.1125,
+      "rot": -7.0,
+      "layer": 11,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "C3",
+      "topic": "Green Day",
+      "item": "CD single sleeve",
+      "finish": "gloss",
+      "source": "music/green-day-american-idiot/green-day-holiday-single-cover.jpg",
+      "sourcePx": [1434, 1425],
+      "surface": "back",
+      "a": -2.528,
+      "b": 1.57,
+      "w": 0.11,
+      "h": 0.1093,
+      "rot": 9.0,
+      "layer": 12,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "C7",
+      "topic": "Radiohead",
+      "item": "discbox booklet",
+      "finish": "matte",
+      "source": "music/radiohead-in-rainbows/in-rainbows-disk-2-cover-1400.jpg",
+      "sourcePx": [1400, 1400],
+      "surface": "back",
+      "a": -2.442,
+      "b": 1.613,
+      "w": 0.12,
+      "h": 0.12,
+      "rot": 4.0,
+      "layer": 13,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "C5",
+      "topic": "Avatar",
+      "item": "magazine cut-out",
+      "finish": "matte",
+      "source": "shows-and-films/avatar-the-last-airbender/avatar-tla-book-1-water-key-art-glider.jpg",
+      "sourcePx": [1000, 1426],
+      "surface": "back",
+      "a": -2.68,
+      "b": 1.458,
+      "w": 0.1,
+      "h": 0.1427,
+      "rot": 6.0,
+      "layer": 11,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "C2",
+      "topic": "RuneScape",
+      "item": "home print",
+      "finish": "matte",
+      "source": "games/runescape/wallpaper-Attack_on_Varrock_1920x1200.jpg",
+      "sourcePx": [1920, 1200],
+      "surface": "back",
+      "a": -2.52,
+      "b": 1.452,
+      "w": 0.14,
+      "h": 0.0875,
+      "rot": -3.0,
+      "layer": 12,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 1],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "C6",
+      "topic": "LEGO Star Wars",
+      "item": "catalogue cut-out",
+      "finish": "matte",
+      "source": "shows-and-films/lego-star-wars/lego-star-wars-ii-original-trilogy-2006-cover-art.jpg",
+      "sourcePx": [1467, 2000],
+      "surface": "back",
+      "a": -2.38,
+      "b": 1.408,
+      "w": 0.1,
+      "h": 0.1063,
+      "rot": -10.0,
+      "layer": 13,
+      "attach": "pin1",
+      "crop": [0, 0, 1, 0.78],
+      "density": 6.0,
+      "cork": true,
+      "tapes": []
+    },
+    {
+      "key": "E1",
+      "topic": "Call of Duty 4",
+      "item": "glossy print",
+      "finish": "gloss",
+      "source": "games/call-of-duty-4/cod4-official-wallpaper-sas-gasmask-charlieoscardelta-1600x1200.jpg",
+      "sourcePx": [1600, 1200],
+      "surface": "back",
+      "a": 1.64,
+      "b": 2.36,
+      "w": 0.48,
+      "h": 0.36,
+      "rot": -2.0,
+      "layer": 3,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.0,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.2368,
+          "v": -0.1776,
+          "angle": -53.13
+        },
+        {
+          "spot": "BR",
+          "u": 0.2368,
+          "v": -0.1776,
+          "angle": 53.13
+        },
+        {
+          "spot": "TR",
+          "u": 0.2368,
+          "v": 0.1776,
+          "angle": 126.87
+        },
+        {
+          "spot": "TL",
+          "u": -0.2368,
+          "v": 0.1776,
+          "angle": -126.87
+        }
+      ]
+    },
+    {
+      "key": "E2",
+      "topic": "LEGO Star Wars",
+      "item": "store promo poster",
+      "finish": "gloss",
+      "source": "shows-and-films/lego-star-wars/lego-star-wars-complete-saga-2007-cover-art.jpg",
+      "sourcePx": [1706, 2071],
+      "surface": "back",
+      "a": 1.98,
+      "b": 1.86,
+      "w": 0.42,
+      "h": 0.51,
+      "rot": 3.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.0,
+      "curl": {
+        "BL": 0.012
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.20746,
+          "v": -0.25191,
+          "angle": -39.47
+        },
+        {
+          "spot": "BR",
+          "u": 0.20746,
+          "v": -0.25191,
+          "angle": 39.47
+        },
+        {
+          "spot": "TR",
+          "u": 0.20746,
+          "v": 0.25191,
+          "angle": 140.53
+        },
+        {
+          "spot": "TL",
+          "u": -0.20746,
+          "v": 0.25191,
+          "angle": -140.53
+        }
+      ]
+    },
+    {
+      "key": "G1",
+      "topic": "Green Day",
+      "item": "CD-booklet-sized promo print",
+      "finish": "satin",
+      "source": "music/green-day-american-idiot/green-day-american-idiot-album-cover.jpg",
+      "sourcePx": [1425, 1425],
+      "surface": "back",
+      "a": 2.44,
+      "b": 1.66,
+      "w": 0.3,
+      "h": 0.3,
+      "rot": -4.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.0,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.14717,
+          "v": -0.14717,
+          "angle": -45.0
+        },
+        {
+          "spot": "BR",
+          "u": 0.14717,
+          "v": -0.14717,
+          "angle": 45.0
+        },
+        {
+          "spot": "TR",
+          "u": 0.14717,
+          "v": 0.14717,
+          "angle": 135.0,
+          "lifted": true
+        },
+        {
+          "spot": "TL",
+          "u": -0.14717,
+          "v": 0.14717,
+          "angle": -135.0
+        }
+      ]
+    },
+    {
+      "key": "S1",
+      "topic": "Star Wars",
+      "item": "one-sheet",
+      "finish": "semi-gloss",
+      "source": "shows-and-films/star-wars/star-wars-1977-style-a-tom-jung.jpg",
+      "sourcePx": [1920, 2937],
+      "surface": "slope",
+      "a": 0.4,
+      "b": 1.42,
+      "w": 0.69,
+      "h": 1.0557,
+      "rot": 2.0,
+      "layer": 1,
+      "attach": "tape6",
+      "crop": [0, 0, 1, 1],
+      "density": 6.25,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.34281,
+          "v": -0.5245,
+          "angle": -33.17
+        },
+        {
+          "spot": "BR",
+          "u": 0.34281,
+          "v": -0.5245,
+          "angle": 33.17
+        },
+        {
+          "spot": "TR",
+          "u": 0.34281,
+          "v": 0.5245,
+          "angle": 146.83
+        },
+        {
+          "spot": "TL",
+          "u": -0.34281,
+          "v": 0.5245,
+          "angle": -146.83
+        },
+        {
+          "spot": "ML",
+          "u": -0.341,
+          "v": 0.0,
+          "angle": 180.0
+        },
+        {
+          "spot": "MR",
+          "u": 0.341,
+          "v": 0.0,
+          "angle": 0.0
+        }
+      ]
+    },
+    {
+      "key": "S2",
+      "topic": "Avatar",
+      "item": "poster",
+      "finish": "satin",
+      "source": "shows-and-films/avatar-the-last-airbender/avatar-tla-book-2-earth-key-art-avatar-state.jpg",
+      "sourcePx": [2000, 3000],
+      "surface": "slope",
+      "a": 1.12,
+      "b": 1.05,
+      "w": 0.61,
+      "h": 0.9153,
+      "rot": -4.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 5.75,
+      "curl": {
+        "BL": 0.022
+      },
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.30278,
+          "v": -0.45432,
+          "angle": -33.68,
+          "lifted": true
+        },
+        {
+          "spot": "BR",
+          "u": 0.30278,
+          "v": -0.45432,
+          "angle": 33.68
+        },
+        {
+          "spot": "TR",
+          "u": 0.30278,
+          "v": 0.45432,
+          "angle": 146.32
+        },
+        {
+          "spot": "TL",
+          "u": -0.30278,
+          "v": 0.45432,
+          "angle": -146.32
+        }
+      ]
+    },
+    {
+      "key": "S3",
+      "topic": "Star Wars",
+      "item": "teaser one-sheet",
+      "finish": "gloss",
+      "source": "shows-and-films/star-wars/star-wars-episode-iii-2005-teaser-vader-shadow.jpg",
+      "sourcePx": [2025, 3000],
+      "surface": "slope",
+      "a": 1.92,
+      "b": 1.45,
+      "w": 0.61,
+      "h": 0.9037,
+      "rot": 4.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 4.25,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.30276,
+          "v": -0.44853,
+          "angle": -34.02
+        },
+        {
+          "spot": "BR",
+          "u": 0.30276,
+          "v": -0.44853,
+          "angle": 34.02
+        },
+        {
+          "spot": "TR",
+          "u": 0.30276,
+          "v": 0.44853,
+          "angle": 145.98
+        },
+        {
+          "spot": "TL",
+          "u": -0.30276,
+          "v": 0.44853,
+          "angle": -145.98
+        }
+      ]
+    },
+    {
+      "key": "S4",
+      "topic": "Guitar Hero III",
+      "item": "magazine pull-out",
+      "finish": "gloss",
+      "source": "games/guitar-hero-3/gh3-cover-key-art-textless-slash-judy-lars-1920x1080.jpg",
+      "sourcePx": [1920, 1080],
+      "surface": "slope",
+      "a": -0.42,
+      "b": 1.2,
+      "w": 0.72,
+      "h": 0.4047,
+      "rot": -5.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 1],
+      "density": 8.25,
+      "creases": [1, 1],
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.35651,
+          "v": -0.20039,
+          "angle": -60.66
+        },
+        {
+          "spot": "BR",
+          "u": 0.35651,
+          "v": -0.20039,
+          "angle": 60.66
+        },
+        {
+          "spot": "TR",
+          "u": 0.35651,
+          "v": 0.20039,
+          "angle": 119.34
+        },
+        {
+          "spot": "TL",
+          "u": -0.35651,
+          "v": 0.20039,
+          "angle": -119.34
+        }
+      ]
+    },
+    {
+      "key": "S5",
+      "topic": "Call of Duty 4",
+      "item": "magazine pull-out",
+      "finish": "gloss",
+      "source": "games/call-of-duty-4/cod4-key-art-soundtrack-cover-1275x1275.png",
+      "sourcePx": [1275, 1275],
+      "surface": "slope",
+      "a": -0.3,
+      "b": 1.78,
+      "w": 0.45,
+      "h": 0.414,
+      "rot": 3.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0, 0, 1, 0.92],
+      "density": 7.25,
+      "creases": [1, 1],
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.22206,
+          "v": -0.20429,
+          "angle": -47.39
+        },
+        {
+          "spot": "BR",
+          "u": 0.22206,
+          "v": -0.20429,
+          "angle": 47.39
+        },
+        {
+          "spot": "TR",
+          "u": 0.22206,
+          "v": 0.20429,
+          "angle": 132.61
+        },
+        {
+          "spot": "TL",
+          "u": -0.22206,
+          "v": 0.20429,
+          "angle": -132.61
+        }
+      ]
+    },
+    {
+      "key": "O2",
+      "topic": "Oblivion",
+      "item": "home inkjet print",
+      "finish": "matte",
+      "source": "shows-and-films/oblivion/oblivion-2006-official-wallpaper-battle-of-kvatch-1600x1200.jpg",
+      "sourcePx": [1600, 1200],
+      "surface": "slope",
+      "a": 1.76,
+      "b": 0.44,
+      "w": 0.46,
+      "h": 0.4744,
+      "rot": -3.0,
+      "layer": 1,
+      "attach": "tape4",
+      "crop": [0.18, 0.12, 0.82, 1.0],
+      "density": 5.5,
+      "tapes": [
+        {
+          "spot": "BL",
+          "u": -0.22722,
+          "v": -0.23433,
+          "angle": -44.12
+        },
+        {
+          "spot": "BR",
+          "u": 0.22722,
+          "v": -0.23433,
+          "angle": 44.12
+        },
+        {
+          "spot": "TR",
+          "u": 0.22722,
+          "v": 0.23433,
+          "angle": 135.88,
+          "lifted": true
+        },
+        {
+          "spot": "TL",
+          "u": -0.22722,
+          "v": 0.23433,
+          "angle": -135.88
+        }
+      ]
+    }
+  ]
+}

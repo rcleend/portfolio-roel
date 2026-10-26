@@ -1,8 +1,8 @@
-import type { CharacterId } from '@/content';
+import type { CharacterId, SkillId } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rect } from '@/engine/math/Rect';
 import { blink } from '@/engine/motion/oscillators';
-import type { CharacterAnimation } from '../../art/looks/contracts';
+import { type HeroPose, heroFrame, type LayeredMove } from '../../art/looks/contracts';
 import { type Body, type CollisionWorld, moveBody, type Surface } from '../../world/collision';
 import type { RenderKit } from '../RenderKit';
 import { type MoveIntent, type MoveScale, NORMAL_SCALE, PlatformerMotor } from './movement';
@@ -42,6 +42,22 @@ const STOMP_BOUNCE = -280;
 /** Poses that override locomotion for a moment. */
 type ActionPose = 'attack' | 'skill' | 'hurt' | 'victory';
 
+interface Action {
+  readonly pose: ActionPose;
+  readonly since: number;
+  readonly until: number;
+  /** The skill being cast, while the pose is `skill`. */
+  readonly skill: SkillId | null;
+}
+
+/** What the legs are doing. */
+type Move = 'idle' | LayeredMove;
+
+/** Faster than this on the ground, the hero runs. */
+const RUN_SPEED = 12;
+/** Slower than this on the ground, the hero is planted, and a look drawn whole shows his attack pose. */
+const PLANTED_SPEED = 20;
+
 /**
  * The hero: movement, health, invulnerability frames and which animation
  * to show. Attacks and skills are spawned by the world; the player only
@@ -59,9 +75,13 @@ export class Player {
   #grounded = false;
   #invulnerableUntil = Number.NEGATIVE_INFINITY;
   #lockedUntil = Number.NEGATIVE_INFINITY;
-  #action: { readonly pose: ActionPose; readonly since: number; readonly until: number } | null = null;
-  #animation: CharacterAnimation = 'idle';
-  #animationSince = 0;
+  #action: Action | null = null;
+  /** The action under way at the last update, if any. */
+  #acting: Action | null = null;
+  /** The action a look drawn whole shows instead of the move, if any: all but an attack off planted feet. */
+  #shown: Action | null = null;
+  #move: Move = 'idle';
+  #moveSince = 0;
 
   constructor(characterId: CharacterId, x: number, feetY: number) {
     this.characterId = characterId;
@@ -192,33 +212,63 @@ export class Player {
 
   /** Holds an action pose (attack, skill, victory) for `seconds` instead of the locomotion animation. */
   strike(pose: ActionPose, time: number, seconds: number): void {
-    this.#action = { pose, since: time, until: time + seconds };
+    this.#action = { pose, since: time, until: time + seconds, skill: null };
+    this.#showAction(time);
   }
 
-  /** The animation on show and how far into it, at `time`. */
-  pose(time: number): { readonly animation: CharacterAnimation; readonly time: number } {
-    return { animation: this.#animation, time: time - this.#animationSince };
+  /** Holds the skill pose for `seconds` while casting `skill`, which a look may pose its own way. */
+  cast(skill: SkillId, time: number, seconds: number): void {
+    this.#action = { pose: 'skill', since: time, until: time + seconds, skill };
+    this.#showAction(time);
+  }
+
+  /** The pose on show at `time`: an action or the move, and an attack or skill made on the move. */
+  pose(time: number): HeroPose {
+    const shown = this.#shown;
+    const acting = this.#acting;
+    const move = this.#move;
+    const actsOnTheMove = acting !== null && move !== 'idle' && (acting.pose === 'attack' || acting.pose === 'skill');
+    return {
+      animation: shown?.pose ?? move,
+      skill: shown?.pose === 'skill' ? shown.skill : null,
+      time: time - (shown?.since ?? this.#moveSince),
+      onTheMove: actsOnTheMove
+        ? { action: acting.pose, actionTime: time - acting.since, move, moveTime: time - this.#moveSince }
+        : null,
+    };
   }
 
   render(gfx: Gfx, kit: RenderKit): void {
     const invulnerable = this.isInvulnerable(kit.time) && !this.isLocked(kit.time);
     if (invulnerable && !blink(kit.time, 3 / 60, 3 / 60)) return;
-    const { animation, time } = this.pose(kit.time);
-    gfx.sprite(kit.looks.characters[this.characterId].sheet, animation, time, this.centerX, this.feet, {
-      flipX: this.facing < 0,
-    });
+    const { sheet } = kit.looks.characters[this.characterId];
+    const frame = heroFrame(sheet, this.pose(kit.time));
+    const options = { flipX: this.facing < 0 };
+    if (frame.legs) gfx.sprite(sheet, frame.legs.animation, frame.legs.time, this.centerX, this.feet, options);
+    gfx.sprite(sheet, frame.animation, frame.time, this.centerX, this.feet, options);
   }
 
   #updateAnimation(time: number): void {
-    const action = this.#action && time < this.#action.until ? this.#action : null;
-    let next: CharacterAnimation;
-    // Attack poses stand still, so they only show when the body is planted; running and jumping keep their legs.
-    if (action && (action.pose !== 'attack' || (this.#grounded && Math.abs(this.body.vx) < 20))) next = action.pose;
-    else if (!this.#grounded) next = this.body.vy < 0 ? 'jump' : 'fall';
-    else next = Math.abs(this.body.vx) > 12 ? 'run' : 'idle';
-    if (next !== this.#animation || (action && action.since === time)) {
-      this.#animation = next;
-      this.#animationSince = action?.pose === next ? action.since : time;
+    let move: Move;
+    if (!this.#grounded) move = this.body.vy < 0 ? 'jump' : 'fall';
+    else move = Math.abs(this.body.vx) > RUN_SPEED ? 'run' : 'idle';
+    if (move !== this.#move) {
+      this.#move = move;
+      this.#moveSince = time;
     }
+    this.#showAction(time);
+  }
+
+  /**
+   * Settles how the action under way shows. The world strikes an attack or casts a skill after updating the
+   * hero in the same step, so both settle it again: that step's frame already swings the item.
+   */
+  #showAction(time: number): void {
+    const action = this.#action && time < this.#action.until ? this.#action : null;
+    this.#acting = action;
+    // An attack pose stands still, so a look drawn whole shows it only while the body is planted; on the move,
+    // he keeps the move's legs, and only a look drawn in layers swings the attack over them (`heroFrame`).
+    const planted = this.#grounded && Math.abs(this.body.vx) < PLANTED_SPEED;
+    this.#shown = action && (action.pose !== 'attack' || planted) ? action : null;
   }
 }

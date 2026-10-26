@@ -8,6 +8,7 @@
     <style>
       html, body { margin: 0; height: 100%; background: #07080c; color: #cfd6e6; font: 12px/1.4 ui-monospace, monospace; }
       #stage { position: fixed; inset: 0; }
+      #screens { position: fixed; inset: 0; pointer-events: none; }
       #panel { position: fixed; left: 8px; top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
       #panel button { font: inherit; background: #1b2030; color: inherit; border: 1px solid #39425c; padding: 4px 8px; cursor: pointer; }
       #status { padding: 4px 8px; background: #0d1018cc; }
@@ -16,10 +17,16 @@
   </head>
   <body>
     <div id="stage"></div>
+    <div id="screens"></div>
     <div id="panel">
       <button type="button" data-action="power">power</button>
       <button type="button" data-action="tv">tv</button>
       <button type="button" data-action="room">room</button>
+      <button type="button" data-action="pc">pc</button>
+      <button type="button" data-action="radio">radio</button>
+      <button type="button" data-action="play">▷II</button>
+      <button type="button" data-action="stop">■</button>
+      <button type="button" data-action="next">⏭</button>
       <span id="status">loading…</span>
     </div>
     <script type="module" src="/src/room/lab/main.ts"></script>

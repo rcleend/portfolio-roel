@@ -7,7 +7,7 @@ import type { TitleVariant } from './TitleVariant';
  * The title visitors see: the lockup and backdrop used wherever the scene's
  * params leave one out. Promoting a playground winner is a one-line change.
  */
-export const TITLE_DEFAULTS = { lockup: 'classic', backdrop: 'classic' } as const satisfies Required<TitleParams>;
+export const TITLE_DEFAULTS = { lockup: 'classic', backdrop: 'blueprint' } as const satisfies Required<TitleParams>;
 
 /** The two halves of the title's look. */
 export interface TitleVariants {
@@ -37,9 +37,10 @@ export function resolveTitleVariants(params: unknown = {}): TitleVariants {
 
 /**
  * Paints the art of the title `params` show, the default one when left out,
- * so its first frame never stutters. That takes about 70 ms on a laptop:
- * call it while nothing on screen moves, as the boot does during its black
- * frames. Later calls are free.
+ * so its first frame never stutters. For the default that takes about 45 ms
+ * on a laptop, two thirds of it the logo and the rest the blueprint: call it
+ * while nothing on screen moves, as the boot does during its black frames.
+ * Later calls are free.
  */
 export function prepareTitle(params?: TitleParams): void {
   const { lockup, backdrop } = resolveTitleVariants(params);

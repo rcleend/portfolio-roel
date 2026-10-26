@@ -8,6 +8,8 @@
 
 export interface Profile {
   readonly name: string;
+  /** What this site is to the visitor, e.g. "Portfolio"; the title sets it opposite the name. */
+  readonly site: string;
   /** Short role headline, e.g. "Product Engineer". */
   readonly headline: string;
   readonly location: string;
@@ -117,6 +119,14 @@ export interface LevelInfo {
   readonly target: string;
   /** Complaints Unhappy Customers shout in this level. */
   readonly complaints: readonly string[];
+}
+
+/** What the label under every Unhappy Customer's feet calls them. */
+export interface CustomerLabels {
+  /** While they are frustrated: walking, shouting, hurt, stunned or calmed. */
+  readonly unhappy: string;
+  /** From the hit that wins them over until they have strolled off. */
+  readonly happy: string;
 }
 
 /** A non-playable teaser slot on the level select. */

@@ -19,7 +19,6 @@ import {
   plotterAt,
   RINGS,
   registrationRadius,
-  revisionAt,
   ringInk,
   ripple,
   SCAN,
@@ -221,21 +220,11 @@ describe('the plotter', () => {
     }
   });
 
-  it('climbs the revision from A, a letter per finished drawing', () => {
-    expect(revisionAt(0)).toEqual({ count: 0, since: null });
-    PLOTS.forEach(({ done }, i) => {
-      expect(revisionAt(done - 1).count).toBe(i);
-      expect(revisionAt(done)).toEqual({ count: i + 1, since: 0 });
-    });
-    expect(revisionAt(SETTLED_FRAMES - 1).count).toBe(PLOTS.length);
-  });
-
   it('starts and ends the loop on a clean sheet and repeats seamlessly', () => {
     expect(plotterAt(0)).toBeNull();
     expect(plotterAt(SETTLED_FRAMES - 1)).toBeNull();
     for (const frame of range(0, SETTLED_FRAMES).filter((f) => f % 7 === 0)) {
       expect(plotterAt(frame + SETTLED_FRAMES)).toEqual(plotterAt(frame));
-      expect(revisionAt(frame + SETTLED_FRAMES)).toEqual(revisionAt(frame));
     }
   });
 

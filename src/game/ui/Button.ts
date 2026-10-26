@@ -10,6 +10,9 @@ import { drawWindow } from './Window';
 
 export type ButtonState = 'normal' | 'hover' | 'pressed';
 
+/** How far a hovered, focused or pressed button brightens its fill towards white. */
+export const BUTTON_LIT = 0.18;
+
 export interface ButtonOptions {
   readonly label: string;
   readonly bounds: Rect;
@@ -69,7 +72,7 @@ export class Button {
     const lit =
       this.#state === 'normal'
         ? theme
-        : { ...theme, fill: { ...theme.fill, stops: theme.fill.stops.map((stop) => shade(stop, 0.18)) } };
+        : { ...theme, fill: { ...theme.fill, stops: theme.fill.stops.map((stop) => shade(stop, BUTTON_LIT)) } };
     drawWindow(gfx, face, lit);
     const text = gfx.measureText(label, style);
     const textX = face.x + Math.floor((face.w - text.width) / 2);

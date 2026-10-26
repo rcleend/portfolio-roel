@@ -1,5 +1,6 @@
 import { NoToneMapping, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import { RenderLoop } from './RenderLoop';
+import { isSoftwareGpu } from './softwareGpu';
 
 export interface StageOptions {
   readonly container: HTMLElement;
@@ -29,6 +30,8 @@ export class RoomStage {
   readonly camera = new PerspectiveCamera(40, 1, 0.03, 60);
   readonly loop: RenderLoop;
   readonly canvas: HTMLCanvasElement;
+  /** The GPU is software: 2D canvases are better painted on the CPU (see isSoftwareGpu). */
+  readonly softwareGpu: boolean;
 
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
   private readonly resizeListeners = new Set<(size: ViewportSize) => void>();
@@ -45,6 +48,10 @@ export class RoomStage {
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = NoToneMapping;
     this.renderer.shadowMap.enabled = false;
+    // Checking a program's link status makes the main thread wait for the driver to finish linking it: a quarter of a
+    // second for the CD's shader under SwiftShader, which lacks KHR_parallel_shader_compile. Development still checks.
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
+    this.softwareGpu = isSoftwareGpu(this.renderer.getContext());
 
     this.canvas = this.renderer.domElement;
     this.canvas.style.display = 'block';

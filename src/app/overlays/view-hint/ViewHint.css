@@ -39,9 +39,29 @@
   opacity: 1;
 }
 
+/* The computer's reader fills the viewport (app/pc/popout): there is no outside left to click. */
+body:has(.pc-popout[data-shown="true"]) .view-hint {
+  display: none;
+}
+
 .view-hint__marker {
   margin-right: 8px;
   color: #ffc83d;
+}
+
+@media (max-width: 700px) {
+  .view-hint {
+    box-sizing: border-box;
+    max-width: calc(100% - 32px);
+    width: max-content;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .view-hint.view-hint--top {
+    max-width: calc(100% - 120px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

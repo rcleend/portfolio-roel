@@ -1,6 +1,7 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { Rng } from '@/engine/math/Rng';
 import { mod } from '@/engine/math/scalar';
+import { INK, shadeOf } from '../../title/backdrops/blueprint/inks';
 
 /**
  * Twinkling stars behind the character. Each star rests at a dim or mid
@@ -19,7 +20,8 @@ export interface Star {
   readonly flare: boolean;
 }
 
-const COLORS = ['#3f3590', '#8476d6', '#d9d0ff', '#ffffff'] as const;
+/** Brightness levels as blueprint inks: a dim step over the field, then the inks a line cools through. */
+const COLORS = [shadeOf(5), shadeOf(INK.ghost), shadeOf(INK.pale), shadeOf(INK.hot)] as const;
 const SECONDS_PER_STEP = 4 / 60;
 const FLARE = [1, 2, 3, 3, 2, 1] as const;
 const GLINT = [1, 2, 1] as const;

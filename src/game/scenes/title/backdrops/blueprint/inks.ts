@@ -1,4 +1,5 @@
 import { parseHex } from '@/engine/gfx/color';
+import type { WindowTheme } from '../../../../ui/theme';
 
 /**
  * The whole blueprint in one ramp, darkest first: cyanotype paper from the
@@ -47,3 +48,18 @@ export const INK = {
 export function shadeOf(index: number): string {
   return RAMP[Math.max(0, Math.min(RAMP.length - 1, Math.round(index)))] as string;
 }
+
+/**
+ * A key or slot lit on the blueprint: the character select card's white
+ * border and mid-blue bevel over a field sinking to the unexposed paper. The
+ * character select lights its focused skill with it, the mission select its
+ * CONTACT key. The field stays this deep so gold lettering keeps over 5:1
+ * even when a focused button brightens it.
+ */
+export const LIT_WINDOW: WindowTheme = {
+  outline: shadeOf(0),
+  light: shadeOf(INK.white),
+  mid: shadeOf(INK.mid),
+  dark: shadeOf(4),
+  fill: { stops: [shadeOf(2), shadeOf(1), shadeOf(0)], bands: 3, dither: 'bayer2' },
+};

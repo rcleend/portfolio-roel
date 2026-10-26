@@ -56,6 +56,8 @@ export interface CasterSnapshot extends SkillCaster {
   anchor(name: string): Vec2 | null;
   /** Frame height of the hero's sprite, so an effect meant to clear the head clears any look's head. */
   readonly height: number;
+  /** Whether the hero's look poses `skill` its own way (`skill-<skillId>`), drawing what that pose holds. */
+  posesOwn(skill: SkillId): boolean;
 }
 
 /** A spark burst the world rolled for this skill: on a customer it hit (`hit`), where a shot ended (`impact`), … */

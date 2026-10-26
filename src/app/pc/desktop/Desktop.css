@@ -1,0 +1,134 @@
+/*
+ * The live desktop. Every position is inline, from desktopLayout, and every
+ * gradient inline, from lunaTokens: this file only holds what the painter
+ * also hard-codes (fonts, shadows, the selection), so the two stay twins.
+ */
+.pc-desktop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: #fff;
+  font:
+    11px Tahoma,
+    Verdana,
+    "Segoe UI",
+    "DejaVu Sans",
+    sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pc-desktop__wallpaper,
+.pc-desktop__wallpaper > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pc-icon,
+.pc-icon__art,
+.pc-icon__label,
+.pc-icon__art > svg,
+.pc-taskbar,
+.pc-start,
+.pc-start__mark,
+.pc-start__label,
+.pc-task,
+.pc-tray {
+  position: absolute;
+}
+
+.pc-icon__art > svg {
+  inset: 0;
+  display: block;
+}
+
+.pc-icon__tint {
+  opacity: 0.5;
+}
+
+.pc-icon__label {
+  text-align: center;
+}
+
+.pc-icon__line {
+  display: block;
+  overflow: hidden;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pc-icon__text {
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 0.75);
+}
+
+/* Hugs the label's widest line: the selection fills it and its focus rectangle runs round it. */
+.pc-icon__plate {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/*
+ * Selected: white on the selection blue, no shadow, inside the dotted focus rectangle the desktop
+ * draws round a selection. On this deep blue sky the plate alone hardly shows; the dots do.
+ */
+.pc-icon[data-selected="true"] .pc-icon__plate {
+  background: #316ac5;
+  box-shadow: 0 0 0 1px #316ac5;
+  outline: 1px dotted rgb(255 255 255 / 0.9);
+  outline-offset: 1px;
+}
+
+.pc-icon[data-selected="true"] .pc-icon__text {
+  text-shadow: none;
+}
+
+.pc-start {
+  border-radius: 0 14px 14px 0;
+}
+
+.pc-start__label {
+  top: 0;
+  font:
+    italic bold 18px "Trebuchet MS",
+    Tahoma,
+    sans-serif;
+  line-height: 30px;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 0.45);
+}
+
+.pc-task {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: #1e52b7;
+  box-shadow:
+    inset 1px 1px 2px rgb(0 0 0 / 0.5),
+    inset -1px -1px 0 rgb(255 255 255 / 0.12);
+}
+
+.pc-task__mark {
+  flex: none;
+}
+
+.pc-task__label {
+  overflow: hidden;
+  line-height: 24px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pc-tray {
+  line-height: 30px;
+  text-align: center;
+  white-space: nowrap;
+}

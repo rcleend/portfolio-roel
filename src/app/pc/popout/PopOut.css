@@ -1,0 +1,144 @@
+/*
+ * The full-viewport reader for small pictures: real CSS px, 44 px touch
+ * targets, padded clear of notches and home indicators. Above the sound
+ * toggle (20), below the accessible résumé (40).
+ */
+.pc-popout {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  color: #000;
+  font:
+    13px Tahoma,
+    Verdana,
+    "Segoe UI",
+    "DejaVu Sans",
+    sans-serif;
+  text-align: left;
+}
+
+.pc-popout[data-shown="false"] {
+  visibility: hidden;
+}
+
+.pc-popout__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.6);
+}
+
+.pc-popout__window {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  outline: none;
+  background: #ece9d8;
+  transform-origin: 0 0;
+}
+
+/* The dynamic viewport: the reader stays clear of mobile browsers' sliding toolbars. */
+@supports (height: 100dvh) {
+  .pc-popout__window {
+    height: 100dvh;
+  }
+}
+
+.pc-popout__title {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  box-sizing: content-box;
+  height: 44px;
+  /* The title bar's blue runs up under a notch or status bar. */
+  margin: 0 calc(-1 * env(safe-area-inset-right)) 0 calc(-1 * env(safe-area-inset-left));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 calc(10px + env(safe-area-inset-left));
+  background: linear-gradient(to bottom, #0997ff 0%, #0053ee 8%, #0050ee 40%, #0066ff 88%, #0055dd 100%);
+}
+
+.pc-popout__title > svg {
+  flex: none;
+}
+
+.pc-popout__caption {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font:
+    bold 15px / 44px "Trebuchet MS",
+    Tahoma,
+    sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 1px 1px 0 #0a1f7a;
+}
+
+.pc-popout__close {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* The visible button: the reader's red close square, inside the 44 px target. */
+.pc-popout__close::before {
+  position: absolute;
+  inset: 8px;
+  z-index: -1;
+  border: 1px solid #fff;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #e88a68, #d2491f 55%, #b13510);
+  box-shadow: inset 1px 1px rgb(255 255 255 / 0.3);
+  content: "";
+}
+
+.pc-popout__close {
+  isolation: isolate;
+}
+
+.pc-popout__close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -6px;
+}
+
+.pc-popout__toolbar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #a7a38c;
+  background: linear-gradient(to bottom, #f7f6f1, #e3dfcc);
+}
+
+.pc-popout__field {
+  padding: 2px 10px;
+  border: 1px solid #7f9db9;
+  background: #fff;
+}
+
+.pc-pane--popout {
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Scrolls, and leaves pinch zoom to the browser: whoever needs larger text can have it. */
+  touch-action: pan-y pinch-zoom;
+}
+
+.pc-pane--popout .pc-pane__layer {
+  padding: 16px;
+}

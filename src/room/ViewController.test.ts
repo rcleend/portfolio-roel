@@ -25,17 +25,28 @@ function fakeSurface() {
   return surface;
 }
 
-function setup() {
+function setup(whenReady?: (view: RoomView) => Promise<unknown> | null) {
   const surface = fakeSurface();
   const arrivals: (() => void)[] = [];
+  /** Every camera move and screen change, in order, as the controller performed them. */
+  const log: string[] = [];
   const releasePointer = vi.fn();
   const views = new ViewController({
     surface,
-    moveCamera: (_view: RoomView, arrived) => arrivals.push(arrived),
+    moveCamera: (from: RoomView, to: RoomView, arrived) => {
+      log.push(`move ${from}→${to}`);
+      arrivals.push(arrived);
+    },
     releasePointer,
+    revealScreen: () => log.push('reveal'),
+    concealScreen: () => log.push('conceal'),
+    approachRadio: () => log.push('approach radio'),
+    revealRadio: () => log.push('reveal radio'),
+    concealRadio: () => log.push('conceal radio'),
+    whenReady,
   });
   const land = () => arrivals.shift()?.();
-  return { surface, views, land, releasePointer };
+  return { surface, views, land, releasePointer, log };
 }
 
 describe('ViewController', () => {
@@ -55,6 +66,18 @@ describe('ViewController', () => {
     expect(releasePointer).toHaveBeenCalled();
     expect(listener).toHaveBeenCalledWith('room');
     expect(views.atTv).toBe(false);
+  });
+
+  it('tells settle listeners once the camera lands, never as it sets off', () => {
+    const { views, land } = setup();
+    const settled = vi.fn();
+    views.onSettle(settled);
+    views.request('pc');
+    expect(settled).not.toHaveBeenCalled();
+    land();
+    expect(settled).toHaveBeenCalledExactlyOnceWith('pc');
+    views.request('pc');
+    expect(settled).toHaveBeenCalledTimes(1);
   });
 
   it('resumes only after the camera lands back on the TV', () => {
@@ -77,5 +100,179 @@ describe('ViewController', () => {
     land();
     expect(surface.resume).not.toHaveBeenCalled();
     expect(surface.paused).toBe(true);
+  });
+
+  it('retains ownership of the pause through visits to the computer', () => {
+    const { surface, views, land } = setup();
+    for (const view of ['room', 'pc', 'room'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+      expect(surface.paused).toBe(true);
+      expect(surface.setInputEnabled).toHaveBeenLastCalledWith(false);
+    }
+    expect(surface.pause).toHaveBeenCalledTimes(1);
+    views.request('tv');
+    expect(surface.resume).not.toHaveBeenCalled();
+    land();
+    expect(surface.resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('never resumes a game the app paused, however often the visitor uses the computer', () => {
+    const { surface, views, land } = setup();
+    surface.pause();
+    for (const view of ['room', 'pc', 'room', 'pc', 'room', 'tv'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+    }
+    expect(surface.resume).not.toHaveBeenCalled();
+    expect(surface.paused).toBe(true);
+    // The room's pause ownership is reset: a game resumed by the app is paused afresh next time.
+    surface.resume();
+    views.request('room');
+    expect(surface.paused).toBe(true);
+    views.request('tv');
+    land();
+    expect(surface.paused).toBe(false);
+  });
+
+  it('shows the screen on landing at the computer and hides it before the camera leaves', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('pc');
+    expect(log).toEqual(['move tv→room', 'move room→pc']);
+    land();
+    expect(log.at(-1)).toBe('reveal');
+    views.request('room');
+    expect(log.slice(-2)).toEqual(['conceal', 'move pc→room']);
+    land();
+    views.request('pc');
+    land();
+    views.request('tv');
+    expect(log.slice(-2)).toEqual(['conceal', 'move pc→tv']);
+  });
+
+  it('hides the screen and never shows it when leaving during the flight in', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('pc');
+    views.request('room');
+    land();
+    land();
+    expect(log).toEqual(['move tv→room', 'move room→pc', 'conceal', 'move pc→room']);
+  });
+
+  it('wakes the radio once the camera is under way, reveals it on landing and closes it before leaving', () => {
+    const { views, land, log } = setup();
+    views.request('room');
+    land();
+    views.request('radio');
+    expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+    land();
+    expect(log.at(-1)).toBe('reveal radio');
+    views.request('room');
+    expect(log.slice(-2)).toEqual(['conceal radio', 'move radio→room']);
+  });
+
+  it('closes the radio and never reveals it when the visitor turns back on the way', () => {
+    const { views, land, log } = setup();
+    views.request('radio');
+    views.request('room');
+    land();
+    land();
+    expect(log).toEqual(['move tv→radio', 'approach radio', 'conceal radio', 'move radio→room']);
+  });
+
+  it('hides the computer screen before flying from the computer to the radio', () => {
+    const { views, land, log } = setup();
+    views.request('pc');
+    land();
+    views.request('radio');
+    expect(log.slice(-3)).toEqual(['conceal', 'move pc→radio', 'approach radio']);
+  });
+
+  it('keeps a game the app paused paused across visits to the radio and the computer', () => {
+    const { surface, views, land } = setup();
+    surface.pause();
+    for (const view of ['room', 'radio', 'pc', 'radio', 'tv'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+    }
+    expect(surface.resume).not.toHaveBeenCalled();
+    expect(surface.paused).toBe(true);
+  });
+
+  it('owns its own pause across the radio and resumes only at the TV', () => {
+    const { surface, views, land } = setup();
+    for (const view of ['room', 'radio', 'pc', 'radio'] satisfies RoomView[]) {
+      views.request(view);
+      land();
+      expect(surface.paused).toBe(true);
+    }
+    expect(surface.pause).toHaveBeenCalledTimes(1);
+    views.request('tv');
+    land();
+    expect(surface.resume).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a view whose code is still loading', () => {
+    function gated() {
+      let open: () => void = () => {};
+      let fail: () => void = () => {};
+      const loading = new Promise<void>((resolve, reject) => {
+        open = resolve;
+        fail = reject;
+      });
+      let loaded = false;
+      void loading.then(
+        () => (loaded = true),
+        () => undefined,
+      );
+      const controller = setup((view) => (view === 'radio' && !loaded ? loading : null));
+      return { ...controller, open, fail };
+    }
+
+    it('sets off once the code is there, and at once from then on', async () => {
+      const { views, land, log, open } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      expect(log).toEqual(['move tv→room']);
+      open();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+      land();
+      views.request('room');
+      land();
+      views.request('radio');
+      expect(log.slice(-2)).toEqual(['move room→radio', 'approach radio']);
+    });
+
+    it('lets a later request win over one still waiting', async () => {
+      const { views, land, log, open } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      views.request('pc');
+      open();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log).toEqual(['move tv→room', 'move room→pc']);
+      expect(views.view).toBe('pc');
+    });
+
+    it('drops the request when the code fails to load', async () => {
+      const { views, land, log, fail } = gated();
+      views.request('room');
+      land();
+      views.request('radio');
+      fail();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log).toEqual(['move tv→room']);
+      expect(views.view).toBe('room');
+    });
   });
 });

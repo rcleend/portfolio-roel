@@ -1,4 +1,60 @@
-ATTIC ROOM — REVISION 5 — SOURCE ATTRIBUTION
+ATTIC ROOM — REVISION 6 — SOURCE ATTRIBUTION
+
+REVISION 6 — COHESIVE MATERIAL AND FIDELITY PASS
+
+Existing furniture, room layout and game-cover artwork are retained. The desktop
+monitor, keyboard and mouse are rebuilt; the other device models are retained.
+The floor pillow, ceiling beams and wall posters/cards are removed; the rug
+is replaced with the supplied model credited below. The original lightweight
+basket and papers remain; the basket clears the desk and papers settle on its base.
+Attribution notes below
+continue to apply. No Bruno Simon geometry, textures or code are redistributed.
+
+Visual/material reference: Bruno Simon, My Room in 3D
+https://my-room-in-3d.vercel.app/
+https://github.com/brunosimon/my-room-in-3d
+Studied its rounded silhouettes, quiet materials, coherent baked illumination,
+contact shadows and warm/cool light separation.
+
+Original modifications in this revision: unified cream enamel, muted teal cloth,
+oiled oak/walnut, slate ABS and brushed-metal finishes; restrained procedural
+grain; bevelled floorboards within the original floor footprint; refined furniture
+edges and welded/smoothed chair meshes. Labels on retained devices and original
+screens are retained. The TV's original color, normal and roughness/metallic maps
+are restored without the matte/normal-strength overrides; other devices retain
+the restrained surface treatment.
+Static environment and ALL four devices now share one Cycles lighting setup.
+The original night-light colors and localized tungsten/amber practicals are retained.
+Broad blue fills and world illumination are substantially reduced for deeper shadows
+and stronger contrast around the desk, lava lamp and narrow window highlights.
+The four desk drawer fronts now share the desk's cream enamel. The old rug/fringe
+is replaced with the supplied folded rug model credited below, squared to the old
+2.3514 m width, rotated 15 degrees clockwise with the folded corner nearest the TV.
+The floor keeps its warm oak color with more natural grain from the original CC0 scan.
+The rug's new geometric textile
+texture was generated with OpenAI image generation from the user's visual reference.
+The runtime uses baked, unlit materials, with the existing interactive CRT screen
+and animated lava preserved. Recipe: tools/room/restyle.py and tools/room/bake.py.
+
+DESKTOP VISUAL REFERENCE
+
+90s PC desktop style 002 — FaceTheEdge
+https://sketchfab.com/3d-models/90s-pc-desktop-style-002-ec97f236db9342d0802a3ab75cf4da4b
+The reference model is not downloadable. The replacement monitor, keyboard and
+mouse use original geometry built from public preview observations. No reference
+mesh or texture is extracted or redistributed. The tower under the desk and the
+original screen image remain; desktop cables and floppy disks are removed.
+
+NEW RUG MODEL
+
+Rug - Square pattern — Sousinho (https://sketchfab.com/sousinho)
+https://sketchfab.com/3d-models/rug-square-pattern-e45054df5644444ebca0670d75a6cf93
+License: CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/).
+Attribution and license retained from the user-supplied GLB's embedded metadata.
+Original mesh, folded corner and UV layout retained; resized to a square footprint,
+positioned in the attic and retextured with an original geometric textile map.
+
+The revision-5 history below describes the origins of the retained assets.
 
 IMPORTED / RECOVERED DEVICE MESHES
 
@@ -25,6 +81,16 @@ Rescaled and positioned for the room; radio web base reduced to 30% geometry,
 512 px textures; high uses original mesh and up to 2K textures.
 A public redistribution license was not established. The recovered files do
 not acquire a CC0 license by being included in this scene.
+Modified: the maker's and model's lettering and the marketing marks are
+painted out of the radio's baked textures (radio-base.glb, radio-skin-2k.webp)
+from the surrounding moulding; recipe: tools/room/debrand.mjs.
+CD player close-up (radio-closeup.glb, radio-skin-2k.webp; fetched once a
+visitor looks away from the TV): the lid underside, hinge, well liner, turntable,
+pickup and disc slot are original scene-built geometry modelled after the
+CFD-V31L and baked open in the room's own Cycles scene; the 2K skin re-bakes
+the recovered radio's materials on its original UV layout. Both derive from
+the recovered model's materials, so the note above applies to them too.
+Recipe: tools/room/radio_closeup.py and tools/room/radio-closeup.mjs.
 
 CRT television — user supplied crt_tv.glb.
 Timothy Ahene (https://sketchfab.com/timothyahene)
@@ -135,6 +201,20 @@ Copyright: original game publishers/artists.
 
 Included as user-requested physical game-case decoration. Copyright remains
 with the respective owners.
+
+WALL DECORATION — THIRD-PARTY ARTWORK, NOT CLEARED FOR PUBLISHING
+
+posters.glb, posters-2k.webp, posters-1k.webp (loaded lazily after the TV view):
+29 posters, prints, flyers, a sticker and cut-outs on the walls, the sloped
+ceiling and a corkboard, dressing the room as late 2007. Every image is
+third-party copyrighted artwork (Radiohead/Stanley Donwood, Rage Against the
+Machine, Goldenvoice, Guerilla Union, Green Day/Reprise, Activision, Electronic
+Arts, Bethesda/ZeniMax, Jagex, Nickelodeon/Paramount, Lucasfilm, The LEGO Group/
+TT Games). It is used by the site owner's choice as placeholder decoration for
+now and must be cleared or replaced before publishing. Per-image source URLs,
+rights holders and crops: tools/room/assets/posters/SOURCES.md. The paper, tape,
+pins and corkboard are scene-built geometry baked in the room's own Cycles scene.
+Recipe: tools/room/posters.py and tools/room/posters.mjs.
 
 VISUAL REFERENCE — NOT REDISTRIBUTED
 

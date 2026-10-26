@@ -1,0 +1,311 @@
+/*
+ * The CD player's controls over the room, in the room's controls slot. The layer never takes a
+ * pointer (the discs and keys are the 3D model's); only the touch bar does. A size container, so
+ * plates can be clamped inside the viewport with container units.
+ */
+.radio {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  pointer-events: none;
+  --radio-bar: 0px;
+}
+
+.radio[data-coarse="true"][data-rail="false"] {
+  --radio-bar: calc(64px + env(safe-area-inset-bottom));
+}
+
+/* Keyboard stand-ins for the discs and the keys: invisible until a keyboard focus rings the real thing. */
+.radio__cd,
+.radio__key {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: transparent;
+  font-size: 0;
+  /* No ring at all until focused: a transparent one would turn into a visible ring on every disc in forced colours. */
+  outline: none;
+  outline-offset: 3px;
+  pointer-events: none;
+}
+
+.radio__cd {
+  border-radius: 50%;
+}
+
+.radio__key {
+  border-radius: 3px;
+  outline-offset: 2px;
+}
+
+/* A keyboard user's focus only: the landing focuses a CD from a script, which Chrome would ring for a mouse too. */
+.radio[data-keyboard="true"] .radio__cd:focus-visible,
+.radio[data-keyboard="true"] .radio__key:focus-visible {
+  outline: 2px solid #ffc83d;
+}
+
+/* The view hint's plate: dark, an inset ring, pixel capitals. */
+.radio__plate {
+  margin: 0;
+  background: rgb(11 10 31 / 0.78);
+  box-shadow: inset 0 0 0 2px rgb(61 47 143 / 0.9);
+  color: #d9d0ff;
+  font:
+    400 11px / 1.45 Silkscreen,
+    ui-monospace,
+    monospace;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-font-smoothing: none;
+}
+
+.radio__caption {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  padding: 8px 12px 7px;
+  transform: translate(
+    clamp(12px, calc(var(--x) - 50%), calc(100cqw - 100% - 12px)),
+    clamp(12px, var(--y), calc(100cqh - 100% - 12px - var(--radio-bar)))
+  );
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.radio__caption[data-above="true"] {
+  transform: translate(
+    clamp(12px, calc(var(--x) - 50%), calc(100cqw - 100% - 12px)),
+    clamp(12px, calc(var(--y) - 100%), calc(100cqh - 100% - 12px - var(--radio-bar)))
+  );
+}
+
+.radio__caption[data-visible="true"] {
+  opacity: 1;
+}
+
+.radio__caption-title {
+  color: #fff3d4;
+}
+
+.radio__tag {
+  margin-left: 8px;
+  padding: 0 4px;
+  box-shadow: inset 0 0 0 1px currentcolor;
+  color: #ffc83d;
+  font-size: 8px;
+  vertical-align: 1px;
+}
+
+.radio__hint {
+  position: absolute;
+  bottom: calc(max(20px, env(safe-area-inset-bottom)) + var(--radio-bar));
+  left: 50%;
+  padding: 8px 12px 7px;
+  transform: translateX(-50%);
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 320ms steps(4, end);
+}
+
+.radio[data-coarse="true"] .radio__hint {
+  font-size: 11px;
+}
+
+.radio__hint:empty {
+  padding: 0;
+  box-shadow: none;
+}
+
+.radio__hint[data-visible="true"] {
+  opacity: 1;
+}
+
+.radio__marker {
+  margin-right: 8px;
+  color: #ffc83d;
+}
+
+.radio__announcer,
+.radio__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The touch transport bar: the sound toggle's plate, 48 px keys, along the bottom or down the right. */
+.radio-bar {
+  position: fixed;
+  z-index: 18;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  box-sizing: border-box;
+  background: rgb(11 10 31 / 0.82);
+  box-shadow:
+    inset 0 0 0 2px #3d2f8f,
+    inset 2px 2px 0 2px rgb(255 255 255 / 0.06);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.radio-bar--bottom {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(64px + env(safe-area-inset-bottom));
+  padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+}
+
+/* The rail ends at its last key (it scrolls only on a landscape screen too short for it). */
+.radio-bar--rail {
+  top: 68px;
+  right: 0;
+  max-height: calc(100% - 68px);
+  overflow-y: auto;
+  flex-direction: column;
+  width: calc(64px + env(safe-area-inset-right));
+  padding: 8px calc(8px + env(safe-area-inset-right)) 8px 8px;
+}
+
+.radio-bar__button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgb(35 30 92 / 0.55);
+  box-shadow: inset 0 0 0 2px rgb(61 47 143 / 0.9);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.radio-bar__button--back {
+  margin-right: 4px;
+}
+
+.radio-bar--rail .radio-bar__button--back {
+  margin: 0 0 4px;
+}
+
+.radio-bar svg {
+  overflow: visible;
+}
+
+.radio-bar__button:active svg {
+  transform: translateY(2px);
+}
+
+.radio-bar__button[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+.radio-bar__button:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px #ffc83d,
+    0 0 0 2px #0b0a1f;
+}
+
+.radio-glyph {
+  fill: #d9d0ff;
+}
+
+.radio-glyph__shadow {
+  fill: #0b0a1f;
+}
+
+.radio-bar__now {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0 0 0 8px;
+  color: #d9d0ff;
+  font:
+    13px / 1.25 system-ui,
+    sans-serif;
+}
+
+/* Two lines, each cut short on its own: the track, then (smaller, dimmer) the album. */
+.radio-bar__track,
+.radio-bar__album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radio-bar__album {
+  color: #a99fdc;
+  font-size: 11px;
+}
+
+/* The teaching line before anything plays, in the hint plate's face: on two lines if it must (a phone leaves the
+   bar's keys about 100 px of it), never cut short. */
+.radio-bar__now[data-hint="true"] {
+  display: block;
+  font:
+    400 10px / 1.4 Silkscreen,
+    ui-monospace,
+    monospace;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: normal;
+  -webkit-font-smoothing: none;
+}
+
+@media (hover: hover) {
+  .radio-bar__button:hover {
+    background: rgb(61 47 143 / 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio__caption,
+  .radio__hint {
+    transition: none;
+  }
+}
+
+/*
+ * On a touch screen a tap on a CD is a pick, and its attention starts with the finger going down: the plate shows
+ * only under a finger that stays (about 250 ms), never as a flash under every tap.
+ */
+.radio[data-coarse="true"] .radio__caption[data-visible="true"] {
+  transition: opacity 120ms ease-out 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio[data-coarse="true"] .radio__caption[data-visible="true"] {
+    transition: opacity 0s linear 250ms;
+  }
+}
+
+@media print {
+  .radio {
+    display: none;
+  }
+}
+
+/* Forced colours drop the bar's inset focus shadow and repaint the ring: a system-coloured outline instead. */
+@media (forced-colors: active) {
+  .radio[data-keyboard="true"] .radio__cd:focus-visible,
+  .radio[data-keyboard="true"] .radio__key:focus-visible,
+  .radio-bar__button:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}

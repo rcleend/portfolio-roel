@@ -14,3 +14,21 @@
   border: 2px solid rgb(169 156 240 / 0.55);
   pointer-events: none;
 }
+
+/*
+ * Where the room lays the computer's live screen: exactly the stage's box, but outside its
+ * role="application", so screen readers browse the screen as a document. Only the screen
+ * itself takes pointer events, and only while it is live.
+ */
+.room-host__screens {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@media print {
+  .room-host__screens {
+    display: none;
+  }
+}

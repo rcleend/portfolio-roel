@@ -13,7 +13,13 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // The @frames tests time real frames at 6x CPU throttling, where other workers' pages contend for the same cores:
+    // they run one at a time after every other test (a teardown project runs once the project it tears down is done,
+    // and alone when a filter selects only it).
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, grepInvert: /@frames/, teardown: 'frames' },
+    { name: 'frames', use: { ...devices['Desktop Chrome'] }, grep: /@frames/, workers: 1 },
+  ],
   webServer: {
     command: `pnpm exec vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,

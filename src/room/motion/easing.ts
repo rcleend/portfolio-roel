@@ -23,6 +23,15 @@ export const easeOutBack =
     return 1 + c3 * (t - 1) ** 3 + overshoot * (t - 1) ** 2;
   };
 
+/**
+ * A cubic Hermite ease from 0 to 1 that leaves with slope `startSlope` and arrives with slope `endSlope` (in units of
+ * the whole move per whole duration), so two moves can hand their speed on without a stop. Monotonic while
+ * startSlope² + endSlope² ≤ 9 (Fritsch-Carlson).
+ */
+export function hermiteEase(t: number, startSlope: number, endSlope: number): number {
+  return ((startSlope + endSlope - 2) * t + 3 - 2 * startSlope - endSlope) * t * t + startSlope * t;
+}
+
 /** Progress 0 → 1 of `time` across [start, end], shaped by `ease`. */
 export function segment(time: number, start: number, end: number, ease: Easing = linear): number {
   if (end <= start) return time >= end ? 1 : 0;
