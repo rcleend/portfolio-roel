@@ -1,0 +1,16 @@
+# Project agent memory
+
+This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
+
+- Start with `docs/ARCHITECTURE.md` (module boundaries, enforced by `src/architecture.test.ts`); the room's contract is `docs/ROOM.md`, the visual spec `docs/ART-DIRECTION.md` (its "The room's UI" section covers everything outside the TV and computer screens).
+- `pnpm check` before committing; give each checkout its own e2e server with `E2E_PORT=<port> pnpm e2e` (the `@frames` tests run alone after the rest).
+- Bundle budgets are tight and itemised in `bundle-budgets.json` (`pnpm report:bundle`); a new lazy chunk needs a row in `scripts/bundle-report.mjs` and a budget. A lazy chunk under `src/room` must import types only and get three.js classes through a kit from the room chunk (`posterKit.ts`, `spotlightKit.ts`), or Rolldown splits three.js onto the critical path.
+- e2e pins shader program counts (`e2e/programs.ts`); anything that compiles a program must be counted there.
+- Reduced motion in this project means no transitions or animations at all (things appear and go), and entrance animations use `backwards` fill so finished ones leave `document.getAnimations()` empty (several e2e tests wait for it).
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
