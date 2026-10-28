@@ -230,7 +230,12 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
     light.sources.push(...meshes);
     light.rest.push({ object: root, position: root.position.clone(), scale: root.scale.clone() });
     owned.push(...ownShared(light.sources));
-    if (light.lifted) for (const [material, colour] of liftable(meshes)) light.lifted.set(material, colour);
+    if (light.lifted) {
+      // Never a second time: a part on a material the prop's base is on too would store it as it is now, brightened.
+      for (const [material, colour] of liftable(meshes)) {
+        if (!light.lifted.has(material)) light.lifted.set(material, colour);
+      }
+    }
   };
 
   // A quarter of the frame's pixels each way is plenty for a glow; the mask is multisampled, so its outline is smooth

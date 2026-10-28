@@ -98,7 +98,7 @@ export class RoomInteraction {
   /** Re-evaluates the hover and the cursor, e.g. after the view changed under a resting pointer. */
   refreshCursor(): void {
     const found = this.over ? this.pick() : null;
-    this.setHovered(found?.interactable ?? null);
+    this.setHovered(found?.interactable ?? null, true);
     this.options.canvas.style.cursor = found ? found.interactable.cursor(found.hit) : this.options.idleCursor();
   }
 
@@ -175,9 +175,10 @@ export class RoomInteraction {
     if (!this.gesture?.owner) this.setHovered(null);
   };
 
-  private setHovered(next: Interactable | null): void {
-    if (next === this.hovered) return;
-    this.hovered?.pointerLeave?.();
+  /** `again`: say it even when it is the prop already hovered, for a listener that may have let go of it. */
+  private setHovered(next: Interactable | null, again = false): void {
+    if (next === this.hovered && !again) return;
+    if (next !== this.hovered) this.hovered?.pointerLeave?.();
     this.hovered = next;
     this.options.onHover?.(next);
   }

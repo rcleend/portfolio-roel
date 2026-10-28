@@ -47,6 +47,9 @@ export class SpotlightDoor implements PropSpotlight {
   /** The camera came to rest in the room view (true), or set off anywhere (false). */
   setOpen(open: boolean): void {
     this.#open = open;
+    // A hover belongs to the pose it was picked at: as the camera sets off the door forgets it, and the room says
+    // again what the pointer rests on once it has landed (RoomInteraction.refreshCursor).
+    if (!open) this.#hovered = null;
     this.#update();
   }
 

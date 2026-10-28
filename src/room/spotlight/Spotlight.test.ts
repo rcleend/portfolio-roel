@@ -63,15 +63,18 @@ function setup({
   device?: boolean;
 } = {}) {
   const tv = prop('tv', 0);
-  // Built after the spotlight: a part hanging in the scene beside the radio, at its own place.
+  // Built after the spotlight, as the radio's device is: a part cut from the radio's own mesh, on its material (as
+  // closeUpAsset's lid and well floor are), and one with a material of its own (as its keys have).
   const built = new Group();
-  const part = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), baked());
-  part.position.set(3, 1.2, 0);
-  built.add(part);
   let arrived = false;
   const radio = prop('radio', 3, device ? () => (arrived ? built : null) : undefined);
+  const lid = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), radio.mesh.material);
+  const part = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), baked());
+  lid.position.set(3, 1.2, 0);
+  part.position.set(3, 1.5, 0);
+  built.add(lid, part);
   const room = new Group();
-  room.add(tv.root, radio.root, built);
+  room.add(tv.root, radio.root);
   const beside = alongside ? new Mesh(new BoxGeometry(1, 1, 1), tv.mesh.material) : null;
   if (beside) room.add(beside);
   room.updateMatrixWorld(true);
@@ -135,8 +138,11 @@ function setup({
     device: {
       root: built,
       mesh: part,
-      /** The room has built it: the prop takes it in the next time it lights. */
+      lid,
+      /** The room has built it and hung it in the scene: the prop takes it in the next time it lights. */
       arrive: () => {
+        room.add(built);
+        room.updateMatrixWorld(true);
         arrived = true;
       },
     },
@@ -246,7 +252,7 @@ describe('the spotlight', () => {
     renders.length = 0;
     spotlight.show('radio');
     settle();
-    expect(renders[0]).toBe('scene of 3');
+    expect(renders[0]).toBe('scene of 4');
     expect(device.root.scale.y).toBeCloseTo(1.015, 4);
     expect(radio.root.scale.y).toBeCloseTo(1.015, 4);
     // Scaled about the radio's foot, as the radio is: the part stays where it is above it.
@@ -256,6 +262,27 @@ describe('the spotlight', () => {
     settle();
     expect(device.root.scale.toArray()).toEqual([1, 1, 1]);
     expect((device.mesh.material as MeshBasicMaterial).color.r).toBeCloseTo(0.5, 6);
+  });
+
+  // closeUpAsset cuts the lid and the well floor from the radio's own meshes and leaves them on its material: a join
+  // while the light is still fading must not take the brightened colour for that material's baked one.
+  it('keeps the baked colour it first took when a joined part is on the prop’s own material', () => {
+    const { spotlight, radio, device, frame, settle } = setup({ device: true });
+    const shared = radio.mesh.material as MeshBasicMaterial;
+    expect(device.lid.material).toBe(shared);
+    spotlight.show('radio');
+    settle();
+    expect(shared.color.r).toBeCloseTo(0.5 * 1.12, 3);
+
+    // The light is on its way out, the colour still lifted, as the device arrives and the pointer comes back.
+    spotlight.show(null);
+    frame();
+    expect(shared.color.r).toBeGreaterThan(0.5 + 1e-3);
+    device.arrive();
+    spotlight.show('radio');
+    spotlight.show(null);
+    settle();
+    expect(shared.color.r).toBeCloseTo(0.5, 6);
   });
 
   it('holds a prop the room needs still, and every prop under reduced motion, yet lights them', () => {

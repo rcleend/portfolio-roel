@@ -131,9 +131,8 @@ interface PropSpotlight {                  // spotlight/PropSpotlight.ts
 
 interface PropAnchor {                     // RoomTarget = 'tv' | 'pc' | 'radio'
   target: RoomTarget;
-  x: number; y: number;                    // CSS px; clamped 24 px inside the nearest edge when out of frame
-  inFrame: boolean;
-  edge: 'left' | 'right' | 'top' | 'bottom' | null;
+  x: number; y: number;                    // CSS px in the room container
+  inFrame: boolean;                        // false behind the camera or within 24 px of an edge; x and y are idle then
 }
 
 interface Interactable {                   // registered: the TV, the computer and its desk, the radio; extensible
@@ -182,7 +181,7 @@ room/
     framing.ts          pure: fit points into (part of) the viewport for a fov and aspect
     cameraPath.ts       pure: arc and crane interpolation between viewpoints, look-at lead, fov-for-aspect
     pageProjection.ts   pure: world points → page CSS px for a viewpoint (a scratch camera, never the live one)
-    anchors.ts          pure: the props' positions in the settled room view, edge-clamped when cropped out
+    anchors.ts          pure: the props' positions in the settled room view, and whether they are in shot
     ScreenFade.ts       black veil for the reduced-motion cut
   tv/
     tvModel.ts          finds the screen/buttons in the TV asset; measured aperture constant
@@ -507,7 +506,7 @@ The room's answer to a pointer over a prop, after c-na.dev/explore's (the study:
 | Holding still | the radio until its device is prepared: assembling the close-up hangs the cut parts from the radio's world pose (`closeUpAsset.ts`), so it never bounces before; it still glows and has its label. Afterwards the bounce runs in the room view only, and the device measures its world poses nowhere else |
 | Reduced motion | no jelly; the glow and the brighter colours still fade (a fade is not motion) |
 
-Who loads what: the door, the kit and the props' hover are in the room chunk (+0.63 kB with the props it lights; `bundle-budgets.json` itemises it); `Spotlight.ts` is the lazy `propSpotlight` chunk (3.10 kB), imported just after the first flight frame away from the TV, beside the radio's deck, and imports types only (`scripts/bundle-report.mjs`'s `propSpotlight` row, `three: 'room'`, holds it to that). Its two programs, the mask-and-blur one and the glow's, are compiled then with `compileAsync` (the mask's for a render target), so the first hover never stalls: `stats.programs` is 2 more after the first room view (`e2e/programs.ts` › `SPOTLIGHT_PROGRAMS`, `stats.spotlight` once the chunk is in). The passes add their draw calls to `stats.drawCalls` while a prop glows (the lit prop's meshes once more at a sixteenth of the pixels, and three full-screen triangles); nothing at all while none does.
+Who loads what: the door, the kit and the props' hover are in the room chunk (+0.63 kB with the props it lights; `bundle-budgets.json` itemises it); `Spotlight.ts` is the lazy `propSpotlight` chunk (3.11 kB), imported just after the first flight frame away from the TV, beside the radio's deck, and imports types only (`scripts/bundle-report.mjs`'s `propSpotlight` row, `three: 'room'`, holds it to that). Its two programs, the mask-and-blur one and the glow's, are compiled then with `compileAsync` (the mask's for a render target), so the first hover never stalls: `stats.programs` is 2 more after the first room view (`e2e/programs.ts` › `SPOTLIGHT_PROGRAMS`, `stats.spotlight` once the chunk is in). The passes add their draw calls to `stats.drawCalls` while a prop glows (the lit prop's meshes once more at a sixteenth of the pixels, and three full-screen triangles); nothing at all while none does.
 
 ## Dev lab and screenshots
 

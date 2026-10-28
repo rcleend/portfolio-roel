@@ -80,6 +80,25 @@ describe('the spotlight door', () => {
     expect(shown.at(-1)).toBe('pc');
   });
 
+  // A hover belongs to the pose it was picked at: the door forgets it as the camera sets off, and the room says again
+  // what the pointer rests on once it has landed (RoomInteraction.refreshCursor), so no prop lights for the pose it
+  // was left behind in.
+  it('forgets the pointer’s prop as the camera sets off, and takes it again on arrival', async () => {
+    const spotlight = door();
+    spotlight.preload();
+    await loaded();
+    spotlight.setOpen(true);
+    spotlight.hover('tv');
+    expect(shown.at(-1)).toBe('tv');
+
+    spotlight.setOpen(false);
+    expect(shown.at(-1)).toBeNull();
+    spotlight.setOpen(true);
+    expect(shown.at(-1)).toBeNull();
+    spotlight.hover('tv');
+    expect(shown.at(-1)).toBe('tv');
+  });
+
   it('passes on what the chunk tells, and keeps the last of it', async () => {
     const spotlight = door();
     const heard = vi.fn();

@@ -228,6 +228,33 @@ describe('room target picking', () => {
     interaction.dispose();
   });
 
+  it('says again what the pointer rests on when the camera has landed', () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const hovers: (string | null)[] = [];
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss: () => {},
+      idleCursor: () => 'default',
+      isEnabled: () => true,
+      onHover: (interactable) => hovers.push(interactable?.id ?? null),
+    });
+    const tv = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
+    tv.updateMatrixWorld();
+    interaction.register({ id: 'tv', object: tv, cursor: () => 'zoom-in', activate: () => {} });
+    canvas.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 1, pointerType: 'mouse', clientX: 100, clientY: 100 }),
+    );
+    expect(hovers).toEqual(['tv']);
+    // The spotlight's door forgets its hover as the camera sets off: the prop still under the pointer is said again.
+    interaction.refreshCursor();
+    expect(hovers).toEqual(['tv', 'tv']);
+    interaction.dispose();
+  });
+
   it('keeps keyboard focus where it is while asked to, and still clicks', () => {
     const canvas = stageCanvas();
     const camera = new PerspectiveCamera(50, 1, 0.1, 20);

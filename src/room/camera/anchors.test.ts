@@ -26,10 +26,10 @@ describe('propAnchors', () => {
   it('pins both props where the desktop room view shows them', () => {
     const { tv, pc } = anchorsAt(1440, 900);
     // Within a few pixels of where the end-to-end tests click the monitor and the TV.
-    expect(pc).toMatchObject({ inFrame: true, edge: null });
+    expect(pc.inFrame).toBe(true);
     expect(Math.abs(pc.x - 375)).toBeLessThan(2);
     expect(Math.abs(pc.y - 455)).toBeLessThan(2);
-    expect(tv).toMatchObject({ inFrame: true, edge: null });
+    expect(tv.inFrame).toBe(true);
     expect(Math.abs(tv.x - 1196)).toBeLessThan(2);
     expect(Math.abs(tv.y - 526)).toBeLessThan(2);
   });
@@ -40,41 +40,26 @@ describe('propAnchors', () => {
     [600, 900],
     [768, 1024],
     [820, 1180],
-  ])('marks the computer on the left edge when a %s × %s room view crops it', (width, height) => {
+  ])('marks the computer out of frame when a %s × %s room view crops it', (width, height) => {
     const { pc, tv } = anchorsAt(width, height);
     expect(pc.inFrame).toBe(false);
-    expect(pc.edge).toBe('left');
-    expect(pc.x).toBe(EDGE_BAND);
-    expect(pc.y).toBeGreaterThanOrEqual(EDGE_BAND);
-    expect(pc.y).toBeLessThanOrEqual(height - EDGE_BAND);
+    // Off the page to the left, where the portrait view leaves it.
+    expect(pc.x).toBeLessThan(0);
     // The portrait view turns towards the TV, which therefore stays in shot.
     expect(tv.inFrame).toBe(true);
   });
 
-  it('keeps a prop behind the camera on its own side', () => {
+  it('counts a prop behind the camera as out of frame', () => {
     const looking: Viewpoint = { position: new Vector3(0, 1, 0), target: new Vector3(0, 1, -1), fov: 60 };
-    const behindLeft = new Vector3(-2, 1, 1);
-    const behindRight = new Vector3(2, 1.2, 1);
-    const [left, right] = propAnchors(
+    const behind = propAnchors(
       [
-        { target: 'pc', point: behindLeft },
-        { target: 'tv', point: behindRight },
+        { target: 'pc', point: new Vector3(-2, 1, 1) },
+        { target: 'tv', point: new Vector3(0.05, 1, 2) },
       ],
       looking,
       { width: 800, height: 600 },
     );
-    expect(left).toMatchObject({ inFrame: false, edge: 'left', x: EDGE_BAND });
-    expect(right).toMatchObject({ inFrame: false, edge: 'right', x: 800 - EDGE_BAND });
-  });
-
-  it('pushes a prop right behind the viewer out of frame', () => {
-    const looking: Viewpoint = { position: new Vector3(0, 1, 0), target: new Vector3(0, 1, -1), fov: 60 };
-    const [behind] = propAnchors([{ target: 'pc', point: new Vector3(0.05, 1, 2) }], looking, {
-      width: 800,
-      height: 600,
-    });
-    expect(behind?.inFrame).toBe(false);
-    expect(behind?.edge).toBe('right');
+    expect(behind.map(({ inFrame }) => inFrame)).toEqual([false, false]);
   });
 
   it('counts the 24 px band along each edge as out of frame', () => {
@@ -84,7 +69,9 @@ describe('propAnchors', () => {
       width: 400,
       height: 400,
     });
-    expect(nearEdge).toMatchObject({ inFrame: false, edge: 'right', x: 400 - EDGE_BAND });
+    expect(nearEdge?.inFrame).toBe(false);
+    expect(nearEdge?.x).toBeGreaterThan(400 - EDGE_BAND);
+    expect(nearEdge?.x).toBeLessThan(400);
   });
 
   it.each(RADIO_VIEWPORTS)('has the radio in the room view at $width × $height', ({ width, height }) => {
@@ -92,6 +79,6 @@ describe('propAnchors', () => {
       width,
       height,
     });
-    expect(radio).toMatchObject({ target: 'radio', inFrame: true, edge: null });
+    expect(radio).toMatchObject({ target: 'radio', inFrame: true });
   });
 });
