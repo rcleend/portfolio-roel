@@ -45,12 +45,20 @@ function prop(
 function setup({
   reduced = false,
   still = () => false,
+  alongside = false,
 }: {
   reduced?: boolean;
   still?: (t: RoomTarget) => boolean;
+  /** A mesh outside the props on the TV's baked material, as the keyboard is on the computer's. */
+  alongside?: boolean;
 } = {}) {
   const tv = prop('tv', 0);
   const radio = prop('radio', 3);
+  const room = new Group();
+  room.add(tv.root, radio.root);
+  const beside = alongside ? new Mesh(new BoxGeometry(1, 1, 1), tv.mesh.material) : null;
+  if (beside) room.add(beside);
+  room.updateMatrixWorld(true);
   const camera = new PerspectiveCamera(50, 2, 0.1, 100);
   camera.position.set(0, 1, 6);
   camera.lookAt(0, 0.5, 0);
@@ -103,7 +111,7 @@ function setup({
   const settle = (): void => {
     for (let i = 0; i < 300 && steps.size > 0; i++) frame();
   };
-  return { spotlight, tv, radio, told, frame, settle, renderer, renders, compiled, steps };
+  return { spotlight, tv, radio, beside, told, frame, settle, renderer, renders, compiled, steps };
 }
 
 describe('the spotlight', () => {
@@ -170,6 +178,20 @@ describe('the spotlight', () => {
     spotlight.show(null);
     settle();
     expect(material.color.r).toBeCloseTo(0.5, 6);
+  });
+
+  it('brightens a prop alone when its baked material is a mesh outside it too', () => {
+    const { spotlight, tv, beside, settle } = setup({ alongside: true });
+    const shared = beside?.material as MeshBasicMaterial;
+    const own = tv.mesh.material as MeshBasicMaterial;
+    expect(own).not.toBe(shared);
+    expect(own.map).toBe(shared.map);
+    spotlight.show('tv');
+    settle();
+    expect(own.color.r).toBeCloseTo(0.5 * 1.12, 3);
+    expect(shared.color.r).toBeCloseTo(0.5, 6);
+    spotlight.dispose();
+    expect(tv.mesh.material).toBe(shared);
   });
 
   it('holds a prop the room needs still, and every prop under reduced motion, yet lights them', () => {

@@ -170,10 +170,12 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
     return { material, uniforms };
   };
   const lights = new Map<RoomTarget, PropLight>();
+  const owned: Copy[] = [];
   for (const prop of host.props) {
     const { material: mask, uniforms } = pass(0);
     const sources: Mesh[] = [];
     for (const root of prop.glow) root.traverse((object) => (object as Mesh).isMesh && sources.push(object as Mesh));
+    owned.push(...ownShared(sources));
     const proxies = sources.map((source) => {
       // Its positions and triangles only, shared with the mesh: the mask and the blur then share one program.
       const shape = new kit.BufferGeometry();
@@ -401,7 +403,7 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
       const light = target ? lights.get(target) : undefined;
       if (light) {
         light.lit = true;
-        light.lifted ??= liftable(light.prop.glow);
+        light.lifted ??= liftable(light.sources);
         // A pointer wobbling over a prop's edge would replay the jelly on every crossing: the same prop again so soon
         // just eases back up.
         const again = jellied === light.prop.target && now - light.unlit < REPLAY_MS;
@@ -425,6 +427,10 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
         // Not the proxies' geometries: disposing one would free the buffers it shares with its mesh.
         light.mask.dispose();
       }
+      for (const { mesh, shared, own } of owned) {
+        mesh.material = shared;
+        own.dispose();
+      }
       across.material.dispose();
       down.material.dispose();
       composite.dispose();
@@ -436,17 +442,44 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
   };
 };
 
-/** The baked, textured materials under `roots` and their own colours: what a prop brightens in the light. */
-function liftable(roots: readonly Object3D[]): Map<MeshBasicMaterial, Color> {
+/** A mesh on the prop's own copy of a baked material, with the shared one to hand back. */
+interface Copy {
+  readonly mesh: Mesh;
+  readonly shared: Material;
+  readonly own: MeshBasicMaterial;
+}
+
+/**
+ * Puts the prop's meshes on their own copy of any baked material a mesh outside the prop is on too (the computer's
+ * device material is the keyboard's and the mouse's), so the light brightens the prop alone. A copy with the same
+ * values draws with the same program, so the chunk still compiles two.
+ */
+function ownShared(meshes: readonly Mesh[]): Copy[] {
+  const inside = new Set<Object3D>(meshes);
+  const elsewhere = new Set<Material>();
+  let top: Object3D | undefined = meshes[0];
+  while (top?.parent) top = top.parent;
+  top?.traverse((object) => {
+    const mesh = object as Mesh;
+    if (mesh.isMesh && !inside.has(mesh)) elsewhere.add(mesh.material as Material);
+  });
+  const copies: Copy[] = [];
+  for (const mesh of meshes) {
+    const shared = mesh.material as MeshBasicMaterial;
+    if (!shared.isMeshBasicMaterial || !shared.map || !elsewhere.has(shared)) continue;
+    const own = shared.clone();
+    mesh.material = own;
+    copies.push({ mesh, shared, own });
+  }
+  return copies;
+}
+
+/** The baked, textured materials of a prop's meshes and their own colours: what it brightens in the light. */
+function liftable(meshes: readonly Mesh[]): Map<MeshBasicMaterial, Color> {
   const found = new Map<MeshBasicMaterial, Color>();
-  for (const root of roots) {
-    root.traverse((object) => {
-      const materials = (object as Mesh).isMesh ? ([] as Material[]).concat((object as Mesh).material) : [];
-      for (const material of materials) {
-        const basic = material as MeshBasicMaterial;
-        if (basic.isMeshBasicMaterial && basic.map && !found.has(basic)) found.set(basic, basic.color.clone());
-      }
-    });
+  for (const mesh of meshes) {
+    const basic = mesh.material as MeshBasicMaterial;
+    if (basic.isMeshBasicMaterial && basic.map && !found.has(basic)) found.set(basic, basic.color.clone());
   }
   return found;
 }

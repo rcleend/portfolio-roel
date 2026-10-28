@@ -57,15 +57,11 @@ function learn(progress: GuideProgress, learnt: Learnt): GuideProgress {
     : progress;
 }
 
-export type GuideHint = 'look-around' | 'leave-computer';
-
 /**
- * The hint the current view still owes the visitor, or null once they have outgrown it. The room view has the
- * overview and its menu instead; the radio teaches its own gestures. Getting up from the computer is taught to mouse
- * users only: on touch screens the reader fills the screen and has its own close button.
+ * The computer still owes the visitor the way back up. Taught to mouse users only: on touch screens the reader fills
+ * the screen and has its own close button. The TV's hint is the look-around button itself, and the radio and the room
+ * view teach their own.
  */
-export function hintFor(progress: GuideProgress, view: RoomView, touch: boolean): GuideHint | null {
-  if (view === 'tv') return progress.lookedAround ? null : 'look-around';
-  if (view === 'pc') return touch || progress.leftComputer ? null : 'leave-computer';
-  return null;
+export function leaveHintDue(progress: GuideProgress, touch: boolean): boolean {
+  return !touch && !progress.leftComputer;
 }

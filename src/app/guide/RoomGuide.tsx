@@ -14,7 +14,7 @@ import { browserStorage } from '../storage/localFlag';
 import { COARSE_POINTER, useMediaQuery } from '../useMediaQuery';
 import {
   type GuideProgress,
-  hintFor,
+  leaveHintDue,
   loadGuideProgress,
   recordTour,
   recordView,
@@ -112,7 +112,7 @@ export function RoomGuide({ room, view, settled, scenes, onFocusStage }: RoomGui
         />
       ) : null}
       <PropLabel spotlight={room.spotlight} />
-      <LeaveHint due={view === 'pc' && settled && hintFor(progress, view, touch) === 'leave-computer'} />
+      <LeaveHint due={view === 'pc' && settled && leaveHintDue(progress, touch)} />
     </>
   );
 }

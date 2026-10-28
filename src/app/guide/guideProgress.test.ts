@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GUIDE_STORAGE_KEY,
   type GuideProgress,
-  hintFor,
+  leaveHintDue,
   loadGuideProgress,
   recordTour,
   recordView,
@@ -21,17 +21,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe('the room guide', () => {
-  it('teaches looking around until the visitor has left the TV once', () => {
-    expect(hintFor(fresh, 'tv', false)).toBe('look-around');
-    expect(hintFor(fresh, 'tv', true)).toBe('look-around');
-    const lookedAround = recordView(fresh, 'room');
-    expect(lookedAround).toEqual({ ...fresh, lookedAround: true });
-    expect(hintFor(lookedAround, 'tv', false)).toBeNull();
-  });
-
-  it('leaves the room view to the overview', () => {
-    expect(hintFor(fresh, 'room', false)).toBeNull();
-    expect(hintFor(recordView(fresh, 'room'), 'room', true)).toBeNull();
+  it('counts leaving the TV for the room as looking around', () => {
+    expect(recordView(fresh, 'room')).toEqual({ ...fresh, lookedAround: true });
   });
 
   it('does not count the opening TV view as having looked around', () => {
@@ -41,14 +32,14 @@ describe('the room guide', () => {
   it('teaches getting up from the computer until the visitor has done it once', () => {
     const seated = recordView(recordView(fresh, 'room'), 'pc');
     expect(seated).toMatchObject({ lookedAround: true, visitedComputer: true, leftComputer: false });
-    expect(hintFor(seated, 'pc', false)).toBe('leave-computer');
+    expect(leaveHintDue(seated, false)).toBe(true);
     const up = recordView(seated, 'room');
     expect(up.leftComputer).toBe(true);
-    expect(hintFor(up, 'pc', false)).toBeNull();
+    expect(leaveHintDue(up, false)).toBe(false);
   });
 
   it('never shows the computer hint on touch screens', () => {
-    expect(hintFor(recordView(fresh, 'pc'), 'pc', true)).toBeNull();
+    expect(leaveHintDue(recordView(fresh, 'pc'), true)).toBe(false);
   });
 
   it('learns everything a single move teaches at once', () => {
@@ -79,12 +70,7 @@ describe('the room guide', () => {
     expect(loadGuideProgress(null)).toEqual(fresh);
   });
 
-  it('leaves the radio to its own hints', () => {
-    for (const progress of [fresh, recordView(fresh, 'radio')]) {
-      expect(hintFor(progress, 'radio', false)).toBeNull();
-      expect(hintFor(progress, 'radio', true)).toBeNull();
-    }
-    // Sitting at the radio is looking around: the TV's hint retires.
+  it('counts sitting at the radio as looking around: the TV’s hint retires', () => {
     expect(recordView(fresh, 'radio')).toEqual({ ...fresh, lookedAround: true });
   });
 });
