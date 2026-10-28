@@ -9,7 +9,7 @@ import { RoomInteraction } from './interaction/RoomInteraction';
 import { planeCentre } from './pc/glassPlane';
 import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
-import { CRT_NAME, locatePc } from './pc/pcModel';
+import { locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
 import type { RadioDoorHandle } from './radio/RadioDoor';
 import { RadioInteractable } from './radio/RadioInteractable';
@@ -198,7 +198,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
 
   // The spotlight (docs/ROOM.md › The spotlight): the TV and the radio glow and bounce whole; at the computer only the
   // monitor does, so nothing slides across the desk and no glow outlines a keyboard the chair half hides.
-  const monitor3d = [pcModel.root.getObjectByName(CRT_NAME) ?? pcModel.glass, pcModel.glass];
+  const monitor3d = [pcModel.shell, pcModel.glass];
   const spotlit = [
     inTheLight('tv', [tvModel.root], [tvModel.root], tvModel.bounds),
     inTheLight('pc', monitor3d, monitor3d, pcModel.shellBounds),

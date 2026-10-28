@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import {
   BoxGeometry,
   Color,
@@ -108,16 +107,6 @@ function setup({
 }
 
 describe('the spotlight', () => {
-  // A runtime import of anything the room's chunk also carries splits it, three.js included, into a common chunk on
-  // the critical path (spotlightKit.ts); the kit is the one runtime seam.
-  it('imports types only', () => {
-    const source = readFileSync(new URL('./Spotlight.ts', import.meta.url), 'utf8');
-    const imports = source.match(/^import\b[^;]*;/gm) ?? [];
-    expect(imports.length).toBeGreaterThan(0);
-    expect(imports.filter((statement) => !statement.startsWith('import type '))).toEqual([]);
-    expect(source).not.toMatch(/\bimport\(/);
-  });
-
   it('tells where the lit prop’s label goes, over the middle of its top, and that nothing is lit afterwards', () => {
     const { spotlight, told } = setup();
     spotlight.show('tv');

@@ -154,9 +154,10 @@ function useTour(
     if (!due) return;
     const steps: readonly (RoomTarget | null)[] = radio ? ['pc', 'radio', 'tv', null] : ['pc', 'tv', null];
     let step = 0;
-    // Where the mouse rests as it starts (null: it has not moved on this page). The browser re-sends a resting
-    // pointer's place when the page changes under it, which is not the visitor exploring.
-    const origin = pointer.current;
+    // Where the mouse rests as it starts, or wherever it first reports itself (null: it has not moved on this page,
+    // as after a keyboard arrival). The browser re-sends a resting pointer's place when the page changes under it,
+    // which is not the visitor exploring, so that first place becomes the reference rather than the end of the tour.
+    let origin = pointer.current;
     const next = (): void => {
       const target = steps[step++] ?? null;
       light(target);
@@ -170,7 +171,8 @@ function useTour(
     };
     const moved = (event: PointerEvent): void => {
       if (event.pointerType !== 'mouse') return;
-      if (!origin || Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > TOUR_POINTER_SLOP) stop();
+      if (!origin) origin = { x: event.clientX, y: event.clientY };
+      else if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > TOUR_POINTER_SLOP) stop();
     };
     const options = { capture: true, passive: true } as const;
     window.addEventListener('pointermove', moved, options);

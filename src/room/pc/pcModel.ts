@@ -19,7 +19,7 @@ export const PC_PICTURE_RADIUS = 0.006;
 export const PC_TUBE_COLOR = '#070a09';
 
 /** The monitor's shell (its glass is a sibling node). */
-export const CRT_NAME = 'PC_Imported_CRT_base';
+const CRT_NAME = 'PC_Imported_CRT_base';
 const KEYBOARD_NAME = 'PC_Imported_Keyboard_base';
 
 export interface PcModel {
@@ -27,6 +27,8 @@ export interface PcModel {
   readonly root: Object3D;
   /** The desk with its chair, lamp, tower and clutter (`02_Desk`). */
   readonly desk: Object3D;
+  /** The monitor's shell: what glows and bounces in the light, the glass with it. */
+  readonly shell: Object3D;
   /** The monitor's curved glass; its UVs are a planar projection with v = 0 at the top. */
   readonly glass: Mesh;
   /** World-space unit vector the glass faces, i.e. towards the viewer. */
@@ -65,6 +67,7 @@ export function locatePc(root: Object3D, desk: Object3D): PcModel {
   return {
     root,
     desk,
+    shell: crt,
     glass,
     facing: averageNormal(glass.geometry).transformDirection(glass.matrixWorld),
     rim,

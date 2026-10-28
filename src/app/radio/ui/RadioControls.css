@@ -318,7 +318,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .radio__caption,
+  /* The plate is placed by its transform, so only its fade goes; the touch hold below still has its delay. */
+  .radio__caption {
+    transition: none;
+    animation: none;
+  }
+
   .radio__hint,
   .radio__hint *,
   .radio-bar__button {

@@ -31,17 +31,13 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
 
 /**
  * Waits until the spotlight's chunk is in (RoomStats.spotlight), so a program count is deterministic: it is imported
- * after the first flight's first frame, so a paused clock must be moved on (`step`); without `step`, real time passes.
+ * after the first flight's first frame, in real time.
  */
-export async function spotlightIn(
-  page: Page,
-  stats: () => Promise<RoomStats | undefined>,
-  step: () => Promise<void> = () => page.waitForTimeout(50),
-): Promise<void> {
+export async function spotlightIn(page: Page, stats: () => Promise<RoomStats | undefined>): Promise<void> {
   const deadline = Date.now() + 15_000;
   while (!(await stats())?.spotlight) {
     if (Date.now() > deadline) throw new Error('The spotlight is still loading after 15 s');
-    await step();
+    await page.waitForTimeout(50);
   }
 }
 

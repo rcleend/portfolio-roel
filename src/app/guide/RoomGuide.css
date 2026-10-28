@@ -295,20 +295,38 @@ body:has(.pc-popout[data-shown="true"]) .leave-hint {
   transition:
     background-color 180ms ease,
     transform 360ms var(--ui-spring);
+  --lit-tint: rgb(255 255 255 / 0.14);
+  --lit-shift: translateX(6px);
 }
 
-/* In the light with its prop (pointed at, focused, or the prop itself under the pointer). */
-.overview__item[data-lit="true"] {
-  background: rgb(255 255 255 / 0.14);
-  transform: translateX(6px);
+/*
+ * In the light with its prop (pointed at, focused, or the prop itself under the pointer). The pointer and the keyboard
+ * light the item here in CSS too, so the menu answers at once, before (or without) the room's spotlight chunk.
+ */
+.overview__item[data-lit="true"],
+.overview__item:focus-visible {
+  background: var(--lit-tint);
+  transform: var(--lit-shift);
 }
 
-.overview__item[data-lit="true"] .guide-icon {
+.overview__item[data-lit="true"] .guide-icon,
+.overview__item:focus-visible .guide-icon {
   animation: guide-icon-hop 520ms var(--ui-spring);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .overview__item:hover {
+    background: var(--lit-tint);
+    transform: var(--lit-shift);
+  }
+
+  .overview__item:hover .guide-icon {
+    animation: guide-icon-hop 520ms var(--ui-spring);
+  }
+}
+
 .overview__item:active {
-  transform: translateX(6px) scale(0.96);
+  transform: var(--lit-shift) scale(0.96);
   transition-duration: 180ms, 90ms;
 }
 
@@ -417,15 +435,8 @@ body:has(.pc-popout[data-shown="true"]) .leave-hint {
     background: var(--ui-glass);
     font-size: 16px;
     gap: 8px;
-  }
-
-  .overview__item[data-lit="true"] {
-    background: rgb(255 255 255 / 0.22);
-    transform: translateY(-3px);
-  }
-
-  .overview__item:active {
-    transform: translateY(-3px) scale(0.96);
+    --lit-tint: rgb(255 255 255 / 0.22);
+    --lit-shift: translateY(-3px);
   }
 }
 
@@ -462,11 +473,8 @@ body:has(.pc-popout[data-shown="true"]) .leave-hint {
     font-size: 15px;
     gap: 8px;
     padding: 0 16px 0 12px;
-  }
-
-  .overview__item[data-lit="true"] {
-    background: rgb(255 255 255 / 0.22);
-    transform: translateY(-3px);
+    --lit-tint: rgb(255 255 255 / 0.22);
+    --lit-shift: translateY(-3px);
   }
 }
 
