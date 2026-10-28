@@ -33,6 +33,14 @@ Everything around the TV's picture and the computer's screen (the click-outside 
 - **Focus.** A 2 px white ring, offset; forced colours get system colours and an outline round every pill.
 - **Motion.** Arrivals overshoot a little (`--ui-spring`), exits are quick fades; nothing loops for long. Under reduced motion nothing fades, travels, bounces or loops: things appear and go.
 
+| The overview, its Music item pointed at: the radio glows, holds its jelly and wears its name | On a phone held upright |
+| --- | --- |
+| ![The attic at night: RO over EL, the gallery label and the menu at the bottom left; the radio outlined in warm white with "Music" over it](room/ui-overview.webp) | ![The portrait room view with the name and label over the rug and a row of three pills](room/ui-phone.webp) |
+
+| The click-outside hint under the TV, ten seconds after the title |
+| --- |
+| ![A dark glass pill under the TV: a little screen with a pointer beside it, "Look around" over "Click anywhere outside the TV"](room/ui-hint.webp) |
+
 ## Boot — "ROEL" (homage to the Neo Geo MVS boot)
 
 Reference timing at 60 fps (t in seconds from the first boot frame):
