@@ -28,21 +28,22 @@ test('hides the gamepad while looking around the room', async ({ page }) => {
   await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
 });
 
-test('a chip on the edge reaches the computer the portrait room view crops out', async ({ page }) => {
+test('the menu reaches the computer the portrait room view crops out', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
   const pad = page.locator('.touchpad');
   await page.touchscreen.tap(195, 90);
   await page.waitForTimeout(1300);
-  const chip = page.getByRole('button', { name: 'Use the computer' });
-  await expect(chip).toBeVisible();
-  await expect(chip).toHaveText(/COMPUTER/i);
-  const box = await chip.boundingBox();
-  expect(box?.x).toBeLessThan(30);
+  const item = page.getByRole('button', { name: /^Résumé/ });
+  await expect(item).toBeVisible();
+  const box = await item.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
   expect(box?.height).toBeGreaterThanOrEqual(44);
+  // A thumb's reach: along the bottom of the screen.
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(844 - 80);
 
-  await chip.tap();
+  await item.tap();
   await expect(host).toHaveAttribute('data-view', 'pc');
   await expect(pad).toHaveAttribute('data-visible', 'false');
   await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true', { timeout: 3_000 });

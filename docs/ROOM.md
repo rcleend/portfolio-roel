@@ -37,7 +37,9 @@ deck.setState(state);        // the app owns albums, tracks and sound (app/radio
 room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc' | 'radio', as the camera sets off
 room.onSettle((view) => showChip(view));       // as it comes to rest
 room.setFramingInsets({ top: 0, right: 0, bottom: touchPadHeight, left: 0 }); // keep the TV clear of overlays
-room.onAnchorsChange((anchors) => placeHotspots(anchors)); // where the TV, the computer and the radio sit in the room view
+room.onAnchorsChange((anchors) => note(anchors)); // where the TV, the computer and the radio sit in the room view
+room.spotlight.light('radio');                     // a menu item has the pointer or the keyboard: the radio glows and bounces
+room.spotlight.onChange((lit) => placeLabel(lit)); // the lit prop (the pointer's or the app's) and its label point
 // room.showRoom() / room.focusTv() / room.focusPc() / room.focusRadio() for navigation.
 // room.dispose() on unmount.
 ```
@@ -57,7 +59,7 @@ What the room does to the game, so the app does not have to:
 
 A game the app paused itself (a menu, a hidden tab) is never resumed by the room.
 At the computer, its own parts (glass border, bezel, keyboard, mouse) do nothing when clicked: the visitor is using it; at the radio, so does its body.
-The app reaches the props without the mouse through hotspot buttons pinned at `room.anchors` (hidden until keyboard focus; "Play some music" only while `radio.available`) and, whenever the portrait room view crops the computer or the radio out, a visible edge chip ("◂ COMPUTER", "RADIO ▸") on that edge (`app/overlays/room-hotspots`), shown once the camera has landed and raised onto the bare wall above its prop's height, so it never reads as the label of the radio or the lamp standing there. Enter or Space on the room stage returns to the TV; Escape on the stage leaves the computer or the radio. Escape remains available to the game's menus at the TV.
+The app reaches the props without the mouse through the room view's menu (`app/guide/`, docs/ART-DIRECTION.md › The room's UI), whose items light the props through `room.spotlight` and fly to them with `focusPc()`, `focusRadio()` and `focusTv()` (its music item only while `radio.available`). Enter or Space on the room stage returns to the TV; Escape on the stage leaves the computer or the radio. Escape remains available to the game's menus at the TV.
 The PAUSE on-screen display shows whenever the tube is on and `surface.paused` is true (checked on every drawn frame, since `GameSurface` has no pause event); the TV draws it, not the game.
 
 ### Public API
@@ -92,11 +94,12 @@ interface Room {
   registerInteractable(interactable: Interactable): () => void;
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
   readonly radio: RadioDeck;               // the CD player (src/room/radio/RadioDeck.ts); usable before `ready`
+  readonly spotlight: PropSpotlight;       // the props' glow, bounce and label point (§ The spotlight); usable before `ready`
   readonly anchors: readonly PropAnchor[]; // the TV, the computer and the radio in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
   readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, lava, programs, pcTexturePixels,
                                            // backgroundPending (work still waiting for idle moments), radioReady,
-                                           // radioTexturePixels, radioLidDegrees, radioAmbient
+                                           // radioTexturePixels, radioLidDegrees, radioAmbient, spotlight (its chunk is in)
   dispose(): void;
 }
 
@@ -118,6 +121,12 @@ interface StillRequest {
   width: number; height: number;           // canvas px of the picture
   placement: ScreenRect;                   // the live screen's rectangle
   cpuCanvas: boolean;                      // a software GPU: make canvases painted ahead CPU ones
+}
+
+interface PropSpotlight {                  // spotlight/PropSpotlight.ts
+  light(target: RoomTarget | null): void;  // the app's pick (a menu item pointed at or focused); null hands back to the pointer
+  readonly lit: LitProp | null;            // { target, x, y }: the lit prop and the middle of its top on the page
+  onChange(listener: (lit: LitProp | null) => void): () => void;   // on a new prop and on every frame its label point moves
 }
 
 interface PropAnchor {                     // RoomTarget = 'tv' | 'pc' | 'radio'
@@ -241,6 +250,13 @@ room/
     posterTier.ts       pure: the 2K or the 1K atlas, from the room view's focal length, memory, Save-Data, GPU
     posterVisibility.ts pure: each piece's box from the glb, and whether a pose's frame holds any of them
     PosterWall.ts       the `posterWall` chunk: parse, decode, strip upload, compile, reveal or fade, per-pose hide
+  spotlight/
+    PropSpotlight.ts    the public PropSpotlight and LitProp types
+    SpotlightDoor.ts    room.spotlight (room chunk): the app's pick, else the pointer's prop, while the camera rests in
+                        the room view; imports the chunk behind the first flight away from the TV
+    spotlightKit.ts     the three.js classes the chunk draws with, handed over (room chunk)
+    spotlightContract.ts the seam to the lazy chunk (types only)
+    Spotlight.ts        the `propSpotlight` chunk: the glow passes, the jelly, the brighter colours, the label point
   interaction/
     Interactable.ts     the props contract
     RoomInteraction.ts  DOM pointer events → ray hits → hover cursor, click, gestures
@@ -476,6 +492,22 @@ On a software GPU the strips no longer hold the walls back. They used to come 1.
 ### Assets
 
 `pnpm build:posters` (after `pnpm build:radio`; `pnpm build:room` runs both) builds the stage in Blender from the restyled scene (`tools/room/posters.py`: layout and packing, geometry, six whole-atlas bake passes, compose) and optimises, encodes, validates and publishes it (`tools/room/posters.mjs`). `pnpm verify:room` checks the contract: the sizes, the triangle budget, the eleven topics, the layout's keep-outs and declared overlaps, every triangle on its own item's box and surface, the decoded pixels and the skirts' outer ring; the tape's visibility is the build's own gate (the compose stage). The atlas carries 1.1 × the densest on-screen density of any resting room view; `posterVisibility.sweep.test.ts` measures the magnification from the built `posters.glb` and the shipped camera path, in drawing-buffer pixels per texel on screens up to 32:9 with the tier each size gets: 0.95 in the room view (3:4), 1.9 in the TV ↔ room flights (32:9), and up to 5.0 in the flights to and from the computer and the radio (3:4, the radio to the computer), which pass 1.25–1.6 m from the pieces over the desk for about a quarter of a second at their fastest. Holding those flights to 2 as well would take 2.5 × those pieces' density, which does not fit the 2K atlas (84 % full), so the test bounds what ships (1, 2 and 5). See [the rebuild guide](../tools/room/README.md) › Posters. The artwork is third-party, used by the captain's choice for now, and must be cleared or replaced before the site is published (`public/room/CREDITS.txt`).
+
+## The spotlight (`spotlight/`)
+
+The room's answer to a pointer over a prop, after c-na.dev/explore's (the study: `glow-study.md` beside the task's screenshots): the prop glows, plays a little jelly and wants a label, in the room view only, while the camera rests there. `RoomInteraction` reports the interactable under the pointer (`onHover`; a hover after a flight is picked again where the mouse rests), `assembleRoom` maps it to the prop its click flies to (the desk's is the computer, the cabinet's and the lamp's the radio), and `room.spotlight` lights `request ?? hovered`, the app's pick first (its menu, docs/ART-DIRECTION.md › The room's UI). A flight closes it at once and the lit prop goes home.
+
+| | |
+| --- | --- |
+| What glows and bounces | the TV whole; the computer's monitor (its shell and glass: the keyboard the chair half hides would glow through it); the radio whole |
+| Glow | after the room's frame, only while a prop has any: its meshes (position-only proxies sharing the meshes' buffers and world matrices) go into a quarter-resolution, 4× multisampled mask (red: there; green: its level), a nine-tap Gaussian across and down (σ 6 CSS px), and one full-screen triangle adds warm white (`0.50, 0.47, 0.42` in display values) outside the outline only: full from the outline to about 3 px out, gone by about 12, the c-na.dev headset's profile. Fades are exponential, 80 ms in and 110 ms out (95 % in about 240 and 330 ms); a hand-off cross-fades, each prop at its own level |
+| Brighter | the prop's textured baked materials' colour × 1.12 at full light, given back as it fades |
+| Jelly | the moment a prop lights: [t, across, up] keys (0, 1, 1), (0.2, 1.03, 0.97), (0.45, 0.98, 1.035), (0.7, 1.02, 0.995), (1, 1.015, 1.015) over 520 ms, smoothstepped, about the middle of its foot; it holds 1.015 while lit and goes home at an exponential rate of 8 /s (95 % in 375 ms). The same prop lit again within 500 ms of its own jelly eases back up instead (a pointer wobbling on an edge) |
+| Label point | the middle of the prop's top as it bounces, projected with the live camera after every drawn frame (`LitProp`), so the app's label rides the jelly and the parallax |
+| Holding still | the radio until its device is prepared: assembling the close-up hangs the cut parts from the radio's world pose (`closeUpAsset.ts`), so it never bounces before; it still glows and has its label |
+| Reduced motion | no jelly; the glow and the brighter colours still fade (a fade is not motion) |
+
+Who loads what: the door, the kit and the props' hover are in the room chunk (+0.63 kB with the props it lights; `bundle-budgets.json` itemises it); `Spotlight.ts` is the lazy `propSpotlight` chunk (2.85 kB), imported just after the first flight frame away from the TV, beside the radio's deck, and imports types only (`Spotlight.test.ts`). Its two programs, the mask-and-blur one and the glow's, are compiled then with `compileAsync` (the mask's for a render target), so the first hover never stalls: `stats.programs` is 2 more after the first room view (`e2e/programs.ts` › `SPOTLIGHT_PROGRAMS`, `stats.spotlight` once the chunk is in). The passes add their draw calls to `stats.drawCalls` while a prop glows (the lit prop's meshes once more at a sixteenth of the pixels, and three full-screen triangles); nothing at all while none does.
 
 ## Dev lab and screenshots
 

@@ -8,6 +8,10 @@ import { readHarnessConfig } from './harness/config';
 import { chooseHost, detectWebGL } from './hosts';
 import { openLink } from './links/openLink';
 import '@fontsource/silkscreen/400.css';
+// The room's UI faces, latin only; a face downloads the first time something on the page is set in it.
+import '@fontsource/chewy/latin-400.css';
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-800.css';
 import './styles.css';
 
 function main(): void {

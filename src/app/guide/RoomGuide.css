@@ -1,0 +1,557 @@
+/*
+ * The room's guide (docs/ART-DIRECTION.md › The room's UI): white Chewy headings and white Nunito words over the 3D
+ * room, lifted by soft shadows; small type rides a dark glass pill. Arrivals overshoot a little, exits are quick fades.
+ */
+
+/* Words for screen readers only. */
+.guide-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.guide-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  overflow: visible;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgb(6 4 14 / 0.6));
+}
+
+/* ——— The pill: the click-outside hint at the TV, the way up at the computer ——— */
+
+.guide-pill {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 16;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-sizing: border-box;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 10px 22px 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ui-glass);
+  box-shadow: var(--ui-lift);
+  color: var(--ui-ink);
+  font: 600 14px / 1.25 var(--ui-body);
+  text-align: left;
+  translate: -50% 0;
+  opacity: 0;
+  transform: translateY(14px) scale(0.94);
+  transition:
+    opacity 180ms ease,
+    transform 180ms var(--ui-out);
+  pointer-events: none;
+}
+
+.guide-pill[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 240ms ease,
+    transform 560ms var(--ui-spring);
+}
+
+.guide-pill__words {
+  display: grid;
+  gap: 2px;
+}
+
+.guide-pill__title {
+  font: 400 20px / 1 var(--ui-display);
+  letter-spacing: 0.01em;
+}
+
+.guide-pill__body {
+  color: var(--ui-ink-soft);
+}
+
+/* The TV's way out: a button, shown by the hint or by a keyboard focus. */
+.look-around {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.look-around:focus-visible {
+  opacity: 1;
+  transform: none;
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 3px;
+}
+
+.look-around[data-shown="true"] {
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .look-around[data-shown="true"]:hover {
+    background: var(--ui-glass-hover);
+    transform: translateY(-2px);
+    transition:
+      background-color 160ms ease,
+      transform 240ms var(--ui-out);
+  }
+}
+
+/* On a touch screen the pad has the bottom: the hint drops in from the top, clear of the sound toggle. */
+.look-around[data-touch="true"] {
+  top: max(12px, env(safe-area-inset-top));
+  bottom: auto;
+  max-width: calc(100% - 128px);
+  transform: translateY(-14px) scale(0.94);
+}
+
+.look-around[data-touch="true"][data-shown="true"] {
+  transform: none;
+}
+
+/* The computer's reader can fill the viewport (app/pc/popout): there is no outside left to click. */
+body:has(.pc-popout[data-shown="true"]) .leave-hint {
+  display: none;
+}
+
+/* The pictogram: a pointer glides out of the little screen and clicks beside it, three times, then rests there. */
+.click-outside {
+  flex: none;
+  width: 45px;
+  height: 30px;
+  overflow: visible;
+}
+
+.click-outside__screen {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.click-outside__ring {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.6;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.click-outside__pointer {
+  fill: currentcolor;
+  stroke: rgb(14 11 28);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: 0 0;
+}
+
+[data-shown="true"] > .click-outside .click-outside__pointer {
+  animation: click-outside-pointer 2400ms var(--ui-out) 700ms 3 backwards;
+}
+
+[data-shown="true"] > .click-outside .click-outside__ring {
+  animation: click-outside-ring 2400ms ease-out 700ms 3 backwards;
+}
+
+@keyframes click-outside-pointer {
+  0%,
+  8% {
+    transform: translate(-14px, 1px);
+  }
+  40% {
+    transform: none;
+  }
+  47% {
+    transform: scale(0.78);
+  }
+  55%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes click-outside-ring {
+  0%,
+  46% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  52% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* ——— The overview: the room view's title card and menu ——— */
+
+.overview {
+  position: fixed;
+  bottom: max(clamp(20px, 4.5vh, 48px), env(safe-area-inset-bottom));
+  left: max(clamp(20px, 3.6vw, 56px), env(safe-area-inset-left));
+  z-index: 16;
+  display: grid;
+  gap: 18px;
+  justify-items: start;
+  color: var(--ui-ink);
+  text-shadow: var(--ui-text-shadow);
+  pointer-events: none;
+  --overview-delay: 0ms;
+}
+
+/* A soft shade in the corner, so white type holds over a lit floor; it never ends in an edge. */
+.overview::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  bottom: -120px;
+  left: -120px;
+  width: calc(100% + 420px);
+  height: calc(100% + 300px);
+  background: radial-gradient(closest-side at 30% 70%, rgb(6 4 14 / 0.5), rgb(6 4 14 / 0.22) 55%, transparent);
+  transition: opacity 400ms ease;
+}
+
+/* The camera is still on its way: the card arrives as it lands. */
+.overview[data-arriving="true"] {
+  --overview-delay: 500ms;
+}
+
+.overview__name {
+  display: grid;
+  margin: 0;
+  font: 400 clamp(64px, 9.4vmin, 112px) / 0.8 var(--ui-display);
+  letter-spacing: 0.02em;
+}
+
+.overview__name > span {
+  display: block;
+  transform-origin: 30% 80%;
+}
+
+.overview__label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.overview__title {
+  font: 400 clamp(21px, 2.7vmin, 27px) / 1.05 var(--ui-display);
+  letter-spacing: 0.01em;
+}
+
+.overview__note {
+  color: var(--ui-ink-soft);
+  font: 600 15px / 1.3 var(--ui-body);
+}
+
+.overview__menu {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 0 -12px;
+  padding: 0;
+  list-style: none;
+  pointer-events: auto;
+}
+
+/* On its way in with the camera (or out): seen, not yet (or no longer) taking a pointer. */
+.overview:not([data-settled="true"][data-presence="in"]) .overview__menu {
+  pointer-events: none;
+}
+
+.overview__item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 6px 20px 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: 800 18px / 1 var(--ui-body);
+  letter-spacing: 0.01em;
+  text-shadow: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background-color 180ms ease,
+    transform 360ms var(--ui-spring);
+}
+
+/* In the light with its prop (pointed at, focused, or the prop itself under the pointer). */
+.overview__item[data-lit="true"] {
+  background: rgb(255 255 255 / 0.14);
+  transform: translateX(6px);
+}
+
+.overview__item[data-lit="true"] .guide-icon {
+  animation: guide-icon-hop 520ms var(--ui-spring);
+}
+
+.overview__item:active {
+  transform: translateX(6px) scale(0.96);
+  transition-duration: 180ms, 90ms;
+}
+
+.overview__item:focus-visible {
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 2px;
+}
+
+@keyframes guide-icon-hop {
+  35% {
+    transform: translateY(-4px) rotate(-10deg) scale(1.14);
+  }
+}
+
+/* Arriving: the name pops up letter pair by letter pair, then the label and each item, a beat apart. */
+.overview[data-presence="in"] .overview__name > span {
+  animation: overview-pop 620ms var(--ui-spring) backwards;
+  animation-delay: calc(var(--overview-delay) + var(--order) * 70ms);
+}
+
+.overview[data-presence="in"] :is(.overview__label, .overview__menu > li) {
+  animation: overview-rise 520ms var(--ui-spring) backwards;
+  animation-delay: calc(var(--overview-delay) + 60ms + var(--order) * 55ms);
+}
+
+.overview[data-presence="in"]::before {
+  animation: overview-fade 600ms ease backwards;
+  animation-delay: var(--overview-delay);
+}
+
+.overview[data-presence="out"] {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+@keyframes overview-pop {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.55) rotate(-9deg);
+  }
+}
+
+@keyframes overview-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes overview-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* An upright phone: the name and the label side by side over the rug, the menu a row of thumb-sized pills. */
+@media (orientation: portrait) and (max-width: 640px) {
+  .overview {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: max(16px, env(safe-area-inset-left));
+    grid-template-columns: auto 1fr;
+    gap: 16px 14px;
+    align-items: end;
+  }
+
+  .overview::before {
+    left: -40px;
+    width: calc(100% + 80px);
+    background: linear-gradient(to top, rgb(6 4 14 / 0.6), rgb(6 4 14 / 0.25) 55%, transparent);
+  }
+
+  .overview__name {
+    font-size: 60px;
+  }
+
+  .overview__label {
+    padding-bottom: 2px;
+  }
+
+  .overview__title {
+    font-size: 21px;
+  }
+
+  .overview__note {
+    font-size: 14px;
+  }
+
+  .overview__menu {
+    grid-column: 1 / -1;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    gap: 8px;
+    justify-self: stretch;
+    margin: 0;
+  }
+
+  .overview__item {
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 10px;
+    background: var(--ui-glass);
+    font-size: 16px;
+    gap: 8px;
+  }
+
+  .overview__item[data-lit="true"] {
+    background: rgb(255 255 255 / 0.22);
+    transform: translateY(-3px);
+  }
+
+  .overview__item:active {
+    transform: translateY(-3px) scale(0.96);
+  }
+}
+
+/* A phone on its side: little height, so a smaller name and the menu in a row under it. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .overview {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    grid-template-columns: auto auto;
+    gap: 10px 14px;
+    align-items: end;
+  }
+
+  .overview__name {
+    font-size: 46px;
+  }
+
+  .overview__title {
+    font-size: 19px;
+  }
+
+  .overview__note {
+    font-size: 13px;
+  }
+
+  .overview__menu {
+    grid-column: 1 / -1;
+    grid-auto-flow: column;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .overview__item {
+    background: var(--ui-glass);
+    font-size: 15px;
+    gap: 8px;
+    padding: 0 16px 0 12px;
+  }
+
+  .overview__item[data-lit="true"] {
+    background: rgb(255 255 255 / 0.22);
+    transform: translateY(-3px);
+  }
+}
+
+/* ——— The word over the prop in the light ——— */
+
+/* The room writes translate3d(x, y) here: the middle of the prop's top. */
+.prop-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.prop-label__word {
+  position: absolute;
+  bottom: 14px;
+  left: 0;
+  color: var(--ui-ink);
+  font: 400 30px / 1 var(--ui-display);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-shadow: var(--ui-text-shadow);
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transform: translateY(4px) scale(0.9);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+/* It pops off the prop's top as the prop's jelly starts (after c-na.dev's bubble, from 0.6 rather than nothing). */
+.prop-label[data-shown="true"] .prop-label__word {
+  opacity: 1;
+  transform: none;
+  animation: prop-label-in 380ms var(--ui-spring) backwards;
+}
+
+@keyframes prop-label-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.6);
+  }
+}
+
+@media (max-width: 640px) {
+  .prop-label__word {
+    font-size: 24px;
+  }
+}
+
+/* ——— Reduced motion: things appear and go at once; nothing fades, travels, bounces or loops ——— */
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-pill,
+  .guide-pill *,
+  .overview,
+  .overview *,
+  .overview::before,
+  .prop-label__word {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion beats every arrival's state selector. */
+    transform: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion beats every arrival's state selector. */
+    transition: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion beats every arrival's state selector. */
+    animation: none !important;
+  }
+
+  .click-outside__ring {
+    opacity: 0.6;
+  }
+}
+
+@media (forced-colors: active) {
+  .guide-pill,
+  .overview__item {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media print {
+  .guide-pill,
+  .overview,
+  .prop-label {
+    display: none;
+  }
+}

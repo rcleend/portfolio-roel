@@ -4,7 +4,7 @@ import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
-import { postersShown, ROOM_PROGRAMS } from './programs';
+import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
  * The computer on the desk in the real app: the room's flight and live
@@ -384,8 +384,7 @@ test.describe('in a short window', () => {
     expect(await mode(page)).toBe('pop-out');
     // Past the hint's own delay.
     await advance(page, 1500);
-    await expect(page.locator('.view-hint')).toBeHidden();
-    await expect(page.getByRole('status').filter({ hasText: /outside the computer/ })).toHaveCount(0);
+    await expect(page.locator('.leave-hint')).toBeHidden();
   });
 
   test('hands the keys back to the stage after a resize while the reader shrinks back', async ({ page }) => {
@@ -468,13 +467,14 @@ test.describe('with reduced motion', () => {
 
 test('the keyboard alone reaches the résumé and the game', async ({ page }) => {
   await openRoom(page);
+  await expect(page.getByRole('button', { name: 'Look around the room' })).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Look around the room' })).toBeFocused();
   await lookAround(page, () => page.keyboard.press('Enter'));
   await expect(stage(page)).toBeFocused();
 
   await page.keyboard.press('Tab');
-  const computer = page.getByRole('button', { name: 'Use the computer' });
+  const computer = page.getByRole('button', { name: /^Résumé/ });
   await expect(computer).toBeFocused();
   await expect(computer).toBeVisible();
   await page.keyboard.press('Enter');
@@ -627,6 +627,7 @@ test.describe('performance', () => {
     await expect(page.locator('.pc-screen')).toBeAttached();
     await page.waitForTimeout(SETTLE_MS);
     await postersShown(page, () => stats(page));
+    await spotlightIn(page, () => stats(page));
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
     const pc = await anchor(page, 'pc');
     await page.mouse.click(pc.x, pc.y);
@@ -721,17 +722,16 @@ interface PerformanceLongAnimationFrameTiming extends PerformanceEntry {
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('the edge chip leads to a full-screen reader whose close button returns to the room', async ({ page }) => {
+  test('the menu leads to a full-screen reader whose close button returns to the room', async ({ page }) => {
     await openRoom(page);
     const pad = page.locator('.touchpad');
     await expect(pad).toHaveAttribute('data-visible', 'true');
     await lookAround(page, () => page.touchscreen.tap(195, 30));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
-    const chip = page.getByRole('button', { name: 'Use the computer' });
-    await expect(chip).toBeVisible();
-    await expect(chip).toHaveText(/COMPUTER/i);
-    await chip.tap();
+    const item = page.getByRole('button', { name: /^Résumé/ });
+    await expect(item).toBeVisible();
+    await item.tap();
     await advanceUntil(page, () => live(page));
     await untilReader(page);
     await expect(page.locator('.pc-screen')).toHaveAttribute('data-pc-mode', 'pop-out');
@@ -770,7 +770,7 @@ test.describe('on a phone', () => {
     // The portrait room view crops the computer out: what only its flight draws is uploaded here.
     await untilIdle(page);
     const since = await page.evaluate(() => performance.now());
-    await page.getByRole('button', { name: 'Use the computer' }).tap();
+    await page.getByRole('button', { name: /^Résumé/ }).tap();
     await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
     expect(await largeUploadsSince(page, since)).toBe(0);
   });
@@ -778,19 +778,20 @@ test.describe('on a phone', () => {
   test.describe('with reduced motion', () => {
     test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-    test('shows the computer chip only once the camera has settled in the room view', async ({ page }) => {
+    test('takes taps on the menu only once the camera has settled in the room view', async ({ page }) => {
       await openRoom(page);
       await lookAround(page, () => page.touchscreen.tap(195, 30));
-      const chip = page.getByRole('button', { name: 'Use the computer' });
-      await chip.tap();
+      const item = page.getByRole('button', { name: /^Résumé/ });
+      await item.tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
       await reader(page).getByRole('button', { name: 'Close the résumé' }).tap();
       await advanceUntil(page, async () => (await view(page)) === 'room');
-      // The cut to the room is under way: no chip over the very monitor it points to.
-      await expect(chip).toHaveCount(0);
+      // The cut to the room is under way: the menu is on its way in, and no tap lands on it yet.
+      await expect(page.locator('.overview__menu')).toHaveCSS('pointer-events', 'none');
       await advance(page, SETTLE_MS);
-      await expect(chip).toBeVisible();
+      await expect(item).toBeVisible();
+      await expect(page.locator('.overview__menu')).toHaveCSS('pointer-events', 'auto');
     });
   });
 
@@ -802,7 +803,7 @@ test.describe('on a phone', () => {
       await lookAround(page, () => page.touchscreen.tap(422, 20));
       const pc = await anchor(page, 'pc');
       if (pc.inFrame) await page.touchscreen.tap(pc.x, pc.y);
-      else await page.getByRole('button', { name: 'Use the computer' }).tap();
+      else await page.getByRole('button', { name: /^Résumé/ }).tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
       await expect(page.locator('.pc-screen')).toHaveAttribute('data-pc-mode', 'pop-out');

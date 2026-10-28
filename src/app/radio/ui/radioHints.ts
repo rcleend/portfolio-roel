@@ -41,12 +41,21 @@ export function radioHintFor(progress: RadioHintProgress, coarse: boolean): Radi
 /** How the visitor is reaching the radio: the words follow it. */
 export type HintInput = 'mouse' | 'touch' | 'keyboard';
 
-export function radioHintText(kind: RadioHintKind, input: HintInput): string {
+/** A hint in the room UI's two voices: a Chewy heading and a Nunito line (docs/ART-DIRECTION.md › The room's UI). */
+export interface HintWords {
+  readonly title: string;
+  readonly body: string;
+}
+
+export function radioHintText(kind: RadioHintKind, input: HintInput): HintWords {
   if (kind === 'pick') {
-    if (input === 'keyboard') return 'Press Enter to play a CD';
-    return `${input === 'touch' ? 'Tap' : 'Click'} a CD to play it`;
+    const how = input === 'keyboard' ? 'Press Enter' : input === 'touch' ? 'Tap one' : 'Click one';
+    return { title: 'Pick a CD', body: `${how} to play` };
   }
-  return input === 'keyboard' ? 'Press Escape to look around' : 'Click outside the radio to look around';
+  return {
+    title: 'Look around',
+    body: input === 'keyboard' ? 'Press Escape to get up' : 'Click anywhere outside the radio',
+  };
 }
 
 /** The first line waits for the discs to be up in their slots (it names them), and a beat more. */

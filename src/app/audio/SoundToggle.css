@@ -1,3 +1,4 @@
+/* A white line speaker on a round dark glass button: the room UI's own, legible over any part of the room. */
 .sound-toggle {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
@@ -9,48 +10,98 @@
   height: 44px;
   padding: 0;
   border: 0;
-  background: rgb(11 10 31 / 0.55);
-  /* A 2 px pixel frame drawn with hard box-shadows instead of a rounded border. */
-  box-shadow:
-    inset 0 0 0 2px #3d2f8f,
-    inset 2px 2px 0 2px rgb(255 255 255 / 0.06);
+  border-radius: 50%;
+  background: var(--ui-glass);
+  box-shadow: var(--ui-lift);
+  color: var(--ui-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 160ms ease,
+    transform 260ms var(--ui-spring);
 }
 
 .sound-toggle svg {
-  width: 30px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   overflow: visible;
-}
-
-.sound-toggle__shadow {
-  fill: #0b0a1f;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgb(6 4 14 / 0.5));
 }
 
 .sound-toggle__speaker {
-  fill: #d9d0ff;
+  fill: currentcolor;
+  stroke: none;
 }
 
-.sound-toggle__waves {
-  fill: #ffc83d;
+/* The waves ripple out from the speaker, the near one first; the cross pops in with a turn. */
+.sound-toggle__wave,
+.sound-toggle__cross {
+  transform-box: fill-box;
+  transition:
+    opacity 160ms ease,
+    transform 360ms var(--ui-spring);
+}
+
+.sound-toggle__wave {
+  transform-origin: left center;
+}
+
+.sound-toggle__wave + .sound-toggle__wave {
+  transition-delay: 50ms;
 }
 
 .sound-toggle__cross {
-  fill: #e2352d;
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0.3) rotate(-90deg);
 }
 
-.sound-toggle:hover {
-  background: rgb(35 30 92 / 0.8);
+.sound-toggle[aria-pressed="true"] .sound-toggle__wave {
+  opacity: 0;
+  transform: scale(0.3);
+  transition-delay: 0ms;
 }
 
-.sound-toggle:active svg {
-  transform: translateY(2px);
+.sound-toggle[aria-pressed="true"] .sound-toggle__cross {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sound-toggle:hover {
+    background: var(--ui-glass-hover);
+    transform: scale(1.08);
+  }
+}
+
+.sound-toggle:active {
+  transform: scale(0.92);
+  transition-duration: 160ms, 90ms;
 }
 
 .sound-toggle:focus-visible {
-  outline: none;
-  box-shadow:
-    inset 0 0 0 2px #ffc83d,
-    0 0 0 2px #0b0a1f;
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-toggle,
+  .sound-toggle:hover,
+  .sound-toggle:active,
+  .sound-toggle__wave,
+  .sound-toggle__cross {
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .sound-toggle {
+    border: 1px solid ButtonText;
+  }
 }

@@ -10,6 +10,9 @@ import { ScreenOverlay } from './pc/ScreenOverlay';
 import { type PostersPath, PostersSlot, type PostersState } from './posters/PostersSlot';
 import type { RadioDoor } from './radio/RadioDeck';
 import { RadioDoorHandle } from './radio/RadioDoor';
+import type { PropSpotlight } from './spotlight/PropSpotlight';
+import { SpotlightDoor } from './spotlight/SpotlightDoor';
+import { spotlightKit } from './spotlight/spotlightKit';
 import { RoomStage } from './stage/RoomStage';
 import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
@@ -68,6 +71,8 @@ export interface Room {
   readonly pc: PcMonitor;
   /** The CD player; usable before `ready` (calls are remembered). */
   readonly radio: RadioDoor;
+  /** The props' glow, bounce and label point in the room view (docs/ROOM.md › The spotlight); usable before `ready`. */
+  readonly spotlight: PropSpotlight;
   /** Where the TV, the computer and the radio sit in the settled room view, for the current viewport. */
   readonly anchors: readonly PropAnchor[];
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
@@ -109,6 +114,8 @@ export interface RoomStats {
   readonly postersFading: boolean;
   /** The reduced-motion cut's veil: 0 clear, 1 black. */
   readonly screenFade: number;
+  /** The props' spotlight is in (from the first flight away from the TV): its two programs exist. */
+  readonly spotlight: boolean;
 }
 
 /**
@@ -123,6 +130,7 @@ export function createRoom(options: CreateRoomOptions): Room {
   const pc = new PcMonitorHandle(overlay);
   const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
   const posters = new PostersSlot(options.posters ?? true);
+  const spotlight = new SpotlightDoor();
   const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
@@ -168,13 +176,23 @@ export function createRoom(options: CreateRoomOptions): Room {
     whenReady: (view) => (view === 'radio' && !radio.deck ? radio.load() : null),
   });
   // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
-  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds). The
-  // posters fetched at the TV go up between that flight's frames: their departure only queues the work.
+  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds), and
+  // so does the props' glow. The posters fetched at the TV go up between that flight's frames: their departure only
+  // queues the work.
   const stopPreload = views.onChange(() => {
     stopPreload();
     posters.depart();
-    requestAnimationFrame(() => setTimeout(() => disposed || radio.preload(), 0));
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        if (disposed) return;
+        radio.preload();
+        spotlight.preload();
+      }, 0),
+    );
   });
+  // Only a camera resting in the room view lights a prop.
+  views.onChange(() => spotlight.setOpen(false));
+  views.onSettle((view) => spotlight.setOpen(view === 'room'));
 
   const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {})).then((assets) => {
     if (disposed) return;
@@ -190,6 +208,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         anchors = next;
         for (const listener of anchorListeners) listener(next);
       },
+      onHover: (target) => spotlight.hover(target),
     });
     if (framingInsets) scene.setFramingInsets(framingInsets);
     for (const [interactable] of queuedInteractables) {
@@ -218,6 +237,18 @@ export function createRoom(options: CreateRoomOptions): Room {
       assetBaseUrl,
       anisotropy: scene.anisotropy,
     });
+    const { spotlit } = scene;
+    spotlight.attach(() => ({
+      kit: spotlightKit,
+      renderer: stage.renderer,
+      camera: stage.camera,
+      loop: stage.loop,
+      props: spotlit,
+      reducedMotion,
+      size: () => stage.size,
+      still: (target) => target === 'radio' && radio.prepared === null,
+      onRender: (listener) => stage.onRender(listener),
+    }));
     const { background } = scene;
     // Work ahead of need never delays the first frame.
     return firstFrame(stage).then(() => background.start());
@@ -262,6 +293,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
     pc,
     radio,
+    spotlight,
     get anchors() {
       return anchors;
     },
@@ -291,6 +323,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         postersPath: posters.path,
         postersFading: posters.fading,
         screenFade: scene?.fade.opacity ?? 0,
+        spotlight: spotlight.loaded,
       };
     },
     dispose() {
@@ -299,6 +332,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       pc.detach();
       radio.dispose();
       posters.dispose();
+      spotlight.dispose();
       scene?.dispose();
       scene = null;
       views.dispose();

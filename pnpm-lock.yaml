@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@fontsource/chewy':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/nunito':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/silkscreen':
         specifier: ^5.3.0
         version: 5.3.0
@@ -304,6 +310,12 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fontsource/chewy@5.3.0':
+    resolution: {integrity: sha512-9p1c7sTqudOEP3RFbcI0h4r3Mq5+Atr6VBF70LGFegU0FAOt63asVt5ufBlojPF5+YFbSqq5iXjRdNt+k2l+2A==}
+
+  '@fontsource/nunito@5.3.0':
+    resolution: {integrity: sha512-vw9TaTQJ/zpEpKrsODuPmOvaVjXgdda6B+xXA4YqjrdeJ62MLgVoDerdRXFQHyBnSCt2yQ2nHKCHPP/Pv7Xq4Q==}
 
   '@fontsource/silkscreen@5.3.0':
     resolution: {integrity: sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA==}
@@ -1274,6 +1286,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@fontsource/chewy@5.3.0': {}
+
+  '@fontsource/nunito@5.3.0': {}
 
   '@fontsource/silkscreen@5.3.0': {}
 

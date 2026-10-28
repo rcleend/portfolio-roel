@@ -25,6 +25,8 @@ export interface RoomInteractionOptions {
    * stage (no compatibility mouse events, so no focus change). The click itself still happens.
    */
   readonly keepsFocus?: () => boolean;
+  /** The interactable under the pointer changed (null: none, or the pointer left). */
+  readonly onHover?: (interactable: Interactable | null) => void;
 }
 
 /** An interactable and the meshes its rays test. */
@@ -46,6 +48,8 @@ export class RoomInteraction {
   private readonly raycaster = new Raycaster();
   private readonly ndc = new Vector2();
   private hovered: Interactable | null = null;
+  /** A mouse rests over the canvas (at `ndc`): what lies under it is picked again when the view changes. */
+  private over = false;
   private gesture: { pointerId: number; owner: Interactable | null; x: number; y: number } | null = null;
 
   constructor(private readonly options: RoomInteractionOptions) {
@@ -86,14 +90,16 @@ export class RoomInteraction {
         );
     return () => {
       cancelCut?.();
-      if (this.hovered === interactable) this.hovered = null;
+      if (this.hovered === interactable) this.setHovered(null);
       this.interactables.delete(interactable.id);
     };
   }
 
-  /** Re-evaluates the cursor, e.g. after the view changed under a resting pointer. */
+  /** Re-evaluates the hover and the cursor, e.g. after the view changed under a resting pointer. */
   refreshCursor(): void {
-    this.options.canvas.style.cursor = this.options.idleCursor();
+    const found = this.over ? this.pick() : null;
+    this.setHovered(found?.interactable ?? null);
+    this.options.canvas.style.cursor = found ? found.interactable.cursor(found.hit) : this.options.idleCursor();
   }
 
   dispose(): void {
@@ -108,6 +114,7 @@ export class RoomInteraction {
 
   private readonly onPointerMove = (event: PointerEvent): void => {
     this.setNdc(event);
+    this.over = event.pointerType === 'mouse';
     this.options.onPointer?.(event.pointerType === 'mouse' ? this.ndc.clone() : null);
     const owner = this.gesture?.pointerId === event.pointerId ? this.gesture.owner : null;
     if (owner) {
@@ -163,6 +170,7 @@ export class RoomInteraction {
   };
 
   private readonly onPointerLeave = (): void => {
+    this.over = false;
     this.options.onPointer?.(null);
     if (!this.gesture?.owner) this.setHovered(null);
   };
@@ -171,6 +179,7 @@ export class RoomInteraction {
     if (next === this.hovered) return;
     this.hovered?.pointerLeave?.();
     this.hovered = next;
+    this.options.onHover?.(next);
   }
 
   private setNdc(event: PointerEvent): void {

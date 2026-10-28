@@ -245,7 +245,7 @@ test('keys on an empty player ask for a CD, and the hint teaches the pick', asyn
   await page.keyboard.press('Enter');
   await expect(announced(page)).toHaveText('Choose a CD first. ');
   // Reached by the keyboard, the hint speaks the keyboard's words.
-  await expect(page.locator('.radio__hint')).toHaveText('▸Press Enter to play a CD');
+  await expect(page.locator('.radio__hint')).toHaveText('Pick a CDPress Enter to play');
   await expect(page.locator('.radio__hint')).toHaveAttribute('data-visible', 'true');
 });
 
@@ -337,7 +337,7 @@ test.describe('on a phone', () => {
     expect(insets).toEqual({ top: 0, left: 0, right: 0, bottom: 64 });
 
     // On a phone the hint lives in the bar, where the now-playing line will be, once the discs are up.
-    await expect(bar.locator('.radio-bar__now')).toHaveText('▸Tap a CD to play it');
+    await expect(bar.locator('.radio-bar__now')).toHaveText('Pick a CDTap one to play');
     await expect(page.locator('.radio__hint')).toHaveCount(0);
 
     await disc(page, 'insert-coin').tap();

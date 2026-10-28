@@ -1,7 +1,7 @@
-import { Box3, Mesh, Vector3 } from 'three';
+import { Box3, Mesh, type Object3D, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { RoomAssets } from './assets/roomAssets';
-import { type AnchorTarget, type PropAnchor, propAnchors } from './camera/anchors';
+import { type AnchorTarget, type PropAnchor, propAnchors, type RoomTarget } from './camera/anchors';
 import { CameraRig, type FramingInsets } from './camera/CameraRig';
 import { ScreenFade } from './camera/ScreenFade';
 import type { Interactable } from './interaction/Interactable';
@@ -9,11 +9,12 @@ import { RoomInteraction } from './interaction/RoomInteraction';
 import { planeCentre } from './pc/glassPlane';
 import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
-import { locatePc } from './pc/pcModel';
+import { CRT_NAME, locatePc } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
 import type { RadioDoorHandle } from './radio/RadioDoor';
 import { RadioInteractable } from './radio/RadioInteractable';
 import { locateRadio, RADIO_ANCHOR, type RadioModel } from './radio/radioModel';
+import type { SpotlitProp } from './spotlight/spotlightContract';
 import { type IdleMoment, IdleWork } from './stage/IdleWork';
 import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
@@ -37,6 +38,8 @@ export interface RoomSceneOptions {
   readonly radio: RadioDoorHandle;
   /** Where the props now sit in the settled room view; called on every viewport change. */
   readonly onAnchorsChange: (anchors: readonly PropAnchor[]) => void;
+  /** The prop the pointer is over (its click flies there from the room view), or null. */
+  readonly onHover: (target: RoomTarget | null) => void;
 }
 
 /** Everything that exists once the room's assets are loaded. */
@@ -54,6 +57,8 @@ export interface RoomScene {
   readonly background: IdleWork;
   /** Texture anisotropy the room uses (≤ 4). */
   readonly anisotropy: number;
+  /** The props the spotlight lights. */
+  readonly spotlit: readonly SpotlitProp[];
   register(interactable: Interactable): () => void;
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
@@ -62,6 +67,9 @@ export interface RoomScene {
 }
 
 const MAX_ANISOTROPY = 4;
+
+/** The prop a hover on each interactable lights: the one its click flies to (the desk's is the computer's). */
+const HOVER_TARGETS: Readonly<Record<string, RoomTarget>> = { tv: 'tv', pc: 'pc', desk: 'pc', radio: 'radio' };
 
 /** Puts the loaded attic together: lighting, TV, computer, radio, camera, lava and pointer interaction. */
 export function assembleRoom(options: RoomSceneOptions): RoomScene {
@@ -166,6 +174,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     // (arrows would stop scrolling the document); a click outside hides the screen, and the app
     // moves focus then.
     keepsFocus: () => overlay.live,
+    onHover: (interactable) => options.onHover((interactable && HOVER_TARGETS[interactable.id]) ?? null),
   });
   const unregister = [
     interaction.register(tvInput),
@@ -186,6 +195,15 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       ),
     );
   }
+
+  // The spotlight (docs/ROOM.md › The spotlight): the TV and the radio glow and bounce whole; at the computer only the
+  // monitor does, so nothing slides across the desk and no glow outlines a keyboard the chair half hides.
+  const monitor3d = [pcModel.root.getObjectByName(CRT_NAME) ?? pcModel.glass, pcModel.glass];
+  const spotlit = [
+    inTheLight('tv', [tvModel.root], [tvModel.root], tvModel.bounds),
+    inTheLight('pc', monitor3d, monitor3d, pcModel.shellBounds),
+    ...(radioModel ? [inTheLight('radio', [radioModel.root], [radioModel.root], radioModel.bodyBounds)] : []),
+  ];
 
   const anchorTargets: readonly AnchorTarget[] = [
     { target: 'tv', point: tvPictureCentre(tvModel) },
@@ -223,6 +241,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     lava,
     background,
     anisotropy,
+    spotlit,
     register: (interactable) => interaction.register(interactable),
     setFramingInsets(insets) {
       rig.setFramingInsets(insets);
@@ -244,6 +263,17 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       removeLighting();
     },
   };
+}
+
+/** A prop in the spotlight: what glows, and what bounces about the middle of its foot, its label on its top. */
+function inTheLight(
+  target: RoomTarget,
+  glow: readonly Object3D[],
+  bounce: readonly Object3D[],
+  bounds: Box3,
+): SpotlitProp {
+  const centre = bounds.getCenter(new Vector3());
+  return { target, glow, bounce, pivot: centre.clone().setY(bounds.min.y), top: centre.setY(bounds.max.y) };
 }
 
 /**

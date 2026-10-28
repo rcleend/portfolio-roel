@@ -18,6 +18,12 @@ export interface HostEvents {
   onViewChange(view: HostView): void;
 }
 
+/** The game's scenes as the page sees them (the director): which one shows, and every switch. */
+export interface SceneSignal {
+  readonly current: string | null;
+  onSceneChange(listener: (id: string) => void): () => void;
+}
+
 /**
  * Every host receives the host contract, never the game itself, plus the
  * page's choreography: when to light the tube and which strips of the
@@ -25,6 +31,8 @@ export interface HostEvents {
  */
 export interface HostProps {
   readonly surface: GameSurface;
+  /** The game's scenes: the room's guide times its click-outside hint from the title. */
+  readonly scenes: SceneSignal;
   /** Turns the TV on once true. Never turns back off. */
   readonly powered: boolean;
   readonly insets: Insets;

@@ -18,7 +18,8 @@ export const PC_PICTURE_RADIUS = 0.006;
 /** The unlit tube: the TV's `TUBE` constant (crtShader.ts), sRGB-encoded. */
 export const PC_TUBE_COLOR = '#070a09';
 
-const CRT_NAME = 'PC_Imported_CRT_base';
+/** The monitor's shell (its glass is a sibling node). */
+export const CRT_NAME = 'PC_Imported_CRT_base';
 const KEYBOARD_NAME = 'PC_Imported_Keyboard_base';
 
 export interface PcModel {
