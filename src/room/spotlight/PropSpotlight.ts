@@ -9,12 +9,12 @@ export interface LitProp {
 }
 
 /**
- * The props' spotlight in the room view (docs/ROOM.md › The spotlight): the prop under the pointer, or the one the
+ * The props' spotlight in the room view (docs/ROOM.md › The spotlight): the prop under the pointer, else the one the
  * app lights (its menu), glows, bounces and wants a label. The room draws the glow and the bounce; the app draws the
  * label where the room says. Only a camera resting in the room view lights anything.
  */
 export interface PropSpotlight {
-  /** Lights `target` for the app (its menu item has the pointer or the keyboard); null hands back to the pointer. */
+  /** Lights `target` for the app (its menu item has the pointer or the keyboard), behind any prop under the pointer. */
   light(target: RoomTarget | null): void;
   /** The lit prop, or null. */
   readonly lit: LitProp | null;

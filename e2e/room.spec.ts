@@ -224,6 +224,29 @@ test('pointing at a prop lights it, labels it and lights its menu item; the menu
   expect(errors).toEqual([]);
 });
 
+test('a prop under the pointer comes before the menu item the keyboard has', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await expect(page.locator('.look-around')).toBeAttached();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  await page.keyboard.press('Tab');
+  const resume = page.getByRole('button', { name: 'Résumé', exact: true });
+  await expect(resume).toBeFocused();
+  const lit = () => page.evaluate(() => window.__room?.spotlight.lit?.target ?? null);
+  await expect.poll(lit).toBe('pc');
+
+  // Reaching for the TV with the mouse shows the TV, though the menu item keeps the keyboard.
+  await page.mouse.move(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
+  await expect.poll(lit).toBe('tv');
+  await expect(resume).toBeFocused();
+  // Off every prop again: the focused item's own prop lights back up.
+  await page.mouse.move(WALL.x, WALL.y);
+  await expect.poll(lit).toBe('pc');
+});
+
 test('the game takes keys only while the TV has focus', async ({ page }) => {
   await page.goto('/?seed=1&scene=title&frames=60');
   await waitForRunning(page);

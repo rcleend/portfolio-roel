@@ -61,14 +61,17 @@ describe('the spotlight door', () => {
     expect(shown.at(-1)).toBeNull();
   });
 
-  it("puts the app's pick before the pointer's, and hands back to the pointer", async () => {
+  // A prop under the pointer always shows itself: it comes before what the app asks for (its menu's item under the
+  // pointer, else the one its keyboard has), and the app's pick comes back as the pointer leaves the prop.
+  it("puts the prop under the pointer before the app's pick, and hands back to it", async () => {
     const spotlight = door();
     spotlight.preload();
     await loaded();
     spotlight.setOpen(true);
-    spotlight.hover('tv');
     spotlight.light('radio');
     expect(shown.at(-1)).toBe('radio');
+    spotlight.hover('tv');
+    expect(shown.at(-1)).toBe('tv');
     spotlight.hover(null);
     expect(shown.at(-1)).toBe('radio');
     spotlight.light(null);

@@ -67,8 +67,8 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const lit = useLitTarget(room.spotlight);
   const radio = useRadioAvailable(room);
   // What the app lights: the menu item under the pointer, else the one the keyboard has, else the tour's prop. The
-  // pointer wins while it is over an item; as it leaves, a focused item lights again (as room.spotlight layers its
-  // own request over a hover).
+  // pointer wins while it is over an item; as it leaves, a focused item lights again. A prop under the pointer in the
+  // room itself comes before all of it (SpotlightDoor).
   const [hovered, setHovered] = useState<RoomTarget | null>(null);
   const [focused, setFocused] = useState<RoomTarget | null>(null);
   const [touring, setTouring] = useState<RoomTarget | null>(null);

@@ -495,7 +495,7 @@ On a software GPU the strips no longer hold the walls back. They used to come 1.
 
 ## The spotlight (`spotlight/`)
 
-The room's answer to a pointer over a prop, after c-na.dev/explore's (the study: `glow-study.md` beside the task's screenshots): the prop glows, plays a little jelly and wants a label, in the room view only, while the camera rests there. `RoomInteraction` reports the interactable under the pointer (`onHover`; a hover after a flight is picked again where the mouse rests), `assembleRoom` maps it to the prop its click flies to (the desk's is the computer, the cabinet's and the lamp's the radio), and `room.spotlight` lights `request ?? hovered`, the app's pick first (its menu, docs/ART-DIRECTION.md › The room's UI). A flight closes it at once and the lit prop goes home.
+The room's answer to a pointer over a prop, after c-na.dev/explore's (the study: `glow-study.md` beside the task's screenshots): the prop glows, plays a little jelly and wants a label, in the room view only, while the camera rests there. `RoomInteraction` reports the interactable under the pointer (`onHover`; a hover after a flight is picked again where the mouse rests), `assembleRoom` maps it to the prop its click flies to (the desk's is the computer, the cabinet's and the lamp's the radio), and `room.spotlight` lights `hovered ?? request`: the prop under the pointer first, else what the app asks for (its menu's item under the pointer, else the one its keyboard has, else the first visit's tour; docs/ART-DIRECTION.md › The room's UI). So a mouse resting on a prop shows that prop while it rests there, even with a menu item focused or the tour running. A flight closes it at once and the lit prop goes home.
 
 | | |
 | --- | --- |

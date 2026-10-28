@@ -3,8 +3,8 @@ import type { LitProp, PropSpotlight } from './PropSpotlight';
 import type { Spotlight, SpotlightHost } from './spotlightContract';
 
 /**
- * `room.spotlight` (room chunk; docs/ROOM.md › The spotlight): which prop to light — the app's, else the one under the
- * pointer — while the camera rests in the room view. The glow, the bounce and the label point are the lazy
+ * `room.spotlight` (room chunk; docs/ROOM.md › The spotlight): which prop to light — the one under the pointer, else
+ * the app's — while the camera rests in the room view. The glow, the bounce and the label point are the lazy
  * `propSpotlight` chunk's, imported behind the first flight away from the TV; until then, or if it fails, nothing is
  * lit and the room works as before.
  */
@@ -80,6 +80,6 @@ export class SpotlightDoor implements PropSpotlight {
   }
 
   #update(): void {
-    this.#chunk?.show(this.#open ? (this.#request ?? this.#hovered) : null);
+    this.#chunk?.show(this.#open ? (this.#hovered ?? this.#request) : null);
   }
 }
