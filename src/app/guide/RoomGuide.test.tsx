@@ -3,9 +3,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LitProp, Room, RoomTarget } from '@/room';
+import { watchInputModality } from '../a11y/inputModality';
 import type { SceneSignal } from '../hosts/types';
-import { loadGuideProgress } from './guideProgress';
+import { loadGuideProgress, saveGuideProgress } from './guideProgress';
 import { RoomGuide } from './RoomGuide';
+
+watchInputModality();
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -55,7 +58,16 @@ describe('the props’ tour', () => {
   /** The camera rests in the room view on a first-ever visit: the tour is due. */
   const render = (): void => {
     act(() =>
-      root.render(<RoomGuide room={stubRoom()} view="room" settled={true} scenes={scenes} onFocusStage={() => {}} />),
+      root.render(
+        <RoomGuide
+          room={stubRoom()}
+          view="room"
+          settled={true}
+          scenes={scenes}
+          handOver={{ current: false }}
+          onFocusStage={() => {}}
+        />,
+      ),
     );
   };
   const wait = (ms: number): void =>
@@ -103,5 +115,79 @@ describe('the props’ tour', () => {
     mouseAt(140, 100);
     expect(inTheLight()).toBeNull();
     expect(toured()).toBe(true);
+  });
+});
+
+describe('the overview menu', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    // The tour has played on an earlier visit: the menu alone lights the props.
+    saveGuideProgress(window.localStorage, {
+      lookedAround: true,
+      visitedComputer: false,
+      leftComputer: false,
+      toured: true,
+    });
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() =>
+      root.render(
+        <RoomGuide
+          room={stubRoom()}
+          view="room"
+          settled={true}
+          scenes={scenes}
+          handOver={{ current: false }}
+          onFocusStage={() => {}}
+        />,
+      ),
+    );
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  const item = (target: RoomTarget): HTMLButtonElement =>
+    host.querySelector(`.overview__item[data-target="${target}"]`) as HTMLButtonElement;
+  const lit = (): string | null =>
+    host.querySelector('.overview__item[data-lit="true"]')?.getAttribute('data-target') ?? null;
+  const byKey = (): void =>
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+    });
+  const pointerOver = (button: HTMLButtonElement): void =>
+    act(() => {
+      button.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
+    });
+  const pointerOut = (button: HTMLButtonElement): void =>
+    act(() => {
+      button.dispatchEvent(
+        new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse', relatedTarget: document.body }),
+      );
+    });
+
+  it('lights the item under the pointer, and the one the keyboard has once the pointer leaves', () => {
+    byKey();
+    act(() => item('pc').focus());
+    expect(lit()).toBe('pc');
+
+    pointerOver(item('tv'));
+    expect(lit()).toBe('tv');
+    pointerOut(item('tv'));
+    expect(lit()).toBe('pc');
+  });
+
+  it('does not light an item a pointer only pressed', () => {
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse' }));
+    });
+    act(() => item('pc').focus());
+    expect(lit()).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import {
   type KeyboardEvent,
   lazy,
+  type RefObject,
   Suspense,
   startTransition,
   useCallback,
@@ -46,12 +47,27 @@ const RoomGuide = lazy(() => import('../guide/RoomGuide').then((module) => ({ de
 /**
  * The TV view's way out, with the same name the guide's hint wears: unseen until it takes keyboard focus, then a pill
  * over the room. The guide's own, which also teaches the click outside, takes its place once it is in, so there is
- * only ever one.
+ * only ever one; `handOver` tells it to take the keyboard with it when it does.
  */
-function WayOut({ view, onLookAround }: { readonly view: RoomView; readonly onLookAround: () => void }) {
+function WayOut({
+  view,
+  onLookAround,
+  handOver,
+}: {
+  readonly view: RoomView;
+  readonly onLookAround: () => void;
+  readonly handOver: RefObject<boolean>;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(
+    () => () => {
+      if (button.current !== null && document.activeElement === button.current) handOver.current = true;
+    },
+    [handOver],
+  );
   if (view !== 'tv') return null;
   return (
-    <button type="button" className="way-out" onClick={onLookAround}>
+    <button ref={button} type="button" className="way-out" onClick={onLookAround}>
       Look around the room
     </button>
   );
@@ -183,6 +199,9 @@ function AtticStage({
     room?.showRoom();
     focusStage();
   }, [room, focusStage]);
+  // The way out and the guide's hint are one control to the visitor: this notes a keyboard standing on the way out as
+  // the guide takes over, so the hint's own button takes the focus rather than dropping it.
+  const handOver = useRef(false);
 
   // Escape belongs to the game at the TV; at the computer or the radio it gets up again (also mid-flight,
   // or after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
@@ -202,7 +221,7 @@ function AtticStage({
     }
   };
 
-  const wayOut = room ? <WayOut view={view} onLookAround={lookAround} /> : null;
+  const wayOut = room ? <WayOut view={view} onLookAround={lookAround} handOver={handOver} /> : null;
 
   // The screens, hotspots and the PC and radio slots are siblings of the stage, never children: events
   // from their portals must not bubble into the stage's handlers, and focus inside them leaves the
@@ -236,7 +255,14 @@ function AtticStage({
       <div ref={screensRef} className="room-host__screens" />
       {room && guideDue ? (
         <Suspense fallback={wayOut}>
-          <RoomGuide room={room} view={view} settled={settled} scenes={scenes} onFocusStage={focusStage} />
+          <RoomGuide
+            room={room}
+            view={view}
+            settled={settled}
+            scenes={scenes}
+            handOver={handOver}
+            onFocusStage={focusStage}
+          />
         </Suspense>
       ) : (
         wayOut

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SceneSignal } from '../hosts/types';
 import { ClickOutsideIcon } from './icons';
 
@@ -11,6 +11,8 @@ export interface LookAroundProps {
   /** The visitor has left the TV before (on this visit or an earlier one): the hint has retired. */
   readonly learnt: boolean;
   readonly touch: boolean;
+  /** Set when the host's way out had the keyboard as this took its place: this button takes the focus (RoomHost.tsx). */
+  readonly handOver: RefObject<boolean>;
 }
 
 /** Long enough to take the title in, soon enough to be found: the hint's wait from the title's first frame. */
@@ -23,12 +25,19 @@ export const LOOK_AROUND_HINT_DELAY_MS = 10_000;
  * whose pictogram clicks beside a little screen. It goes for good with the first look around, and for this visit
  * once a level starts, so it never sits beside a game in progress.
  */
-export function LookAround({ onLookAround, scenes, atTv, learnt, touch }: LookAroundProps) {
+export function LookAround({ onLookAround, scenes, atTv, learnt, touch, handOver }: LookAroundProps) {
   const due = useTitleSeenFor(scenes, LOOK_AROUND_HINT_DELAY_MS);
   const playing = useSceneReached(scenes, 'level');
   const shown = atTv && due && !learnt && !playing;
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!handOver.current) return;
+    handOver.current = false;
+    button.current?.focus({ preventScroll: true });
+  }, [handOver]);
   return (
     <button
+      ref={button}
       type="button"
       className="look-around guide-pill"
       data-shown={shown}

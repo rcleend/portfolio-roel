@@ -135,13 +135,35 @@ test('the TV view keeps its way out when the room guide never loads', async ({ p
   await expect(host).toBeFocused();
 });
 
+test('the guide takes the keyboard over from the way out it replaces', async ({ page }) => {
+  // Held back, so the keyboard is standing on the entry's way out when the guide's own hint takes its place.
+  await page.route('**/guide/RoomGuide.tsx*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await route.continue();
+  });
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const wayOut = page.locator('.way-out');
+  await expect(wayOut).toBeAttached();
+  await page.keyboard.press('Tab');
+  await expect(wayOut).toBeFocused();
+
+  const hint = page.locator('.look-around');
+  await expect(hint).toBeAttached({ timeout: 10_000 });
+  await expect(wayOut).toHaveCount(0);
+  await expect(hint).toBeFocused();
+  // Still the way out: it leads to the room from there.
+  await page.keyboard.press('Enter');
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+});
+
 test('the keyboard reaches the computer and the TV without the mouse', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
   const lookAround = page.getByRole('button', { name: 'Look around the room' });
-  // The room's guide loads at idle once the picture is up.
-  await expect(lookAround).toBeAttached();
+  // The room's guide loads at idle once the picture is up, and its own hint takes the entry's way out's place.
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(lookAround).toBeFocused();
   await expect(lookAround).toHaveCSS('opacity', '1');
@@ -226,7 +248,7 @@ test('the sound toggle is reachable by keyboard and remembers the choice', async
   await waitForRunning(page);
   const toggle = page.getByRole('button', { name: 'Mute sound' });
   // Past the TV view's "Look around the room", once the room's guide has loaded.
-  await expect(page.getByRole('button', { name: 'Look around the room' })).toBeAttached();
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(toggle).toBeFocused();
@@ -325,7 +347,7 @@ test('the keyboard reaches the radio from the room view', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  await expect(page.getByRole('button', { name: 'Look around the room' })).toBeAttached();
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'room');

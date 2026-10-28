@@ -467,7 +467,7 @@ test.describe('with reduced motion', () => {
 
 test('the keyboard alone reaches the résumé and the game', async ({ page }) => {
   await openRoom(page);
-  await expect(page.getByRole('button', { name: 'Look around the room' })).toBeAttached();
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Look around the room' })).toBeFocused();
   await lookAround(page, () => page.keyboard.press('Enter'));

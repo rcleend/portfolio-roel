@@ -237,7 +237,7 @@ test('a CD picked while another plays takes its place, on the one element', asyn
 test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back to the TV', async ({ page }) => {
   await open(page);
   const host = hostElement(page);
-  await expect(page.getByRole('button', { name: 'Look around the room' })).toBeAttached();
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'room');

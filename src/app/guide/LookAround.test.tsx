@@ -49,7 +49,15 @@ describe('the look-around hint', () => {
     mounts++;
     act(() =>
       root.render(
-        <LookAround key={mounts} onLookAround={() => {}} atTv={true} learnt={false} touch={false} {...props} />,
+        <LookAround
+          key={mounts}
+          onLookAround={() => {}}
+          atTv={true}
+          learnt={false}
+          touch={false}
+          handOver={{ current: false }}
+          {...props}
+        />,
       ),
     );
     return host.querySelector('button') as HTMLButtonElement;
@@ -76,6 +84,18 @@ describe('the look-around hint', () => {
     expect(button.textContent).toContain('Click anywhere outside the TV');
     act(() => button.click());
     expect(onLookAround).toHaveBeenCalledOnce();
+  });
+
+  // The host's own way out (RoomHost.tsx) goes as this takes its place: a keyboard standing on it comes along.
+  it('takes the keyboard from the way out it replaces, and only once', () => {
+    const handOver = { current: true };
+    const button = render({ scenes: director(), handOver });
+    expect(document.activeElement).toBe(button);
+    expect(handOver.current).toBe(false);
+
+    document.body.focus();
+    const next = render({ scenes: director(), handOver });
+    expect(document.activeElement).not.toBe(next);
   });
 
   it('times itself from the title it finds already showing, and counts the title once', () => {

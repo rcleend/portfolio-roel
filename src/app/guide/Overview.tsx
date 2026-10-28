@@ -1,5 +1,6 @@
 import { type CSSProperties, useId, useState } from 'react';
 import type { RoomTarget } from '@/room';
+import { lastInputWasKeyboard } from '../a11y/inputModality';
 import { PropIcon } from './icons';
 import type { Presence } from './presence';
 import { PROP_NAMES } from './propNames';
@@ -15,8 +16,10 @@ export interface OverviewProps {
   readonly lit: RoomTarget | null;
   /** The radio works (else it is scenery and has no item). */
   readonly radio: boolean;
-  /** A menu item has the pointer or the keyboard (null: none). */
-  readonly onPoint: (target: RoomTarget | null) => void;
+  /** The item under the pointer (null: none). */
+  readonly onHover: (target: RoomTarget | null) => void;
+  /** The item the keyboard has (null: none); a pointer's focus is not one, as its pill is not either. */
+  readonly onKeyboard: (target: RoomTarget | null) => void;
   readonly onPick: (target: RoomTarget) => void;
 }
 
@@ -32,7 +35,16 @@ const ITEMS: readonly { readonly target: RoomTarget; readonly does: string }[] =
  * gallery label for the room, and a three-item menu to the résumé, the music and the game. Pointing at or focusing an
  * item lights its prop in the room, and pointing at a prop lights its item, so the two read as one.
  */
-export function Overview({ presence, arriving: arrivingNow, settled, lit, radio, onPoint, onPick }: OverviewProps) {
+export function Overview({
+  presence,
+  arriving: arrivingNow,
+  settled,
+  lit,
+  radio,
+  onHover,
+  onKeyboard,
+  onPick,
+}: OverviewProps) {
   // How it came in decides its whole arrival, so a landing midway never re-times it.
   const [arriving] = useState(arrivingNow);
   const id = useId();
@@ -62,10 +74,10 @@ export function Overview({ presence, arriving: arrivingNow, settled, lit, radio,
               data-target={target}
               data-lit={lit === target}
               aria-describedby={`${id}${target}`}
-              onPointerEnter={() => onPoint(target)}
-              onPointerLeave={() => onPoint(null)}
-              onFocus={() => onPoint(target)}
-              onBlur={() => onPoint(null)}
+              onPointerEnter={() => onHover(target)}
+              onPointerLeave={() => onHover(null)}
+              onFocus={() => onKeyboard(lastInputWasKeyboard() ? target : null)}
+              onBlur={() => onKeyboard(null)}
               onClick={() => onPick(target)}
             >
               <PropIcon target={target} />

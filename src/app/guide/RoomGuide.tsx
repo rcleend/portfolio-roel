@@ -34,6 +34,8 @@ export interface RoomGuideProps {
   /** The camera rests at `view`. */
   readonly settled: boolean;
   readonly scenes: SceneSignal;
+  /** Set when the host's own way out went with the keyboard on it: the hint's button takes the focus (RoomHost.tsx). */
+  readonly handOver: RefObject<boolean>;
   /** Hands keyboard focus back to the stage, once a button here has sent the camera off. */
   readonly onFocusStage: () => void;
 }
@@ -59,14 +61,18 @@ const GO: Readonly<Record<RoomTarget, (room: Room) => void>> = {
  * over the prop in the light, and at the computer how to get up. A lazy chunk the room host loads once the TV's
  * picture is up.
  */
-export function RoomGuide({ room, view, settled, scenes, onFocusStage }: RoomGuideProps): ReactNode {
+export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
   const touch = useMediaQuery(COARSE_POINTER);
   const [progress, learn] = useGuideProgress(view);
   const lit = useLitTarget(room.spotlight);
   const radio = useRadioAvailable(room);
-  // What the app lights: a menu item under the pointer or the keyboard, else the tour's prop.
-  const [pointed, setPointed] = useState<RoomTarget | null>(null);
+  // What the app lights: the menu item under the pointer, else the one the keyboard has, else the tour's prop. The
+  // pointer wins while it is over an item; as it leaves, a focused item lights again (as room.spotlight layers its
+  // own request over a hover).
+  const [hovered, setHovered] = useState<RoomTarget | null>(null);
+  const [focused, setFocused] = useState<RoomTarget | null>(null);
   const [touring, setTouring] = useState<RoomTarget | null>(null);
+  const pointed = hovered ?? focused;
   const inRoom = view === 'room';
   const overview = usePresence(inRoom, OVERVIEW_EXIT_MS);
   const pointer = usePointer();
@@ -81,7 +87,8 @@ export function RoomGuide({ room, view, settled, scenes, onFocusStage }: RoomGui
   useEffect(() => () => room.spotlight.light(null), [room]);
 
   const go = (target: RoomTarget): void => {
-    setPointed(null);
+    setHovered(null);
+    setFocused(null);
     GO[target](room);
     onFocusStage();
   };
@@ -98,6 +105,7 @@ export function RoomGuide({ room, view, settled, scenes, onFocusStage }: RoomGui
           atTv={settled}
           learnt={progress.lookedAround}
           touch={touch}
+          handOver={handOver}
         />
       ) : null}
       {overview ? (
@@ -107,7 +115,8 @@ export function RoomGuide({ room, view, settled, scenes, onFocusStage }: RoomGui
           settled={settled}
           lit={inRoom ? lit : null}
           radio={radio}
-          onPoint={setPointed}
+          onHover={setHovered}
+          onKeyboard={setFocused}
           onPick={go}
         />
       ) : null}
