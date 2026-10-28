@@ -727,7 +727,7 @@ test.describe('on a phone', () => {
     await openRoom(page);
     const pad = page.locator('.touchpad');
     await expect(pad).toHaveAttribute('data-visible', 'true');
-    await lookAround(page, () => page.touchscreen.tap(195, 30));
+    await lookAround(page, () => page.touchscreen.tap(195, 90));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
     const item = page.getByRole('button', { name: /^Résumé/ });
@@ -766,7 +766,7 @@ test.describe('on a phone', () => {
     await recordUploads(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await page.touchscreen.tap(195, 30);
+    await page.touchscreen.tap(195, 90);
     await page.waitForTimeout(SETTLE_MS);
     // The portrait room view crops the computer out: what only its flight draws is uploaded here.
     await untilIdle(page);
@@ -781,7 +781,7 @@ test.describe('on a phone', () => {
 
     test('takes taps on the menu only once the camera has settled in the room view', async ({ page }) => {
       await openRoom(page);
-      await lookAround(page, () => page.touchscreen.tap(195, 30));
+      await lookAround(page, () => page.touchscreen.tap(195, 90));
       const item = page.getByRole('button', { name: /^Résumé/ });
       await item.tap();
       await advanceUntil(page, () => live(page));
