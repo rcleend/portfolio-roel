@@ -32,6 +32,7 @@ from mathutils.bvhtree import BVHTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bake import configure_bake, export, prepare_scene, select, shared_bake_target, unlit, unwrap  # noqa: E402
+from device_surfaces import refine_radio_surfaces, smooth_moulded_normals
 
 SKIN_SIZE = 2048
 #: bake.py's own atlas size for the radio. The pack margin depends on it, so the 2K skin is
@@ -119,14 +120,16 @@ def stage_skin(args, work):
     radio = radio_objects(collections)
     assert len(radio) == 7, f'Expected the seven radio meshes, found {len(radio)}'
     unwrap(radio, SHIPPED_ATLAS)
+    refine_radio_surfaces(radio)
     print('UV_READY radio', SHIPPED_ATLAS, len(radio), flush=True)
     path = work / 'radio-skin-2k.png'
     if not args.skip_bake:
-        target = bpy.data.images.new('radio_skin_2k', width=SKIN_SIZE, height=SKIN_SIZE, alpha=False,
+        bpy.context.scene.cycles.samples = max(128, args.samples)
+        target = bpy.data.images.new('radio_skin_2k', width=SKIN_SIZE * 2, height=SKIN_SIZE * 2, alpha=False,
                                      float_buffer=True)
         print('BAKE_START radio-skin-2k', flush=True)
         # bake.py's 10 px margin at 1024², at the same texel scale.
-        bake_into(radio, target, margin=20)
+        bake_into(radio, target, margin=40)
         save_png(target, path)
         print('BAKE_DONE radio-skin-2k', flush=True)
     # Exactly what bake.py exports for radio-raw.glb, so the node stage can compare the UVs.
@@ -399,7 +402,7 @@ def without_glow(objects, lights, image):
     scratch = bpy.data.images.new('device_radio_cd_room_light', width=image.size[0], height=image.size[1], alpha=True,
                                   float_buffer=True)
     scratch.pixels.foreach_set(np.zeros(len(scratch.pixels), dtype=np.float32))
-    bake_into(objects, scratch, margin=2, coverage=0.001)
+    bake_into(objects, scratch, margin=round(2 * image.size[0] / CLOSEUP_SIZE), coverage=0.001)
     own = np.empty(len(scratch.pixels), dtype=np.float32)
     scratch.pixels.foreach_get(own)
     own = own.reshape(-1, 4)
@@ -605,6 +608,7 @@ def lid_underside(lid, material):
     bm.to_mesh(skin.data)
     bm.free()
     skin.data.materials.pop(index=1)
+    smooth_moulded_normals([skin])
     return skin
 
 
@@ -655,10 +659,11 @@ def stage_closeup(args, work):
     lights = lamp_glow()
     path = work / 'device_radio_cd.png'
     if not args.skip_bake:
-        image = bpy.data.images.new('device_radio_cd_bake', width=CLOSEUP_SIZE, height=CLOSEUP_SIZE, alpha=False,
+        bpy.context.scene.cycles.samples = max(128, args.samples)
+        image = bpy.data.images.new('device_radio_cd_bake', width=CLOSEUP_SIZE * 2, height=CLOSEUP_SIZE * 2, alpha=False,
                                     float_buffer=True)
         print('BAKE_START device_radio_cd', flush=True)
-        bake_into(parts, image, margin=4)
+        bake_into(parts, image, margin=8)
         without_glow([barrels], lights, image)
         save_png(image, path)
         print('BAKE_DONE device_radio_cd', flush=True)

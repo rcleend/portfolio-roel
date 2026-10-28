@@ -17,6 +17,10 @@ import bpy
 import numpy as np
 from bpy_extras.mesh_utils import mesh_linked_uv_islands
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from device_surfaces import refine_radio_surfaces, refine_room_surfaces
+from tv_dressing import align_tv_light
+
 
 def select(objects):
     bpy.ops.object.select_all(action='DESELECT')
@@ -100,6 +104,22 @@ def unwrap(objects, size, preserve=False):
                                  area_weight=0.5, correct_aspect=True, scale_to_bounds=True)
     bpy.ops.uv.select_all(action='SELECT')
     bpy.ops.object.mode_set(mode='OBJECT')
+    # Keep the monitor's face and inner bevel in one continuous projected island.
+    # Smart Project cuts the tiny rounded corners into separate slivers; their
+    # different gutters leave diagonal black seams in the seated close-up.
+    for obj in objects:
+        atlas = obj.data.uv_layers['BakedUV']
+        continuous = obj.data.uv_layers.get('ContinuousSurfaceUV')
+        marked = obj.data.attributes.get('continuous_surface_uv')
+        for face in obj.data.polygons:
+            if continuous and marked and marked.data[face.index].value:
+                for loop in face.loop_indices:
+                    atlas.data[loop].uv = continuous.data[loop].uv
+            material = obj.data.materials[face.material_index]
+            if material.name == 'Desktop | continuous bezel ABS' and face.normal.y < -0.001:
+                for loop in face.loop_indices:
+                    point = obj.data.vertices[obj.data.loops[loop].vertex_index].co
+                    atlas.data[loop].uv = (point.x, point.z)
     islands = sum(len(mesh_linked_uv_islands(obj.data)) for obj in objects)
     # Avoid the UV packer's degenerate-island case on dense imported meshes.
     margin = min(6 / size, 0.1 / math.sqrt(max(1, islands)))
@@ -112,6 +132,12 @@ def unwrap(objects, size, preserve=False):
         mesh = obj.data
         mesh.calc_loop_triangles()
         uv = mesh.uv_layers['BakedUV']
+        bezel = {face.index for face in mesh.polygons
+                 if mesh.materials[face.material_index].name == 'Desktop | continuous bezel ABS'
+                 and face.normal.y < -0.001}
+        if bezel:
+            islands_with_bezel = [island for island in mesh_linked_uv_islands(mesh) if bezel.intersection(island)]
+            assert len(islands_with_bezel) == 1, 'The monitor face/bevel must stay one continuous UV island'
         area = 0
         for triangle in mesh.loop_triangles:
             a, b, c = [uv.data[i].uv for i in triangle.loops]
@@ -133,6 +159,7 @@ def export(objects, path, animated=False):
 
 
 COLLECTIONS = ('01_TV', '02_Desk', '03_Room', '04_Drawer', '05_Posters_and_mic')
+REFINED_ROOM_ATLASES = ('01_TV_surfaces', '02_Desk_surfaces', '03_Room_window', '04_Drawer_surfaces')
 
 
 def configure_bake(scene, samples, device):
@@ -197,12 +224,61 @@ def prepare_scene(scene):
     return collections
 
 
+def bake_game_prints(objects, bakes, scene, reuse=False):
+    """Keep the original print UVs/resolution, but bake their actual room lighting.
+
+    Raw artwork with a near-white unlit tint looks emissive in this dark room.
+    Baking each insert also captures the shelf's shadow instead of giving every
+    case the same arbitrary brightness. No new runtime textures or materials.
+    """
+    textures = {}
+    for obj in objects:
+        if not obj.name.startswith('PS2 printed cover'):
+            continue
+        material = obj.data.materials[0]
+        nodes, links = material.node_tree.nodes, material.node_tree.links
+        source = next(n for n in nodes if n.type == 'TEX_IMAGE' and n.name != 'BAKE_TARGET')
+        shader = next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
+        # Paper has its original albedo; the plant's photographic shadow lift
+        # must not brighten the generated Product Engineer print.
+        links.new(source.outputs['Color'], shader.inputs['Base Color'])
+        shader.inputs['Roughness'].default_value = 0.8
+        shader.inputs['Specular IOR Level'].default_value = 0.15
+        name = 'game-cover-' + obj['game_title'].lower().replace(' ', '-')
+        path = bakes / (name + '.png')
+        if not reuse or not path.exists():
+            width, height = source.image.size
+            scale = min(1, 1024 / max(width, height))
+            width, height = int(width * scale), int(height * scale)
+            target = bpy.data.images.new(name, width=width, height=height, alpha=False, float_buffer=True)
+            node = nodes.new('ShaderNodeTexImage')
+            node.name = 'BAKE_TARGET'
+            node.image = target
+            nodes.active = node
+            scene.cycles.samples = 128
+            scene.render.bake.margin = 4
+            select([obj])
+            bpy.ops.object.bake(type='COMBINED')
+            scene.render.image_settings.file_format = 'PNG'
+            scene.render.image_settings.color_mode = 'RGB'
+            scene.render.image_settings.color_depth = '8'
+            target.save_render(str(path), scene=scene)
+            nodes.remove(node)
+            bpy.data.images.remove(target)
+            print('PRINT_BAKED', name, width, height, flush=True)
+        textures[obj.name] = bpy.data.images.load(str(path), check_existing=True)
+        obj['room_lit_print'] = True
+    return textures
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--work', required=True)
     parser.add_argument('--samples', type=int, default=48)
     parser.add_argument('--device', choices=('CPU', 'METAL'), default='CPU')
     parser.add_argument('--reuse-bakes', action='store_true', help='Reuse unchanged atlases; delete affected PNGs first')
+    parser.add_argument('--only', choices=('pc', 'radio', 'tv', 'furnishings', 'tv-dressing'),
+                        help='Rebake/export a device or the furniture/window atlases only')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     work = Path(args.work).resolve()
     bakes = work / 'baked'
@@ -210,7 +286,9 @@ def main():
     bpy.ops.wm.open_mainfile(filepath=str(work / 'room-source.blend'))
     scene = bpy.context.scene
     configure_bake(scene, args.samples, args.device)
+    align_tv_light()
     collections = prepare_scene(scene)
+    refine_room_surfaces([obj for collection in collections for obj in collection.objects])
     batches, room, retained, glass = [], [], [], []
     devices = {key: [] for key in ('tv', 'pc', 'radio', 'ps2')}
     for collection in collections:
@@ -241,7 +319,7 @@ def main():
                 room.append(obj)
                 retained.append(obj)
                 continue
-            if obj.get('bake_atlas') == 'guitar':
+            if obj.get('bake_atlas') in ('guitar', 'plant'):
                 tag = obj['bake_atlas']
             elif obj.name.startswith(('Window ', 'Deep window sill')):
                 tag = 'window'
@@ -253,7 +331,7 @@ def main():
         for tag, objects in groups.items():
             # Keep semantic boundaries while sharing an atlas, including the rug's
             # dimensions/orientation contract and replaceable/cutaway objects.
-            separate = [o for o in objects if o.get('replaceable') or o.get('cutaway') or o.get('supplied_asset') == 'rug']
+            separate = [o for o in objects if o.get('replaceable') or o.get('cutaway') or o.get('supplied_asset') in ('rug', 'desk-plant')]
             joined = [o for o in objects if o not in separate]
             if joined:
                 select(joined)
@@ -266,8 +344,8 @@ def main():
             # Fine furniture bevels and blind slats need the same texel density as
             # the desk; 1K atlases turn their edge highlights into dark stair steps.
             size = 2048
-            if tag == 'guitar': size = 1024
-            batches.append((collection.name + '_' + tag, separate, size, False))
+            if tag in ('guitar', 'plant'): size = 1024
+            batches.append((collection.name + '_' + tag, separate, size, tag == 'plant'))
     for key, objects in devices.items():
         surfaces = [obj for obj in objects if obj not in retained]
         if key == 'tv':
@@ -275,14 +353,22 @@ def main():
             # own atlas instead of spending most TV texels on its hidden rear shell.
             front = [obj for obj in surfaces if obj.name.startswith(
                 ('TV_Imported_Front', 'TV_Imported_Logo', 'TV_Imported_AV_front'))]
-            batches.append(('device_tv_front', front, 2048, False))
-            batches.append(('device_tv_rear', [obj for obj in surfaces if obj not in front], 1024, False))
+            # The source UVs keep the moulded front surround continuous. Automatic
+            # projection cuts its corners into thin islands with dark gutters.
+            batches.append(('device_tv_front', front, 2048, True))
+            batches.append(('device_tv_rear', [obj for obj in surfaces if obj not in front], 1024, True))
         else:
             # The desk close-up needs enough texels for sculpted keys and the
             # mouse's curved surface; one shared 2K atlas still keeps draw calls flat.
             batches.append(('device_' + key, surfaces, 2048 if key == 'pc' else 1024, False))
+    if args.only:
+        batches = [batch for batch in batches if
+                   (batch[0] in ('01_TV_surfaces', '01_TV_plant') if args.only == 'tv-dressing'
+                    else batch[0] in REFINED_ROOM_ATLASES if args.only == 'furnishings'
+                    else batch[0].startswith('device_' + args.only))]
     for name, objects, size, preserve in batches:
         unwrap(objects, size, preserve)
+        refine_radio_surfaces(objects)
         print('UV_READY', name, size, len(objects), flush=True)
     # Bake every surface while ALL of the original shaders are still present, so
     # later atlases do not see emissive replacements instead of reflective furniture.
@@ -292,7 +378,13 @@ def main():
         if args.reuse_bakes and path.exists():
             continue
         start = time.time()
-        target = bpy.data.images.new(name + '_bake', width=size, height=size, alpha=False, float_buffer=True)
+        # Supersample the densely packed device bevels; optimize.mjs returns these
+        # to their original runtime dimensions after the display transform.
+        device_detail = name in ('device_pc', 'device_radio', 'device_tv_front', 'device_tv_rear', '01_TV_plant', *REFINED_ROOM_ATLASES)
+        bake_size = max(4096, size * 2) if device_detail else size
+        scene.cycles.samples = max(128, args.samples) if device_detail else args.samples
+        scene.render.bake.margin = round(10 * bake_size / size)
+        target = bpy.data.images.new(name + '_bake', width=bake_size, height=bake_size, alpha=False, float_buffer=True)
         for material in {m for obj in objects for m in obj.data.materials if m}:
             node = material.node_tree.nodes.get('BAKE_TARGET') or material.node_tree.nodes.new('ShaderNodeTexImage')
             node.name = 'BAKE_TARGET'
@@ -314,6 +406,8 @@ def main():
         timings[name] = round(time.time() - start, 1)
         print('BAKE_DONE', name, timings[name], flush=True)
         bpy.data.images.remove(target)
+    # All reflective source shaders must remain intact for these bakes too.
+    print_textures = bake_game_prints(retained, bakes, scene, args.reuse_bakes) if args.only in (None, 'tv-dressing') else {}
     for name, objects, _, _ in batches:
         texture = bpy.data.images.load(str(bakes / (name + '.png')), check_existing=True)
         material = unlit(name + '_BAKED', texture, uv='BakedUV')
@@ -328,11 +422,9 @@ def main():
                         obj.data.uv_layers.remove(layer)
     for obj in retained:
         old = obj.data.materials[0]
-        texture = next((n.image for n in old.node_tree.nodes if n.type == 'TEX_IMAGE'), None)
+        texture = print_textures.get(obj.name) or next((n.image for n in old.node_tree.nodes if n.type == 'TEX_IMAGE'), None)
         material = unlit(old.name, texture)
-        if obj.name.startswith('PS2 printed cover'):
-            material['web_tint'] = [0.72, 0.73, 0.78]
-        elif obj.get('exterior'):
+        if obj.get('exterior'):
             material['web_tint'] = [0.70, 0.76, 1.0]
         obj.data.materials.clear()
         obj.data.materials.append(material)
@@ -352,9 +444,20 @@ def main():
         material.surface_render_method = 'DITHERED'
         obj.data.materials.clear()
         obj.data.materials.append(material)
-    export(room, work / 'room-raw.glb', animated=True)
+    if not args.only:
+        export(room, work / 'room-raw.glb', animated=True)
+    elif args.only == 'furnishings':
+        export([obj for _, objects, _, _ in batches for obj in objects], work / 'furnishings-raw.glb')
+    elif args.only == 'tv-dressing':
+        selected = [obj for _, objects, _, _ in batches for obj in objects]
+        selected.extend(obj for obj in retained if obj.name.startswith('PS2 printed cover'))
+        export(selected, work / 'tv-dressing-raw.glb')
     for key, objects in devices.items():
-        export(objects, work / (key + '-raw.glb'))
+        if not args.only or key == args.only:
+            export(objects, work / (key + '-raw.glb'))
+    if args.only:
+        print('DEVICE_EXPORT_DONE', args.only, flush=True)
+        return
     report = {'revision': 6, 'samples': args.samples, 'device': args.device,
               'atlases': {name: size for name, _, size, _ in batches}, 'bakeSeconds': timings,
               'source': 'room-source.blend',

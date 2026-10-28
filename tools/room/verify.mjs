@@ -86,6 +86,43 @@ export async function verifyRoomAssets(directory, manifest) {
   assert.ok(triangles < 500_000, 'Geometry exceeds the room budget');
   assert.ok(texturePixels < 48_000_000, 'Decoded texture allocation exceeds the room budget');
   const room = documents.get('room.glb').getRoot();
+  const plants = room.listNodes().filter((node) => node.getExtras().supplied_asset === 'desk-plant');
+  assert.equal(plants.length, 1, 'Expected one supplied TV desk plant');
+  const plant = plants[0];
+  const plantBounds = getBounds(plant);
+  assert.equal(plant.getParentNode().getName(), '01_TV', 'Plant left the opening-view group');
+  assert.ok(Math.abs(plantBounds.min[1] - 0.486) < 0.002, 'Plant must rest on the cabinet top');
+  assert.ok(Math.abs(plantBounds.max[1] - plantBounds.min[1] - 0.21) < 0.003, 'Plant is no longer tiny');
+  assert.ok(plantBounds.min[0] > 2.12 && plantBounds.max[0] < 2.69, 'Plant overhangs the cabinet');
+  // The TV's rightmost shell is z = -0.015 m. Keep at least 1 cm clear.
+  assert.ok(plantBounds.min[2] > -0.005 && plantBounds.max[2] < 0.4, 'Plant must clear the TV on its right');
+  assert.ok(
+    plant
+      .getMesh()
+      .listPrimitives()
+      .reduce((sum, primitive) => sum + primitive.getIndices().getCount() / 3, 0) <= 16_000,
+    'Plant scan exceeds its small-prop geometry budget',
+  );
+  const cover = room.listNodes().find((node) => node.getName() === 'PS2 printed cover Product Engineer');
+  assert.ok(cover, 'Missing generated Product Engineer cover');
+  const gamePrints = room.listNodes().filter((node) => node.getName().startsWith('PS2 printed cover'));
+  assert.equal(gamePrints.length, 3, 'Expected three separate printed game inserts');
+  for (const print of gamePrints) {
+    const material = print.getMesh().listPrimitives()[0].getMaterial();
+    assert.ok(print.getExtras().room_lit_print, `${print.getName()}: artwork bypasses room lighting`);
+    assert.ok(material.getBaseColorTexture().getName().startsWith('game-cover-'), `${print.getName()}: raw cover art`);
+    assert.deepEqual(material.getBaseColorFactor(), [1, 1, 1, 1], `${print.getName()}: baked print tinted twice`);
+  }
+  assert.ok(room.listNodes().every((node) => !node.getName().includes('Star Wars Battlefront II')));
+  const coverMesh = radioMeshes(documents.get('room.glb')).find((mesh) => mesh.name === cover.getName());
+  const coverUv = coverMesh.primitive.getAttribute('TEXCOORD_0');
+  // glTF v = 1 is the bottom of the print, pointing at the opening camera (-X).
+  const bottom = [],
+    top = [];
+  for (let i = 0; i < coverUv.getCount(); i++) {
+    (coverUv.getElement(i, [])[1] > 0.5 ? bottom : top).push(coverMesh.world[i * 3]);
+  }
+  assert.ok(Math.max(...bottom) < Math.min(...top), 'Game case bottom must point towards the camera');
   assert.ok(
     room.listNodes().every((node) => !/pillow/i.test(node.getName()) && node.getExtras().supplied_asset !== 'pillow'),
     'The removed floor pillow is still in the scene',

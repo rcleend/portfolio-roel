@@ -37,8 +37,8 @@ to `bake.py`. This is an offline authoring job.
    original meshes. Supplied rug and generated textile inputs are under `assets/`.
    `desktop.py` rebuilds the CRT monitor, keyboard and mouse from a public visual
    reference, keeps the existing under-desk tower and removes desktop cords/floppies.
-   The TV retains its original color, normal and roughness/metallic textures, bypassing
-   the other devices' matte surface adjustments before the shared bake.
+   The TV retains its original maps in the editable source; the bake keeps its printed
+   color detail, softens the normal map and gives the casing a consistent satin finish.
    Material colors are sRGB swatches converted to scene-linear values.
    Light colors are already scene-linear: narrow blue window light, very dim cool fills,
    tungsten at the desk and amber around the lava lamp. World illumination is 12% of
@@ -50,6 +50,20 @@ to `bake.py`. This is an offline authoring job.
    gutters and 2K furniture/window/PC atlases protect small bevel highlights and close-ups.
    Objects sharing an atlas bake through a temporary joined copy so one object's
    gutters cannot overwrite another object's UV islands. Export nodes stay separate.
+   The PC bezel uses a continuous projected island across its face and inner bevel,
+   with weighted smooth normals; the automatic unwrap no longer cuts its corners into
+   thin slivers. PC/radio surfaces bake at 4096² with at least 128 samples, then return
+   to their existing runtime sizes during compression. The radio's imported split
+   normals are rebuilt across coincident positions with a 50° crease limit. Its casing
+   and controls use clean ABS reflectance while retaining the original dark printed
+   markings; the speaker material keeps its perforation detail.
+   The TV uses its original continuous UV layout before packing. Its casing, the TV
+   cabinet, desk, desk lamp, static lava housing and window get the same area-weighted
+   normal repair. The cabinet's tiny walnut wear flecks use its enamel finish instead.
+   Round lamp housings use continuous cylindrical UV strips with a seam at the back
+   and separate planar caps. Coincident imported vertices are joined for UV packing,
+   without moving their surfaces or changing triangle counts.
+   The TV and four affected furniture/window atlases also bake at 4096² / 128 samples.
    All bakes finish before materials become unlit, preventing light contamination
    from earlier atlases. Screen meshes/UVs, the rug and animated lava stay separate.
 3. `optimize.mjs`: converts baked emissions to `KHR_materials_unlit`, compresses images
@@ -61,6 +75,8 @@ to `bake.py`. This is an offline authoring job.
    on either side, so one table serves the 1K atlas and the 2K skin. `debrand-base.mjs`
    repaints an already shipped `radio-base.glb` the same way (its geometry and UVs proven
    untouched) and leaves a clean one alone; `verify.mjs` fails on any lettering left.
+   `baked-textures.mjs` reduces supersampled bakes to their existing atlas dimensions;
+   refined surfaces use WebP q94. Larger offline images never increase GPU allocation.
 4. `build-radio.mjs` (`pnpm build:radio`, also the last step of `pnpm build:room`): the CD
    player's lazy close-up, from the restyled `ROOM_BUILD_DIR/room-source.blend` (never saved).
    `radio_closeup.py --stage skin` re-runs `bake.py`'s own preparation and unwrap for the
@@ -79,11 +95,13 @@ to `bake.py`. This is an offline authoring job.
    2/65535; measured 0.5), finds the lid, the rocker's halves, the side keys and the tub
    floor in the shipped base as triangle lists, writes them with the base's geometry and UV
    fingerprints and the measured hinge, pivot, key travel, seat, slot, well, LCD and LED
-   into the close-up's extras, converts to unlit, compresses (WebP q90, Meshopt) and
+   into the close-up's extras, converts to unlit, compresses (WebP q94, Meshopt) and
    validates it, and publishes `radio-closeup.glb` and `radio-skin-2k.webp` as `lazyFiles`
    in the manifest (the first-load `files`, `totalBytes` and size table are untouched).
-   About 45 s with `ROOM_BAKE_DEVICE=METAL`. The close-up is reproducible byte for byte;
-   Metal skin bakes differ between runs by a few pixels.
+   The skin now bakes at 4096² / at least 128 samples and is reduced to 2048²;
+   the open-lid parts bake at 1024² and return to 512². The lid underside also has
+   continuous, area-weighted normals. Runtime texture dimensions and geometry budgets
+   are unchanged. Metal bakes differ between runs by a few pixels.
 5. `build-posters.mjs` (`pnpm build:posters`, run by `pnpm build:room` after the radio): the
    decorated walls (docs/ROOM.md › Posters), from `tools/room/assets/posters/layout.json` and
    the artwork masters in `POSTERS_SOURCE` (not committed: `masters.json` pins their SHA-256 and
@@ -136,6 +154,76 @@ direction preview; browser screenshots are the final appearance check. `--reuse-
 is only safe for atlases whose source geometry, packing and lighting are unchanged.
 Delete every affected PNG before reusing the others; lighting changes require a full bake.
 
+### Device surface refinement
+
+To rebuild only the computer and radio, first regenerate `room-source.blend` with the
+current `restyle.py` (it contains the continuous PC bezel). Then run:
+
+```sh
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/bake.py -- \
+  --work .context/room-build --only pc --device METAL
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/radio_closeup.py -- \
+  --work .context/room-build --stage skin --device METAL
+node tools/room/refine-devices.mjs --work .context/room-build
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/radio_closeup.py -- \
+  --work .context/room-build --stage closeup --device METAL
+node tools/room/radio-closeup.mjs --work .context/room-build
+pnpm verify:room
+```
+
+The targeted publisher stages and validates every output before replacing runtime
+files. It proves the radio bake uses the shipped UVs and replaces only its texture,
+preserving the lid/key triangle indices and fingerprints. It rebuilds the PC GLB for
+the new bezel UVs and validates the screen registration. Other room assets remain
+byte-identical. Neither pipeline adds runtime lights, shaders, textures or draw calls.
+
+To refresh the TV, TV cabinet, desk, desk lamp, lava housing and window frame:
+
+```sh
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/bake.py -- \
+  --work .context/room-build --only tv --device METAL
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/bake.py -- \
+  --work .context/room-build --only furnishings --device METAL
+node tools/room/refine-furnishings.mjs --work .context/room-build
+pnpm verify:room
+```
+
+This stages only `room.glb` and `tv-high.glb`. It verifies all furniture triangles
+stay in place, then replaces four textures and the two atlas meshes containing the
+lamps' new UVs. The cabinet/window UVs and all other room geometry/UVs are checked
+against the shipped version. The TV's casing gets continuous UVs; its geometry and
+screen registration are also checked. All atlas dimensions stay fixed; the animated
+lava, glass, other room atlases and other devices stay intact.
+
+To update the opening-view cabinet and props, first generate `room-source.blend`
+with the current `restyle.py` (which calls `tv_dressing.py`), then:
+
+```sh
+"$BLENDER_BIN" -b -t 8 --python-exit-code 1 --python tools/room/bake.py -- \
+  --work .context/room-build --only tv-dressing --device METAL
+node tools/room/tv-dressing.mjs --work .context/room-build
+pnpm verify:room
+```
+
+The cabinet top/front lip shares a continuous UV island so the contact shadow
+does not break into a dark strip at the bevel. `align_tv_light()` replaces the
+tilted disk light with a dim 2 W rectangular emitter aligned to the glass,
+preventing the bright blue stripe along that lip. It runs during authoring and
+baking so older editable sources also receive the correction. The supplied plant is grounded on
+the right of the TV, welded before reducing it to about 15K triangles, smoothed and baked at 4K/128
+samples before returning to one 1K runtime atlas. The generated Product Engineer
+cover replaces Battlefront II; all six case pieces turn together by 180°.
+`bake_game_prints()` bakes all three separate cover inserts under the room lights,
+on their original UVs and at their existing runtime resolutions. This preserves
+readable art while giving the shelf cases their actual shadows. SSX3 already
+uses the shared, room-lit PS2 atlas. The
+publisher replaces only the cabinet atlas mesh, three covers and plant,
+checking unrelated room geometry/UV fingerprints and all asset contracts before
+publication. Source attribution and the generation prompt live in `assets/README.md`.
+The live CRT glow keeps the bezel and floor patches. The cabinet's redundant
+additive strip is removed: it lit surfaces behind the screen, overriding the
+occlusion and adding a bright cutout along the edge. This saves one draw call.
+
 An already-built export can also be imported with
 `ROOM_SOURCE=/path/to/optimized pnpm sync:room`. The importer requires a valid revision-6
 manifest, checks hashes and asset contracts first, and does not erase the target folder.
@@ -145,7 +233,8 @@ It intentionally rejects the old machine-specific revision-5 export.
 
 `pnpm verify:room` checks all five runtime GLBs, file sizes and hashes, zero glTF
 errors/warnings, static unlit materials, texture/geometry/transfer budgets, room groups,
-the square rotated rug, desktop node names and geometry budget, seven animated wax
+the square rotated rug, the plant's grounding/size/position/triangle budget, the
+Product Engineer cover's camera-facing bottom, room-lit game inserts, desktop node names and geometry budget, seven animated wax
 meshes and the 48-second clip. It also checks
 both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z
 with planar UVs (the computer's flat live screen and projector UVs depend on it), removal of

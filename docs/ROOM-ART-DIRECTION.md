@@ -89,11 +89,20 @@ shadow maps or a postprocessing stack for that appearance.
   vertices before subdivision avoids cracks between imported triangles; its original
   silhouette remains recognizable. The floor pillow is removed from the exported scene.
 - **Electronics:** the TV, radio, PS2 and controllers keep their source models,
-  controls, labels and logos. The TV's original pre-overhaul color, roughness, metallic
-  and normal maps are restored without the matte/normal-strength overrides. The other
-  devices keep their restrained finishes. All static surfaces are baked in the room.
+  controls, labels and logos. The TV keeps its original printed color and grille detail,
+  with reduced normal-map strength and a consistent satin casing response. Its imported
+  split normals are repaired and its continuous source UVs retained before packing.
+  All static surfaces are baked in the room.
   The TV front has its own 2K atlas for the opening close-up; the rear uses 1K.
   Screens remain separate and replaceable.
+- **Furniture and lamps:** the TV cabinet, desk, desk lamp, static lava housing and
+  window use continuous area-weighted normals across imported seams, with a 50° crease
+  limit preserving the actual corners. Tiny cabinet wear flecks share its enamel finish.
+  The round lamp housings use continuous cylindrical UV strips with seams at the back,
+  eliminating the fragmented triangle islands that left vertical smudges on the metal.
+  Four shared atlases bake at 4K / 128 samples and reduce to the existing 2K sizes, cleaning
+  rough bevels and smudged highlights without adding runtime materials or lighting.
+  Wood grain, window blinds and the animated lava retain their character.
 - **Desktop:** a new beige CRT monitor, two-tone full-size keyboard and wheel mouse
   are modelled from public views of FaceTheEdge's
   [90s PC desktop style 002](https://sketchfab.com/3d-models/90s-pc-desktop-style-002-ec97f236db9342d0802a3ab75cf4da4b).
@@ -103,6 +112,9 @@ shadow maps or a postprocessing stack for that appearance.
   under the desk remains; no second system unit is added. Desktop cables and floppy
   disks are removed. The existing screen mapping and desk interaction are preserved.
   One shared 2K PC atlas preserves keycap and curved-mouse detail in the close-up.
+  The bezel's face and inset now share a continuous UV island, with smoothly weighted
+  corner normals. A 4K, 128-sample offline bake is reduced to the same 2K runtime atlas
+  to remove the former diagonal seams and jagged bevel shading.
 - **CD player:** clicking the radio, its cabinet or the lava lamp sits the camera over the
   boombox at a 24° pitch; its lid opens and the collection rises out of the disc slot.
   The boombox carries no brand: the source model's maker and model lettering and its
@@ -126,6 +138,10 @@ shadow maps or a postprocessing stack for that appearance.
   with the lamp's spoke and rainbow and a polished rim, never a flat grey; the placeholder
   prints are a CD's (a skyline, a tide across the label), not a record's grooves. Nothing
   added carries a mark.
+  The casing and controls have clean ABS reflectance, retaining printed function labels
+  and the separate speaker-grille detail. Rebuilt area-weighted normals suppress the
+  imported triangular shading patches. The base/skin are supersampled at 4K and the
+  lid interior at 1K before returning to their existing 1K/2K/512² runtime sizes.
 - **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
   The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
   settle under gravity into a supported pile reaching the bottom; three original
@@ -134,8 +150,23 @@ shadow maps or a postprocessing stack for that appearance.
 - **Game case:** the original SSX3 case and printed insert remain. Its separate
   translucent overwrap is removed for the matte finish, so an opaque lightmap cannot
   obscure the original cover. The remaining case geometry and placement are preserved.
+  The Battlefront II case on the TV cabinet instead carries generated **Product
+  Engineer** art matching the blue/amber TV title, with matching spine lettering.
+  Its body, sleeve, print, spine and hinges rotate together 180° so the cover's
+  bottom faces the opening camera. All three separate printed inserts are baked
+  under the room lights on their original UVs, including the shelf's occlusion;
+  raw artwork is no longer displayed almost full-bright. The imported SSX3 case
+  already shares the PS2's room-lit atlas.
+- **TV cabinet and plant:** the top and front lip share one continuous lightmap
+  island, avoiding the dark UV-gutter strip below the television while retaining
+  its contact shadow. A dim 2 W rectangular emitter follows the glass plane and
+  faces into the room; the previous tilted 20 W disk made the edge unnaturally
+  bright. The cabinet uses that occluded bake without a second additive strip
+  behind the screen. A 21 cm desk plant sits to the TV's right, grounded on the
+  cabinet top. Its supplied scan keeps the variegated leaves, with reduced geometry,
+  repaired smooth normals, clean ivory ceramic and shared baked room illumination.
 - **Guitar, lamps and clutter:** warm ivory lacquer, restrained metal, muted book colors
-  and warm paper sit in the same palette. Original game-cover artwork remains.
+  and warm paper sit in the same palette. Other game-cover artwork remains.
   Hidden box-body caps beneath the fitted game-box lids are removed: their coplanar
   surfaces caused black stripes and depth fighting in WebGL.
 
@@ -191,13 +222,13 @@ extend each island's own color to limit dark seams when textures are filtered.
 
 | Runtime asset cost | Revision 5 | Revision 6 |
 | --- | ---: | ---: |
-| Five GLBs and credits | 7.87 MB | 6.97 MB |
-| Decoded texture pixels | 47.72 million | 44.84 million |
-| Total asset triangles | 245,893 | 336,666 |
+| Five GLBs and credits | 7.87 MB | 7.79 MB |
+| Decoded texture pixels | 47.72 million | 46.21 million |
+| Total asset triangles | 245,893 | 351,791 |
 | Room-view draw calls | 55 | 57 |
 
-The CD player adds nothing to that first load: `radio-closeup.glb` (56 KB, 2,366 triangles,
-one 512² atlas) and `radio-skin-2k.webp` (179 KB) are lazy files fetched only when the radio
+The CD player adds nothing to that first load: `radio-closeup.glb` (65 KB, 2,366 triangles,
+one 512² atlas) and `radio-skin-2k.webp` (240 KB) are lazy files fetched only when the radio
 is prepared, the skin only on screens where the radio lands wider than 900 render pixels.
 The posters add none of their art to it, only the room code that triggers them (about 1.7 kB
 gzip in the room chunk): `posters.glb`
