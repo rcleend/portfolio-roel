@@ -16,6 +16,38 @@
 }
 
 /*
+ * The TV view's way out while the guide is not in (RoomHost.tsx): the same words, out of sight until the keyboard
+ * finds it, then a pill in the room UI's style where the guide's hint stands.
+ */
+.way-out {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 16;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-ink);
+  clip-path: inset(50%);
+  translate: -50% 0;
+}
+
+.way-out:focus-visible {
+  width: auto;
+  height: auto;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: var(--ui-glass);
+  box-shadow: var(--ui-lift);
+  font: 400 20px / 1 var(--ui-display);
+  clip-path: none;
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 3px;
+}
+
+/*
  * Where the room lays the computer's live screen: exactly the stage's box, but outside its
  * role="application", so screen readers browse the screen as a document. Only the screen
  * itself takes pointer events, and only while it is live.

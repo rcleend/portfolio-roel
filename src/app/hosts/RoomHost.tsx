@@ -36,19 +36,26 @@ const RadioSlot = lazy(() =>
 
 /**
  * The room's guide (docs/ART-DIRECTION.md › The room's UI: the TV's way out and its click-outside hint, the room
- * view's overview and menu, the props' labels, the way up from the computer) leaves the first load: it loads at idle
- * once the TV's picture is up, long before its first hint is due. Should it fail, the room still works by pointer, and
- * the stage's own keys (Enter, Escape) still move between the TV and the room.
+ * view's overview and menu, the props' labels, the way up from the computer) leaves the first load: it is fetched at
+ * idle once the TV's picture is up, long before its first hint is due, and mounts only once it is in. The stage's own
+ * keys only play again (Enter in the room view) and get up (Escape at the computer or the radio), so the TV's way out
+ * is `WayOut`, in the first load, which stays exactly as long as the guide's own is not there.
  */
-const RoomGuide = lazy(() =>
-  import('../guide/RoomGuide').then(
-    (module) => ({ default: module.RoomGuide }),
-    (error: unknown) => {
-      console.warn("The room's guide failed to load", error);
-      return { default: () => null };
-    },
-  ),
-);
+const RoomGuide = lazy(() => import('../guide/RoomGuide').then((module) => ({ default: module.RoomGuide })));
+
+/**
+ * The TV view's way out, with the same name the guide's hint wears: unseen until it takes keyboard focus, then a pill
+ * over the room. The guide's own, which also teaches the click outside, takes its place once it is in, so there is
+ * only ever one.
+ */
+function WayOut({ view, onLookAround }: { readonly view: RoomView; readonly onLookAround: () => void }) {
+  if (view !== 'tv') return null;
+  return (
+    <button type="button" className="way-out" onClick={onLookAround}>
+      Look around the room
+    </button>
+  );
+}
 
 declare global {
   interface Window {
@@ -148,7 +155,12 @@ function AtticStage({
 
   useEffect(() => {
     if (!tvOn || guideDue) return;
-    return whenIdle(() => startTransition(() => setGuideDue(true)));
+    return whenIdle(() => {
+      import('../guide/RoomGuide').then(
+        () => startTransition(() => setGuideDue(true)),
+        (error: unknown) => console.warn("The room's guide failed to load", error),
+      );
+    });
   }, [tvOn, guideDue]);
 
   // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
@@ -167,6 +179,10 @@ function AtticStage({
   // Stable, so a view change never re-renders the computer's screen or the radio's controls through their props.
   const focusStage = useCallback((): void => stageRef.current?.focus({ preventScroll: true }), []);
   const showRoom = useCallback(() => room?.showRoom(), [room]);
+  const lookAround = useCallback(() => {
+    room?.showRoom();
+    focusStage();
+  }, [room, focusStage]);
 
   // Escape belongs to the game at the TV; at the computer or the radio it gets up again (also mid-flight,
   // or after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
@@ -185,6 +201,8 @@ function AtticStage({
       room.focusTv();
     }
   };
+
+  const wayOut = room ? <WayOut view={view} onLookAround={lookAround} /> : null;
 
   // The screens, hotspots and the PC and radio slots are siblings of the stage, never children: events
   // from their portals must not bubble into the stage's handlers, and focus inside them leaves the
@@ -217,10 +235,12 @@ function AtticStage({
       />
       <div ref={screensRef} className="room-host__screens" />
       {room && guideDue ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={wayOut}>
           <RoomGuide room={room} view={view} settled={settled} scenes={scenes} onFocusStage={focusStage} />
         </Suspense>
-      ) : null}
+      ) : (
+        wayOut
+      )}
       <PcSlot
         display={room?.pc ?? null}
         view={view}

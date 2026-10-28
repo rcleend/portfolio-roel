@@ -113,6 +113,28 @@ test('Escape during the flight to the computer returns to the room without showi
   await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'false');
 });
 
+test('the TV view keeps its way out when the room guide never loads', async ({ page }) => {
+  await page.route('**/guide/RoomGuide.tsx*', (route) => route.abort());
+  const failed = page.waitForEvent('console', (message) => message.text().includes("The room's guide failed to load"));
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const host = hostElement(page);
+  const lookAround = page.getByRole('button', { name: 'Look around the room' });
+  // One button, before the guide is due and once its import has failed for good.
+  await expect(lookAround).toHaveCount(1);
+  await failed;
+  await expect(lookAround).toHaveCount(1);
+
+  await page.keyboard.press('Tab');
+  await expect(lookAround).toBeFocused();
+  // Out of sight until then: a focus shows it as a pill.
+  const pill = await lookAround.boundingBox();
+  expect(pill?.width ?? 0).toBeGreaterThan(100);
+  await page.keyboard.press('Enter');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await expect(host).toBeFocused();
+});
+
 test('the keyboard reaches the computer and the TV without the mouse', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
