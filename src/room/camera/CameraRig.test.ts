@@ -4,20 +4,27 @@ import type { PcFramingModel } from '../pc/pcFraming';
 import { RADIO_FIXTURE } from '../radio/radioFixtures';
 import { radioPoseSolver } from '../radio/radioFraming';
 import { type FrameScheduler, RenderLoop } from '../stage/RenderLoop';
-import type { TvModel } from '../tv/tvModel';
+import { type TvFramingModel, tvViewpoint } from '../tv/tvFraming';
 import { CameraRig, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
+import { regionFromInsets } from './framing';
 import type { ScreenFade } from './ScreenFade';
 
-/** pc-base.glb's glass and shell, and the TV set (room revision 6), as the models find them. */
+/** pc-base.glb's glass and shell as the model finds them, and a TV set with a 4:3 picture on its front. */
 const PC: PcFramingModel = {
   facing: new Vector3(0, 0, 1),
   rim: { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 },
   shellBounds: new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654)),
 };
-const TV = {
+const TV: TvFramingModel = {
   facing: new Vector3(-1, 0, 0),
   bounds: new Box3(new Vector3(1.6, 0.6, -0.6), new Vector3(2.1, 1.2, 0.2)),
-} as unknown as TvModel;
+  picture: [
+    new Vector3(1.6, 0.72, -0.5),
+    new Vector3(1.6, 0.72, 0.1),
+    new Vector3(1.6, 1.17, 0.1),
+    new Vector3(1.6, 1.17, -0.5),
+  ],
+};
 
 /** Frames on demand: `frame(ms)` runs what was requested at that time. */
 class Frames implements FrameScheduler {
@@ -44,7 +51,7 @@ function rig(reduced: boolean) {
   const camera = new PerspectiveCamera();
   const instance = new CameraRig(camera, loop, TV, PC, motion, fade);
   instance.setRadioFraming(radioPoseSolver(RADIO_FIXTURE, 5, NO_INSETS));
-  return { instance, frames, fade };
+  return { instance, frames, fade, camera };
 }
 
 describe('CameraRig', () => {
@@ -65,6 +72,28 @@ describe('CameraRig', () => {
     instance.setRadioFraming(inset);
     expect(instance.viewpoint('radio').position.distanceTo(pose.position)).toBeGreaterThan(0);
     expect(inset).toHaveBeenCalledTimes(1);
+  });
+
+  it('reframes the TV as a phone turns, clear of the touch pad on either side', () => {
+    const { instance, camera } = rig(false);
+    const upright = { width: 390, height: 844, pixelRatio: 3 };
+    const onItsSide = { width: 844, height: 390, pixelRatio: 3 };
+    const bottomPad = { ...NO_INSETS, bottom: 194 };
+    const sidePads = { ...NO_INSETS, left: 138, right: 174 };
+    const expected = (viewport: typeof upright, insets: typeof NO_INSETS) =>
+      tvViewpoint(TV, viewport, regionFromInsets(viewport, insets));
+    instance.resize(upright);
+    instance.setFramingInsets(bottomPad);
+    expect(instance.viewpoint('tv')).toEqual(expected(upright, bottomPad));
+    // The viewport turns first; the pad's new insets follow once the app has laid it out again.
+    instance.resize(onItsSide);
+    instance.setFramingInsets(sidePads);
+    expect(instance.viewpoint('tv')).toEqual(expected(onItsSide, sidePads));
+    expect(camera.position.distanceTo(expected(onItsSide, sidePads).position)).toBeLessThan(1e-9);
+    expect(camera.fov).toBe(expected(onItsSide, sidePads).fov);
+    instance.resize(upright);
+    instance.setFramingInsets(bottomPad);
+    expect(instance.viewpoint('tv')).toEqual(expected(upright, bottomPad));
   });
 
   it('rests the radio view at the room pose until the radio can frame itself', () => {

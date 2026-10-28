@@ -370,7 +370,7 @@ test('becomes scenery when its close-up cannot load', async ({ page }) => {
   const anchor = await page.evaluate(() => window.__roomLab?.room.anchors.find((entry) => entry.target === 'radio'));
   if (!anchor) throw new Error('No radio anchor');
   await page.mouse.move(anchor.x, anchor.y);
-  expect(await page.evaluate(() => document.querySelector('canvas')?.style.cursor)).toBe('default');
+  expect(await page.evaluate(() => document.querySelector('canvas')?.dataset.cursor)).toBe('idle');
   await page.mouse.click(anchor.x, anchor.y);
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.__roomLab?.room.view)).toBe('room');

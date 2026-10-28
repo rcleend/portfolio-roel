@@ -12,22 +12,10 @@ import {
 import type { Album } from '@/content/radio/types';
 import { nextRovingIndex } from '../../a11y/roving';
 import { useKeyboardModality } from '../../a11y/useKeyboardModality';
-import { browserStorage } from '../../storage/localFlag';
 import { COARSE_POINTER, useMediaQuery } from '../../useMediaQuery';
 import type { DiscAnchor, RadioDeck, RadioKey, RadioLayout, ScreenRect } from '../deck';
 import { liveText } from '../player/announce';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
-import { HintLines } from './HintLines';
-import {
-  type HintInput,
-  learn,
-  loadRadioHints,
-  RADIO_HINT_DELAY_MS,
-  type RadioHintKind,
-  radioHintFor,
-  radioHintText,
-  saveRadioHints,
-} from './radioHints';
 import { RAIL_QUERY, TransportBar } from './TransportBar';
 import './RadioControls.css';
 
@@ -53,7 +41,7 @@ const KEYS: readonly { readonly key: RadioKey; readonly label: (playing: boolean
  * The CD player's controls, portaled into the room's controls slot over the radio (SPEC
  * §8.7): a CDs toolbar whose buttons sit on the floating discs, the transport over the
  * radio's own keys (or the touch bar), the caption under the disc that has the visitor's
- * attention, the radio's hint and its one live region. The buttons are invisible to the
+ * attention and its one live region (the way back is the room guide's, or the touch bar's). The buttons are invisible to the
  * pointer, which plays with the 3D model; the keyboard and screen readers use them, and
  * a keyboard focus shows as a ring on the disc or key itself.
  */
@@ -71,10 +59,7 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
   // The camera's landing focuses a CD from a script: a keyboard user sees it ringed and brought forward, a mouse
   // or touch user does not (Chrome would ring it for them too, see useKeyboardModality).
   const keyboard = useKeyboardModality();
-  const hint = useRadioHint(live, live && shelfUp, coarse, keyboard, snapshot.disc !== null);
   const risen = useShelfRisen(live, shelfUp);
-  // On a phone held upright the bar carries the line (the radio's front fills the bottom of the frame).
-  const hintInBar = coarse && !rail;
   const loadedIndex = albums.findIndex((album) => album.id === snapshot.disc);
   const [activeCd, setActiveCd] = useState(Math.max(0, loadedIndex));
   const [activeKey, setActiveKey] = useState(1);
@@ -165,13 +150,7 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         })}
       </div>
       {coarse ? (
-        <TransportBar
-          deck={deck}
-          player={player}
-          snapshot={snapshot}
-          onLeave={onLeave}
-          hint={hintInBar && hint.visible ? hint.text : null}
-        />
+        <TransportBar deck={deck} player={player} snapshot={snapshot} onLeave={onLeave} />
       ) : (
         <div
           role="toolbar"
@@ -205,16 +184,6 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         anchor={captionAnchor(anchorOf(layout, attended), risen)}
         muted={muted}
       />
-      {hintInBar ? null : (
-        <p className="radio__hint radio__pill" aria-hidden="true" data-visible={hint.visible}>
-          {hint.text ? (
-            <>
-              <DiscMark />
-              <HintLines words={hint.text} />
-            </>
-          ) : null}
-        </p>
-      )}
       <p className="radio__announcer" role="status">
         {words}
       </p>
@@ -282,58 +251,6 @@ function CaptionWords({ album, muted }: { album: Album; muted: boolean }) {
       ) : null}
     </>
   );
-}
-
-/** The hint's mark: a little disc that turns once as the hint arrives. */
-function DiscMark() {
-  return (
-    <svg className="radio__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM6.8 10.2a5.6 5.6 0 0 1 3.4-3.4" />
-    </svg>
-  );
-}
-
-/**
- * The radio's teaching line (radioHints.ts): shown a beat after the discs are up (never before: it names them), in
- * the words of the input in use. `text` stays while the line fades out.
- */
-function useRadioHint(live: boolean, shelfUp: boolean, coarse: boolean, keyboard: boolean, picked: boolean) {
-  const [storage] = useState(browserStorage);
-  const [progress, setProgress] = useState(() => loadRadioHints(storage));
-  const [shown, setShown] = useState<RadioHintKind | null>(null);
-  const [last, setLast] = useState<{ kind: RadioHintKind; input: HintInput } | null>(null);
-  const wasLive = useRef(live);
-
-  const record = useCallback(
-    (done: 'pickedCd' | 'leftRadio') =>
-      setProgress((current) => {
-        const next = learn(current, done);
-        if (next !== current) saveRadioHints(storage, next);
-        return next;
-      }),
-    [storage],
-  );
-  useEffect(() => {
-    if (picked) record('pickedCd');
-  }, [picked, record]);
-  useEffect(() => {
-    if (wasLive.current && !live) record('leftRadio');
-    wasLive.current = live;
-  }, [live, record]);
-
-  const input: HintInput = keyboard ? 'keyboard' : coarse ? 'touch' : 'mouse';
-  const wanted = shelfUp ? radioHintFor(progress, coarse) : null;
-  useEffect(() => {
-    setShown(null);
-    if (!wanted) return;
-    const timer = window.setTimeout(() => setShown(wanted), RADIO_HINT_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [wanted]);
-  useEffect(() => {
-    if (shown) setLast({ kind: shown, input });
-  }, [shown, input]);
-
-  return { visible: shown !== null, text: last ? radioHintText(last.kind, last.input) : null };
 }
 
 /** True while every disc not in the player hangs in its slot at the radio. */

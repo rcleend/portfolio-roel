@@ -142,7 +142,7 @@ interface Interactable {                   // registered: the TV, the computer a
   intersect?(raycaster: Raycaster): { hit: InteractionHit; distance: number } | null;
                                            // its own ray test, used instead of casting at `object` (and never cut
                                            // into pick chunks): proxies, a mesh filtered by region, moving parts
-  cursor(hit: InteractionHit): string;
+  cursor(hit: InteractionHit): RoomCursor; // what a click does here (Cursors, below)
   activate(hit: InteractionHit): void;     // click / tap
   pointerDown?(hit): boolean;              // return true to own the gesture (no activate follows)
   pointerMove?(hit | null): void;
@@ -150,6 +150,20 @@ interface Interactable {                   // registered: the TV, the computer a
   pointerLeave?(): void;
 }
 ```
+
+#### Cursors
+
+The stage's cursor says what a click would do under the pointer, as a `RoomCursor`, and `RoomInteraction` writes it to the canvas twice: by name (`data-cursor`, for hosts and tests) and drawn (`style.cursor = var(--room-cursor-<name>, <stock>)`), so a page that defines the custom property draws its own and any other gets the stock cursor:
+
+| `RoomCursor` | Where | Stock |
+| --- | --- | --- |
+| `idle` | nothing to do, or the thing in use (the room's walls, the computer while seated, the radio's body, mid-flight) | `default` |
+| `enter` | a prop the click flies to (the room view) | `zoom-in` |
+| `leave` | anything that leaves for the room (beside the TV, the computer or the radio, the desk while seated) | `zoom-out` |
+| `press` | a part to press (the radio's discs and keys) | `pointer` |
+| `play` | the game's picture while the TV plays (the bezel is `idle`) | `default` |
+
+The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-DIRECTION.md › The room's UI › Cursors).
 
 ## Modules
 
@@ -185,6 +199,8 @@ room/
     ScreenFade.ts       black veil for the reduced-motion cut
   tv/
     tvModel.ts          finds the screen/buttons in the TV asset; measured aperture constant
+    tvFraming.ts        pure: the TV viewpoint (the whole set, or the picture on portrait and short screens); the
+                        picture's outline on the curved glass
     Television.ts       the device: CRT + LED + room glow, power choreography
     CrtScreen.ts        ShaderMaterial on the glass, CanvasTexture updated on onFrame, power state
     crtShader.ts        GLSL: scanlines, aperture grille, bloom, vignette, power raster, glass
@@ -295,7 +311,8 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
   Its 0–1 UV square spans z -0.611 to -0.029 and y 1.056 to 0.615 (0.583 × 0.441 m, aspect 1.32).
   **Orientation:** u runs left → right as seen by the viewer (+Z), **v = 0 is the top edge**; with `flipY = false` the canvas maps upright and unmirrored (verified with the lab's corner labels).
 - The bezel covers the UV square's rim. The straight-on visible aperture is u 0.058–0.942, v 0.050–0.950 with rounded corners (`TV_SCREEN_APERTURE`).
-  The 4:3 picture is fitted inside it with a 2 % inset (`fitContentRect`), leaving a thin dark tube border like a real set; pointer mapping uses the same rect.
+  The 4:3 picture is fitted inside it with a 2 % inset (`fitContentRect`), leaving a thin dark tube border like a real set; pointer mapping uses the same rect, and so does the TV view's framing.
+- The TV view (`tvFraming.ts`) looks along −facing pitched 4° down through a 28° lens, widened 2° at a time up to 60° while the eye would stand more than 1.75 m back from the set's middle (it would back into the desk), into the viewport minus the framing insets. It frames the whole set with a 6 % margin, unless the viewport is portrait or the whole set would show the picture under 300 CSS px tall (1.25 px per game row: a phone on its side, a very short window); then it frames the picture alone, the content rect's outline on the curved glass (its corners and every crossing with the glass's triangle edges, so no column or row is ever cut), with a 0.1 % hairline. A portrait picture spans the width, centred in the space above the touch pad, with the bezel cropped at the sides: at 390 × 844 (40° lens) its top row covers 389.2 of 390 px and, keystoned by the pitch, its bottom row 382.5. A phone on its side is limited by its height, between the pad's clusters: at 844 × 390 (28°) the picture is 389.2 px tall and 521 px wide, and the room stays in shot beside the set above the clusters (x < 69 and > 737) to tap out of the TV, as it does past the safe areas of a notched phone. Desktops and tablets in landscape keep the whole set (1440 × 900: the picture 662 × 496 px).
 - Controls: `TV_Imported_Front_buttons_high` (`interaction_id = "tv-buttons"`) is the strip of round buttons under the printed labels POWER, VOLUME, CHANNEL, ACTION, TV/VIDEO (z -0.477 to -0.348, y ≈ 0.55). The large POWER button is its leftmost element.
   There is **no LED mesh**, so `PowerLed` mounts a 2.4 mm emissive lens with an additive halo 2.2 cm left of the button strip.
   Other parts: `Front_section` (bezel/shell), `rear_section`, `Logo` (Panasonic), `AV_front` jacks, `AV_back`, `Coax_connector`, `Screw`.
@@ -370,8 +387,8 @@ Nothing of the radio is requested before the first room view (`e2e/radio-deck.sp
 | View | Floating disc | Disc in the well | ▷II / ■ halves, ⏮ / ⏭ | Radio body | Cabinet, lamp |
 | --- | --- | --- | --- | --- | --- |
 | tv, pc | — | — | — | nothing (the room's miss) | nothing |
-| room | — | — | — | `zoom-in`, click flies to the radio; the pointer over it prefetches | same |
-| radio | `pointer`: hover attends, click picks (touch: attention on down, pick on up over the same disc) | `pointer`: ▷II ghost press | `pointer`: pressed while held (the device owns the gesture) | `default`, nothing | `zoom-out`, the room |
+| room | — | — | — | `enter`, click flies to the radio; the pointer over it prefetches | same |
+| radio | `press`: hover attends, click picks (touch: attention on down, pick on up over the same disc) | `press`: ▷II ghost press | `press`: pressed while held (the device owns the gesture) | `idle`, nothing | `leave`, the room |
 
 At the radio the device's parts win over the body (a box 3 mm bigger than it), which wins over the surroundings. Discs are picked analytically (the ray against each disc's plane, the hole counting as disc); keys and lid by three's raycast on the cut meshes.
 

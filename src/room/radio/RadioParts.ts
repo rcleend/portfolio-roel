@@ -1,5 +1,5 @@
 import type { Raycaster } from 'three';
-import type { InteractionHit } from '../interaction/Interactable';
+import type { InteractionHit, RoomCursor } from '../interaction/Interactable';
 import type { DeviceTarget, RadioDevice } from './deviceContract';
 import type { RadioPartsTarget } from './RadioInteractable';
 
@@ -30,9 +30,9 @@ export class RadioParts implements RadioPartsTarget {
     return { hit: part.hit, distance: part.distance };
   }
 
-  cursor(hit: InteractionHit): string {
+  cursor(hit: InteractionHit): RoomCursor {
     const target = this.#targets.get(hit);
-    return target === undefined || target.kind === 'lid' ? 'default' : 'pointer';
+    return target === undefined || target.kind === 'lid' ? 'idle' : 'press';
   }
 
   activate(hit: InteractionHit): void {

@@ -1,0 +1,31 @@
+/*
+ * The page's cursors (docs/ART-DIRECTION.md › The room's UI › Cursors). Mice only: touch screens draw none, and each
+ * falls back to the stock cursor it stands for. The room's stage names what a click would do under the pointer
+ * (`--room-cursor-*`, docs/ROOM.md › Cursors); the computer's screen keeps its own arrow (app/pc/cursors.ts).
+ */
+
+/* The page opens with the pointer hidden, until the mouse first moves (hidePointer.ts). */
+html[data-pointer="hidden"],
+html[data-pointer="hidden"] * {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat the stage's inline cursor and every control's own. */
+  cursor: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    /* A chunky, soft-cornered white arrow; a pointing hand in the same hand; the arrow with a "back" badge. */
+    --ui-cursor: image-set(url("./arrow.png") 1x, url("./arrow@2x.png") 2x) 4 3, default;
+    --ui-cursor-hand: image-set(url("./hand.png") 1x, url("./hand@2x.png") 2x) 9 2, pointer;
+    --room-cursor-idle: var(--ui-cursor);
+    --room-cursor-enter: var(--ui-cursor-hand);
+    --room-cursor-press: var(--ui-cursor-hand);
+    --room-cursor-leave: image-set(url("./leave.png") 1x, url("./leave@2x.png") 2x) 4 3, zoom-out;
+    /* Over the game's picture, the game's own menu hand (src/game/ui/cursor.ts), at the fingertip. */
+    --room-cursor-play: image-set(url("./game-hand.png") 1x, url("./game-hand@2x.png") 2x) 29 7, default;
+    cursor: var(--ui-cursor);
+  }
+
+  :any-link {
+    cursor: var(--ui-cursor-hand);
+  }
+}

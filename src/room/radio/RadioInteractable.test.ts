@@ -59,7 +59,7 @@ describe('RadioInteractable', () => {
     for (const point of [RADIO, LAMP, CABINET]) {
       const found = interactable.intersect(rayAt(point));
       if (!found) throw new Error('missed');
-      expect(interactable.cursor(found.hit)).toBe('zoom-in');
+      expect(interactable.cursor(found.hit)).toBe('enter');
       interactable.pointerMove(found.hit);
       interactable.activate(found.hit);
     }
@@ -82,7 +82,7 @@ describe('RadioInteractable', () => {
     const part = interactable.intersect(rayAt(RADIO));
     if (!part) throw new Error('missed');
     expect(part.distance).toBe(99);
-    expect(interactable.cursor(part.hit)).toBe('pointer');
+    expect(interactable.cursor(part.hit)).toBe('press');
     expect(interactable.pointerDown(part.hit, 'touch')).toBe(true);
     expect(deck.prepared.pointerDown).toHaveBeenCalledWith(disc, 'touch');
     interactable.pointerMove(null);
@@ -93,7 +93,7 @@ describe('RadioInteractable', () => {
     deck.prepared.pick.mockReturnValue(null);
     const body = interactable.intersect(rayAt(RADIO));
     if (!body) throw new Error('missed');
-    expect(interactable.cursor(body.hit)).toBe('default');
+    expect(interactable.cursor(body.hit)).toBe('idle');
     expect(interactable.pointerDown(body.hit, 'mouse')).toBe(false);
     interactable.activate(body.hit);
     expect(views.request).not.toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('RadioInteractable', () => {
     for (const point of [LAMP, CABINET]) {
       const around = interactable.intersect(rayAt(point));
       if (!around) throw new Error('missed');
-      expect(interactable.cursor(around.hit)).toBe('zoom-out');
+      expect(interactable.cursor(around.hit)).toBe('leave');
       interactable.activate(around.hit);
     }
     expect(views.request).toHaveBeenCalledWith('room');

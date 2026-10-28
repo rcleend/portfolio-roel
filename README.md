@@ -29,7 +29,6 @@ pnpm shot --host flat --page                                 # full page, includ
 ```
 
 The audio lab, `/audio-lab.html` on the dev server, plays every track and effect and measures offline renders; `pnpm exec tsx scripts/audio-report.ts` prints the same level table in the terminal.
-The playground, `/playground` on the dev server, shows every registered title lockup and backdrop live and side by side, with a shared transport and a focus mode for any combination.
 The room lab, `/room-lab.html`, shows the attic with a test card on the TV (and, with `?mockpc=1`, on the computer); the PC lab, `/pc-lab.html`, shows the computer's screen on a stand-in monitor (docs/ROOM.md, docs/PC.md).
 
 In development (or with `?debug` in production) the URL accepts `host`, `scene`, `params`, `seed` and `frames`, and `window.__arcade` lets you `goTo`, `step`, `press` and inspect `state()` from the console.

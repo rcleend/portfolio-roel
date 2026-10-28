@@ -23,7 +23,7 @@ export type ConceptPose = (typeof CONCEPT_POSES)[number];
  */
 export interface CustomerConcept {
   readonly id: 'on-the-phone' | 'the-receipt' | 'one-star';
-  /** What the lineup and the playground call it. */
+  /** A short display name, e.g. "One star". */
   readonly name: string;
   readonly description: string;
   readonly sheet: ImageSheetSource;
@@ -58,8 +58,8 @@ const imageKey = (concept: CustomerConcept): string => `looks/terraria/customer-
 
 /**
  * Downloads every concept into `assets`. The game never does: whoever opens
- * a scene that draws them (the playground, the harness) calls this first, so
- * the scene can read them synchronously.
+ * a scene that draws them (the harness) calls this first, so the scene can
+ * read them synchronously.
  */
 export async function loadCustomerConcepts(assets: AssetStore): Promise<void> {
   await Promise.all(CUSTOMER_CONCEPTS.map((concept) => assets.loadImage(imageKey(concept), concept.sheet.png)));

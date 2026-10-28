@@ -26,7 +26,8 @@ const touch = { isMobile: true, hasTouch: true, deviceScaleFactor: 3 } as const;
 const TARGETS: readonly Target[] = [
   { name: 'desktop', context: { viewport: { width: 1440, height: 900 } }, outside: { x: 40, y: 450 } },
   { name: 'phone', context: { viewport: { width: 390, height: 844 }, ...touch }, outside: { x: 195, y: 90 } },
-  { name: 'landscape', context: { viewport: { width: 844, height: 390 }, ...touch }, outside: { x: 422, y: 14 } },
+  // The picture fills a phone on its side top to bottom: the room shows beside the set, above the pad's start button.
+  { name: 'landscape', context: { viewport: { width: 844, height: 390 }, ...touch }, outside: { x: 40, y: 120 } },
 ];
 
 async function shot(page: Page, target: Target, moment: string): Promise<void> {

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getBounds, NodeIO } from '@gltf-transform/core';
+import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { Box3, Matrix4, PerspectiveCamera, Vector2, Vector3, Vector4 } from 'three';
@@ -13,7 +13,8 @@ import { MAX_DISCS } from '../radio/discLayout';
 import { RADIO_FIXTURE, RADIO_VIEWPORTS } from '../radio/radioFixtures';
 import { radioPoseSolver } from '../radio/radioFraming';
 import { type FrameScheduler, RenderLoop } from '../stage/RenderLoop';
-import type { TvModel } from '../tv/tvModel';
+import { tvFixture } from '../tv/tvFixtures';
+import type { TvFramingModel } from '../tv/tvFraming';
 import { posterTier } from './posterTier';
 import { anyInView, decorBoxes } from './posterVisibility';
 
@@ -103,7 +104,7 @@ let cardUvs: Float32Array;
 /** The 2K atlas's size in texels; the 1K tier halves it each way, under the same coordinates. */
 let atlas: readonly [number, number];
 let boxes: Box3[];
-let tv: TvModel;
+let tv: TvFramingModel;
 
 async function readAsset(io: NodeIO, name: string) {
   return io.read(join(ROOM, name));
@@ -153,12 +154,8 @@ beforeAll(async () => {
   cardTriangles = Float32Array.from(cardCorners);
   cardUvs = Float32Array.from(cardTexels);
 
-  // The TV set as `locateTv` measures it: the bounds of the whole set, its screen facing into the room (−x).
-  const set = await readAsset(io, 'tv-high.glb');
-  const scene = set.getRoot().getDefaultScene() ?? set.getRoot().listScenes()[0];
-  if (!scene) throw new Error('tv-high.glb has no scene');
-  const { min, max } = getBounds(scene);
-  tv = { facing: new Vector3(-1, 0, 0), bounds: new Box3(new Vector3(...min), new Vector3(...max)) } as TvModel;
+  // The TV set as the room measures it: the bounds of the whole set, the picture on its glass, facing the room (−x).
+  tv = tvFixture(await readAsset(io, 'tv-high.glb')).framing;
 });
 
 /** Frames on demand: `run(ms)` runs what was requested at that time. */

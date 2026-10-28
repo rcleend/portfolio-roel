@@ -12,16 +12,9 @@ import type { PropSpotlight, Room, RoomTarget, RoomView } from '@/room';
 import type { SceneSignal } from '../hosts/types';
 import { browserStorage } from '../storage/localFlag';
 import { COARSE_POINTER, useMediaQuery } from '../useMediaQuery';
-import {
-  type GuideProgress,
-  leaveHintDue,
-  loadGuideProgress,
-  recordTour,
-  recordView,
-  saveGuideProgress,
-} from './guideProgress';
-import { LeaveHint } from './LeaveHint';
-import { LookAround } from './LookAround';
+import { BackButton } from './BackButton';
+import { type GuideProgress, loadGuideProgress, recordTour, saveGuideProgress } from './guideProgress';
+import { LookAround, useLookAroundPopup } from './LookAround';
 import { Overview } from './Overview';
 import { PropLabel } from './PropLabel';
 import { usePresence } from './presence';
@@ -42,6 +35,8 @@ export interface RoomGuideProps {
 
 /** The overview's way out: quicker than its way in, and over before the flight is a third done. */
 const OVERVIEW_EXIT_MS = 180;
+/** The way back's fade out (RoomGuide.css › .back-button). */
+const BACK_EXIT_MS = 180;
 
 /** The tour waits for the overview to arrive, then lights each prop in turn, its menu item with it. */
 const TOUR_START_MS = 450;
@@ -57,13 +52,13 @@ const GO: Readonly<Record<RoomTarget, (room: Room) => void>> = {
 
 /**
  * Everything the room host shows around the TV and the computer besides the sound toggle (docs/ART-DIRECTION.md ›
- * The room's UI): the TV view's way out and its click-outside hint, the room view's overview with its menu, the label
- * over the prop in the light, and at the computer how to get up. A lazy chunk the room host loads once the TV's
+ * The room's UI): the TV view's way out and its popup, the room view's overview with its menu, the label over the prop
+ * in the light, and the way back from the computer and the radio. A lazy chunk the room host loads once the TV's
  * picture is up.
  */
 export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
   const touch = useMediaQuery(COARSE_POINTER);
-  const [progress, learn] = useGuideProgress(view);
+  const [progress, learn] = useGuideProgress();
   const lit = useLitTarget(room.spotlight);
   const radio = useRadioAvailable(room);
   // What the app lights: the menu item under the pointer, else the one the keyboard has, else the tour's prop. The
@@ -75,7 +70,12 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const pointed = hovered ?? focused;
   const inRoom = view === 'room';
   const overview = usePresence(inRoom, OVERVIEW_EXIT_MS);
+  // On a touch screen the radio's own bar has the way back, with its keys. Mounted only around the views that have
+  // it, so its faces download the first time it is needed.
+  const backView = view === 'pc' || (view === 'radio' && !touch);
+  const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
+  const popup = useLookAroundPopup(scenes, view === 'tv' && settled);
   useTour(inRoom && settled && !progress.toured, radio, pointer, setTouring, () => learn(recordTour));
 
   const request = inRoom ? (pointed ?? touring) : null;
@@ -92,21 +92,15 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
     GO[target](room);
     onFocusStage();
   };
+  const showRoom = (): void => {
+    room.showRoom();
+    onFocusStage();
+  };
 
   return (
     <>
       {view === 'tv' ? (
-        <LookAround
-          onLookAround={() => {
-            room.showRoom();
-            onFocusStage();
-          }}
-          scenes={scenes}
-          atTv={settled}
-          learnt={progress.lookedAround}
-          touch={touch}
-          handOver={handOver}
-        />
+        <LookAround onLookAround={showRoom} shown={popup.shown} intro={popup.intro} touch={touch} handOver={handOver} />
       ) : null}
       {overview ? (
         <Overview
@@ -121,15 +115,13 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
         />
       ) : null}
       <PropLabel spotlight={room.spotlight} />
-      <LeaveHint due={view === 'pc' && settled && leaveHintDue(progress, touch)} />
+      {back ? <BackButton due={backView && settled} onBack={showRoom} /> : null}
     </>
   );
 }
 
-/** The visitor's progress, learning from every view change and kept for later visits. */
-function useGuideProgress(
-  view: RoomView,
-): readonly [GuideProgress, (change: (p: GuideProgress) => GuideProgress) => void] {
+/** The visitor's progress, kept for later visits. */
+function useGuideProgress(): readonly [GuideProgress, (change: (p: GuideProgress) => GuideProgress) => void] {
   const [storage] = useState(browserStorage);
   const [progress, setProgress] = useState(() => loadGuideProgress(storage));
   const learn = useCallback(
@@ -141,7 +133,6 @@ function useGuideProgress(
       }),
     [storage],
   );
-  useEffect(() => learn((current) => recordView(current, view)), [view, learn]);
   return [progress, learn];
 }
 

@@ -132,7 +132,7 @@ Body Georgia 14 px / 1.5, headings Arial; every text colour keeps a contrast of 
 
 ## Pop-out (`popout/`)
 
-On small pictures the reader is portaled to `document.body`: fixed over the whole viewport (`100dvh`), z-index 30 (above the sound toggle, below the accessible résumé), padded by the safe-area insets, with a 44 px title bar and close button, a 36 px strip showing "Reflow" and "Page n of N", and the document in Reflow with 16 px gutters (`touch-action: pan-y pinch-zoom`: it scrolls, and the browser's pinch zoom enlarges it). The window is focusable, so a click in its chrome keeps the keys in the dialog; the room's "click outside the computer" hint is hidden while it is shown.
+On small pictures the reader is portaled to `document.body`: fixed over the whole viewport (`100dvh`), z-index 30 (above the sound toggle, below the accessible résumé), padded by the safe-area insets, with a 44 px title bar and close button, a 36 px strip showing "Reflow" and "Page n of N", and the document in Reflow with 16 px gutters (`touch-action: pan-y pinch-zoom`: it scrolls, and the browser's pinch zoom enlarges it). The window is focusable, so a click in its chrome keeps the keys in the dialog; the room's "Back to the room" button is hidden while it is shown (its close button is the way out there).
 `flipTransform(first, last)` gives the transform that makes the full-viewport reader appear at the in-glass window.
 
 ## Dev lab

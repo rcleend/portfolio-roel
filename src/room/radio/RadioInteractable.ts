@@ -1,5 +1,5 @@
 import { Box3, type Mesh, Object3D, type Raycaster, Vector3 } from 'three';
-import type { Interactable, InteractionHit } from '../interaction/Interactable';
+import type { Interactable, InteractionHit, RoomCursor } from '../interaction/Interactable';
 import type { RoomView } from '../viewState';
 
 /** The radio view's half of the target: the device's parts under the pointer (RadioParts, in the radio's chunk). */
@@ -83,10 +83,10 @@ export class RadioInteractable implements Interactable {
     return lamp ? this.#found(false, { object: this.#proxy, point: lamp, uv: null }, lampDistance) : null;
   }
 
-  cursor(hit: InteractionHit): string {
-    if (this.#options.views.view === 'room') return 'zoom-in';
+  cursor(hit: InteractionHit): RoomCursor {
+    if (this.#options.views.view === 'room') return 'enter';
     const body = this.#hits.get(hit);
-    return body === undefined ? (this.#parts?.cursor(hit) ?? 'default') : body ? 'default' : 'zoom-out';
+    return body === undefined ? (this.#parts?.cursor(hit) ?? 'idle') : body ? 'idle' : 'leave';
   }
 
   activate(hit: InteractionHit): void {

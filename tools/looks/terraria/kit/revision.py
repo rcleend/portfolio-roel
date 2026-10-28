@@ -1,7 +1,7 @@
 """The Terraria Roels' revision: new head layers over the same bodies, played as looks of their own beside the look.
 
-The captain compares them in the playground before either replaces the other, so the look's own parts
-(body.py, outfits.py) stay as they are and the revision only swaps layers on top of them:
+The captain compares them in the development lineup (?scene=lineup) before either replaces the other, so
+the look's own parts (body.py, outfits.py) stay as they are and the revision only swaps layers on top of them:
 - the hair, after the Terraria player hairstyle he picked (hairstyle 143 of the character creator): a round
   mop a pixel behind the skull, its fringe swept forward over the brow and parted near the front, where a
   lock falls past the face; it now covers the top of the ear, so only the lobe shows. Same ramp as before.

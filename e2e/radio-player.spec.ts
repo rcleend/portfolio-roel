@@ -232,7 +232,7 @@ test('keyboard only: choose a CD with the arrows, pause from the toolbar, Escape
   expect(errors).toEqual([]);
 });
 
-test('keys on an empty player ask for a CD, and the hint teaches the pick', async ({ page }) => {
+test('keys on an empty player ask for a CD', async ({ page }) => {
   await spyOnAudio(page);
   await open(page);
   await page.keyboard.press('Tab');
@@ -244,9 +244,6 @@ test('keys on an empty player ask for a CD, and the hint teaches the pick', asyn
   await page.waitForTimeout(1100);
   await page.keyboard.press('Enter');
   await expect(announced(page)).toHaveText('Choose a CD first. ');
-  // Reached by the keyboard, the hint speaks the keyboard's words.
-  await expect(page.locator('.radio__hint')).toHaveText('Pick a CDPress Enter to play');
-  await expect(page.locator('.radio__hint')).toHaveAttribute('data-visible', 'true');
 });
 
 test('muted: the choice says the sound is off, and the music plays silently until unmuted', async ({ page }) => {
@@ -336,9 +333,8 @@ test.describe('on a phone', () => {
     const insets = await page.evaluate(() => window.__radioLab?.events.findLast((e) => e.type === 'insets')?.detail);
     expect(insets).toEqual({ top: 0, left: 0, right: 0, bottom: 64 });
 
-    // On a phone the hint lives in the bar, where the now-playing line will be, once the discs are up.
-    await expect(bar.locator('.radio-bar__now')).toHaveText('Pick a CDTap one to play');
-    await expect(page.locator('.radio__hint')).toHaveCount(0);
+    // Nothing plays yet: the now-playing line waits, empty.
+    await expect(bar.locator('.radio-bar__now')).toHaveText('');
 
     await disc(page, 'insert-coin').tap();
     await waitAudible(page);
@@ -350,8 +346,7 @@ test.describe('on a phone', () => {
     expect(
       await page.evaluate(() => window.__radioLab?.events.filter((e) => e.type === 'press').map((e) => e.detail)),
     ).toEqual(['play-pause']);
-    // A phone leaves by the bar's back key: no leave hint, in the bar or anywhere else.
-    await expect(page.getByText(/outside the radio/)).toHaveCount(0);
+    // A phone leaves by the bar's back key.
     await bar.getByRole('button', { name: 'Look around the room' }).tap();
     await expect.poll(() => page.evaluate(() => window.__radioLab?.deck.live)).toBe(false);
   });

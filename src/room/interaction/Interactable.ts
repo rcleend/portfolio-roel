@@ -1,5 +1,13 @@
 import type { Object3D, Raycaster, Vector2, Vector3 } from 'three';
 
+/**
+ * What a click would do where the pointer is, as the stage's cursor. The stage draws each as the CSS custom property
+ * `--room-cursor-<name>` when the page defines it, else as the stock cursor beside it: `idle` (default, nothing to do
+ * or using the thing itself), `enter` (zoom-in, a prop to fly to), `leave` (zoom-out, back to the room), `press`
+ * (pointer, a part to press) and `play` (default, the game's picture under a playing TV).
+ */
+export type RoomCursor = 'idle' | 'enter' | 'leave' | 'press' | 'play';
+
 /** Where a pointer ray met an interactable. */
 export interface InteractionHit {
   /** The mesh that was hit (a descendant of the interactable's object). */
@@ -28,8 +36,8 @@ export interface Interactable {
    * or appear later (the radio's discs and keys). Interactables with it are never cut into pick chunks.
    */
   intersect?(raycaster: Raycaster): { readonly hit: InteractionHit; readonly distance: number } | null;
-  /** CSS cursor while the pointer is over it. */
-  cursor(hit: InteractionHit): string;
+  /** The cursor while the pointer is over it. */
+  cursor(hit: InteractionHit): RoomCursor;
   /** A click or tap that was not consumed as a gesture. */
   activate(hit: InteractionHit): void;
   /**

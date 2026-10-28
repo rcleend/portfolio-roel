@@ -1,6 +1,6 @@
 /*
- * Attic at night: banded indigo, darkest at the top like the room's ceiling,
- * with faint scanlines so the page already feels like a tube before the TV is up.
+ * The loading screen in the room UI's voice (docs/ART-DIRECTION.md › The room's UI): the attic's night, the name in
+ * white Chewy filling up as the room downloads, one Nunito line under it. Nothing else.
  */
 .loading {
   position: fixed;
@@ -8,23 +8,13 @@
   z-index: 30;
   display: grid;
   place-items: center;
-  background:
-    repeating-linear-gradient(to bottom, transparent 0 2px, rgb(0 0 0 / 0.18) 2px 3px),
-    radial-gradient(ellipse 70% 55% at 50% 46%, rgb(61 47 143 / 0.28), transparent 70%),
-    linear-gradient(
-      to bottom,
-      #07080c 0 18%,
-      #0a0b14 18% 36%,
-      #0d0f1c 36% 54%,
-      #111426 54% 72%,
-      #151a31 72% 88%,
-      #1a2040 88%
-    );
+  background: radial-gradient(ellipse 60% 50% at 50% 46%, rgb(61 47 143 / 0.16), transparent 72%), #0c0a14;
+  color: var(--ui-ink);
 }
 
 .loading--leaving {
   pointer-events: none;
-  animation: loading-leave 360ms steps(4, end) forwards;
+  animation: loading-leave 360ms ease forwards;
 }
 
 @keyframes loading-leave {
@@ -33,58 +23,80 @@
   }
 }
 
-/* Hidden for the first moments: a cached load never flashes the loading UI. */
+/* Hidden for the first moments and until its faces are in: a cached load never flashes it, the name never swaps faces. */
 .loading__content {
   display: grid;
   justify-items: center;
-  gap: 20px;
-  animation: loading-appear 1ms 280ms both;
+  gap: 22px;
+  padding: 24px;
+  text-align: center;
+  visibility: hidden;
 }
 
-@keyframes loading-appear {
+.loading[data-fonts="ready"] .loading__content {
+  visibility: visible;
+  animation: loading-in 520ms var(--ui-spring) 280ms backwards;
+}
+
+@keyframes loading-in {
   from {
     visibility: hidden;
-  }
-  to {
-    visibility: visible;
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
   }
 }
 
-.loading__art {
-  display: block;
-  width: var(--art-width);
-  height: var(--art-height);
-  image-rendering: pixelated;
-}
-
-.loading__caption {
+/* The name twice in one cell: a faint ghost, and the white copy revealed from the bottom up to the progress. */
+.loading__name {
+  display: grid;
   margin: 0;
-  font:
-    400 16px / 1 Silkscreen,
-    ui-monospace,
-    monospace;
-  letter-spacing: 0.04em;
-  color: #7d74b8;
-  text-transform: uppercase;
-  -webkit-font-smoothing: none;
+  font: 400 clamp(88px, 17vmin, 156px) / 0.8 var(--ui-display);
+  letter-spacing: 0.02em;
 }
 
-.loading__caption a {
-  color: #d9d0ff;
+.loading__name > span {
+  display: grid;
+  grid-area: 1 / 1;
+  justify-items: start;
 }
 
-.loading__dot {
-  color: #3d2f8f;
+.loading__ghost {
+  color: rgb(255 255 255 / 0.14);
 }
 
-@media (max-width: 520px) {
-  .loading__caption {
-    font-size: 8px;
-  }
+/* The insets reach 0.2em past the box, where Chewy's round letters overhang a 0.8 line height. */
+.loading__fill {
+  clip-path: inset(calc((1 - var(--progress, 0)) * (100% + 0.4em) - 0.2em) -0.2em -0.2em);
+  transition: clip-path 480ms var(--ui-out);
+}
+
+.loading__line {
+  margin: 0;
+  color: var(--ui-ink-soft);
+  font: 600 15px / 1.35 var(--ui-body);
+  letter-spacing: 0.01em;
+}
+
+.loading__line a {
+  color: var(--ui-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .loading--leaving {
     animation-duration: 1ms;
+  }
+
+  .loading[data-fonts="ready"] .loading__content {
+    animation: none;
+  }
+
+  .loading__fill {
+    transition: none;
+  }
+}
+
+@media print {
+  .loading {
+    display: none;
   }
 }

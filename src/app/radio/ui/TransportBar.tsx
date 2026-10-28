@@ -3,17 +3,13 @@ import { nextRovingIndex } from '../../a11y/roving';
 import { useMediaQuery } from '../../useMediaQuery';
 import type { RadioDeck, RadioKey } from '../deck';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
-import { HintLines } from './HintLines';
 import { type Glyph, GlyphIcon } from './icons';
-import type { HintWords } from './radioHints';
 
 export interface TransportBarProps {
   readonly deck: RadioDeck;
   readonly player: RadioPlayer;
   readonly snapshot: PlayerSnapshot;
   readonly onLeave: () => void;
-  /** The radio's teaching line, where the now-playing line goes before anything plays. */
-  readonly hint?: HintWords | null;
 }
 
 /** A landscape phone has no height to spare: the bar becomes a rail down the right edge. */
@@ -32,7 +28,7 @@ interface BarButton {
  * also presses its 3D twin, so the model still answers. It tells the room how much of the
  * viewport it covers, and the room frames the radio clear of it.
  */
-export function TransportBar({ deck, player, snapshot, onLeave, hint = null }: TransportBarProps) {
+export function TransportBar({ deck, player, snapshot, onLeave }: TransportBarProps) {
   const bar = useRef<HTMLDivElement>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const rail = useMediaQuery(RAIL_QUERY);
@@ -98,14 +94,12 @@ export function TransportBar({ deck, player, snapshot, onLeave, hint = null }: T
         </button>
       ))}
       {rail ? null : (
-        <p className="radio-bar__now" aria-hidden="true" data-hint={snapshot.album ? undefined : hint !== null}>
+        <p className="radio-bar__now" aria-hidden="true">
           {snapshot.album && snapshot.trackTitle ? (
             <>
               <span className="radio-bar__track">{snapshot.trackTitle}</span>
               <span className="radio-bar__album">{snapshot.album.title}</span>
             </>
-          ) : hint ? (
-            <HintLines words={hint} />
           ) : null}
         </p>
       )}

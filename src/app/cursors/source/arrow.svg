@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" data-hotspot="4 3">
+  <title>The room's arrow cursor</title>
+  <!--
+    The room's arrow (docs/ART-DIRECTION.md › The room's UI): the hint pictogram's pointer made chunky, white over a
+    1.5 px dark-ink outline with soft corners like Chewy's, on a faint lift so it reads on the dark attic (where the
+    ink melts into the night and the white is the shape) and on the pale posters (where the ink is).
+    One skeleton stroked twice with round joins: ink 5 wide, white 2 wide. The white's straight left edge sits on the
+    pixel grid. 32 units = 32 CSS px; the hotspot (data-hotspot) is the tip.
+  -->
+  <defs>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#06040e" flood-opacity="0.4"/>
+    </filter>
+    <path id="arrow" d="M5 4.5v11.25l2.7-2.6 2.1 4.7 2.15-1-2.1-4.5 3.5-.2z"/>
+  </defs>
+  <g filter="url(#lift)" stroke-linejoin="round">
+    <use href="#arrow" fill="#0e0b1c" stroke="#0e0b1c" stroke-width="5"/>
+    <use href="#arrow" fill="#fff" stroke="#fff" stroke-width="2"/>
+  </g>
+</svg>

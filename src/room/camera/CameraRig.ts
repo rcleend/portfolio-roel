@@ -1,9 +1,9 @@
-import { MathUtils, type PerspectiveCamera, Vector2, Vector3 } from 'three';
+import { type PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { easeInOutCubic, easeOutCubic } from '../motion/easing';
 import { type PcFramingModel, pcViewpoint } from '../pc/pcFraming';
 import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
-import type { TvModel } from '../tv/tvModel';
+import { type TvFramingModel, tvViewpoint } from '../tv/tvFraming';
 import type { RoomView } from '../viewState';
 import {
   cloneViewpoint,
@@ -17,7 +17,7 @@ import {
   uniformProgress,
   type Viewpoint,
 } from './cameraPath';
-import { boxCorners, FULL_VIEWPORT, frameSubject, type NdcRegion, regionFromInsets } from './framing';
+import { FULL_VIEWPORT, type NdcRegion, regionFromInsets } from './framing';
 import { roomViewpoint } from './roomFraming';
 import type { ScreenFade } from './ScreenFade';
 
@@ -33,17 +33,6 @@ export const NO_INSETS: FramingInsets = { top: 0, right: 0, bottom: 0, left: 0 }
 
 /** The radio's resting pose for a viewport (radioFraming.ts › radioPoseSolver). */
 export type RadioPoseSolver = (viewport: ViewportSize) => Viewpoint;
-
-// A long lens flattens the set into a "product shot" of the TV.
-const TV_FOV = 28;
-// Beyond this distance a portrait framing would back the camera into the desk; widen the
-// lens instead.
-const TV_MAX_DISTANCE = 1.75;
-const TV_MAX_FOV = 60;
-// Space left around the TV on each side, as a fraction of the framing region.
-const TV_MARGIN = 0.06;
-// Looking down slightly shows the top of the cabinet: depth without losing "straight on".
-const TV_PITCH_DEGREES = 4;
 
 /** One motion language: every flight, the computer's and the radio's included, takes the same time. */
 export const FLIGHT_MS = 1100;
@@ -88,7 +77,7 @@ export class CameraRig {
   constructor(
     private readonly camera: PerspectiveCamera,
     private readonly loop: RenderLoop,
-    private readonly tv: TvModel,
+    private readonly tv: TvFramingModel,
     private readonly pc: PcFramingModel,
     private readonly reducedMotion: MediaQueryList,
     private readonly fade: ScreenFade,
@@ -291,22 +280,7 @@ export class CameraRig {
   }
 
   private computeTvPose(): Viewpoint {
-    const pitch = MathUtils.degToRad(TV_PITCH_DEGREES);
-    const direction = this.tv.facing
-      .clone()
-      .negate()
-      .multiplyScalar(Math.cos(pitch))
-      .add(new Vector3(0, -Math.sin(pitch), 0));
-    const points = boxCorners(this.tv.bounds.min, this.tv.bounds.max);
-    const up = new Vector3(0, 1, 0);
-    const aspect = this.viewport.width / this.viewport.height;
-    let fov = TV_FOV;
-    let pose = frameSubject({ points, direction, up, fovY: fov, aspect, region: this.region, margin: TV_MARGIN });
-    while (pose.position.distanceTo(pose.target) > TV_MAX_DISTANCE && fov < TV_MAX_FOV) {
-      fov += 2;
-      pose = frameSubject({ points, direction, up, fovY: fov, aspect, region: this.region, margin: TV_MARGIN });
-    }
-    return { position: pose.position, target: pose.target, fov };
+    return tvViewpoint(this.tv, this.viewport, this.region);
   }
 
   private apply(): void {

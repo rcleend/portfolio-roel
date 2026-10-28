@@ -66,8 +66,8 @@ function lineupScene(): typeof LineupScene {
 
 /**
  * Downloads a development scene the game itself never opens, and the art it
- * draws, so the scene can read it synchronously: the harness and the
- * playground await this before opening it.
+ * draws, so the scene can read it synchronously: the harness awaits this
+ * before opening it.
  */
 export async function preloadSceneArt(id: SceneId, assets: AssetStore): Promise<void> {
   if (id !== 'lineup') return;

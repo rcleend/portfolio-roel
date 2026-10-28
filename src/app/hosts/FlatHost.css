@@ -35,7 +35,8 @@
   border-radius: 14px / 12px;
   background: #000;
   outline: none;
-  cursor: pointer;
+  /* The game's own menu hand over its picture, where the page draws cursors (app/cursors/cursors.css). */
+  cursor: var(--room-cursor-play, pointer);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;

@@ -1,7 +1,7 @@
 import { type Camera, type Intersection, type Mesh, Raycaster, Vector2 } from 'three';
 import { meshesOf } from '../assets/modelQueries';
 import { type IdleTask, type IdleWork, QUIET } from '../stage/IdleWork';
-import type { Interactable, InteractionHit } from './Interactable';
+import type { Interactable, InteractionHit, RoomCursor } from './Interactable';
 import { pickedMesh, pickMeshes, pickMeshesInSteps } from './pickMeshes';
 
 export interface RoomInteractionOptions {
@@ -10,7 +10,7 @@ export interface RoomInteractionOptions {
   /** A click or tap that hit no interactable. */
   readonly onMiss: () => void;
   /** Cursor when the pointer is over nothing interactive. */
-  readonly idleCursor: () => string;
+  readonly idleCursor: () => RoomCursor;
   /** Pointer position in NDC for the camera parallax, or null when it leaves or is a touch. */
   readonly onPointer?: (ndc: Vector2 | null) => void;
   /** While false (e.g. during a camera flight) clicks and gestures are ignored. */
@@ -34,6 +34,15 @@ interface Registered {
   readonly interactable: Interactable;
   meshes: Mesh[];
 }
+
+/** The stock cursor for each of the stage's, where the page draws none of its own. */
+const STOCK_CURSORS: Readonly<Record<RoomCursor, string>> = {
+  idle: 'default',
+  enter: 'zoom-in',
+  leave: 'zoom-out',
+  press: 'pointer',
+  play: 'default',
+};
 
 /** Further than this (CSS px) between press and release, and it was a drag, not a click. */
 const CLICK_SLOP = 6;
@@ -99,7 +108,7 @@ export class RoomInteraction {
   refreshCursor(): void {
     const found = this.over ? this.pick() : null;
     this.setHovered(found?.interactable ?? null, true);
-    this.options.canvas.style.cursor = found ? found.interactable.cursor(found.hit) : this.options.idleCursor();
+    this.setCursor(found ? found.interactable.cursor(found.hit) : this.options.idleCursor());
   }
 
   dispose(): void {
@@ -125,9 +134,9 @@ export class RoomInteraction {
     this.setHovered(found?.interactable ?? null);
     if (found) {
       found.interactable.pointerMove?.(found.hit);
-      this.options.canvas.style.cursor = found.interactable.cursor(found.hit);
+      this.setCursor(found.interactable.cursor(found.hit));
     } else {
-      this.options.canvas.style.cursor = this.options.idleCursor();
+      this.setCursor(this.options.idleCursor());
     }
   };
 
@@ -174,6 +183,14 @@ export class RoomInteraction {
     this.options.onPointer?.(null);
     if (!this.gesture?.owner) this.setHovered(null);
   };
+
+  /** Names the cursor on the canvas (`data-cursor`) and draws it: the page's own if it has one, else the stock one. */
+  private setCursor(cursor: RoomCursor): void {
+    const { canvas } = this.options;
+    if (canvas.dataset.cursor === cursor) return;
+    canvas.dataset.cursor = cursor;
+    canvas.style.cursor = `var(--room-cursor-${cursor}, ${STOCK_CURSORS[cursor]})`;
+  }
 
   /** `again`: say it even when it is the prop already hovered, for a listener that may have let go of it. */
   private setHovered(next: Interactable | null, again = false): void {

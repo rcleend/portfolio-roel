@@ -55,9 +55,9 @@ test('fails loudly on an unknown look, naming the known ones', async ({ page }) 
 });
 
 /**
- * Loads every registered piece of every look in the browser, as the
- * playground will, and draws the first and last frame of every animation:
- * each must show something, with hard-edged alpha only (docs/LOOKS.md).
+ * Loads every registered piece of every look in the browser and draws the
+ * first and last frame of every animation: each must show something, with
+ * hard-edged alpha only (docs/LOOKS.md).
  */
 test('loads every registered look and draws every sheet crisply', async ({ page }) => {
   const errors = trackErrors(page);

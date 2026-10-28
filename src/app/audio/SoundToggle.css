@@ -14,7 +14,7 @@
   background: var(--ui-glass);
   box-shadow: var(--ui-lift);
   color: var(--ui-ink);
-  cursor: pointer;
+  cursor: var(--ui-cursor-hand, pointer);
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 160ms ease,

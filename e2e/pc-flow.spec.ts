@@ -207,8 +207,9 @@ const focusRing = (page: Page) =>
   page.evaluate(() => (document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : null));
 const mode = (page: Page) =>
   page.evaluate(() => document.querySelector('[data-pc-mode]')?.getAttribute('data-pc-mode'));
+/** What the stage says a click would do under the pointer (docs/ROOM.md › Cursors). */
 const canvasCursor = (page: Page) =>
-  page.evaluate(() => document.querySelector<HTMLCanvasElement>('[data-host] canvas')?.style.cursor);
+  page.evaluate(() => document.querySelector<HTMLCanvasElement>('[data-host] canvas')?.dataset.cursor);
 /** How far down the résumé the pane is scrolled, 0–1. */
 const readingShare = (page: Page) =>
   pane(page).evaluate((element) => element.scrollTop / (element.scrollHeight - element.clientHeight));
@@ -315,7 +316,7 @@ test('a click on the monitor itself keeps the reader open and the keys in the do
   // The tube border beside the picture: part of the computer, which the visitor is using.
   const bezel = { x: placement.left - 12, y: placement.top + placement.height / 2 };
   await page.mouse.move(bezel.x, bezel.y);
-  expect(await canvasCursor(page)).toBe('default');
+  expect(await canvasCursor(page)).toBe('idle');
   await page.mouse.click(bezel.x, bezel.y);
   await advance(page, 300);
   expect(await view(page)).toBe('pc');
@@ -337,7 +338,7 @@ test.describe('in a 4:3 window', () => {
     expect(await mode(page)).toBe('in-glass');
     for (const x of [3, 1020]) {
       await page.mouse.move(x, 384);
-      expect(await canvasCursor(page)).toBe('zoom-out');
+      expect(await canvasCursor(page)).toBe('leave');
     }
     await page.mouse.click(3, 384);
     expect(await view(page)).toBe('room');
@@ -376,15 +377,15 @@ test.describe('in a 4:3 window', () => {
 test.describe('in a short window', () => {
   test.use({ viewport: { width: 1024, height: 600 } });
 
-  test('pops the reader out and drops the hint to click outside, which is not there', async ({ page }) => {
+  test('pops the reader out and leaves the way back to the reader, which has its own', async ({ page }) => {
     await openRoom(page);
     await lookAround(page);
     await sitDown(page);
     await untilReader(page);
     expect(await mode(page)).toBe('pop-out');
-    // Past the hint's own delay.
+    // Past the way back's own delay.
     await advance(page, 1500);
-    await expect(page.locator('.leave-hint')).toBeHidden();
+    await expect(page.locator('.back-button')).toBeHidden();
   });
 
   test('hands the keys back to the stage after a resize while the reader shrinks back', async ({ page }) => {
@@ -800,7 +801,8 @@ test.describe('on a phone', () => {
 
     test('also pops the reader out to the whole screen', async ({ page }) => {
       await openRoom(page);
-      await lookAround(page, () => page.touchscreen.tap(422, 20));
+      // The picture fills the height: the room shows beside the set, above the pad's start button.
+      await lookAround(page, () => page.touchscreen.tap(40, 120));
       const pc = await anchor(page, 'pc');
       if (pc.inFrame) await page.touchscreen.tap(pc.x, pc.y);
       else await page.getByRole('button', { name: /^Résumé/ }).tap();

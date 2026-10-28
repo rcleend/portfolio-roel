@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-pointer="hidden">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -59,6 +59,11 @@
   <body>
     <noscript>
       <style>
+        /* The pointer waits for the first mouse move, which only the app can see. */
+        html[data-pointer="hidden"] * {
+          /* biome-ignore lint/complexity/noImportantStyles: must beat the app stylesheet's own !important hiding. */
+          cursor: auto !important;
+        }
         .noscript {
           max-width: 40rem;
           margin: 12vh auto;

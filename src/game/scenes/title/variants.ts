@@ -5,7 +5,7 @@ import type { TitleVariant } from './TitleVariant';
 
 /**
  * The title visitors see: the lockup and backdrop used wherever the scene's
- * params leave one out. Promoting a playground winner is a one-line change.
+ * params leave one out. Promoting another variant is a one-line change.
  */
 export const TITLE_DEFAULTS = { lockup: 'classic', backdrop: 'blueprint' } as const satisfies Required<TitleParams>;
 
