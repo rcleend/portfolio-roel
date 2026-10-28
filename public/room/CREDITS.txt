@@ -2,7 +2,8 @@ ATTIC ROOM — REVISION 6 — SOURCE ATTRIBUTION
 
 REVISION 6 — COHESIVE MATERIAL AND FIDELITY PASS
 
-Existing furniture, room layout and game-cover artwork are retained. The desktop
+Existing furniture and room layout are retained. The tabletop Battlefront II cover
+is replaced with original Product Engineer artwork, and its case turns 180 degrees. The desktop
 monitor, keyboard and mouse are rebuilt; the other device models are retained.
 The floor pillow, ceiling beams and wall posters/cards are removed; the rug
 is replaced with the supplied model credited below. The original lightweight
@@ -53,6 +54,21 @@ License: CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/).
 Attribution and license retained from the user-supplied GLB's embedded metadata.
 Original mesh, folded corner and UV layout retained; resized to a square footprint,
 positioned in the attic and retextured with an original geometric textile map.
+
+OPENING TV VIEW — PLANT AND ORIGINAL GAME COVER
+
+Desk Plant — jakecollingdesign (https://sketchfab.com/jakecollingdesign)
+https://sketchfab.com/3d-models/desk-plant-cedfdeab85aa49d68125306b0cacde34
+License from supplied desk_plant.glb: CC BY-NC-SA 4.0.
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+Modified plant remains under CC BY-NC-SA 4.0: resized to 21 cm, positioned on
+the TV cabinet, welded and reduced scan geometry, smoothed normals, cleaned ceramic
+reflectance and room lighting baked into a 1K texture.
+
+Product Engineer cover — original artwork generated with OpenAI image generation,
+using the site's blue/amber title screen as the visual reference. Replaces the
+Battlefront II print; the case and spine are rotated 180 degrees towards the viewer.
+Authoring sources and generation prompt: tools/room/assets/README.md.
 
 The revision-5 history below describes the origins of the retained assets.
 
@@ -186,10 +202,6 @@ plate are AI-generated. The night-tree view is a texture plate, not a full
 navigable tree mesh.
 
 REQUESTED GAME-COVER ARTWORK — NOT CC0
-
-battlefront-2 — PlayStation 2
-https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-21240.jpg
-Copyright: original game publishers/artists.
 
 kingdom-hearts — PlayStation 2
 https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-20370.jpg

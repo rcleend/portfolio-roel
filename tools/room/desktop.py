@@ -185,7 +185,14 @@ def _monitor(screen, ivory, rear, shadow, dark):
              ((outer, 0.04, centre_z), (outer, 0.005, centre_z),
               (outer_lip, 0, centre_z), (inner, 0.001, screen_z),
               (aperture, 0.019, screen_z))]
-    parts.append(_loft('CRT continuous front bezel', loops, ivory, cap=False))
+    bezel_material = ivory.copy()
+    bezel_material.name = 'Desktop | continuous bezel ABS'
+    bezel = _loft('CRT continuous front bezel', loops, bezel_material, cap=False, smooth=True)
+    # The rounded corners are one moulding. Flat normals made each little corner
+    # quad leave a dark diagonal in the lightmap, even at high bake resolution.
+    normal = bezel.modifiers.new('Continuous bezel highlights', 'WEIGHTED_NORMAL')
+    normal.keep_sharp = True
+    parts.append(bezel)
     # Deliberate seam behind the face, followed by a deep taper toward the rear.
     body_loops = []
     for width, height, depth, z, radius in (

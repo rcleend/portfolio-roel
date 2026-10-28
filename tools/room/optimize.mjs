@@ -6,10 +6,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, KHRMaterialsUnlit } from '@gltf-transform/extensions';
-import { dedup, meshopt, prune, textureCompress, weld } from '@gltf-transform/functions';
+import { dedup, meshopt, prune, weld } from '@gltf-transform/functions';
 import validator from 'gltf-validator';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
+import { compressBakedTextures } from './baked-textures.mjs';
 import { debrandImage } from './debrand.mjs';
 import { writeRuntimeManifest } from './runtime-manifest.mjs';
 import { verifyRoomAssets } from './verify.mjs';
@@ -57,11 +58,11 @@ for (const [key, filename] of files) {
       texture.setImage(await debrandImage(sharp, texture.getImage())).setMimeType('image/png');
     }
   }
+  await compressBakedTextures(doc, key);
   await doc.transform(
     weld(),
     dedup(),
     prune({ keepAttributes: true }),
-    textureCompress({ encoder: sharp, targetFormat: 'webp', quality: key === 'tv' ? 94 : 90 }),
     meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizeTexcoord: 16, quantizePosition: 16 }),
   );
   const output = join(staging, filename);

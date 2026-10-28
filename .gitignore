@@ -6,5 +6,6 @@ playwright-report
 *.tsbuildinfo
 .DS_Store
 .context/
+.lavish/
 *.blend1
 __pycache__/

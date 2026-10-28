@@ -22,6 +22,7 @@ from rug import replace_rug
 from room_finishes import apply_room_finishes
 from basket_placement import settle_basket_papers
 from desktop import apply_desktop
+from tv_dressing import align_tv_light, dress_tv
 
 
 def linear(hex_color):
@@ -321,9 +322,8 @@ def main():
     principled(bpy.data.materials['lambert2'], '384651', 0.59)
     fabric(bpy.data.materials['Upholstery | petrol weave'], '527a83')
     for m in bpy.data.materials:
-        # Preserve the TV's original colour, normal and roughness/metallic maps.
-        # It still receives the shared night bake, without the restyle's matte
-        # surface overrides or reduced normal-map strength.
+        # Keep the original maps in the editable source. bake.py refines the TV's
+        # satin response and split normals while preserving printed colour detail.
         if m.name in ('TVfront', 'TVback'):
             continue
         if m.users and m.name not in palette and m.name not in ('lambert2', 'lambert3', 'None', 'Scene_-_Root', 'Walnut | shared grain'):
@@ -366,7 +366,9 @@ def main():
     replace_rug(TOOL_DIR / 'assets/rug-geometric.png')
     settle_basket_papers()
     apply_desktop()
+    dress_tv()
     lighting(scene)
+    align_tv_light()
     scene['art_direction'] = 'After hours / crafted miniature / revision 6'
     scene['reference'] = 'https://github.com/brunosimon/my-room-in-3d (visual and lighting study only)'
     # Pack only images still used by materials, bounded at their useful authoring resolution.

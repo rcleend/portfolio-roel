@@ -2,7 +2,7 @@
   "generatedBy": "tools/room/optimize.mjs",
   "sourceRevision": 6,
   "artDirection": "After hours — crafted miniature",
-  "totalBytes": 6968629,
+  "totalBytes": 7420214,
   "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
   "atlases": {
     "01_TV_surfaces": 2048,
@@ -16,38 +16,39 @@
     "device_tv_rear": 1024,
     "device_pc": 2048,
     "device_radio": 1024,
-    "device_ps2": 1024
+    "device_ps2": 1024,
+    "01_TV_plant": 1024
   },
   "files": [
     {
       "name": "room.glb",
       "source": "room-raw.glb",
-      "bytes": 4454152,
-      "sha256": "ccf0778fbbe3ece39b9f2ad6a7cfd882a6aa8584567f5e94bf0eb9de28ff20b4",
+      "bytes": 4760740,
+      "sha256": "23580c714ed042037ea5f3243349dd7f5d18aebe6d07d81397782ad4d16d778d",
       "validationErrors": 0,
       "validationWarnings": 0
     },
     {
       "name": "tv-high.glb",
       "source": "tv-raw.glb",
-      "bytes": 322180,
-      "sha256": "8cb1e703ead5e482b93d335e4ac94a34ad1ae547ab4a2f129c2c291da95386c5",
+      "bytes": 330760,
+      "sha256": "670fc84c66d6aa392eadc6cad3fdc8b63c7e279ecdffb8bb0011e3aefe8205cd",
       "validationErrors": 0,
       "validationWarnings": 0
     },
     {
       "name": "pc-base.glb",
       "source": "pc-raw.glb",
-      "bytes": 531940,
-      "sha256": "f4649f61b16bab25afebce60b5853a1f00fef41e77a13335264a70e70dda7738",
+      "bytes": 641092,
+      "sha256": "c6d1a30e28687c72b9f088c1608f6219cc09a5a200b4e05dcee27e530a0bc485",
       "validationErrors": 0,
       "validationWarnings": 0
     },
     {
       "name": "radio-base.glb",
       "source": "radio-raw.glb",
-      "bytes": 878532,
-      "sha256": "3e1db9236e51086af5c5266377034c784ab799707f4b4a99de59b536f6a3f0f6",
+      "bytes": 905020,
+      "sha256": "45d0e4c4548be362605f2eae7bdd4c5b395a369e132aa77b295ce048d355daea",
       "validationErrors": 0,
       "validationWarnings": 0
     },
@@ -62,23 +63,11 @@
     {
       "name": "CREDITS.txt",
       "source": "Retained source attribution + revision 6 modifications",
-      "bytes": 12097,
-      "sha256": "989f4cab2bd0022aba76db687299259c51c6e83e2354080de9a19147d3f11d7c"
+      "bytes": 12874,
+      "sha256": "7f3f5332a44c4a1fdb2d1229ff485605109fdeb59709a0f361e84a170b244c3c"
     }
   ],
   "lazyFiles": [
-    {
-      "name": "radio-closeup.glb",
-      "bytes": 59132,
-      "sha256": "0b2d9353bb183f5ae8936bb9e6d9531664a1ffccc73b0800535e8dc68bd30c71",
-      "validationErrors": 0,
-      "validationWarnings": 0
-    },
-    {
-      "name": "radio-skin-2k.webp",
-      "bytes": 170594,
-      "sha256": "c496878c2af989c239cf07a2c7982f3904db07c140a8833a0bdd1b70d0448259"
-    },
     {
       "name": "posters.glb",
       "bytes": 30168,
@@ -95,6 +84,18 @@
       "name": "posters-1k.webp",
       "bytes": 89038,
       "sha256": "96ed99b7ecf7af7e1fab538a242ff163fdcf2c9eaac607b9246548b5ff1cdca7"
+    },
+    {
+      "name": "radio-closeup.glb",
+      "bytes": 64796,
+      "sha256": "bc550893395bc8bb6977b500c934e6e3950f266670da2c910d8e15bd2e9bd2ec",
+      "validationErrors": 0,
+      "validationWarnings": 0
+    },
+    {
+      "name": "radio-skin-2k.webp",
+      "bytes": 239956,
+      "sha256": "98835d6163c0fcd375b3aef893bf176f777cb4e320ccdba3ee9dd300d1cfd33e"
     }
   ]
 }
