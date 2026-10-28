@@ -202,7 +202,19 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const spotlit = [
     inTheLight('tv', [tvModel.root], [tvModel.root], tvModel.bounds),
     inTheLight('pc', monitor3d, monitor3d, pcModel.shellBounds),
-    ...(radioModel ? [inTheLight('radio', [radioModel.root], [radioModel.root], radioModel.bodyBounds)] : []),
+    // The radio's device hangs the cut lid, the keys, the well and the discs in the scene beside it once prepared:
+    // the prop takes them in, so it lights and bounces whole.
+    ...(radioModel
+      ? [
+          inTheLight(
+            'radio',
+            [radioModel.root],
+            [radioModel.root],
+            radioModel.bodyBounds,
+            () => radio.prepared?.root ?? null,
+          ),
+        ]
+      : []),
   ];
 
   const anchorTargets: readonly AnchorTarget[] = [
@@ -271,9 +283,17 @@ function inTheLight(
   glow: readonly Object3D[],
   bounce: readonly Object3D[],
   bounds: Box3,
+  joins?: () => Object3D | null,
 ): SpotlitProp {
   const centre = bounds.getCenter(new Vector3());
-  return { target, glow, bounce, pivot: centre.clone().setY(bounds.min.y), top: centre.setY(bounds.max.y) };
+  return {
+    target,
+    glow,
+    bounce,
+    pivot: centre.clone().setY(bounds.min.y),
+    top: centre.setY(bounds.max.y),
+    ...(joins ? { joins } : {}),
+  };
 }
 
 /**

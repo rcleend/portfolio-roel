@@ -123,13 +123,15 @@ interface Rest {
 interface PropLight {
   readonly prop: SpotlitProp;
   /** The prop's meshes as the mask draws them: the same geometry and world matrix, the mask's material. */
-  readonly proxies: readonly Mesh[];
-  readonly sources: readonly Mesh[];
+  readonly proxies: Mesh[];
+  readonly sources: Mesh[];
   readonly mask: ShaderMaterial;
   readonly level$: PassUniforms['uLevel'];
-  readonly rest: readonly Rest[];
+  readonly rest: Rest[];
   /** `pivot` in the bouncing objects' parent space. */
   readonly pivot: Vector3;
+  /** The root the room built for it that it has taken in (`SpotlitProp.joins`), or null. */
+  joined: Object3D | null;
   level: number;
   lit: boolean;
   /** Its scale across (x and z) and up (y), about the foot. */
@@ -169,36 +171,41 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
     });
     return { material, uniforms };
   };
+  /** A mesh in the mask: its positions and triangles only, shared with the mesh, so every pass has one program. */
+  const proxy = (source: Mesh, mask: ShaderMaterial): Mesh => {
+    const shape = new kit.BufferGeometry();
+    shape.setAttribute('position', source.geometry.getAttribute('position'));
+    shape.setIndex(source.geometry.getIndex());
+    const drawn = new kit.Mesh(shape, mask);
+    // Shared, not copied: the proxy follows its mesh through every bounce.
+    drawn.matrixWorld = source.matrixWorld;
+    drawn.matrixAutoUpdate = false;
+    drawn.matrixWorldAutoUpdate = false;
+    drawn.frustumCulled = false;
+    maskScene.add(drawn);
+    return drawn;
+  };
+  const meshesUnder = (roots: readonly Object3D[]): Mesh[] => {
+    const meshes: Mesh[] = [];
+    for (const root of roots) root.traverse((object) => (object as Mesh).isMesh && meshes.push(object as Mesh));
+    return meshes;
+  };
   const lights = new Map<RoomTarget, PropLight>();
   const owned: Copy[] = [];
   for (const prop of host.props) {
     const { material: mask, uniforms } = pass(0);
-    const sources: Mesh[] = [];
-    for (const root of prop.glow) root.traverse((object) => (object as Mesh).isMesh && sources.push(object as Mesh));
+    const sources = meshesUnder(prop.glow);
     owned.push(...ownShared(sources));
-    const proxies = sources.map((source) => {
-      // Its positions and triangles only, shared with the mesh: the mask and the blur then share one program.
-      const shape = new kit.BufferGeometry();
-      shape.setAttribute('position', source.geometry.getAttribute('position'));
-      shape.setIndex(source.geometry.getIndex());
-      const proxy = new kit.Mesh(shape, mask);
-      // Shared, not copied: the proxy follows its mesh through every bounce.
-      proxy.matrixWorld = source.matrixWorld;
-      proxy.matrixAutoUpdate = false;
-      proxy.matrixWorldAutoUpdate = false;
-      proxy.frustumCulled = false;
-      maskScene.add(proxy);
-      return proxy;
-    });
     const parent = prop.bounce[0]?.parent;
     lights.set(prop.target, {
       prop,
-      proxies,
+      proxies: sources.map((source) => proxy(source, mask)),
       sources,
       mask,
       level$: uniforms.uLevel,
       rest: prop.bounce.map((object) => ({ object, position: object.position.clone(), scale: object.scale.clone() })),
       pivot: parent ? parent.worldToLocal(prop.pivot.clone()) : prop.pivot.clone(),
+      joined: null,
       level: 0,
       lit: false,
       across: 1,
@@ -208,6 +215,23 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
       lifted: null,
     });
   }
+
+  /**
+   * The root the room built for the prop after the spotlight (the radio's device, a sibling of what bounces): its
+   * meshes join the mask, the lift and the bounce, so the prop lights and bounces whole. Read as the prop lights,
+   * where the colours it brightens are its own.
+   */
+  const join = (light: PropLight): void => {
+    const root = light.prop.joins?.() ?? null;
+    if (!root || root === light.joined) return;
+    light.joined = root;
+    const meshes = meshesUnder([root]);
+    for (const mesh of meshes) light.proxies.push(proxy(mesh, light.mask));
+    light.sources.push(...meshes);
+    light.rest.push({ object: root, position: root.position.clone(), scale: root.scale.clone() });
+    owned.push(...ownShared(light.sources));
+    if (light.lifted) for (const [material, colour] of liftable(meshes)) light.lifted.set(material, colour);
+  };
 
   // A quarter of the frame's pixels each way is plenty for a glow; the mask is multisampled, so its outline is smooth
   // (and where it is, to a quarter of a texel) before the blur ever sees it.
@@ -402,6 +426,7 @@ export const createSpotlight: CreateSpotlight = (host, emit) => {
       current = target;
       const light = target ? lights.get(target) : undefined;
       if (light) {
+        join(light);
         light.lit = true;
         light.lifted ??= liftable(light.sources);
         // A pointer wobbling over a prop's edge would replay the jelly on every crossing: the same prop again so soon

@@ -4,6 +4,7 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
   PerspectiveCamera,
   Texture,
   type Vector2,
@@ -17,14 +18,19 @@ import { createSpotlight, jellyAt } from './Spotlight';
 import type { SpotlightHost, SpotlitProp } from './spotlightContract';
 import { spotlightKit } from './spotlightKit';
 
+/** A baked, textured material like a prop's. */
+function baked(): MeshBasicMaterial {
+  return new MeshBasicMaterial({ map: new Texture(), color: new Color(0.5, 0.5, 0.5) });
+}
+
 /** A prop on the floor: a 1 m box standing on y = 0 at `x`, its baked material textured. */
 function prop(
   target: RoomTarget,
   x: number,
+  joins?: () => Object3D | null,
 ): { readonly prop: SpotlitProp; readonly root: Group; readonly mesh: Mesh } {
   const root = new Group();
-  const material = new MeshBasicMaterial({ map: new Texture(), color: new Color(0.5, 0.5, 0.5) });
-  const mesh = new Mesh(new BoxGeometry(1, 1, 1), material);
+  const mesh = new Mesh(new BoxGeometry(1, 1, 1), baked());
   mesh.position.y = 0.5;
   root.add(mesh);
   root.position.x = x;
@@ -38,6 +44,7 @@ function prop(
       bounce: [root],
       pivot: new Vector3(x, 0, 0),
       top: new Vector3(x, 1, 0),
+      ...(joins ? { joins } : {}),
     },
   };
 }
@@ -46,16 +53,25 @@ function setup({
   reduced = false,
   still = () => false,
   alongside = false,
+  device = false,
 }: {
   reduced?: boolean;
   still?: (t: RoomTarget) => boolean;
   /** A mesh outside the props on the TV's baked material, as the keyboard is on the computer's. */
   alongside?: boolean;
+  /** The radio's prop takes in a root the room builds later, as the radio's device is. */
+  device?: boolean;
 } = {}) {
   const tv = prop('tv', 0);
-  const radio = prop('radio', 3);
+  // Built after the spotlight: a part hanging in the scene beside the radio, at its own place.
+  const built = new Group();
+  const part = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), baked());
+  part.position.set(3, 1.2, 0);
+  built.add(part);
+  let arrived = false;
+  const radio = prop('radio', 3, device ? () => (arrived ? built : null) : undefined);
   const room = new Group();
-  room.add(tv.root, radio.root);
+  room.add(tv.root, radio.root, built);
   const beside = alongside ? new Mesh(new BoxGeometry(1, 1, 1), tv.mesh.material) : null;
   if (beside) room.add(beside);
   room.updateMatrixWorld(true);
@@ -111,7 +127,27 @@ function setup({
   const settle = (): void => {
     for (let i = 0; i < 300 && steps.size > 0; i++) frame();
   };
-  return { spotlight, tv, radio, beside, told, frame, settle, renderer, renders, compiled, steps };
+  return {
+    spotlight,
+    tv,
+    radio,
+    beside,
+    device: {
+      root: built,
+      mesh: part,
+      /** The room has built it: the prop takes it in the next time it lights. */
+      arrive: () => {
+        arrived = true;
+      },
+    },
+    told,
+    frame,
+    settle,
+    renderer,
+    renders,
+    compiled,
+    steps,
+  };
 }
 
 describe('the spotlight', () => {
@@ -192,6 +228,34 @@ describe('the spotlight', () => {
     expect(shared.color.r).toBeCloseTo(0.5, 6);
     spotlight.dispose();
     expect(tv.mesh.material).toBe(shared);
+  });
+
+  it('takes in a root the room builds later: it masks, brightens and bounces with the prop', async () => {
+    const { spotlight, radio, device, frame, settle, renders, compiled } = setup({ device: true });
+    compiled();
+    await Promise.resolve();
+    await Promise.resolve();
+    // Lit before the room built it: the mask holds the two props' own meshes.
+    spotlight.show('radio');
+    frame();
+    expect(renders[0]).toBe('scene of 2');
+    spotlight.show(null);
+    settle();
+
+    device.arrive();
+    renders.length = 0;
+    spotlight.show('radio');
+    settle();
+    expect(renders[0]).toBe('scene of 3');
+    expect(device.root.scale.y).toBeCloseTo(1.015, 4);
+    expect(radio.root.scale.y).toBeCloseTo(1.015, 4);
+    // Scaled about the radio's foot, as the radio is: the part stays where it is above it.
+    expect(device.root.position.y).toBeCloseTo(0, 6);
+    expect((device.mesh.material as MeshBasicMaterial).color.r).toBeCloseTo(0.5 * 1.12, 3);
+    spotlight.show(null);
+    settle();
+    expect(device.root.scale.toArray()).toEqual([1, 1, 1]);
+    expect((device.mesh.material as MeshBasicMaterial).color.r).toBeCloseTo(0.5, 6);
   });
 
   it('holds a prop the room needs still, and every prop under reduced motion, yet lights them', () => {

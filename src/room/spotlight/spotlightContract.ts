@@ -10,6 +10,11 @@ export interface SpotlitProp {
   readonly target: RoomTarget;
   /** What glows: these objects' meshes (descendants included). */
   readonly glow: readonly Object3D[];
+  /**
+   * A root the room builds after the spotlight, whose meshes glow, brighten and bounce with the prop once it is there
+   * (the radio's device): a sibling of `bounce`, read as the prop lights. Null until then.
+   */
+  readonly joins?: () => Object3D | null;
   /** What bounces, as one, about `pivot`; siblings under a parent without rotation or scale. */
   readonly bounce: readonly Object3D[];
   /** The middle of the bouncing part's foot (world space). */
