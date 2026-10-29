@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
+import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
 import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
@@ -727,7 +727,7 @@ test.describe('on a phone', () => {
     await openRoom(page);
     const pad = page.locator('.touchpad');
     await expect(pad).toHaveAttribute('data-visible', 'true');
-    await lookAround(page, () => page.touchscreen.tap(195, 90));
+    await lookAround(page, () => tapWayOut(page));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
     const item = page.getByRole('button', { name: 'About me (CV)' });
@@ -766,7 +766,7 @@ test.describe('on a phone', () => {
     await recordUploads(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await page.touchscreen.tap(195, 90);
+    await tapWayOut(page);
     await page.waitForTimeout(SETTLE_MS);
     // The portrait room view crops the computer out: what only its flight draws is uploaded here.
     await untilIdle(page);
@@ -781,7 +781,7 @@ test.describe('on a phone', () => {
 
     test('takes taps on the menu only once the camera has settled in the room view', async ({ page }) => {
       await openRoom(page);
-      await lookAround(page, () => page.touchscreen.tap(195, 90));
+      await lookAround(page, () => tapWayOut(page));
       const item = page.getByRole('button', { name: 'About me (CV)' });
       await item.tap();
       await advanceUntil(page, () => live(page));
@@ -801,8 +801,7 @@ test.describe('on a phone', () => {
 
     test('also pops the reader out to the whole screen', async ({ page }) => {
       await openRoom(page);
-      // The picture fills the height: the room shows beside the set, above the pad's start button.
-      await lookAround(page, () => page.touchscreen.tap(40, 120));
+      await lookAround(page, () => tapWayOut(page));
       const pc = await anchor(page, 'pc');
       if (pc.inFrame) await page.touchscreen.tap(pc.x, pc.y);
       else await page.getByRole('button', { name: 'About me (CV)' }).tap();

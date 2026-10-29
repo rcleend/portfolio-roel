@@ -16,7 +16,7 @@ try {
     container,                          // element the canvas fills; its size drives the framing
     overlayContainer,                   // same box, outside role="application": the computer's live screen goes here
     surface,                            // the game's GameSurface (320×240)
-    onProgress: (f) => setLoading(f),   // 0–1, weighted by file size
+    onProgress: (f) => note(f),         // optional: 0–1, weighted by file size
   });
 } catch {
   // WebGL unavailable: createRoom throws synchronously → use the flat host.
@@ -29,6 +29,8 @@ room.pc.setStill(paintDesktop); // usable before `ready`: what the monitor shows
 await room.ready;          // assets loaded and the first frame drawn (TV dark, camera on the TV)
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
 game.start();              // or surface.resume(); the boot scene's first frame lands on a live tube
+// The app instead starts the game on its startup still and lights the tube at once: room.powerOn({ instant: true })
+// (§ Startup).
 
 const deck = await room.radio.load();  // the CD player's deck, its chunk imported on first call (room.radio is its door)
 deck.setDiscs(discs);        // the CD player's discs and, below, its state
@@ -49,7 +51,7 @@ What the room does to the game, so the app does not have to:
 | Moment | Effect on the surface | The computer's live screen |
 | --- | --- | --- |
 | `createRoom` | `setInputEnabled(true)` (the page opens on the TV) | hidden |
-| Click/tap outside the TV while watching it, or `showRoom()` | pointer released, `setInputEnabled(false)`, `pause()` (only if running), camera flies to the room | hidden |
+| Click outside the TV while watching it, or `showRoom()` (a tap or a pen there does nothing: on a touch screen only the app's popup leaves the game, `ignoresClick` in `assembleRoom.ts`) | pointer released, `setInputEnabled(false)`, `pause()` (only if running), camera flies to the room | hidden |
 | Click/tap the TV in the room view, or `focusTv()` | camera flies back; on landing `resume()` (only if the room paused it) and `setInputEnabled(true)` | hidden |
 | Click/tap the computer or the desk in the room view, or `focusPc()` | camera cranes onto the desk, straight in front of the monitor; the game stays paused with input disabled | revealed on the landing frame (`pc.live` turns true), fading in over 160 ms |
 | Click/tap outside the computer (wall, window, desk…), Escape on the stage, or `showRoom()` while at or flying to the computer | camera pulls back to the room; the game stays paused | hidden synchronously, before the flight's first frame |
@@ -164,6 +166,15 @@ The stage's cursor says what a click would do under the pointer, as a `RoomCurso
 | `play` | the game's picture while the TV plays (the bezel is `idle`) | `default` |
 
 The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-DIRECTION.md › The room's UI › Cursors).
+
+## Startup
+
+The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
+
+- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 202 px (on coarse pointers). 7–20 kB of webp each, chosen by a `<picture>` before any script.
+- The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines, the touch pad and the sound toggle already there. Keys and the pad reach it from the start; the pointer, until the room is in.
+- The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
+- Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
 
 ## Modules
 
@@ -327,14 +338,14 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
   - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
   - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, its own estimate, `estimateMs`, else the longest so far), so no frame is late, and a unit at the head of the queue that does not fit steps aside for the first behind it that does; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait, except a task's small uploads (`smallUploads`: the posters' 1 MB strips at the TV), which run like CPU units, each with an idle period to itself;
-  - otherwise (the dark TV behind the loading screen, a paused game, the room view): units run until the idle period is spent, always at least one.
+  - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
   On a device too slow to fit a unit between the game's frames the work waits for a quiet moment, or for the flight that needs it. The room queues:
-  - **The pick chunks** (below), for quiet moments: the loading screen's fade and the room view.
+  - **The pick chunks** (below), for quiet moments: the room view.
   - **The monitor's glass finish**, in bands of 32 rows (17-50 ms in all on a phone twenty times slower than a laptop).
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
   - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, for quiet moments, once the visitor first leaves the TV. three uploads a texture the first time a frame draws it: the TV view's own are on the GPU with the first frame; the first look around draws (and uploads) the rest of the room mid-flight, as it did before the computer; and the room view's quiet uploads what only the flight to the computer draws (two 2048² atlases on a portrait phone, 27-36 ms each at 6× CPU). A visitor who stays at the TV never allocates the room's other atlases: 97.8 MB of textures at the TV, as before the computer, against 221 MB once the room has been seen.
-- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), in units of 4096 triangle visits in quiet moments after the first frame (under the loading screen's fade, else in the room view); until then rays test the whole meshes (from the TV, rays point away from the desk).
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), in units of 4096 triangle visits in quiet moments after the first frame (in the room view); until then rays test the whole meshes (from the TV, rays point away from the desk).
 - **Software GPUs.** Where the GPU is software (SwiftShader, llvmpipe: `softwareGpu.ts` reads the renderer's name), a 2D canvas the browser accelerates queues its raster behind the room's frames on the same CPU: the computer's first wallpaper paint took the running game 1.1 s there. The monitor then paints its still and glass finish on CPU canvases (`willReadFrequently`) and asks the app's painter to do the same (`StillRequest.cpuCanvas`), so the work lands on the main thread, 7 ms of it, in the idle moments the room chooses.
 - **The game and the TV's turn-on stay as they were** (production builds, 3-6 runs each against the build before the computer): at 20× CPU on a phone, the game's first 3 s run at 52-61 frames/s with a worst frame gap of 21-32 ms (before: 54-60, 20-32 ms) and the turn-on's worst gap is 83-92 ms (81-89 ms), with no long task in either; under SwiftShader the game's longest frame is 82-139 ms (90-205 ms) and nothing freezes it; at 6× the game's worst gap is 11-18 ms (10-17 ms).
 - **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 26 ms from pointerup to the first flight frame (26 ms before the computer existed): the still was prepared between the game's frames and only its upload is left for the click. On a phone twenty times slower than a laptop no unit fits between the game's frames, and the first leave pays the still once, about 110-125 ms after the game has paused and before the camera moves. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).

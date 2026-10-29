@@ -15,10 +15,13 @@ const WALL = { x: 40, y: 450 };
 const RADIO_IN_ROOM_VIEW = { x: 805, y: 446 };
 const CABINET_IN_ROOM_VIEW = { x: 780, y: 545 };
 
-test('opens on the TV, powers it on and only then boots the game', async ({ page }) => {
+test('opens on the startup still, starts the game on it and hands over to the live room on a press', async ({
+  page,
+}) => {
   const errors = trackErrors(page);
   await page.goto('/?seed=1');
-  await expect(page.getByRole('progressbar', { name: 'Loading the arcade' })).toBeAttached();
+  const still = page.locator('#tv-still');
+  await expect(still).toHaveAttribute('data-shown', 'true');
   await expect(hostElement(page)).toHaveAttribute('data-host', 'room');
 
   await expect.poll(() => phase(page), { timeout: 30_000, intervals: [25] }).toBe('powering');
@@ -26,9 +29,13 @@ test('opens on the TV, powers it on and only then boots the game', async ({ page
   expect(await page.evaluate(() => window.__arcade === undefined)).toBe(true);
 
   await waitForRunning(page);
-  expect(await scene(page)).toBe('boot');
+  expect(['boot', 'title']).toContain(await scene(page));
   expect(await paused(page)).toBe(false);
-  await expect(page.getByRole('progressbar')).toHaveCount(0);
+  // The room is in, its tube lit at once behind the still, which waits for the visitor.
+  expect(await page.evaluate(() => window.__room?.powerState)).toBe('on');
+  await expect(still).toHaveAttribute('data-shown', 'true');
+  await page.keyboard.press('Enter');
+  await expect(still).toHaveAttribute('data-shown', 'false');
   expect(errors).toEqual([]);
 });
 
@@ -287,7 +294,7 @@ test('the sound toggle is reachable by keyboard and remembers the choice', async
   await expect(page.getByRole('button', { name: 'Mute sound' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('shows the way out seven seconds after the title, and whenever the visitor is back at the TV', async ({
+test('shows the way out five seconds into the first level, and whenever the visitor is back at the TV', async ({
   page,
 }) => {
   await page.clock.install();
@@ -295,10 +302,14 @@ test('shows the way out seven seconds after the title, and whenever the visitor 
   await waitForRunning(page);
   const popup = page.locator('.look-around');
   await expect(popup).toBeAttached();
-  // The boot plays first; the title then shows for seven seconds before the popup arrives.
+  // Not on the title, however long it shows.
   await expect.poll(() => scene(page), { timeout: 15_000, intervals: [50] }).not.toBe('boot');
-  await page.clock.runFor(1_000);
-  await page.clock.runFor(5_500);
+  await page.clock.runFor(10_000);
+  await expect(popup).toHaveAttribute('data-shown', 'false');
+  // A level's start counts: five seconds later it arrives.
+  await page.evaluate(() => window.__arcade?.goTo('level', { levelId: 'luna', characterId: 'hackerman' }));
+  await expect.poll(() => scene(page)).toBe('level');
+  await page.clock.runFor(4_500);
   await expect(popup).toHaveAttribute('data-shown', 'false');
   await page.clock.runFor(1_000);
   await expect(popup).toHaveAttribute('data-shown', 'true');

@@ -70,11 +70,11 @@ If the chunk fails to load, the screen shows a small message box, "The document 
 
 The still on the glass and the live DOM desktop must be indistinguishable at the hand-off, so they share every input:
 
-- `desktopLayout(width, height)` is the only source of positions: the 30 px taskbar, the 100 × 30 start button (its orb mark and "start" text), the task button strip from x 106 (160 × 24), the 84 px tray with the clock centred, and a column of 74 × 78 icon cells at x 8 from y 10 (32 × 32 art, a 70 px label box of up to two 13 px lines), as many as fit above the taskbar, the CV first.
+- `desktopLayout(width, height)` is the only source of positions: the 30 px taskbar, the 100 × 30 start button (its flag mark and "start" text), the task button strip from x 106 (160 × 24), the 84 px tray with the clock centred, and a column of 74 × 78 icon cells at x 8 from y 10 (32 × 32 art, a 70 px label box of up to two 13 px lines), as many as fit above the taskbar, the CV first.
 - `lunaTokens.ts` holds the gradients as stop arrays and the font strings; the painter builds canvas gradients from them and the DOM applies them inline (`cssGradient`).
 - `icons.ts` holds original vector art as SVG path data with fills (`art.ts`): `new Path2D(d)` in the painter, `<path d>` in the DOM (`ArtSvg`). The "PDF" on the CV is drawn, not typed.
 - `text.ts`: `wrapLabel` breaks a label into lines with the same measurements in both renderers (the DOM measures with a canvas too), and `baselineInLineBox` puts canvas text on the CSS half-leading baseline (`top + (L − (A + D)) / 2 + A` from the font's bounding-box metrics). Label shadows are an offset copy of the text, because canvas shadow offsets ignore the transform.
-- `wallpaper.ts` paints "rolling hills" from seed 2001 (`Rng`): a three-stop sky, four cumulus clusters of 26 radial puffs (flattened, brighter tops, cool undersides), a cooler far hill on the right and a broad near hill cresting left of centre with seeded grass and a warm crest light; deliberately not the famous photograph's composition.
+- `wallpaper.ts` draws Windows XP's "Bliss" (Charles O'Rear's photograph; the captain's call), `desktop/bliss.webp`: 1280 × 1029 from the original 4510 × 3627 scan, 86 kB, drawn to cover the screen (`coverCrop`). The still painter's chunk starts its download and decode (`loadWallpaper`); until it has decoded the shared canvas holds the photograph's sky and grass as two flat bands, then it is repainted in place (the live desktop shows the same element) and `PcSlot` asks the room to repaint the glass (`invalidateStill`).
   It is painted once into a cached canvas of at most 1 MP (0.6 MP with `deviceMemory ≤ 2`) and repainted in place only when a request needs more than 1.3× its width. The DOM desktop appends that very canvas as its background, so one bitmap serves the glass and the live screen.
 - `clock.ts`: the visitor's locale (`hour: 'numeric', minute: '2-digit'`), one formatter made once; `useClock` re-arms a timeout to each minute boundary and calls `display.invalidateStill()` on every tick, all page long, but changes the DOM clock's text (and so renders the screen) only while the screen is live, catching up in the landing's own render.
 
@@ -189,9 +189,9 @@ Measured in the production lab (Chromium, M-series Mac):
 
 ## Lookalike rules (PR checklist)
 
-- [ ] Original work only: no Microsoft or Adobe image, icon, logo, wallpaper (no Bliss), cursor or font copied, traced, extracted or bundled; no community recreation (XP.css and similar) copied.
+- [ ] Original work only, but for the two the captain asked for: the Bliss wallpaper and the start button's four-colour Windows XP flag. No other Microsoft or Adobe image, icon, logo, cursor or font copied, traced, extracted or bundled; no community recreation (XP.css and similar) copied.
 - [ ] On screen only "start" and "Document Reader 7.0" as product-like names; never "Windows", "Adobe", "Acrobat" or "Reader" on its own.
-- [ ] The start mark is a white-rimmed orb with a yellow sun over a green hill, never a four-colour flag or pinwheel; the reader's mark is a white folded sheet, never a stylised "A" or swirl.
+- [ ] The start mark is Windows XP's waving four-colour flag (red, green, blue, yellow panes lit from the top over a soft shadow, `START_MARK`); the reader's mark is a white folded sheet, never a stylised "A" or swirl.
 - [ ] System font stacks only; no font files.
 - [ ] The splash says "A lookalike by Roel Leenders".
 
@@ -213,7 +213,7 @@ pc/
     art.ts              vector art as data, and its paint helpers
     icons.ts            the four desktop icons and the start mark
     text.ts           ★ label wrapping and the CSS baseline for canvas text
-    wallpaper.ts      ★ the procedural wallpaper and its shared cached canvas
+    wallpaper.ts      ★ the Bliss wallpaper (bliss.webp) and its shared cached canvas
     clock.ts          ★ the clock's format and the time to the next minute
     paintChrome.ts      icons, labels, taskbar, start, tray and clock onto a canvas
     Desktop.tsx         the live desktop (DOM twin of the painter); ArtSvg.tsx, cssGradient.ts, useClock.ts

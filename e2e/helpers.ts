@@ -19,14 +19,29 @@ export async function paused(page: Page): Promise<boolean | undefined> {
   return page.evaluate(() => window.__arcade?.state().paused);
 }
 
-/** The startup phase App publishes on #game: loading, revealing, powering, running or failed. */
+/** The startup phase App publishes on #game: loading, powering, running or failed. */
 export async function phase(page: Page): Promise<string | undefined> {
   return page.evaluate(() => document.getElementById('game')?.dataset.phase);
 }
 
+/**
+ * The game runs, and the room (where it presents it) is in: the game starts on the startup still before the room
+ * has loaded (docs/ROOM.md › Startup), and only the room takes clicks on the stage.
+ */
 export async function waitForRunning(page: Page): Promise<void> {
   await expect.poll(() => phase(page), { timeout: 30_000 }).toBe('running');
   await page.waitForFunction(() => window.__arcadeReady === true);
+  await page.waitForFunction(() => document.querySelector('.room-host')?.getAttribute('data-ready') !== 'false', null, {
+    timeout: 30_000,
+  });
+}
+
+/**
+ * Leaves the TV the one way a touch screen has: the "Tired of playing?" popup (the room's button for it, shown or
+ * not: in a level it shows five seconds in; tests leave from the title).
+ */
+export async function tapWayOut(page: Page): Promise<void> {
+  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
 }
 
 /** The element of whichever host is presenting (`data-host` is room or flat, `data-view` tv or room). */

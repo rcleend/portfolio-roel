@@ -7,6 +7,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Bundle budgets are tight and itemised in `bundle-budgets.json` (`pnpm report:bundle`); a new lazy chunk needs a row in `scripts/bundle-report.mjs` and a budget. A lazy chunk under `src/room` must import types only and get three.js classes through a kit from the room chunk (`posterKit.ts`, `spotlightKit.ts`), or Rolldown splits three.js onto the critical path.
 - e2e pins shader program counts (`e2e/programs.ts`); anything that compiles a program must be counted there.
 - The stage's cursor is a named `RoomCursor` (`idle`/`enter`/`leave`/`press`/`play`) drawn through `--room-cursor-*` custom properties that `app/cursors/cursors.css` themes (docs/ROOM.md › Cursors); tests read `canvas.dataset.cursor`, not `style.cursor`.
+- The page opens on a pre-rendered still of the TV view (`index.html` › `.tv-still`, docs/ROOM.md › Startup); anything that changes the TV, its set or its framing must re-render it with `node scripts/capture-tv-stills.mjs` and update the lengths in index.html.
 - The build slims every emitted PNG (`scripts/pngSlim.ts`); committed art stays byte-for-byte what its generators write, so never hand-optimise PNGs in the repo.
 - Reduced motion in this project means no transitions or animations at all (things appear and go), and entrance animations use `backwards` fill so finished ones leave `document.getAnimations()` empty (several e2e tests wait for it).
 
