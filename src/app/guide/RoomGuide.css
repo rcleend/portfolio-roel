@@ -110,10 +110,14 @@
   }
 }
 
-/* On a touch screen the pad has the bottom: the hint drops in from the top, clear of the sound toggle. */
+/*
+ * On a touch screen the pad has the bottom: the hint drops in from the top, clear of the sound toggle, on its row and
+ * exactly its height, so the two read as one line of controls.
+ */
 .look-around[data-touch="true"] {
-  top: max(12px, env(safe-area-inset-top));
+  top: var(--ui-top-row);
   bottom: auto;
+  height: var(--ui-top-row-height);
   max-width: calc(100% - 128px);
   transform: translateY(-14px) scale(0.94);
 }
@@ -236,7 +240,7 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 /* Narrow: a smaller line and mark, so the question keeps to one line between the edge and the sound toggle. */
 .look-around[data-touch="true"] {
   gap: 10px;
-  padding: 8px 18px 8px 12px;
+  padding: 0 18px 0 12px;
 }
 
 .look-around[data-touch="true"] .guide-pill__title {
@@ -255,14 +259,13 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 
 /*
  * A phone on its side: the game's picture fills the height, so the way out keeps to the corner beside it, a round
- * button with its pictogram mirroring the sound toggle (its words are its name for screen readers).
+ * button with its pictogram mirroring the sound toggle at its size (its words are its name for screen readers).
  */
 @media (orientation: landscape) and (max-height: 500px) {
   .look-around[data-touch="true"] {
     left: max(12px, env(safe-area-inset-left));
     justify-content: center;
-    width: 52px;
-    height: 52px;
+    width: var(--ui-top-row-height);
     max-width: none;
     margin: 0;
     padding: 0;
@@ -451,13 +454,66 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   }
 }
 
-/* Arriving: the name pops up letter pair by letter pair, then the label and each item, a beat apart. */
+/* The quick links to Roel elsewhere: the networks' marks in the soft ink, under the menu, lined up with its icons. */
+.socials {
+  display: flex;
+  gap: 4px;
+  margin: -10px 0 0 -8px;
+  padding: 0;
+  list-style: none;
+  pointer-events: auto;
+}
+
+.overview:not([data-settled="true"][data-presence="in"]) .socials {
+  pointer-events: none;
+}
+
+.socials__link {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: var(--ui-ink-soft);
+  cursor: var(--ui-cursor-hand, pointer);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.socials__glyph {
+  width: 18px;
+  height: 18px;
+  fill: currentcolor;
+  filter: drop-shadow(0 1px 2px rgb(6 4 14 / 0.6));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .socials__link:hover {
+    background: rgb(255 255 255 / 0.14);
+    color: var(--ui-ink);
+  }
+}
+
+.socials__link:active {
+  color: var(--ui-ink);
+}
+
+.socials__link:focus-visible {
+  outline: 2px solid var(--ui-ink);
+  outline-offset: 0;
+  color: var(--ui-ink);
+}
+
+/* Arriving: the name pops up letter pair by letter pair, then the label, each item and the links, a beat apart. */
 .overview[data-presence="in"] .overview__name > span {
   animation: overview-pop 620ms var(--ui-spring) backwards;
   animation-delay: calc(var(--overview-delay) + var(--order) * 70ms);
 }
 
-.overview[data-presence="in"] :is(.overview__label, .overview__menu > li) {
+.overview[data-presence="in"] :is(.overview__label, .overview__menu > li, .socials) {
   animation: overview-rise 520ms var(--ui-spring) backwards;
   animation-delay: calc(var(--overview-delay) + 60ms + var(--order) * 55ms);
 }
@@ -544,13 +600,25 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
     --lit-tint: rgb(255 255 255 / 0.22);
     --lit-shift: translateY(-3px);
   }
+
+  .socials {
+    grid-column: 1 / -1;
+    justify-self: center;
+    gap: 12px;
+    margin: -10px 0 -8px;
+  }
+
+  .socials__link {
+    width: 40px;
+    height: 40px;
+  }
 }
 
 /* A phone on its side: little height, so a smaller name and the menu in a row under it. */
 @media (orientation: landscape) and (max-height: 500px) {
   .overview {
     bottom: max(12px, env(safe-area-inset-bottom));
-    grid-template-columns: auto auto;
+    grid-template-columns: auto auto auto;
     gap: 10px 14px;
     align-items: end;
   }
@@ -577,6 +645,12 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
     padding: 0 16px 0 12px;
     --lit-tint: rgb(255 255 255 / 0.22);
     --lit-shift: translateY(-3px);
+  }
+
+  .socials {
+    grid-row: 1;
+    grid-column: 3;
+    margin: 0 0 -6px;
   }
 }
 
@@ -655,7 +729,8 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 
 @media (forced-colors: active) {
   .guide-pill,
-  .overview__item {
+  .overview__item,
+  .socials__link {
     border: 1px solid CanvasText;
   }
 }

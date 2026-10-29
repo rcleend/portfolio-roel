@@ -16,6 +16,11 @@ export interface RoomInteractionOptions {
   /** While false (e.g. during a camera flight) clicks and gestures are ignored. */
   readonly isEnabled: () => boolean;
   /**
+   * While true for a release's pointer type (`PointerEvent.pointerType`), a click or tap does nothing: no
+   * interactable activates and nothing misses. Gestures an interactable owns (the TV's picture) still go to it.
+   */
+  readonly ignoresClick?: (pointerType: string) => boolean;
+  /**
    * Where large meshes are cut into pick chunks, off the room's first frame; until a cut is done
    * its interactable's rays test the whole meshes. Without it they are cut as they are registered.
    */
@@ -166,6 +171,7 @@ export class RoomInteraction {
     }
     const travelled = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
     if (travelled > CLICK_SLOP || !this.options.isEnabled()) return;
+    if (this.options.ignoresClick?.(event.pointerType)) return;
     this.setNdc(event);
     const found = this.pick();
     if (found) found.interactable.activate(found.hit);

@@ -33,6 +33,8 @@ export interface CreateGameOptions {
    */
   readonly audio?: GameAudio;
   readonly reducedMotion?: boolean;
+  /** The page shows the on-screen touch pad; defaults to `pointer: coarse`, as the app decides it. */
+  readonly touchControls?: boolean;
   /** Opens a real-world link chosen in-game; defaults to navigating the current tab (mailto-friendly). */
   readonly openLink?: (href: string) => void;
   /**
@@ -66,7 +68,10 @@ export async function createGame(options: CreateGameOptions = {}): Promise<Creat
     audio: options.audio ?? defaultAudio(session),
     session,
     rng: new Rng(options.seed ?? Date.now()),
-    settings: { reducedMotion: options.reducedMotion ?? prefersReducedMotion() },
+    settings: {
+      reducedMotion: options.reducedMotion ?? prefersReducedMotion(),
+      touchControls: options.touchControls ?? coarsePointer(),
+    },
     openLink: options.openLink ?? defaultOpenLink,
   });
 
@@ -93,6 +98,10 @@ function defaultStorage(): SessionStorage | null {
     // Some privacy modes throw on access; the session then lives in memory.
     return null;
   }
+}
+
+function coarsePointer(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 }
 
 function prefersReducedMotion(): boolean {

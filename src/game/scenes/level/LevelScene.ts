@@ -9,8 +9,9 @@ import { IDLE_INTENT } from '../../entities/player/Player';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
-import { BOSS_BAR_TOP, bossBarTop, drawBossBar } from '../../ui/hud/BossBar';
+import { bossBarSettledTop, bossBarTop, drawBossBar } from '../../ui/hud/BossBar';
 import { drawHud } from '../../ui/hud/Hud';
+import type { ControlDevice } from '../../ui/hud/keyLabels';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { Autopilot } from '../../world/autopilot';
 import type { WorldEvent } from '../../world/events';
@@ -69,7 +70,7 @@ export class LevelScene implements GameScene<LevelParams> {
   #autopilot: Autopilot | null = null;
   #phase: Phase = { kind: 'play' };
   #time = 0;
-  #device: 'keyboard' | 'gamepad' = 'keyboard';
+  #device: ControlDevice = 'keyboard';
   #arenaAt: number | null = null;
   readonly #hud = new HudTracker();
   readonly #stage = new StageRenderer();
@@ -103,6 +104,8 @@ export class LevelScene implements GameScene<LevelParams> {
       screen: { width: 320, height: 240 },
     });
     if (this.#dev.startAt !== null) world.skipTo(this.#dev.startAt);
+    // Until the player presses something, a touch screen's player is taken to play on its pad.
+    if (this.#services.settings.touchControls && this.#device === 'keyboard') this.#device = 'touch';
     if (this.#dev.skipIntro) this.#time = SKIPPED_INTRO;
     if (this.#dev.autopilot) this.#autopilot = new Autopilot();
     this.#world = world;
@@ -118,8 +121,9 @@ export class LevelScene implements GameScene<LevelParams> {
     if (!world) return;
     const { dt, input } = step;
     this.#time += dt;
-    if (input.lastDevice === 'gamepad') this.#device = 'gamepad';
-    else if (input.lastDevice === 'keyboard') this.#device = 'keyboard';
+    if (input.lastDevice === 'gamepad' || input.lastDevice === 'keyboard' || input.lastDevice === 'touch') {
+      this.#device = input.lastDevice;
+    }
 
     const phase = this.#phase;
     switch (phase.kind) {
@@ -173,13 +177,15 @@ export class LevelScene implements GameScene<LevelParams> {
     const bossBar = celebrating ? null : this.#hud.bossBar(world, this.#time);
     // The customers' labels keep above the bands the HUD lays along the bottom, which would hide them.
     const hintsTop = controlHintsTop(this.#time) ?? gfx.height;
+    // The boss bar stands on the control hints, which keep the bottom rows the whole level.
+    const lift = gfx.height - hintsTop;
     const hud = this.#bottomHud;
-    hud.settled = bossBar ? Math.min(hintsTop, BOSS_BAR_TOP) : hintsTop;
-    hud.top = bossBar ? Math.min(hintsTop, bossBarTop(bossBar.age)) : hintsTop;
+    hud.settled = bossBar ? Math.min(hintsTop, bossBarSettledTop(lift)) : hintsTop;
+    hud.top = bossBar ? Math.min(hintsTop, bossBarTop(bossBar.age, lift)) : hintsTop;
     const hitboxes = this.#dev.hitboxes ? (layer: Gfx) => drawHitboxes(layer, world) : undefined;
     this.#stage.draw(gfx, world, kit, this.#time, hud, hitboxes);
     drawHud(gfx, kit, this.#hud.hud(world, this.#time, this.#device));
-    if (bossBar) drawBossBar(gfx, this.#services.text, bossBar);
+    if (bossBar) drawBossBar(gfx, this.#services.text, bossBar, lift);
     this.#renderOverlays(gfx, world, level);
   }
 

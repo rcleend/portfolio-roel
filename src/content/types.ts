@@ -23,6 +23,14 @@ export interface ProfileLink {
   readonly href: string;
 }
 
+/** A profile elsewhere, as the room's overview links it: an icon, its network's name and the address. */
+export interface SocialLink {
+  readonly kind: 'x' | 'linkedin' | 'github';
+  /** The network's name, for the link's accessible label. */
+  readonly network: string;
+  readonly href: string;
+}
+
 export type ExperienceId = 'scripe' | 'luna' | 'fledge' | 'jouwweb';
 
 export interface Experience {

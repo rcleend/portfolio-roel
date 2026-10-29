@@ -49,7 +49,11 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
     if (!display || !powered) return;
     // Even with Save-Data: a few kB that keep the monitor from showing a dead tube.
     return whenIdle(() => {
-      import('./still/pcStill').then((still) => display.setStill(still.paintDesktop), warn);
+      import('./still/pcStill').then((still) => {
+        display.setStill(still.paintDesktop);
+        // The glass shows the wallpaper's placeholder until the photograph has decoded.
+        void still.wallpaperLoaded().then(() => display.invalidateStill());
+      }, warn);
     });
   }, [display, powered]);
 

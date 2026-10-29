@@ -166,6 +166,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     onMiss: () => {
       if (views.view !== 'room') views.request('room');
     },
+    // On a touch screen a stray tap beside the picture is too easy while playing: there only the guide's popup
+    // leaves the game (docs/ROOM.md › Using it from the app).
+    ignoresClick: (pointerType) => pointerType !== 'mouse' && views.view === 'tv',
     idleCursor: () => (views.view === 'room' || views.moving ? 'idle' : 'leave'),
     onPointer: (ndc) => {
       rig.setParallaxPointer(ndc);

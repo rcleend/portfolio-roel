@@ -2,9 +2,9 @@ import { type Art, bands, circle, linear, roundRect, vertical } from './art';
 import type { DesktopIconId } from './desktopLayout';
 
 /**
- * The desktop's icons and the start button's mark: original drawings in the
- * spirit of early-2000s desktop art (glossy, softly shaded, outlined), not
- * traced from any product. 32 × 32 view boxes, the mark 16 × 16.
+ * The desktop's icons, original drawings in the spirit of early-2000s desktop
+ * art (glossy, softly shaded, outlined), and the start button's mark,
+ * Windows XP's own flag. 32 × 32 view boxes, the mark 16 × 16.
  */
 
 const OUTLINE = '#7d8794';
@@ -117,17 +117,38 @@ export const DESKTOP_ICON_ART: Readonly<Record<DesktopIconId, Art>> = {
   wastebasket: WASTEBASKET,
 };
 
-/** The start button's mark: a white-rimmed glossy orb holding a yellow sun over a green hill. */
+/**
+ * A pane of the start button's flag, a waving quad: from its top left a curve (through a control point) to its top
+ * right, down to its bottom right, and a curve back to its bottom left.
+ */
+type Pane = readonly [number, number, number, number, number, number, number, number, number, number, number, number];
+
+const PANES: readonly { readonly pane: Pane; readonly light: string; readonly deep: string }[] = [
+  { pane: [2.3, 3.5, 4.6, 2.3, 7.3, 3.3, 6.75, 7.5, 4.3, 6.5, 1.75, 7.7], light: '#ff8a4a', deep: '#e2320a' },
+  { pane: [8.15, 3.55, 11, 4.6, 14.2, 3.1, 13.65, 7.3, 10.7, 8.8, 7.6, 7.75], light: '#b6ea3c', deep: '#4ea40c' },
+  { pane: [1.65, 8.55, 4.2, 7.35, 6.65, 8.35, 6.1, 12.55, 3.7, 11.55, 1.1, 12.75], light: '#5cc4ff', deep: '#1068e0' },
+  { pane: [7.5, 8.6, 10.6, 9.65, 13.55, 8.15, 13, 12.35, 10.2, 13.85, 6.95, 12.8], light: '#ffe45c', deep: '#f7a800' },
+];
+
+/** A pane's path data, moved by (dx, dy). */
+function pane(points: Pane, dx = 0, dy = 0): string {
+  const [x1, y1, cx1, cy1, x2, y2, x3, y3, cx2, cy2, x4, y4] = points.map(
+    (value, index) => Math.round((value + (index % 2 ? dy : dx)) * 100) / 100,
+  ) as unknown as Pane;
+  return `M${x1} ${y1}Q${cx1} ${cy1} ${x2} ${y2}L${x3} ${y3}Q${cx2} ${cy2} ${x4} ${y4}z`;
+}
+
+/**
+ * The start button's mark: Windows XP's flag, four waving panes (red, green, blue, yellow), each lit from the top,
+ * over a soft shadow cast down and right onto the green button.
+ */
 export const START_MARK: Art = {
   size: 16,
   parts: [
-    { d: circle(8, 8, 7.4), fill: vertical(16, '#ffffff', '#d9e4ef'), stroke: 'rgba(18, 70, 18, 0.55)', width: 0.6 },
-    { d: circle(8, 8, 6.1), fill: vertical(16, '#6cc0ff', '#1d68d4') },
-    { d: circle(11.2, 5.6, 1.9), fill: '#ffd93b' },
-    {
-      d: 'M2.04 9.3Q7 5.9 13.96 9.3A6.1 6.1 0 0 1 2.04 9.3z',
-      fill: linear(0, 7.5, 0, 14, '#9be654', '#2c8a1d'),
-    },
-    { d: 'M3.3 6.3a4.7 3 0 0 1 9.4 0a4.7 1.5 0 0 1-9.4 0z', fill: 'rgba(255, 255, 255, 0.45)' },
+    { d: PANES.map(({ pane: points }) => pane(points, 0.6, 0.8)).join(''), fill: 'rgba(0, 0, 0, 0.35)' },
+    ...PANES.map(({ pane: points, light, deep }) => ({
+      d: pane(points),
+      fill: linear(0, Math.min(points[1], points[5]), 0, Math.max(points[7], points[11]), light, deep),
+    })),
   ],
 };

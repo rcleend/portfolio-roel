@@ -9,7 +9,7 @@ import type { Action } from '../../../input/bindings';
 import { palette } from '../../../palette';
 import { Button } from '../../../ui/Button';
 import { drawKeyCap } from '../../../ui/hud/KeyCap';
-import { keyCapFor } from '../../../ui/hud/keyLabels';
+import { type ControlDevice, keyCapFor } from '../../../ui/hud/keyLabels';
 import type { LevelTextStyles } from '../../../ui/hud/styles';
 import { drawIconSlot, iconSlotSize } from '../../../ui/iconSlot';
 import { windowThemes } from '../../../ui/theme';
@@ -35,7 +35,7 @@ export interface PauseMenuKit {
   readonly levelText: LevelTextStyles;
   readonly looks: Looks;
   readonly cursor: SpriteSheet<'point'>;
-  readonly device: 'keyboard' | 'gamepad';
+  readonly device: ControlDevice;
 }
 
 /**
@@ -91,7 +91,7 @@ export class PauseMenu {
     gfx.text('PAUSED', gfx.width / 2, FRAME.y + 10, levelText.bannerCool, { align: 'center' });
     for (const button of this.#buttons) button.render(gfx);
     this.#renderMoves(gfx);
-    const resume = this.#kit.device === 'gamepad' ? 'START: RESUME' : 'ESC: RESUME';
+    const resume = this.#kit.device === 'keyboard' ? 'ESC: RESUME' : 'START: RESUME';
     gfx.text(
       resume,
       BUTTON.x + BUTTON.w / 2,

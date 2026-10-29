@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BOSS_BAR_TOP, bossBarTop } from './BossBar';
+import { bossBarSettledTop, bossBarTop } from './BossBar';
+
+const BOSS_BAR_TOP = bossBarSettledTop();
 
 describe('bossBarTop', () => {
   it('rises from the bottom edge, bounces up past its place and settles there', () => {

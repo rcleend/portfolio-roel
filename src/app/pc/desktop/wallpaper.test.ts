@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { needsRepaint, paintWallpaper, wallpaperSize } from './wallpaper';
+import { coverCrop, needsRepaint, paintPlaceholder, WALLPAPER_PLACEHOLDER, wallpaperSize } from './wallpaper';
 
-/** A 2D context that records every call and property write, gradients included. */
+/** A 2D context that records every call and property write. */
 function recordingContext(): { readonly context: CanvasRenderingContext2D; readonly calls: string[] } {
   const calls: string[] = [];
   const recorder = (name: string): object =>
@@ -59,48 +59,35 @@ describe('needsRepaint', () => {
   });
 });
 
-describe('paintWallpaper', () => {
-  it('draws the same calls every time: the seed fixes the clouds and the grass', () => {
-    const first = recordingContext();
-    const second = recordingContext();
-    paintWallpaper(first.context, 874, 687);
-    paintWallpaper(second.context, 874, 687);
-    expect(second.calls).toEqual(first.calls);
-    expect(first.calls.length).toBeGreaterThan(400);
+describe('coverCrop', () => {
+  it('crops a taller photograph top and bottom, centred, to fill a wider screen', () => {
+    expect(coverCrop({ width: 1280, height: 1029 }, { width: 874, height: 687 })).toEqual({
+      x: 0,
+      y: expect.closeTo((1029 - 1280 / (874 / 687)) / 2, 6),
+      w: 1280,
+      h: expect.closeTo(1280 / (874 / 687), 6),
+    });
   });
 
-  it('paints the same composition at any size', () => {
-    const small = recordingContext();
-    const large = recordingContext();
-    paintWallpaper(small.context, 437, 343.5);
-    paintWallpaper(large.context, 874, 687);
-    const shape = (calls: readonly string[]) => calls.map((call) => call.replace(/\(.*\)| = .*/, ''));
-    expect(shape(large.calls)).toEqual(shape(small.calls));
+  it('crops the sides for a screen narrower than the photograph', () => {
+    const crop = coverCrop({ width: 1280, height: 1029 }, { width: 400, height: 400 });
+    expect(crop.h).toBe(1029);
+    expect(crop.w).toBeCloseTo(1029, 6);
+    expect(crop.x).toBeCloseTo((1280 - 1029) / 2, 6);
+    expect(crop.y).toBe(0);
   });
+});
 
-  it('starts with the sky gradient from deep blue to the pale horizon', () => {
+describe('paintPlaceholder', () => {
+  it('fills the sky over the hill, edge to edge', () => {
     const { context, calls } = recordingContext();
-    paintWallpaper(context, 874, 687);
-    expect(calls.slice(0, 5)).toEqual([
-      'context.createLinearGradient(0.000000, 0.000000, 0.000000, 687.000000)',
-      'gradient1.addColorStop(0.000000, #1b4fc4)',
-      'gradient1.addColorStop(0.450000, #3a7fe0)',
-      'gradient1.addColorStop(0.750000, #b9d8f4)',
-      'context.fillStyle = gradient',
+    paintPlaceholder(context, 874, 687);
+    const horizon = Math.round(WALLPAPER_PLACEHOLDER.horizon * 687);
+    expect(calls).toEqual([
+      `context.fillStyle = ${WALLPAPER_PLACEHOLDER.sky}`,
+      `context.fillRect(0.000000, 0.000000, 874.000000, ${horizon.toFixed(6)})`,
+      `context.fillStyle = ${WALLPAPER_PLACEHOLDER.grass}`,
+      `context.fillRect(0.000000, ${horizon.toFixed(6)}, 874.000000, ${(687 - horizon).toFixed(6)})`,
     ]);
-  });
-
-  it('puts every cloud puff inside the sky', () => {
-    const { context, calls } = recordingContext();
-    paintWallpaper(context, 1000, 800);
-    const puffs = calls
-      .filter((call) => call.startsWith('context.translate('))
-      .map((call) => call.slice('context.translate('.length, -1).split(', ').map(Number));
-    expect(puffs).toHaveLength(4 * 26 * 3);
-    for (const [x, y] of puffs) {
-      expect(x).toBeGreaterThan(0);
-      expect(x).toBeLessThan(1000);
-      expect(y).toBeLessThan(0.5 * 800);
-    }
   });
 });
