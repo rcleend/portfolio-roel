@@ -29,17 +29,20 @@
 
 /* ——— The pill: the click-outside hint at the TV, the way up at the computer ——— */
 
+/* Centred by its margins: the build's CSS minifier drops a `translate` set beside a `transform`. */
 .guide-pill {
   position: fixed;
   bottom: max(20px, env(safe-area-inset-bottom));
-  left: 50%;
+  right: 0;
+  left: 0;
   z-index: 16;
   display: flex;
   gap: 12px;
   align-items: center;
   box-sizing: border-box;
   max-width: calc(100% - 32px);
-  margin: 0;
+  width: fit-content;
+  margin: 0 auto;
   padding: 10px 22px 10px 14px;
   border: 0;
   border-radius: 999px;
@@ -48,7 +51,6 @@
   color: var(--ui-ink);
   font: 600 14px / 1.25 var(--ui-body);
   text-align: left;
-  translate: -50% 0;
   opacity: 0;
   transform: translateY(14px) scale(0.94);
   transition:
@@ -262,8 +264,8 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
     width: 52px;
     height: 52px;
     max-width: none;
+    margin: 0;
     padding: 0;
-    translate: none;
   }
 
   .look-around[data-touch="true"] .guide-pill__words {
@@ -589,16 +591,18 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   pointer-events: none;
 }
 
+/* Centred on the point by a wide box, not `translate`, which the build's CSS minifier drops beside a `transform`. */
 .prop-label__word {
   position: absolute;
   bottom: 14px;
-  left: 0;
+  left: -200px;
+  width: 400px;
+  text-align: center;
   color: var(--ui-ink);
   font: 400 30px / 1 var(--ui-display);
   letter-spacing: 0.01em;
   white-space: nowrap;
   text-shadow: var(--ui-text-shadow);
-  translate: -50% 0;
   transform-origin: 50% 100%;
   opacity: 0;
   transform: translateY(4px) scale(0.9);
