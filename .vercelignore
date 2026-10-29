@@ -1,0 +1,13 @@
+node_modules
+dist
+.shots
+test-results
+playwright-report
+*.tsbuildinfo
+.DS_Store
+.context/
+.lavish/
+*.blend1
+__pycache__/
+.vercel
+tools
