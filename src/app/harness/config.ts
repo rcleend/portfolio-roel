@@ -14,6 +14,8 @@ export interface HarnessConfig {
   readonly frames: number | null;
   /** Which look each hero, the customer and each skill is drawn in, e.g. `{"customer":"hibit"}`. */
   readonly looks: LookSelectionInput | null;
+  /** `?capture`: the TV view with its tube dark and no UI, for the startup stills (scripts/capture-tv-stills.mjs). */
+  readonly capture: boolean;
 }
 
 export class HarnessConfigError extends Error {
@@ -30,7 +32,9 @@ export function readHarnessConfig(search: string, isDev: boolean): HarnessConfig
   const query = new URLSearchParams(search);
   const enabled = isDev || query.has('debug');
   const host = query.get('host');
-  if (!enabled) return { enabled, host, scene: null, params: undefined, seed: null, frames: null, looks: null };
+  if (!enabled) {
+    return { enabled, host, scene: null, params: undefined, seed: null, frames: null, looks: null, capture: false };
+  }
 
   const sceneParam = query.get('scene');
   if (sceneParam !== null && !isSceneId(sceneParam)) throw new HarnessConfigError(`Unknown scene "${sceneParam}"`);
@@ -45,6 +49,7 @@ export function readHarnessConfig(search: string, isDev: boolean): HarnessConfig
     seed: integerParam(query, 'seed'),
     frames: integerParam(query, 'frames'),
     looks: looksParam === null ? null : looksSelection(jsonParam('looks', looksParam)),
+    capture: query.has('capture'),
   };
 }
 

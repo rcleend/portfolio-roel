@@ -48,8 +48,11 @@ export interface Room {
   /** True while the camera rests at `view`, false while it flies there. */
   readonly settled: boolean;
   readonly powerState: PowerState;
-  /** Lights the power LED and runs the CRT turn-on; resolves when the picture is up. */
-  powerOn(): Promise<void>;
+  /**
+   * Lights the power LED and runs the CRT turn-on; resolves when the picture is up. `instant`: lit at once, for a game
+   * the page already shows on the startup still (docs/ROOM.md › Startup).
+   */
+  powerOn(options?: { readonly instant?: boolean }): Promise<void>;
   powerOff(): Promise<void>;
   /** Flies to the TV; the game resumes and takes input once the camera lands. */
   focusTv(): void;
@@ -266,9 +269,9 @@ export function createRoom(options: CreateRoomOptions): Room {
     get powerState() {
       return scene?.television.powerState ?? 'off';
     },
-    async powerOn() {
+    async powerOn(options) {
       await ready;
-      await scene?.television.powerOn();
+      await scene?.television.powerOn(options?.instant);
     },
     async powerOff() {
       await ready;

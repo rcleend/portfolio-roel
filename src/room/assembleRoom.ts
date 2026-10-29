@@ -248,6 +248,16 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   // Asked for the computer before the room had loaded: the camera is already there.
   if (views.view !== 'tv') monitor.prepare('tv', views.view);
   queueUploads(views.view);
+  if (import.meta.env.DEV) {
+    // The startup still's capture (scripts/capture-tv-stills.mjs) reads where the picture lands, in CSS px.
+    (globalThis as { __tvPicture?: () => readonly number[] }).__tvPicture = () => {
+      const { width, height } = stage.size;
+      const points = picture.map((point) => point.clone().project(camera));
+      const xs = points.map((point) => ((point.x + 1) / 2) * width);
+      const ys = points.map((point) => ((1 - point.y) / 2) * height);
+      return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    };
+  }
 
   return {
     rig,

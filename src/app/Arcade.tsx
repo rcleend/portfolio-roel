@@ -36,11 +36,11 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   const audio = useAudioWiring(services.audio, services.session, view);
   const started = useRef(false);
   const running = startup.phase === 'running';
-  const powering = startup.phase === 'powering' || running;
+  // A capture of the startup stills keeps the tube dark (harness/config.ts).
+  const powering = (startup.phase === 'powering' || running) && !config.capture;
 
   const events = useMemo<HostEvents>(
     () => ({
-      onProgress: (fraction) => dispatch({ type: 'hostProgress', fraction }),
       onReady: (kind) => dispatch({ type: 'hostReady', host: kind }),
       onPoweredOn: () => {
         // The first game frame must land on a lit tube, and only once.
@@ -50,6 +50,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
         dispatch({ type: 'poweredOn' });
       },
       onViewChange: setView,
+      onStillDone: () => dispatch({ type: 'stillDone' }),
     }),
     [created, config, dispatch],
   );
@@ -66,6 +67,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
           surface={created.surface}
           scenes={services.director}
           powered={powering}
+          still={startup.still}
           insets={touch ? padInsets : NO_INSETS}
           events={events}
           muted={audio.muted}

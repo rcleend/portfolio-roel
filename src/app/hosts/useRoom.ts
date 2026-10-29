@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useEffectEvent, useState } from 'react';
+import { type RefObject, useEffect, useState } from 'react';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { Room } from '@/room';
 
@@ -6,12 +6,6 @@ export type RoomStatus =
   | { readonly state: 'loading' }
   | { readonly state: 'ready'; readonly room: Room }
   | { readonly state: 'unavailable' };
-
-/**
- * Share of the room's loading bar spent fetching the three.js chunk itself;
- * the rest is the attic's models (byte-weighted by the room).
- */
-const CODE_WEIGHT = 0.08;
 
 /**
  * Lazily loads the room module (three.js is ~180 kB gzipped and the flat host
@@ -28,10 +22,8 @@ export function useRoom(
   container: RefObject<HTMLElement | null>,
   overlayContainer: RefObject<HTMLElement | null>,
   surface: GameSurface,
-  onProgress: (fraction: number) => void,
 ): RoomStatus {
   const [status, setStatus] = useState<RoomStatus>({ state: 'loading' });
-  const reportProgress = useEffectEvent(onProgress);
 
   useEffect(() => {
     const element = container.current;
@@ -49,15 +41,11 @@ export function useRoom(
 
     import('@/room').then(({ createRoom }) => {
       if (cancelled) return;
-      reportProgress(CODE_WEIGHT);
       try {
         room = createRoom({
           container: element,
           overlayContainer: overlay,
           surface,
-          onProgress: (fraction) => {
-            if (!cancelled) reportProgress(CODE_WEIGHT + (1 - CODE_WEIGHT) * fraction);
-          },
         });
       } catch (error) {
         fail(error);

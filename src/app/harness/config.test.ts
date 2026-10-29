@@ -3,7 +3,8 @@ import { HarnessConfigError, readHarnessConfig } from './config';
 
 describe('readHarnessConfig', () => {
   it('reads every parameter in development', () => {
-    const search = '?host=flat&scene=level&params={"levelId":"luna"}&seed=7&frames=120&looks={"customer":"hibit"}';
+    const search =
+      '?host=flat&scene=level&params={"levelId":"luna"}&seed=7&frames=120&looks={"customer":"hibit"}&capture';
     expect(readHarnessConfig(search, true)).toEqual({
       enabled: true,
       host: 'flat',
@@ -12,6 +13,7 @@ describe('readHarnessConfig', () => {
       seed: 7,
       frames: 120,
       looks: { customer: 'hibit' },
+      capture: true,
     });
   });
 

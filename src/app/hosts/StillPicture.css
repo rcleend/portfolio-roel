@@ -1,0 +1,54 @@
+/* The game on the startup still, inside the still's element (TvStill.css), which fades both out as one. */
+.still-picture {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 1.2% / 1.6%;
+  background: #000;
+  opacity: 0;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.still-picture[data-pass-through="true"] {
+  pointer-events: none;
+}
+
+/* The tube's bloom: from a bright flash down to the picture. */
+.still-picture[data-powered="true"] {
+  opacity: 1;
+  animation: still-picture-on 320ms ease-out;
+}
+
+@keyframes still-picture-on {
+  from {
+    opacity: 0;
+    filter: brightness(2.4);
+  }
+}
+
+.still-picture__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  /* The live tube's picture is a little brighter than the canvas itself. */
+  filter: brightness(1.12);
+}
+
+/* A darker band at the foot of every game row, as the tube draws them. */
+.still-picture__scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 calc(var(--row) * 0.62),
+    rgb(0 0 0 / 0.16) calc(var(--row) * 0.62) var(--row)
+  );
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .still-picture[data-powered="true"] {
+    animation: none;
+  }
+}

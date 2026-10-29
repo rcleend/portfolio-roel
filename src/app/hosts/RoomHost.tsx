@@ -16,6 +16,7 @@ import { PcSlot } from '../pc/PcSlot';
 import { whenIdle } from '../pc/whenIdle';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
+import { StillPicture } from './StillPicture';
 import type { HostProps } from './types';
 import { useRoom } from './useRoom';
 import './RoomHost.css';
@@ -103,6 +104,7 @@ function AtticStage({
   surface,
   scenes,
   powered,
+  still,
   insets,
   events,
   muted,
@@ -112,7 +114,7 @@ function AtticStage({
   const screensRef = useRef<HTMLDivElement>(null);
   // One gate per surface; the room only ever sees the gated view.
   const [gated] = useState(() => new FocusGatedSurface(surface));
-  const status = useRoom(stageRef, screensRef, gated, events.onProgress);
+  const status = useRoom(stageRef, screensRef, gated);
   const room = status.state === 'ready' ? status.room : null;
   const [view, setView] = useState<RoomView>('tv');
   // Whether the camera rests at `view`: what waits for the landing (the computer chip, its prefetch) reads it.
@@ -137,6 +139,7 @@ function AtticStage({
     events.onViewChange(next);
   });
   const unavailable = useEffectEvent(onUnavailable);
+  const stillDone = useEffectEvent(() => events.onStillDone());
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -164,10 +167,43 @@ function AtticStage({
     };
   }, [room]);
 
+  // On the startup still the flat picture turns on and the game starts there (StillPicture); the room's tube then
+  // lights at once, already showing the game, for the hand-over. Without the still, the room turns its tube on itself.
   useEffect(() => {
-    if (!room || !powered || room.powerState !== 'off') return;
-    room.powerOn().then(poweredOn, (error: unknown) => console.error('TV failed to power on', error));
-  }, [room, powered]);
+    if (room?.powerState !== 'off' || (still ? !tvOn : !powered)) return;
+    room
+      .powerOn({ instant: still })
+      .then(still ? undefined : poweredOn, (error: unknown) => console.error('TV failed to power on', error));
+  }, [room, powered, still, tvOn]);
+
+  // The hand-over (docs/ROOM.md › Startup): the visitor's first press, the game leaving its title, or the camera
+  // leaving the TV fades the still out over the identical live scene, as soon as the room shows the game (a press
+  // before that is remembered).
+  const pressed = useRef(false);
+  useEffect(() => {
+    if (!still) return;
+    const opening = (id: string | null): boolean => id === null || id === 'boot' || id === 'title';
+    const check = (): void => {
+      const due = pressed.current || !opening(scenes.current) || (room !== null && room.view !== 'tv');
+      if (due && room?.powerState === 'on' && tvOn) stillDone();
+    };
+    const press = (): void => {
+      pressed.current = true;
+      check();
+    };
+    check();
+    const stopScenes = scenes.onSceneChange(check);
+    const stopViews = room?.onViewChange(check);
+    const options = { capture: true, passive: true } as const;
+    window.addEventListener('keydown', press, options);
+    window.addEventListener('pointerdown', press, options);
+    return () => {
+      stopScenes();
+      stopViews?.();
+      window.removeEventListener('keydown', press, options);
+      window.removeEventListener('pointerdown', press, options);
+    };
+  }, [still, room, tvOn, scenes]);
 
   useEffect(() => {
     if (!tvOn || guideDue) return;
@@ -253,6 +289,7 @@ function AtticStage({
         onKeyDown={onKeyDown}
       />
       <div ref={screensRef} className="room-host__screens" />
+      <StillPicture surface={surface} powered={powered} onLit={poweredOn} passThrough={room !== null} />
       {room && guideDue ? (
         <Suspense fallback={wayOut}>
           <RoomGuide
