@@ -541,7 +541,7 @@ test.describe('on a phone', () => {
       const record = window as unknown as { __plate: [number, number][]; __finger: Record<string, number> };
       record.__plate = [];
       record.__finger = {};
-      const canvas = document.querySelector('canvas');
+      const canvas = document.querySelector('.room-host canvas');
       for (const type of ['pointerdown', 'pointerup']) {
         canvas?.addEventListener(
           type,

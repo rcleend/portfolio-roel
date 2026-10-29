@@ -604,13 +604,18 @@ test.describe('performance', () => {
 
   test('uploads nothing while the game plays, and nothing on the way to the computer', async ({ page }) => {
     await recordUploads(page);
-    await recordRunning(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
+    // The walls' strips go up at the TV just after the room is in, under the startup still (docs/ROOM.md ›
+    // Startup); the visitor's press a moment later hands the game over to the room, and from there on it plays.
+    await page.waitForTimeout(1000);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    const handedOver = await page.evaluate(() => performance.now());
     // Long enough for the still painter to arrive and be prepared between the game's frames.
     await page.waitForTimeout(2500);
     expect(await view(page)).toBe('tv');
-    expect(await largeUploadsSince(page, await runningAt(page))).toBe(0);
+    expect(await largeUploadsSince(page, handedOver)).toBe(0);
     // The first look around draws (and uploads) what the TV view never did, as it always has; the
     // room view's quiet uploads the rest.
     await page.mouse.click(WALL.x, WALL.y);
