@@ -191,11 +191,13 @@ async function untilIdle(page: Page): Promise<void> {
 /** `performance.now()` when `#game` turned running, recorded from the page's own clock. */
 async function recordRunning(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    // The game runs on the startup still before the room is in (docs/ROOM.md › Startup): from both, the room plays it.
     new MutationObserver((_, observer) => {
       if (document.getElementById('game')?.dataset.phase !== 'running') return;
+      if (document.querySelector('.room-host')?.getAttribute('data-ready') !== 'true') return;
       (window as unknown as { __runningAt: number }).__runningAt = performance.now();
       observer.disconnect();
-    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
+    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase', 'data-ready'] });
   });
 }
 
