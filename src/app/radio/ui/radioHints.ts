@@ -3,7 +3,7 @@ import { type FlagStorage, readJson, writeJson } from '../../storage/localFlag';
 /**
  * The radio's own teaching line (SPEC §8.9): how to choose a CD until the visitor has,
  * then, for mouse users, how to leave until they have. Each retires for good. The
- * global view hint shows nothing at the radio.
+ * room's guide shows nothing at the radio (app/guide/guideProgress.ts).
  */
 export interface RadioHintProgress {
   /** Has chosen a CD at least once. */

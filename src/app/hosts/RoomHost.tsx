@@ -223,7 +223,7 @@ function AtticStage({
 
   const wayOut = room ? <WayOut view={view} onLookAround={lookAround} handOver={handOver} /> : null;
 
-  // The screens, hotspots and the PC and radio slots are siblings of the stage, never children: events
+  // The screens, the guide and the PC and radio slots are siblings of the stage, never children: events
   // from their portals must not bubble into the stage's handlers, and focus inside them leaves the
   // stage, which is what takes the keyboard away from the game.
   return (

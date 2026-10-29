@@ -98,7 +98,7 @@ export interface RadioLayout {
  * loads lazily (as the camera first leaves the TV, on a prefetch, or on the way to the radio).
  */
 export interface RadioDoor {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the hotspot hides. */
+  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
   /** Starts loading the deck and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
@@ -110,7 +110,7 @@ export interface RadioDoor {
 }
 
 export interface RadioDeck {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the hotspot hides. */
+  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
   /** Starts loading and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
