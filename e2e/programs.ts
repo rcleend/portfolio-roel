@@ -20,8 +20,26 @@ export const POSTERS_PATH = process.env.ROOM_GL === 'swiftshader' ? 'lite' : 'fu
  */
 export const POSTERS_PROGRAMS = POSTERS_PATH === 'lite' ? 0 : 1;
 
-/** Programs after the first room view, once the posters are shown. */
-export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS;
+/**
+ * The props' spotlight (docs/ROOM.md › The spotlight): its mask-and-blur program and its glow's, compiled as its chunk
+ * arrives behind the first flight away from the TV, so that the first hover never stalls.
+ */
+export const SPOTLIGHT_PROGRAMS = 2;
+
+/** Programs after the first room view, once the posters are shown and the spotlight is in. */
+export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRAMS;
+
+/**
+ * Waits until the spotlight's chunk is in (RoomStats.spotlight), so a program count is deterministic: it is imported
+ * after the first flight's first frame, in real time.
+ */
+export async function spotlightIn(page: Page, stats: () => Promise<RoomStats | undefined>): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (!(await stats())?.spotlight) {
+    if (Date.now() > deadline) throw new Error('The spotlight is still loading after 15 s');
+    await page.waitForTimeout(50);
+  }
+}
 
 /**
  * Waits until the posters are shown, so a program count is deterministic: they go up in the first flight's frames

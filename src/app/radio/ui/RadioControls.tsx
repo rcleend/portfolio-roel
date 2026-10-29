@@ -17,6 +17,7 @@ import { COARSE_POINTER, useMediaQuery } from '../../useMediaQuery';
 import type { DiscAnchor, RadioDeck, RadioKey, RadioLayout, ScreenRect } from '../deck';
 import { liveText } from '../player/announce';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
+import { HintLines } from './HintLines';
 import {
   type HintInput,
   learn,
@@ -205,11 +206,11 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         muted={muted}
       />
       {hintInBar ? null : (
-        <p className="radio__hint radio__plate" aria-hidden="true" data-visible={hint.visible}>
+        <p className="radio__hint radio__pill" aria-hidden="true" data-visible={hint.visible}>
           {hint.text ? (
             <>
-              <span className="radio__marker">▸</span>
-              {hint.text}
+              <DiscMark />
+              <HintLines words={hint.text} />
             </>
           ) : null}
         </p>
@@ -246,7 +247,7 @@ function Caption({ album, anchor, muted }: { album: Album | null; anchor: DiscAn
   // style at once, so the first attention of a visit would skip the fade (and a finger's 250 ms hold) and flash.
   return (
     <div
-      className="radio__caption radio__plate"
+      className="radio__caption radio__pill"
       aria-hidden="true"
       data-visible={album !== null && anchor !== null}
       // Under a floating disc; over the one in the player, so the radio's keys stay in sight.
@@ -268,15 +269,27 @@ function CaptionWords({ album, muted }: { album: Album; muted: boolean }) {
   const count = album.tracks.length;
   return (
     <>
-      <span className="radio__caption-title">
-        {album.title} — {album.artist}
+      <span className="radio__title">{album.title}</span>
+      <span className="radio__body">
+        {album.artist} · {count} {count === 1 ? 'track' : 'tracks'} · {Math.floor(seconds / 60)}:
+        {String(seconds % 60).padStart(2, '0')}
       </span>
-      <span>
-        {count} {count === 1 ? 'track' : 'tracks'} · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-        {album.placeholder ? <span className="radio__tag">placeholder</span> : null}
-        {muted ? <span className="radio__tag">Sound is off</span> : null}
-      </span>
+      {album.placeholder || muted ? (
+        <span className="radio__tags">
+          {album.placeholder ? <span className="radio__tag">Placeholder</span> : null}
+          {muted ? <span className="radio__tag">Sound is off</span> : null}
+        </span>
+      ) : null}
     </>
+  );
+}
+
+/** The hint's mark: a little disc that turns once as the hint arrives. */
+function DiscMark() {
+  return (
+    <svg className="radio__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM6.8 10.2a5.6 5.6 0 0 1 3.4-3.4" />
+    </svg>
   );
 }
 

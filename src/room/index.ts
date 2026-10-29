@@ -17,5 +17,6 @@ export type {
   RadioLayout,
   Transport,
 } from './radio/RadioDeck';
+export type { LitProp, PropSpotlight } from './spotlight/PropSpotlight';
 export type { PowerState } from './tv/powerTimeline';
 export type { RoomView } from './viewState';

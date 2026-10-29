@@ -1,40 +1,22 @@
-import { pixelPath } from '../../pixel/pixelPath';
-
 /**
- * The transport's glyphs as pixel art on the sound toggle's grid, so the bar sits with
- * the rest of the site's chrome. Original drawings of the usual transport symbols.
+ * The transport's glyphs in the room UI's line style (docs/ART-DIRECTION.md › The room's UI): 24 px, white, rounded
+ * joins, the shapes filled and the strokes round-ended. Original drawings of the usual transport symbols.
  */
-const ROWS = {
-  previous: ['#....#...#', '#...##..##', '#..###.###', '#.########', '#..###.###', '#...##..##', '#....#...#'],
-  play: ['##.....', '####...', '######.', '#######', '######.', '####...', '##.....'],
-  pause: ['##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##'],
-  stop: ['######', '######', '######', '######', '######', '######'],
-  next: ['#...#....#', '##..##...#', '###.###..#', '########.#', '###.###..#', '##..##...#', '#...#....#'],
-  back: ['....##', '..####', '######', '..####', '....##'],
+const GLYPHS = {
+  previous: 'M18 6.5v11l-8-5.5zM6.5 6.5v11',
+  play: 'M8 5.8v12.4l10-6.2z',
+  pause: 'M7 6h3.2v12H7zM13.8 6H17v12h-3.2z',
+  stop: 'M6.8 6.8h10.4v10.4H6.8z',
+  next: 'M6 6.5v11l8-5.5zM17.5 6.5v11',
+  back: 'M14.5 5.5 8 12l6.5 6.5',
 } as const;
 
-export type Glyph = keyof typeof ROWS;
+export type Glyph = keyof typeof GLYPHS;
 
-const PATHS = Object.fromEntries(Object.entries(ROWS).map(([name, rows]) => [name, pixelPath(rows)])) as Record<
-  Glyph,
-  string
->;
-
-export function GlyphIcon({ glyph, scale = 2 }: { readonly glyph: Glyph; readonly scale?: number }) {
-  const rows = ROWS[glyph];
-  const width = rows[0]?.length ?? 0;
-  const height = rows.length;
+export function GlyphIcon({ glyph }: { readonly glyph: Glyph }) {
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width={width * scale}
-      height={height * scale}
-      shapeRendering="crispEdges"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d={PATHS[glyph]} transform="translate(0.5 0.5)" className="radio-glyph__shadow" />
-      <path d={PATHS[glyph]} className="radio-glyph" />
+    <svg className={`radio-glyph radio-glyph--${glyph}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={GLYPHS[glyph]} />
     </svg>
   );
 }

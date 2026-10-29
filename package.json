@@ -29,6 +29,8 @@
     "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
   },
   "dependencies": {
+    "@fontsource/chewy": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "@fontsource/silkscreen": "^5.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

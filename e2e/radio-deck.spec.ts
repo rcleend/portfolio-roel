@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { trackErrors } from './helpers';
-import { postersShown, ROOM_PROGRAMS } from './programs';
+import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
  * The CD player in the room lab (`?mockradio=1`: five numbered discs and a fake player that answers the radio
@@ -67,6 +67,7 @@ async function inRoom(page: Page, query = ''): Promise<void> {
   await page.waitForFunction(() => window.__roomLab?.room.stats.radioReady === true, null, { timeout: 20_000 });
   await page.waitForTimeout(1300);
   await postersShown(page, () => stats(page));
+  await spotlightIn(page, () => stats(page));
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   await advance(page, 1000);
 }

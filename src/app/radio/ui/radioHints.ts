@@ -3,7 +3,7 @@ import { type FlagStorage, readJson, writeJson } from '../../storage/localFlag';
 /**
  * The radio's own teaching line (SPEC §8.9): how to choose a CD until the visitor has,
  * then, for mouse users, how to leave until they have. Each retires for good. The
- * global view hint shows nothing at the radio.
+ * room's guide shows nothing at the radio (app/guide/guideProgress.ts).
  */
 export interface RadioHintProgress {
   /** Has chosen a CD at least once. */
@@ -41,12 +41,21 @@ export function radioHintFor(progress: RadioHintProgress, coarse: boolean): Radi
 /** How the visitor is reaching the radio: the words follow it. */
 export type HintInput = 'mouse' | 'touch' | 'keyboard';
 
-export function radioHintText(kind: RadioHintKind, input: HintInput): string {
+/** A hint in the room UI's two voices: a Chewy heading and a Nunito line (docs/ART-DIRECTION.md › The room's UI). */
+export interface HintWords {
+  readonly title: string;
+  readonly body: string;
+}
+
+export function radioHintText(kind: RadioHintKind, input: HintInput): HintWords {
   if (kind === 'pick') {
-    if (input === 'keyboard') return 'Press Enter to play a CD';
-    return `${input === 'touch' ? 'Tap' : 'Click'} a CD to play it`;
+    const how = input === 'keyboard' ? 'Press Enter' : input === 'touch' ? 'Tap one' : 'Click one';
+    return { title: 'Pick a CD', body: `${how} to play` };
   }
-  return input === 'keyboard' ? 'Press Escape to look around' : 'Click outside the radio to look around';
+  return {
+    title: 'Look around',
+    body: input === 'keyboard' ? 'Press Escape to get up' : 'Click anywhere outside the radio',
+  };
 }
 
 /** The first line waits for the discs to be up in their slots (it names them), and a beat more. */

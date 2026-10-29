@@ -9,7 +9,6 @@ import { type HostEvents, type HostKind, type HostView, hosts } from './hosts';
 import { padActionMap } from './overlays/touchpad/padActions';
 import { type Insets, NO_INSETS } from './overlays/touchpad/padGeometry';
 import { TouchPad } from './overlays/touchpad/TouchPad';
-import { ViewHint } from './overlays/view-hint/ViewHint';
 import type { StartupEvent, StartupState } from './startup/startup';
 import { COARSE_POINTER, useMediaQuery } from './useMediaQuery';
 
@@ -24,9 +23,9 @@ export interface ArcadeProps {
 const PAD_ACTIONS = padActionMap(bindings);
 
 /**
- * The game in its host plus everything layered over it: sound toggle,
- * view hint and touch pad. Mounted once the game exists; the startup
- * choreography itself lives in `App`.
+ * The game in its host plus everything layered over it: the sound toggle
+ * and the touch pad (the room host brings its own guide). Mounted once the
+ * game exists; the startup choreography itself lives in `App`.
  */
 export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps) {
   const { services, game } = created;
@@ -65,6 +64,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
       <div id="game" data-phase={startup.phase}>
         <Host
           surface={created.surface}
+          scenes={services.director}
           powered={powering}
           insets={touch ? padInsets : NO_INSETS}
           events={events}
@@ -72,7 +72,6 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
         />
       </div>
       <SoundToggle muted={audio.muted} onToggle={audio.toggleMuted} />
-      <ViewHint view={view} active={running && startup.host === 'room'} touch={touch} />
       {touch ? (
         <TouchPad
           actions={PAD_ACTIONS}

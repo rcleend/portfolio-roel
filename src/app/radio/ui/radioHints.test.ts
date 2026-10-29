@@ -36,12 +36,12 @@ describe('radio hints', () => {
     expect(radioHintFor(progress, false)).toBeNull();
   });
 
-  it('words them for the input in use', () => {
-    expect(radioHintText('pick', 'mouse')).toBe('Click a CD to play it');
-    expect(radioHintText('pick', 'touch')).toBe('Tap a CD to play it');
-    expect(radioHintText('pick', 'keyboard')).toBe('Press Enter to play a CD');
-    expect(radioHintText('leave', 'mouse')).toBe('Click outside the radio to look around');
-    expect(radioHintText('leave', 'keyboard')).toBe('Press Escape to look around');
+  it('words them for the input in use, a heading and a line', () => {
+    expect(radioHintText('pick', 'mouse')).toEqual({ title: 'Pick a CD', body: 'Click one to play' });
+    expect(radioHintText('pick', 'touch')).toEqual({ title: 'Pick a CD', body: 'Tap one to play' });
+    expect(radioHintText('pick', 'keyboard')).toEqual({ title: 'Pick a CD', body: 'Press Enter to play' });
+    expect(radioHintText('leave', 'mouse')).toEqual({ title: 'Look around', body: 'Click anywhere outside the radio' });
+    expect(radioHintText('leave', 'keyboard')).toEqual({ title: 'Look around', body: 'Press Escape to get up' });
   });
 
   it('persists, ignores unknown or wrong fields and survives broken storage', () => {

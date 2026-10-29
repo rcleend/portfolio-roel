@@ -2,7 +2,7 @@ import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
 
 /**
  * Facts about the CD player on the cabinet (radio-base.glb, room.glb's `04_Drawer`, room revision 6) that the room
- * needs on its first load: where to click and where the hotspot points. Bounds are found at runtime. What frames the
+ * needs on its first load: where to click and where the radio sits on the page. Bounds are found at runtime. What frames the
  * open lid loads with the radio's deck (radioFraming.ts › LID_FRAMING).
  */
 
@@ -10,7 +10,7 @@ import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
 export const RADIO_INTERACTION_ID = 'radio-controls';
 const CABINET_NAME = '04_Drawer_surfaces';
 
-/** Where the hotspot and the edge chip point: the radio's front panel centre (world space, glTF metres). */
+/** The radio's `room.anchors` point: its front panel centre (world space, glTF metres). */
 export const RADIO_ANCHOR = new Vector3(1.015, 1.0, -1.865);
 
 export interface RadioModel {

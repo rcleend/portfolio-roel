@@ -10,7 +10,8 @@
 // - pcStill / PcExperience / RadioSlot / RadioExperience: the closure of each dynamic entry minus what the entry already
 //   loaded (their own chunks plus the chunks only they share), JS and CSS together;
 // - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
-//   and the room chunk it imports three from.
+//   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce) and posterWall;
+// - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
 // PcSlot, the glue that loads the computer's screen, is part of the entry; RadioSlot, the radio's, loads the first time
 // the camera leaves the TV. PcExperience, RadioSlot and RadioExperience must not
 // contain three.js (none of their files may be the room chunk or one it loads, nor carry three's names), and
@@ -34,6 +35,8 @@ const LAZY_CHUNKS = {
   RadioSlot: { source: 'src/app/radio/RadioSlot.tsx', three: 'none' },
   RadioExperience: { source: 'src/app/radio/RadioExperience.tsx', three: 'none' },
   posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
+  RoomGuide: { source: 'src/app/guide/RoomGuide.tsx', three: 'none' },
+  propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
 };
 
 const { budgets, baseline } = JSON.parse(readFileSync(join(ROOT, 'bundle-budgets.json'), 'utf8'));

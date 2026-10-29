@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
-import { postersShown, ROOM_PROGRAMS } from './programs';
+import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 import { audioRequests, sound, spyOnAudio, timePickToSound, waitAudible } from './radioAudio';
 
 /**
@@ -237,20 +237,21 @@ test('a CD picked while another plays takes its place, on the one element', asyn
 test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back to the TV', async ({ page }) => {
   await open(page);
   const host = hostElement(page);
+  await expect(page.locator('.look-around')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'room');
   await settled(page);
-  const hotspot = page.getByRole('button', { name: 'Play some music' });
-  for (let press = 0; press < 3; press++) await page.keyboard.press('Tab');
-  await expect(hotspot).toBeFocused();
+  const item = page.getByRole('button', { name: /^Music/ });
+  for (let press = 0; press < 2; press++) await page.keyboard.press('Tab');
+  await expect(item).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'radio');
   // Landed: the keyboard is on the first CD, ringed for a keyboard user.
   const cds = page.getByRole('toolbar', { name: 'CDs' });
   const nightShift = cds.getByRole('button', { name: 'Night Shift by Studio Attic, 2 tracks' });
   await expect(nightShift).toBeFocused({ timeout: 3000 });
-  await expect(nightShift).toHaveCSS('outline-color', 'rgb(255, 200, 61)');
+  await expect(nightShift).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   await expect(cds.getByRole('button', { name: /^Low Tide by Harbour Lights/ })).toBeFocused();
@@ -368,6 +369,7 @@ test.describe('performance', () => {
     await open(page);
     await lookAround(page);
     await postersShown(page, () => stats(page));
+    await spotlightIn(page, () => stats(page));
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
     // The computer first: still the pinned program count, the radio's own is not compiled yet.
     const pc = await anchor(page, 'pc');

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { trackErrors } from './helpers';
-import { postersShown, ROOM_PROGRAMS } from './programs';
+import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
 
@@ -20,6 +20,7 @@ async function atComputer(page: Page): Promise<void> {
   await page.evaluate(() => window.__roomLab?.room.showRoom());
   await page.waitForTimeout(1300);
   await postersShown(page, () => stats(page));
+  await spotlightIn(page, () => stats(page));
   await page.evaluate(() => window.__roomLab?.room.focusPc());
   await page.waitForFunction(() => window.__roomLab?.room.pc.live === true);
   // Past the live screen's 160 ms fade.

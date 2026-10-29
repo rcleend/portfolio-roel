@@ -90,7 +90,9 @@ test('review shots: og image', async ({ browser }) => {
   await page.mouse.click(30, 315);
   await page.waitForTimeout(1500);
   // A link preview is a poster, not a UI: no page chrome over the room.
-  await page.addStyleTag({ content: '.sound-toggle, .view-hint { display: none !important; }' });
+  await page.addStyleTag({
+    content: '.sound-toggle, .guide-pill, .overview, .prop-label { display: none !important; }',
+  });
   await page.screenshot({ path: join(OUT, 'og-image.png') });
   await context.close();
 });

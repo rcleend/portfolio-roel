@@ -1,6 +1,7 @@
 import {
   type KeyboardEvent,
   lazy,
+  type RefObject,
   Suspense,
   startTransition,
   useCallback,
@@ -11,8 +12,8 @@ import {
   useState,
 } from 'react';
 import type { Room, RoomView } from '@/room';
-import { RoomHotspots } from '../overlays/room-hotspots/RoomHotspots';
 import { PcSlot } from '../pc/PcSlot';
+import { whenIdle } from '../pc/whenIdle';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import type { HostProps } from './types';
@@ -34,6 +35,44 @@ const RadioSlot = lazy(() =>
   ),
 );
 
+/**
+ * The room's guide (docs/ART-DIRECTION.md › The room's UI: the TV's way out and its click-outside hint, the room
+ * view's overview and menu, the props' labels, the way up from the computer) leaves the first load: it is fetched at
+ * idle once the TV's picture is up, long before its first hint is due, and mounts only once it is in. The stage's own
+ * keys only play again (Enter in the room view) and get up (Escape at the computer or the radio), so the TV's way out
+ * is `WayOut`, in the first load, which stays exactly as long as the guide's own is not there.
+ */
+const RoomGuide = lazy(() => import('../guide/RoomGuide').then((module) => ({ default: module.RoomGuide })));
+
+/**
+ * The TV view's way out, with the same name the guide's hint wears: unseen until it takes keyboard focus, then a pill
+ * over the room. The guide's own, which also teaches the click outside, takes its place once it is in, so there is
+ * only ever one; `handOver` tells it to take the keyboard with it when it does.
+ */
+function WayOut({
+  view,
+  onLookAround,
+  handOver,
+}: {
+  readonly view: RoomView;
+  readonly onLookAround: () => void;
+  readonly handOver: RefObject<boolean>;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(
+    () => () => {
+      if (button.current !== null && document.activeElement === button.current) handOver.current = true;
+    },
+    [handOver],
+  );
+  if (view !== 'tv') return null;
+  return (
+    <button ref={button} type="button" className="way-out" onClick={onLookAround}>
+      Look around the room
+    </button>
+  );
+}
+
 declare global {
   interface Window {
     /** Development only: the room, so end-to-end tests can read its render stats. */
@@ -43,7 +82,7 @@ declare global {
 
 const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
   tv: "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks. The same content is in the résumé after this game.",
-  room: 'Paused, looking around the attic. Click the computer to read the résumé, the radio to play music, or the TV to play. Tab to reach them, or press Enter to return to the TV.',
+  room: 'Paused, looking around the attic. Click the computer to read the résumé, the radio to play music, or the TV to play. Tab to the menu to reach them, or press Enter to return to the TV.',
   pc: 'At the computer. Press Escape to return to the room.',
   radio:
     "At the CD player. Tab to the CDs and press Enter to play one, or to the player's own keys to pause, stop or skip a track. Press Escape to return to the room.",
@@ -60,7 +99,15 @@ export function RoomHost(props: HostProps) {
   return <AtticStage {...props} onUnavailable={() => setUnavailable(true)} />;
 }
 
-function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: HostProps & { onUnavailable(): void }) {
+function AtticStage({
+  surface,
+  scenes,
+  powered,
+  insets,
+  events,
+  muted,
+  onUnavailable,
+}: HostProps & { onUnavailable(): void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const screensRef = useRef<HTMLDivElement>(null);
   // One gate per surface; the room only ever sees the gated view.
@@ -74,6 +121,8 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
   const [tvOn, setTvOn] = useState(false);
   // The camera has rested away from the TV (or headed for the radio): the CD player's glue loads (see RadioSlot above).
   const [radioDue, setRadioDue] = useState(false);
+  // The TV's picture is up and the page idle: the guide loads (see RoomGuide above).
+  const [guideDue, setGuideDue] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
   const [keyboardFocus, setKeyboardFocus] = useState(false);
 
@@ -120,6 +169,16 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
     room.powerOn().then(poweredOn, (error: unknown) => console.error('TV failed to power on', error));
   }, [room, powered]);
 
+  useEffect(() => {
+    if (!tvOn || guideDue) return;
+    return whenIdle(() => {
+      import('../guide/RoomGuide').then(
+        () => startTransition(() => setGuideDue(true)),
+        (error: unknown) => console.warn("The room's guide failed to load", error),
+      );
+    });
+  }, [tvOn, guideDue]);
+
   // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
   // suspension and the commit), so it waits for the landing, out of the click and the flight, as a transition. The
   // slot does nothing until then anyway: its prefetch waits for a settled room and its load for the radio view.
@@ -136,6 +195,13 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
   // Stable, so a view change never re-renders the computer's screen or the radio's controls through their props.
   const focusStage = useCallback((): void => stageRef.current?.focus({ preventScroll: true }), []);
   const showRoom = useCallback(() => room?.showRoom(), [room]);
+  const lookAround = useCallback(() => {
+    room?.showRoom();
+    focusStage();
+  }, [room, focusStage]);
+  // The way out and the guide's hint are one control to the visitor: this notes a keyboard standing on the way out as
+  // the guide takes over, so the hint's own button takes the focus rather than dropping it.
+  const handOver = useRef(false);
 
   // Escape belongs to the game at the TV; at the computer or the radio it gets up again (also mid-flight,
   // or after a click on the bezel moved focus back here). In the room, Enter or Space plays again.
@@ -155,7 +221,9 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
     }
   };
 
-  // The screens, hotspots and the PC and radio slots are siblings of the stage, never children: events
+  const wayOut = room ? <WayOut view={view} onLookAround={lookAround} handOver={handOver} /> : null;
+
+  // The screens, the guide and the PC and radio slots are siblings of the stage, never children: events
   // from their portals must not bubble into the stage's handlers, and focus inside them leaves the
   // stage, which is what takes the keyboard away from the game.
   return (
@@ -185,7 +253,20 @@ function AtticStage({ surface, powered, insets, events, muted, onUnavailable }: 
         onKeyDown={onKeyDown}
       />
       <div ref={screensRef} className="room-host__screens" />
-      <RoomHotspots room={room} view={view} settled={settled} onActivate={focusStage} />
+      {room && guideDue ? (
+        <Suspense fallback={wayOut}>
+          <RoomGuide
+            room={room}
+            view={view}
+            settled={settled}
+            scenes={scenes}
+            handOver={handOver}
+            onFocusStage={focusStage}
+          />
+        </Suspense>
+      ) : (
+        wayOut
+      )}
       <PcSlot
         display={room?.pc ?? null}
         view={view}

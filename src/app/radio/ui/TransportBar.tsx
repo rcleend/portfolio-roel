@@ -3,7 +3,9 @@ import { nextRovingIndex } from '../../a11y/roving';
 import { useMediaQuery } from '../../useMediaQuery';
 import type { RadioDeck, RadioKey } from '../deck';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
+import { HintLines } from './HintLines';
 import { type Glyph, GlyphIcon } from './icons';
+import type { HintWords } from './radioHints';
 
 export interface TransportBarProps {
   readonly deck: RadioDeck;
@@ -11,7 +13,7 @@ export interface TransportBarProps {
   readonly snapshot: PlayerSnapshot;
   readonly onLeave: () => void;
   /** The radio's teaching line, where the now-playing line goes before anything plays. */
-  readonly hint?: string | null;
+  readonly hint?: HintWords | null;
 }
 
 /** A landscape phone has no height to spare: the bar becomes a rail down the right edge. */
@@ -103,10 +105,7 @@ export function TransportBar({ deck, player, snapshot, onLeave, hint = null }: T
               <span className="radio-bar__album">{snapshot.album.title}</span>
             </>
           ) : hint ? (
-            <>
-              <span className="radio__marker">▸</span>
-              {hint}
-            </>
+            <HintLines words={hint} />
           ) : null}
         </p>
       )}

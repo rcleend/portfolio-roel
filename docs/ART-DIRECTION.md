@@ -20,6 +20,27 @@ It should feel authentic first and polished second: chunky hand-placed pixels, l
 - The screen is a CRT: visible scanlines aligned to the 240 game rows, a subtle aperture-grille mask, slight horizontal softness, edge vignette, gentle bloom on bright pixels, faint glass reflection. The screen's light spills onto the nearby cabinet and wall, following the average screen colour.
 - When the camera pulls back to the room the game freezes and an on-screen-display style "PAUSE" glyph appears on the CRT.
 
+## The room's UI
+
+Everything around the TV's picture and the computer's screen (the click-outside hint, the sound toggle, the room view's overview and its labels, the CD player's controls) is one quiet system, so the arcade stays inside the screens: minimal and slightly playful, white type over the 3D room. Tokens live in `src/app/styles.css` (`--ui-*`).
+
+- **Type.** Headings in Chewy, white; everything else in Nunito 600 (800 for the menu and a track's name), white or 76 % white for the second line. Self-hosted, latin only (`@fontsource/chewy`, `@fontsource/nunito`), downloaded the first time something is set in them.
+- **Legibility.** No plates: a soft text shadow, and for small type a dark glass pill (`--ui-glass`, fully rounded, a soft lift shadow). The overview sits in a soft corner shade, never an edge.
+- **The overview** (room view, bottom left; a bottom card with a row of pills on an upright phone): the name stacked RO over EL in chunky Chewy, a gallery label for the room, "Childhood room, ca. 2007" over "Mixed media. Please touch.", and a three-item menu with line icons: Résumé (the computer), Music (the radio, only while it works) and Game (the TV). It arrives as the camera lands: the name pops up pair by pair (back-out), then the label and each item rise a beat apart; it fades out in 180 ms as the camera leaves.
+- **Spotlight.** Pointing at or focusing a menu item lights its prop, and pointing at a prop lights its item: the prop glows warm white outside its outline, plays a 520 ms squash-and-stretch about its foot, brightens a little, and its name pops up over it in Chewy (380 ms, back-out, from 0.6); the item takes a white pill and its icon hops (docs/ROOM.md › The spotlight). The pill is CSS on hover and focus too, so the menu answers before (or without) the room's spotlight. The pointer wins wherever it is: a prop under it lights before anything the menu asks for, and over the menu the item under it comes before the one the keyboard has — as it leaves, the keyboard's item lights its prop again. On the first look around, ever, the props light one by one with their items, cut short by a tap, a key, the wheel or the mouse moving on from where it rests — not by the place the browser re-sends for a pointer the view changed under.
+- **The click-outside hint.** Ten seconds after the title first shows, a visitor who has never left the TV gets a pill under it (over it on touch screens, where the pad has the bottom): a pictogram of a pointer gliding out of a little screen to click beside it, three times, then resting; "Look around" over "Click anywhere outside the TV" ("Tap" on touch). It is the TV's "Look around the room" button made visible (always there for the keyboard, shown on focus: the plain button is in the first load, the hint's pill comes with the guide), goes for good with the first look around, and for the visit once a level starts. At the computer, "Get up" over "Click anywhere outside the computer" teaches the way back the same way; at the radio, "Pick a CD" with a disc that turns once.
+- **The sound toggle.** A white line speaker on a round glass button; its waves ripple back in when the sound comes on, a cross pops in with a turn when it goes off.
+- **Focus.** A 2 px white ring, offset; forced colours get system colours and an outline round every pill.
+- **Motion.** Arrivals overshoot a little (`--ui-spring`), exits are quick fades; nothing loops for long. Under reduced motion nothing fades, travels, bounces or loops: things appear and go.
+
+| The overview, its Music item pointed at: the radio glows, holds its jelly and wears its name | On a phone held upright |
+| --- | --- |
+| ![The attic at night: RO over EL, the gallery label and the menu at the bottom left; the radio outlined in warm white with "Music" over it](room/ui-overview.webp) | ![The portrait room view with the name and label over the rug and a row of three pills](room/ui-phone.webp) |
+
+| The click-outside hint under the TV, ten seconds after the title |
+| --- |
+| ![A dark glass pill under the TV: a little screen with a pointer beside it, "Look around" over "Click anywhere outside the TV"](room/ui-hint.webp) |
+
 ## Boot — "ROEL" (homage to the Neo Geo MVS boot)
 
 Reference timing at 60 fps (t in seconds from the first boot frame):
