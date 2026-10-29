@@ -1,12 +1,12 @@
-/** The longest the loading screen waits for its faces before it shows in the fallbacks. */
+/** The longest the loading screen waits for its face before it shows in the fallback. */
 const FONT_WAIT_MS = 1500;
 
 let ready: Promise<void> | null = null;
 
 /**
- * Asks for the faces the loading screen sets its name and line in (Chewy, Nunito 600), so they download with the
- * first chunk instead of when the screen first paints them. Resolves when both are in, or after `FONT_WAIT_MS` on a
- * slow link, and never rejects; idempotent.
+ * Asks for the face the loading screen sets its word in (Chewy), so it downloads with the first chunk instead of when
+ * the screen first paints it. Resolves when it is in, or after `FONT_WAIT_MS` on a slow link, and never rejects;
+ * idempotent.
  */
 export function loadUiFonts(): Promise<void> {
   ready ??= new Promise<void>((resolve) => {
@@ -20,7 +20,7 @@ export function loadUiFonts(): Promise<void> {
       clearTimeout(timer);
       resolve();
     };
-    Promise.all([fonts.load('400 1em Chewy', 'ROEL'), fonts.load('600 1em Nunito')]).then(done, done);
+    fonts.load('400 1em Chewy', 'Loading...').then(done, done);
   });
   return ready;
 }

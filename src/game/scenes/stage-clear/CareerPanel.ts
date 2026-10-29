@@ -26,6 +26,8 @@ export interface CareerView {
   readonly timeline: StageClearTimeline;
   /** Index of the focused highlight row, or `null` when focus is elsewhere. */
   readonly focusedRow: number | null;
+  /** The focused row shows the hand (the keys drive the panel, not the pointer). */
+  readonly hand: boolean;
 }
 
 /**
@@ -116,7 +118,7 @@ export class CareerPanel {
     const focused = view.focusedRow === index;
     if (focused) {
       gfx.fillRect(rect.x, rect.y, rect.w, rect.h - 1, palette.violet);
-      gfx.sprite(this.#cursor, 'point', view.time, rect.x + 11, y + 4);
+      if (view.hand) gfx.sprite(this.#cursor, 'point', view.time, rect.x + 11, y + 4);
     }
     const flashing = row.fresh && view.time - revealAt < FLASH_SECONDS;
     if (flashing) gfx.fillRect(rect.x, rect.y, rect.w, rect.h - 1, palette.white);

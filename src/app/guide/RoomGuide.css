@@ -241,6 +241,11 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   font-size: 18px;
 }
 
+.look-around[data-touch="true"] .guide-pill__body {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .look-around[data-touch="true"] .click-outside {
   width: 36px;
   height: 24px;
@@ -648,12 +653,6 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   .guide-pill,
   .overview__item {
     border: 1px solid CanvasText;
-  }
-
-  /* A forced theme drops backgrounds: the rule is drawn in the text's colour. */
-  .overview__rule {
-    background: CanvasText;
-    forced-color-adjust: none;
   }
 }
 

@@ -28,18 +28,29 @@ const RELEASED: ActionState = { down: false, pressed: false, released: false };
 export class InputSnapshot<A extends string> {
   readonly pointer: PointerSnapshot;
   readonly lastDevice: InputDevice | null;
+  /**
+   * The visitor last used the pointer on the screen (moved it or pressed it there, a finger on the picture included),
+   * not a key, a gamepad or the touch pad's buttons: menus hide the hand that shows where the keys are.
+   */
+  readonly pointing: boolean;
   readonly #actions: ReadonlyMap<A, ActionState>;
 
-  constructor(actions: ReadonlyMap<A, ActionState>, pointer: PointerSnapshot, lastDevice: InputDevice | null) {
+  constructor(
+    actions: ReadonlyMap<A, ActionState>,
+    pointer: PointerSnapshot,
+    lastDevice: InputDevice | null,
+    pointing = false,
+  ) {
     this.#actions = actions;
     this.pointer = Object.freeze({ ...pointer });
     this.lastDevice = lastDevice;
+    this.pointing = pointing;
     Object.freeze(this);
   }
 
   /** A snapshot with nothing held or pressed. */
-  static empty<A extends string>(pointer: PointerSnapshot = IDLE_POINTER): InputSnapshot<A> {
-    return new InputSnapshot<A>(new Map(), pointer, null);
+  static empty<A extends string>(pointer: PointerSnapshot = IDLE_POINTER, pointing = false): InputSnapshot<A> {
+    return new InputSnapshot<A>(new Map(), pointer, null, pointing);
   }
 
   isDown(action: A): boolean {
@@ -67,7 +78,7 @@ export class InputSnapshot<A extends string> {
    * nothing can be triggered.
    */
   idle(): InputSnapshot<A> {
-    return InputSnapshot.empty<A>({ ...this.pointer, down: false, pressed: false, released: false });
+    return InputSnapshot.empty<A>({ ...this.pointer, down: false, pressed: false, released: false }, this.pointing);
   }
 
   #state(action: A): ActionState {

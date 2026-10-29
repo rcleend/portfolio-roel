@@ -27,6 +27,8 @@ export interface ArcadeState {
   readonly frame: number;
   readonly paused: boolean;
   readonly session: unknown;
+  /** The visitor last used the pointer on the screen, so menus hide their keyboard hand (`InputSnapshot.pointing`). */
+  readonly pointing: boolean;
 }
 
 declare global {
@@ -85,6 +87,7 @@ function createHarness(created: CreatedGame): ArcadeHarness {
       frame: game.frame,
       paused: game.paused,
       session: services.session.state,
+      pointing: game.input.pointing,
     }),
   };
 }

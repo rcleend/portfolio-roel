@@ -82,7 +82,7 @@ describe("the TV view's way out", () => {
     const scenes = director();
     const onLookAround = vi.fn();
     const button = render({ scenes, onLookAround });
-    expect(button.getAttribute('aria-label')).toBe('Tired of the game? Look around the room');
+    expect(button.getAttribute('aria-label')).toBe('Tired of playing? Look around the room');
     expect(button.dataset.shown).toBe('false');
     // The boot does not count.
     wait(LOOK_AROUND_HINT_DELAY_MS * 2);
@@ -92,7 +92,7 @@ describe("the TV view's way out", () => {
     expect(button.dataset.shown).toBe('false');
     wait(100);
     expect(button.dataset.shown).toBe('true');
-    expect(button.textContent).toBe('Tired of the game?Look around!');
+    expect(button.textContent).toBe('Tired of playing?Click outside the TV to explore');
     act(() => button.click());
     expect(onLookAround).toHaveBeenCalledOnce();
   });
@@ -141,8 +141,9 @@ describe("the TV view's way out", () => {
     expect(show().dataset.intro).toBe('false');
   });
 
-  it('marks itself for touch screens', () => {
+  it('speaks of taps on a touch screen', () => {
     const button = render({ scenes: director('title'), touch: true });
+    expect(button.textContent).toContain('Tap outside the TV to explore');
     expect(button.dataset.touch).toBe('true');
   });
 });

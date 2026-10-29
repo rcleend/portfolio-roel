@@ -12,10 +12,10 @@ export interface LoadingScreenProps {
 }
 
 /**
- * The first thing a visitor sees, in the room UI's own voice (docs/ART-DIRECTION.md › The room's UI): the name
- * stacked RO over EL in Chewy, filling with white from the bottom as the room downloads, over one line in Nunito.
- * It shows only after a short delay and once its faces are in, so a fast (cached) load goes straight from a dark page
- * to the TV without a flash of loading UI, and the name never swaps faces in front of the visitor.
+ * The first thing a visitor sees, in the room UI's own voice (docs/ART-DIRECTION.md › The room's UI): "Loading..." in
+ * white Chewy over a rounded white bar that fills with the real download, and nothing else. It shows only after a
+ * short delay and once Chewy is in, so a fast (cached) load goes straight from a dark page to the TV without a flash
+ * of loading UI, and the word never swaps faces in front of the visitor.
  */
 export function LoadingScreen({ progress, failed, leaving, onLeft }: LoadingScreenProps) {
   const fontsReady = useFontsReady();
@@ -37,25 +37,17 @@ export function LoadingScreen({ progress, failed, leaving, onLeft }: LoadingScre
         aria-valuenow={percent}
         aria-valuetext={failed ? 'Failed to load' : `${percent}%`}
       >
-        <p className="loading__name" aria-hidden="true" style={{ '--progress': clamp01(progress) } as CSSProperties}>
-          <span className="loading__ghost">
-            <span>RO</span>
-            <span>EL</span>
-          </span>
-          <span className="loading__fill">
-            <span>RO</span>
-            <span>EL</span>
-          </span>
+        <p className="loading__word" aria-hidden="true">
+          Loading...
         </p>
+        <span className="loading__bar" aria-hidden="true">
+          <span className="loading__fill" style={{ '--progress': clamp01(progress) } as CSSProperties} />
+        </span>
         {failed ? (
-          <p className="loading__line">
+          <p className="loading__failed">
             The room would not load. <a href="#resume">Read the résumé instead</a>.
           </p>
-        ) : (
-          <p className="loading__line" aria-hidden="true">
-            Tidying up my room…
-          </p>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -475,7 +475,7 @@ test('the keyboard alone reaches the résumé and the game', async ({ page }) =>
   await expect(stage(page)).toBeFocused();
 
   await page.keyboard.press('Tab');
-  const computer = page.getByRole('button', { name: /^Résumé/ });
+  const computer = page.getByRole('button', { name: 'About me (CV)' });
   await expect(computer).toBeFocused();
   await expect(computer).toBeVisible();
   await page.keyboard.press('Enter');
@@ -730,7 +730,7 @@ test.describe('on a phone', () => {
     await lookAround(page, () => page.touchscreen.tap(195, 90));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
-    const item = page.getByRole('button', { name: /^Résumé/ });
+    const item = page.getByRole('button', { name: 'About me (CV)' });
     await expect(item).toBeVisible();
     await item.tap();
     await advanceUntil(page, () => live(page));
@@ -771,7 +771,7 @@ test.describe('on a phone', () => {
     // The portrait room view crops the computer out: what only its flight draws is uploaded here.
     await untilIdle(page);
     const since = await page.evaluate(() => performance.now());
-    await page.getByRole('button', { name: /^Résumé/ }).tap();
+    await page.getByRole('button', { name: 'About me (CV)' }).tap();
     await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
     expect(await largeUploadsSince(page, since)).toBe(0);
   });
@@ -782,7 +782,7 @@ test.describe('on a phone', () => {
     test('takes taps on the menu only once the camera has settled in the room view', async ({ page }) => {
       await openRoom(page);
       await lookAround(page, () => page.touchscreen.tap(195, 90));
-      const item = page.getByRole('button', { name: /^Résumé/ });
+      const item = page.getByRole('button', { name: 'About me (CV)' });
       await item.tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
@@ -805,7 +805,7 @@ test.describe('on a phone', () => {
       await lookAround(page, () => page.touchscreen.tap(40, 120));
       const pc = await anchor(page, 'pc');
       if (pc.inFrame) await page.touchscreen.tap(pc.x, pc.y);
-      else await page.getByRole('button', { name: /^Résumé/ }).tap();
+      else await page.getByRole('button', { name: 'About me (CV)' }).tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
       await expect(page.locator('.pc-screen')).toHaveAttribute('data-pc-mode', 'pop-out');

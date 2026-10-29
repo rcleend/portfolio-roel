@@ -81,6 +81,8 @@ export class CharacterSelectScene implements GameScene {
   #chosenAt: number | null = null;
   #departed = false;
   #pointer: PointerSnapshot = IDLE_POINTER;
+  /** The visitor plays with the pointer: the hand that shows where the keys are stays away. */
+  #pointing = false;
   #hover: HitTarget | null = null;
 
   constructor(services: GameServices) {
@@ -115,6 +117,7 @@ export class CharacterSelectScene implements GameScene {
     for (const effect of result.effects) this.#apply(effect);
 
     this.#pointer = input.pointer;
+    this.#pointing = input.pointing;
     this.#hover = input.pointer.over ? hitTest(input.pointer.x, input.pointer.y) : null;
     this.#updateTooltip();
 
@@ -230,6 +233,8 @@ export class CharacterSelectScene implements GameScene {
   }
 
   #renderCursor(gfx: Gfx): void {
+    // The hand shows where the keys are: while the visitor plays with the pointer it stays away.
+    if (this.#pointing) return;
     const chosen = this.#chosenAt !== null;
     // Solid right after it moves so the eye can follow it, then the classic on/off blink.
     if (!chosen && !blink(this.#time - this.#focusedAt, frames(30), frames(10))) return;

@@ -30,6 +30,7 @@ export class InputManager<A extends string> {
   readonly #pointer = new PointerState();
   #previous = new Map<A, ActionState>();
   #lastDevice: InputDevice | null = null;
+  #pointing = false;
   #enabled = true;
 
   constructor(bindings: InputBindings<A>, options: InputManagerOptions = {}) {
@@ -44,6 +45,11 @@ export class InputManager<A extends string> {
 
   get enabled(): boolean {
     return this.#enabled;
+  }
+
+  /** The last input was the pointer on the screen rather than a key, a gamepad or a virtual button (`InputSnapshot.pointing`). */
+  get pointing(): boolean {
+    return this.#pointing;
   }
 
   /** Keyboard and gamepad only reach the game while enabled; pointer and virtual buttons are host-controlled. */
@@ -61,6 +67,7 @@ export class InputManager<A extends string> {
 
     const next = new Map<A, ActionState>();
     let device: InputDevice | null = null;
+    let keyed = false;
     for (const action of this.#actions) {
       const binding = this.#bindings[action];
       const boundKeys = binding.keys ?? [];
@@ -83,12 +90,19 @@ export class InputManager<A extends string> {
       const released = (wasDown && !down) || (!wasDown && !down && pressEdge) || repressed;
       next.set(action, { down, pressed, released });
 
-      if (pressed) device ??= keyPressed ? 'keyboard' : virtualPressed ? 'touch' : padDown ? 'gamepad' : null;
+      if (pressed) {
+        keyed = true;
+        device ??= keyPressed ? 'keyboard' : virtualPressed ? 'touch' : padDown ? 'gamepad' : null;
+      }
     }
+    // A key, a gamepad button or a virtual button pressed this step brings the keyboard's hand back; else any pointer
+    // activity on the screen (a move or a press) puts it away.
+    if (keyed) this.#pointing = false;
+    else if (pointerActive) this.#pointing = true;
     if (pointer.pressed || (pointerActive && device === null && pointer.down)) device ??= 'pointer';
     if (device) this.#lastDevice = device;
     this.#previous = next;
-    return new InputSnapshot(next, pointer, this.#lastDevice);
+    return new InputSnapshot(next, pointer, this.#lastDevice, this.#pointing);
   }
 
   dispose(): void {

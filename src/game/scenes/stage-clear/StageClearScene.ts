@@ -66,6 +66,8 @@ export class StageClearScene implements GameScene<StageClearParams> {
   #timeline: StageClearTimeline = stageClearTimeline(0, 0);
   #cues: readonly Cue[] = [];
   #options: readonly Option[] = [];
+  /** The visitor plays with the pointer: no hand on the focused row (CareerPanel). */
+  #pointing = false;
   #focus: ClearFocus = { area: 'buttons', index: 0 };
   #finale: Finale | null = null;
   #newRecord = false;
@@ -117,6 +119,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
     const previous = this.#time;
     this.#time += step.dt;
     const { input } = step;
+    this.#pointing = input.pointing;
     if (this.#leaving) return;
 
     if (this.#time < this.#timeline.settled) {
@@ -176,6 +179,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
       time: t,
       timeline,
       focusedRow: t >= timeline.settled && this.#focus.area === 'rows' ? this.#focus.index : null,
+      hand: !this.#pointing,
     });
     if (t >= timeline.settled) for (const { button } of this.#options) button.render(gfx);
     this.#detail.render(gfx);

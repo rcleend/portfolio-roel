@@ -35,13 +35,13 @@ test('the menu reaches the computer the portrait room view crops out', async ({ 
   const pad = page.locator('.touchpad');
   await page.touchscreen.tap(195, 90);
   await page.waitForTimeout(1300);
-  const item = page.getByRole('button', { name: /^Résumé/ });
+  const item = page.getByRole('button', { name: 'About me (CV)' });
   await expect(item).toBeVisible();
   const box = await item.boundingBox();
   expect(box?.width).toBeGreaterThanOrEqual(44);
   expect(box?.height).toBeGreaterThanOrEqual(44);
-  // A thumb's reach: the menu stands in the bottom quarter of the screen.
-  expect(box?.y ?? 0).toBeGreaterThan(844 * 0.75);
+  // A thumb's reach: along the bottom of the screen.
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(844 - 80);
 
   await item.tap();
   await expect(host).toHaveAttribute('data-view', 'pc');

@@ -55,9 +55,10 @@ async function drawn(name: string): Promise<Cursor> {
 }
 
 /**
- * The game's menu hand, its resting frame. The fingertip is the end of the finger the
- * sheet's origin points from: the opaque column nearest the origin, at the middle of its
- * run, on the edge facing the origin.
+ * The game's menu hand, its resting frame, turned a quarter to the left so it points up, as
+ * a pointer does. The fingertip is the end of the finger the sheet's origin points from: the
+ * opaque column nearest the origin, at the middle of its run, on the edge facing the origin;
+ * turned, the top edge of that pixel.
  */
 async function gameHand(): Promise<Cursor> {
   const { palette, size, animations } = handCursorSheet;
@@ -70,18 +71,20 @@ async function gameHand(): Promise<Cursor> {
   const tipX = columns.reduce((best, x) => (Math.abs(x + 0.5 - origin.x) < Math.abs(best + 0.5 - origin.x) ? x : best));
   const run = rest.map((_, y) => y).filter((y) => opaque(tipX, y));
   const tipY = run[Math.floor(run.length / 2)] ?? 0;
+  // A quarter turn to the left: column x of the sheet becomes row (w - 1 - x), row y becomes column y.
+  const up = (x: number, y: number): string => rest[x]?.[size.w - 1 - y] ?? TRANSPARENT_KEY;
   const hotspot = {
-    x: tipX * GAME_HAND_SCALE + (origin.x > tipX ? GAME_HAND_SCALE - 1 : 0),
-    y: tipY * GAME_HAND_SCALE + Math.floor(GAME_HAND_SCALE / 2),
+    x: tipY * GAME_HAND_SCALE + Math.floor(GAME_HAND_SCALE / 2),
+    y: (size.w - 1 - tipX) * GAME_HAND_SCALE + (origin.x > tipX ? 0 : GAME_HAND_SCALE - 1),
   };
 
   const raster = (scale: number): Promise<Buffer> => {
-    const width = size.w * scale;
-    const height = size.h * scale;
+    const width = size.h * scale;
+    const height = size.w * scale;
     const data = Buffer.alloc(width * height * 4);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const key = rest[Math.floor(y / scale)]?.[Math.floor(x / scale)] ?? TRANSPARENT_KEY;
+        const key = up(Math.floor(x / scale), Math.floor(y / scale));
         const colour = palette[key];
         if (key === TRANSPARENT_KEY || !colour) continue;
         const { r, g, b, a } = parseHex(colour);

@@ -20,7 +20,7 @@ export const LOOK_AROUND_HINT_DELAY_MS = 7000;
 /**
  * The TV view's way out (docs/ART-DIRECTION.md › The room's UI). Always a button, first after the stage in tab order,
  * hidden until it has keyboard focus; seven seconds after the title first shows on this page it appears as a pill
- * under the TV (over it on touch screens, where the pad has the bottom), "Tired of the game?" over "Look around!",
+ * under the TV (over it on touch screens, where the pad has the bottom), "Tired of playing?" over "Click outside the TV to explore" ("Tap" on touch screens),
  * and from then on it is there whenever the camera rests on the TV. Clicking it flies to the room, as a click beside
  * the TV does. Its pictogram clicks beside a little screen the first time only, so a returning visitor finds it quiet.
  */
@@ -39,13 +39,13 @@ export function LookAround({ onLookAround, shown, intro, touch, handOver }: Look
       data-shown={shown}
       data-intro={intro}
       data-touch={touch}
-      aria-label="Tired of the game? Look around the room"
+      aria-label="Tired of playing? Look around the room"
       onClick={onLookAround}
     >
       <ClickOutsideIcon screen="tv" />
       <span className="guide-pill__words" aria-hidden="true">
-        <span className="guide-pill__title">Tired of the game?</span>
-        <span className="guide-pill__body">Look around!</span>
+        <span className="guide-pill__title">Tired of playing?</span>
+        <span className="guide-pill__body">{touch ? 'Tap' : 'Click'} outside the TV to explore</span>
       </span>
     </button>
   );

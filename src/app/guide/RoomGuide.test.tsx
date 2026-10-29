@@ -125,12 +125,7 @@ describe('the overview menu', () => {
   beforeEach(() => {
     window.localStorage.clear();
     // The tour has played on an earlier visit: the menu alone lights the props.
-    saveGuideProgress(window.localStorage, {
-      lookedAround: true,
-      visitedComputer: false,
-      leftComputer: false,
-      toured: true,
-    });
+    saveGuideProgress(window.localStorage, { toured: true });
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);

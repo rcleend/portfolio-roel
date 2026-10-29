@@ -173,7 +173,7 @@ test('the keyboard reaches the computer and the TV without the mouse', async ({ 
   await page.waitForTimeout(1300);
 
   await page.keyboard.press('Tab');
-  const computer = page.getByRole('button', { name: 'Résumé.exe', exact: true });
+  const computer = page.getByRole('button', { name: 'About me (CV)', exact: true });
   await expect(computer).toHaveAccessibleDescription('Read it at the computer.');
   await expect(computer).toBeFocused();
   await expect(computer).toBeVisible();
@@ -191,7 +191,7 @@ test('the keyboard reaches the computer and the TV without the mouse', async ({ 
   await expect(host).toHaveAttribute('data-view', 'room');
   await page.waitForTimeout(1300);
   for (let press = 0; press < 3; press++) await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Back to game', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Play game', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'tv');
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
@@ -208,16 +208,16 @@ test('pointing at a prop lights it, labels it and lights its menu item; the menu
   await page.mouse.move(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit?.target)).toBe('tv');
   await expect(page.locator('.prop-label')).toHaveAttribute('data-shown', 'true');
-  await expect(page.locator('.prop-label')).toHaveText('Back to game');
+  await expect(page.locator('.prop-label')).toHaveText('Play game');
   await expect(page.locator('.overview__item[data-target="tv"]')).toHaveAttribute('data-lit', 'true');
   // The label stands over the TV.
   const label = await page.locator('.prop-label__word').boundingBox();
   expect(Math.abs((label?.x ?? 0) + (label?.width ?? 0) / 2 - TV_IN_ROOM_VIEW.x)).toBeLessThan(80);
   expect(label?.y ?? 0).toBeLessThan(TV_IN_ROOM_VIEW.y);
 
-  await page.getByRole('button', { name: /^Résumé/ }).hover();
+  await page.getByRole('button', { name: 'About me (CV)' }).hover();
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit?.target)).toBe('pc');
-  await expect(page.locator('.prop-label')).toHaveText('Résumé.exe');
+  await expect(page.locator('.prop-label')).toHaveText('About me (CV)');
   await page.mouse.move(WALL.x, WALL.y);
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit ?? null)).toBeNull();
   await expect(page.locator('.prop-label')).toHaveAttribute('data-shown', 'false');
@@ -233,7 +233,7 @@ test('a prop under the pointer comes before the menu item the keyboard has', asy
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
   await page.waitForTimeout(1300);
   await page.keyboard.press('Tab');
-  const resume = page.getByRole('button', { name: 'Résumé', exact: true });
+  const resume = page.getByRole('button', { name: 'About me (CV)', exact: true });
   await expect(resume).toBeFocused();
   const lit = () => page.evaluate(() => window.__room?.spotlight.lit?.target ?? null);
   await expect.poll(lit).toBe('pc');
@@ -302,7 +302,7 @@ test('shows the way out seven seconds after the title, and whenever the visitor 
   await page.clock.runFor(1_000);
   await expect(popup).toHaveAttribute('data-shown', 'true');
   await expect(popup).toHaveAttribute('data-intro', 'true');
-  await expect(popup).toHaveText('Tired of the game?Look around!');
+  await expect(popup).toHaveText('Tired of playing?Click outside the TV to explore');
   // It is a way out itself.
   await popup.click();
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
