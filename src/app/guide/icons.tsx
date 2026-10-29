@@ -26,20 +26,13 @@ export function PropIcon({ target }: { readonly target: RoomTarget }) {
  * The click-outside pictogram: a little screen, and a pointer leaving it to click the space beside it. The pointer
  * glides out and clicks, a ring spreads from the click, a few times over (RoomGuide.css), then rests outside.
  */
-export function ClickOutsideIcon({ screen }: { readonly screen: 'tv' | 'pc' }) {
+export function ClickOutsideIcon() {
   return (
     <svg className="click-outside" viewBox="0 0 36 24" aria-hidden="true" focusable="false">
-      {screen === 'tv' ? (
-        <path
-          className="click-outside__screen"
-          d="M3.5 5h13a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM7 21h6"
-        />
-      ) : (
-        <path
-          className="click-outside__screen"
-          d="M3 3.5h14a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 17 16.5H3A1.5 1.5 0 0 1 1.5 15V5A1.5 1.5 0 0 1 3 3.5zM10 16.5v3M6.5 20.5h7"
-        />
-      )}
+      <path
+        className="click-outside__screen"
+        d="M3.5 5h13a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM7 21h6"
+      />
       <circle className="click-outside__ring" cx="27.5" cy="10.5" r="5" />
       <path className="click-outside__pointer" d="M27.5 10.5v9.2l2.3-2.2 1.6 3.6 1.7-.8-1.6-3.5 3.2-.2z" />
     </svg>

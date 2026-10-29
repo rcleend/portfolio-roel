@@ -32,6 +32,9 @@ export function BackButton({ due, onBack }: BackButtonProps) {
       aria-keyshortcuts="Escape"
       tabIndex={shown ? 0 : -1}
       onClick={onBack}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onBack();
+      }}
     >
       <svg className="guide-icon back-button__arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M19 12H5.5M11 5.5 4.5 12l6.5 6.5" />

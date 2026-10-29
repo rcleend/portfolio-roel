@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, phase, scene, trackErrors, waitForRunning } from './helpers';
 
@@ -329,6 +330,16 @@ test('the computer and the radio have a way back to the room, by pointer and by 
   await expect(host).toHaveAttribute('data-view', 'pc');
   await expect(back).toBeVisible({ timeout: 5_000 });
   await expect(back).toHaveAttribute('aria-keyshortcuts', 'Escape');
+  // The key on its own keycap, pressed while the button holds the focus.
+  await back.focus();
+  await page.keyboard.press('Escape');
+  await expect(host).toHaveAttribute('data-view', 'room');
+  await expect(back).toBeHidden();
+
+  await page.waitForTimeout(1300);
+  await page.mouse.click(PC_IN_ROOM_VIEW.x, PC_IN_ROOM_VIEW.y);
+  await expect(host).toHaveAttribute('data-view', 'pc');
+  await expect(back).toBeVisible({ timeout: 5_000 });
   await back.click();
   await expect(host).toHaveAttribute('data-view', 'room');
   await expect(back).toBeHidden();
@@ -401,31 +412,59 @@ test('the keyboard reaches the radio from the room view', async ({ page }) => {
   await expect(host).toHaveAttribute('data-view', 'room');
 });
 
+/**
+ * The image and the hotspot the engine resolved out of a computed `cursor` value: its fallback list split on the
+ * commas outside image-set()/url(), then the two numbers after the entry that draws `name`'s PNG. `undefined` when
+ * nothing in the list draws it. src/app/cursors/hotspots.json is scripts/build-cursors.ts's output contract.
+ */
+function resolvedHotspot(cursor: string, name: string): string | undefined {
+  const entries: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let at = 0; at < cursor.length; at++) {
+    const char = cursor[at];
+    if (char === '(') depth++;
+    else if (char === ')') depth--;
+    else if (char === ',' && depth === 0) {
+      entries.push(cursor.slice(start, at));
+      start = at + 1;
+    }
+  }
+  entries.push(cursor.slice(start));
+  // The leading slash keeps "hand" off "game-hand"; the suffixes allow the 2x image and a hashed build name.
+  const draws = new RegExp(`/${name}(@2x)?(-[\\w]+)?\\.png`);
+  const entry = entries.find((candidate) => draws.test(candidate));
+  return entry?.slice(entry.lastIndexOf(')') + 1).trim();
+}
+
 test("the pointer hides until the mouse moves, then wears the room's own cursors", async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const root = page.locator('html');
   const canvas = page.locator('[data-host] canvas');
   const drawn = () => canvas.evaluate((element) => getComputedStyle(element).cursor);
+  /** The hotspot the engine resolved under the pointer, as "x y"; undefined when that image is not the cursor. */
+  const pointsAt = async (name: keyof typeof hotspots) => resolvedHotspot(await drawn(), name);
+  const generated = (name: keyof typeof hotspots) => `${hotspots[name].x} ${hotspots[name].y}`;
   await expect(root).toHaveAttribute('data-pointer', 'hidden');
   expect(await drawn()).toBe('none');
-  // Over the TV's picture (the middle of the 1440 × 900 TV view): the game's own menu hand.
+  // Over the TV's picture (the middle of the 1440 × 900 TV view): the game's own menu hand, at its fingertip.
   await page.mouse.move(716, 376);
   await page.mouse.move(720, 380);
   await expect(root).not.toHaveAttribute('data-pointer');
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
-  expect(await drawn()).toContain('game-hand');
+  expect(await pointsAt('game-hand')).toBe(generated('game-hand'));
   // Beside the TV a click leaves it: the leave cursor.
   await page.mouse.move(WALL.x, WALL.y);
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('leave');
-  expect(await drawn()).toContain('leave');
+  expect(await pointsAt('leave')).toBe(generated('leave'));
   // In the room view a prop is a hand, the rest the room's arrow.
   await page.mouse.click(WALL.x, WALL.y);
   await page.waitForTimeout(1300);
   await page.mouse.move(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('enter');
-  expect(await drawn()).toContain('hand');
+  expect(await pointsAt('hand')).toBe(generated('hand'));
   await page.mouse.move(WALL.x, 120);
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('idle');
-  expect(await drawn()).toContain('arrow');
+  expect(await pointsAt('arrow')).toBe(generated('arrow'));
 });

@@ -60,6 +60,7 @@
     <noscript>
       <style>
         /* The pointer waits for the first mouse move, which only the app can see. */
+        html[data-pointer="hidden"],
         html[data-pointer="hidden"] * {
           /* biome-ignore lint/complexity/noImportantStyles: must beat the app stylesheet's own !important hiding. */
           cursor: auto !important;

@@ -42,7 +42,7 @@ export function LookAround({ onLookAround, shown, intro, touch, handOver }: Look
       aria-label="Tired of playing? Look around the room"
       onClick={onLookAround}
     >
-      <ClickOutsideIcon screen="tv" />
+      <ClickOutsideIcon />
       <span className="guide-pill__words" aria-hidden="true">
         <span className="guide-pill__title">Tired of playing?</span>
         <span className="guide-pill__body">{touch ? 'Tap' : 'Click'} outside the TV to explore</span>
