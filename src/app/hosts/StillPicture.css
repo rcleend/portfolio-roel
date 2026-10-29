@@ -1,6 +1,10 @@
-/* The game on the startup still, inside the still's element (TvStill.css), which fades both out as one. */
+/* The game on the startup still, inside the still's element (index.html), which fades both out as one. */
 .still-picture {
   position: absolute;
+  top: var(--picture-top);
+  left: var(--picture-left);
+  width: var(--picture-width);
+  height: var(--picture-height);
   overflow: hidden;
   border-radius: 1.2% / 1.6%;
   background: #000;
@@ -39,11 +43,7 @@
 .still-picture__scanlines {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0 calc(var(--row) * 0.62),
-    rgb(0 0 0 / 0.16) calc(var(--row) * 0.62) var(--row)
-  );
+  background: linear-gradient(transparent 62%, rgb(0 0 0 / 0.16) 62%) 0 0 / 100% calc(100% / var(--rows));
   pointer-events: none;
 }
 

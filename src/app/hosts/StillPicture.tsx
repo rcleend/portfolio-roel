@@ -1,8 +1,7 @@
 import { type CSSProperties, type PointerEvent, useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import { box, TV_STILL_ID } from '../startup/TvStill';
-import { useStillPlacement } from '../startup/useStillPlacement';
+import { TV_STILL_ID } from '../startup/TvStill';
 import { REDUCED_MOTION, useMediaQuery } from '../useMediaQuery';
 import { toNativePixels } from './integerScale';
 import './StillPicture.css';
@@ -23,7 +22,6 @@ export interface StillPictureProps {
  * motion), and takes the pointer until the room is in to take it itself.
  */
 export function StillPicture({ surface, powered, onLit, passThrough }: StillPictureProps) {
-  const { picture } = useStillPlacement();
   const screen = useRef<HTMLDivElement>(null);
   const reduced = useMediaQuery(REDUCED_MOTION);
   const lit = useEffectEvent(onLit);
@@ -58,7 +56,7 @@ export function StillPicture({ surface, powered, onLit, passThrough }: StillPict
       data-powered={powered}
       data-pass-through={passThrough}
       aria-hidden="true"
-      style={{ ...box(picture), '--row': `${picture.height / surface.height}px` } as CSSProperties}
+      style={{ '--rows': surface.height } as CSSProperties}
       onAnimationEnd={(event) => {
         if (event.target === event.currentTarget && powered) lit();
       }}

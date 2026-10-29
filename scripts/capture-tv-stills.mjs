@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Development-only: renders the startup stills (src/app/startup/tvStills.ts, docs/ROOM.md › Startup) from the room
-// itself: the TV view at each still's reference viewport, the tube lit on a black picture, no UI.
+// Development-only: renders the startup stills (index.html › .tv-still, docs/ROOM.md › Startup) from the room itself:
+// the TV view at each still's reference viewport, the tube lit on a black picture, no UI.
 //   node scripts/capture-tv-stills.mjs
-// Writes public/startup/tv-*.webp and prints each picture's rect for tvStills.ts. Uses the GPU (ANGLE/Metal) like
-// room-shots.mjs; CHROMIUM_PATH picks a browser binary. Re-run whenever the room, the TV or its framing changes.
+// Writes public/startup/tv-*.webp and prints each picture's rect, which index.html's .tv-still lengths are made of.
+// Uses the GPU (ANGLE/Metal) like room-shots.mjs; CHROMIUM_PATH picks a browser binary. Re-run whenever the room, the
+// TV or its framing changes.
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';

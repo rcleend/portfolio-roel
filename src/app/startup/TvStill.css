@@ -1,55 +1,16 @@
-/*
- * The startup still (docs/ROOM.md › Startup): over the room's stage, under the game's picture and all the room's UI.
- * It goes as the live scene takes over, with the picture laid over it, in one cross-fade.
- */
-.tv-still {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
-  overflow: hidden;
-  background: #0c0a14;
-  transition:
-    opacity 400ms ease,
-    visibility 0s 400ms;
-  pointer-events: none;
-}
-
-.tv-still[data-shown="false"] {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.tv-still__image {
-  position: absolute;
-  display: block;
-  max-width: none;
-  user-select: none;
-}
-
+/* The still itself is styled in index.html, so it paints before any stylesheet. */
 .tv-still__failed {
-  position: absolute;
+  position: fixed;
   right: 16px;
   bottom: max(24px, env(safe-area-inset-bottom));
   left: 16px;
+  z-index: 6;
   margin: 0;
   color: var(--ui-ink-soft);
   font: 600 15px / 1.35 var(--ui-body);
   text-align: center;
-  pointer-events: auto;
 }
 
 .tv-still__failed a {
   color: var(--ui-ink);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tv-still {
-    transition: none;
-  }
-}
-
-@media print {
-  .tv-still {
-    display: none;
-  }
 }

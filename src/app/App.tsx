@@ -51,7 +51,7 @@ export function App({ loading, host, config }: AppProps) {
         Skip to résumé
       </a>
       {created ? <Arcade created={created} host={host} config={config} startup={startup} dispatch={dispatch} /> : null}
-      {still || failed ? <TvStill shown={startup.still || failed} failed={failed} /> : null}
+      <TvStill shown={(still && startup.still) || failed} failed={failed} />
       <Resume />
     </>
   );

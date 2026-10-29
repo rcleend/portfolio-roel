@@ -14,10 +14,6 @@
     <meta name="color-scheme" content="dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <!-- The startup still for this viewport's framing (src/app/startup/tvStills.ts), the first picture on the page. -->
-    <link rel="preload" as="image" type="image/webp" href="/startup/tv-desktop.webp" fetchpriority="high" media="(orientation: landscape) and (min-height: 545px)" />
-    <link rel="preload" as="image" type="image/webp" href="/startup/tv-landscape.webp" fetchpriority="high" media="(orientation: landscape) and (max-height: 544.98px)" />
-    <link rel="preload" as="image" type="image/webp" href="/startup/tv-portrait.webp" fetchpriority="high" media="(orientation: portrait)" />
 
     <!-- Social previews. og:image is root-relative until the site's public origin is known. -->
     <meta property="og:type" content="profile" />
@@ -69,6 +65,9 @@
           /* biome-ignore lint/complexity/noImportantStyles: must beat the app stylesheet's own !important hiding. */
           cursor: auto !important;
         }
+        .tv-still {
+          display: none;
+        }
         .noscript {
           max-width: 40rem;
           margin: 12vh auto;
@@ -101,6 +100,91 @@
         </p>
       </main>
     </noscript>
+    <!--
+      The startup still (docs/ROOM.md › Startup): the room's own TV view, rendered by scripts/capture-tv-stills.mjs at
+      one viewport per framing and placed here as the room will frame it (room/tv/tvFraming.ts), so it is the first
+      picture on the page, before any script. The app lays the game's picture into it and fades it out as the live
+      room takes over. Each framing's lengths are the capture's, in units of its container (the viewport):
+      - set (landscape, tall enough for the whole set): fitted to the height and centred; 1440 × 608 at capture.
+      - landscape (a phone on its side): the picture fills the height between the pad's clusters; 900 × 390.
+      - portrait: the picture spans the width, centred above the touch pad's 202 px (or in the whole height); 390 × 900.
+    -->
+    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true">
+      <picture>
+        <source media="(orientation: portrait)" srcset="/startup/tv-portrait.webp" />
+        <source media="(max-height: 544.98px)" srcset="/startup/tv-landscape.webp" />
+        <img class="tv-still__image" src="/startup/tv-desktop.webp" alt="" fetchpriority="high" />
+      </picture>
+    </div>
+    <style>
+      .tv-still {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        overflow: hidden;
+        background: #0c0a14;
+        container-type: size;
+        pointer-events: none;
+        transition: opacity 400ms ease, visibility 0s 400ms;
+        --picture-left: calc(50cqw - 36.788cqh);
+        --picture-top: 14.549cqh;
+        --picture-width: 73.573cqh;
+        --picture-height: 55.145cqh;
+      }
+      .tv-still[data-shown="false"] {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .tv-still__image {
+        position: absolute;
+        top: 0;
+        left: calc(50cqw - 118.421cqh);
+        display: block;
+        height: 100cqh;
+        user-select: none;
+      }
+      @media (orientation: landscape) and (max-height: 544.98px) {
+        .tv-still {
+          --picture-left: calc(50cqw - 67.705cqh);
+          --picture-top: 0.1cqh;
+          --picture-width: 133.615cqh;
+          --picture-height: 99.8cqh;
+        }
+        .tv-still__image {
+          left: calc(50cqw - 115.385cqh);
+        }
+      }
+      @media (orientation: portrait) {
+        .tv-still {
+          --pad: 0px;
+          --picture-left: 0.1cqw;
+          --picture-top: calc(50cqh - var(--pad) / 2 - 37.528cqw);
+          --picture-width: 99.8cqw;
+          --picture-height: 75.056cqw;
+        }
+        .tv-still__image {
+          top: calc(50cqh - var(--pad) / 2 - 89.487cqw);
+          left: 0;
+          width: 100cqw;
+          height: auto;
+        }
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        .tv-still {
+          --pad: calc(202px + env(safe-area-inset-bottom, 0px));
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tv-still {
+          transition: none;
+        }
+      }
+      @media print {
+        .tv-still {
+          display: none;
+        }
+      }
+    </style>
     <div id="root"></div>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>

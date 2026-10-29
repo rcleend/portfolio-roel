@@ -486,7 +486,12 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 .socials__glyph {
   width: 18px;
   height: 18px;
-  fill: currentcolor;
+  background: currentcolor;
+  mask: var(--glyph) center / contain no-repeat;
+}
+
+/* The shadow goes on the item: a mask would clip one on the mark itself. */
+.socials > li {
   filter: drop-shadow(0 1px 2px rgb(6 4 14 / 0.6));
 }
 
