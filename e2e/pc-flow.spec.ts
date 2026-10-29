@@ -201,8 +201,6 @@ async function recordRunning(page: Page): Promise<void> {
   });
 }
 
-const runningAt = (page: Page) => page.evaluate(() => (window as unknown as { __runningAt: number }).__runningAt);
-
 const untilReader = (page: Page) => advanceUntil(page, async () => (await pcState(page)) === 'reader');
 /** The focused element's outline style: the document pane's focus ring is its outline. */
 const focusRing = (page: Page) =>
