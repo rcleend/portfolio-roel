@@ -19,17 +19,11 @@ export function Socials({ style }: { readonly style?: CSSProperties }) {
     <ul className="socials" aria-label="Roel elsewhere" style={style}>
       {socials.map(({ kind, network, href }) => (
         <li key={kind}>
-          <a
-            className="socials__link"
-            data-network={kind}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer me"
-            aria-label={`${network} (opens in a new tab)`}
-          >
+          <a className="socials__link" data-network={kind} href={href} target="_blank" rel="noopener noreferrer me">
             <svg className="socials__glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d={GLYPHS[kind]} />
             </svg>
+            <span className="guide-hidden">{network} (opens in a new tab)</span>
           </a>
         </li>
       ))}

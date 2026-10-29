@@ -35,17 +35,18 @@
 .touchpad__cluster--buttons {
   --cap: calc(15 * var(--px));
   --gap: 10px;
-  --row: calc(16 * var(--px) + 18px);
+  --row: calc(16 * var(--px) + 10px);
   --stagger: calc(7 * var(--px));
   width: calc(2 * var(--cap) + var(--gap) + var(--stagger));
   height: calc(2 * var(--row));
 }
 
+/* START and its word side by side: a short row that keeps clear of the face buttons. */
 .touchpad__cluster--start {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding: 6px 10px 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
 }
 
 .touchpad svg {
@@ -55,7 +56,10 @@
 
 /* ── Layout: portrait band along the bottom ── */
 
-/* A banded dark plate under the controls, so they read as a controller rather than stickers on the room. */
+/*
+ * A banded dark plate under the controls, so they read as a controller rather than stickers on the room. START sits
+ * over the d-pad, as it does on its side: the face buttons have the right half to themselves, whatever the width.
+ */
 .touchpad--bottom::before {
   content: "";
   position: absolute;
@@ -72,7 +76,7 @@
 
 .touchpad--bottom .touchpad__cluster--dpad {
   left: calc(18px + var(--safe-left));
-  bottom: calc(46px + var(--safe-bottom));
+  bottom: calc(30px + var(--safe-bottom));
 }
 
 .touchpad--bottom .touchpad__cluster--buttons {
@@ -81,9 +85,8 @@
 }
 
 .touchpad--bottom .touchpad__cluster--start {
-  left: 50%;
-  bottom: calc(14px + var(--safe-bottom));
-  transform: translateX(-50%);
+  left: calc(18px + var(--safe-left) + 7 * var(--px) - 10px);
+  bottom: calc(30px + 29 * var(--px) + 12px + var(--safe-bottom));
 }
 
 /* ── Layout: landscape, the clusters flank the TV ── */
@@ -100,7 +103,7 @@
 
 .touchpad--sides .touchpad__cluster--start {
   left: calc(22px + var(--safe-left) + 7 * var(--px) - 10px);
-  bottom: calc(44px + 29 * var(--px) + 14px);
+  bottom: calc(44px + 29 * var(--px) + 12px);
 }
 
 /* ── D-pad ── */
@@ -226,6 +229,10 @@
 
 .cap-glint {
   fill: #fff;
+}
+
+.cap-letter {
+  fill: rgb(7 6 15 / 0.8);
 }
 
 /* ── START ── */

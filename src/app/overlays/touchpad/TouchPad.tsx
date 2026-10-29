@@ -1,7 +1,16 @@
 import { type MouseEvent, type PointerEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { PadPresses } from './PadPresses';
 import type { PadActionMap, PadButtonId, PadDirection } from './padActions';
-import { BUTTON_SIZE, buttonArt, DPAD_SIZE, dpadArt, START_SIZE, startArt } from './padArt';
+import {
+  BUTTON_SIZE,
+  type ButtonLetter,
+  buttonArt,
+  DPAD_SIZE,
+  dpadArt,
+  letterArt,
+  START_SIZE,
+  startArt,
+} from './padArt';
 import type { Insets } from './padGeometry';
 import { dpadDirections, hitsButton, hitsRect, NO_INSETS, type PadLayout, padInsets } from './padGeometry';
 import './TouchPad.css';
@@ -20,16 +29,17 @@ type ControlKey = PadButtonId | `dpad-${PadDirection}`;
 
 interface FaceButton {
   readonly id: Exclude<PadButtonId, 'start'>;
-  readonly label: string;
+  /** The gamepad button it stands in for (padActions.ts), printed on it so the four read apart without colour. */
+  readonly letter: ButtonLetter;
   readonly tone: string;
 }
 
-/** Neo Geo order and colours: A red, B yellow, C green, D blue. */
+/** Neo Geo colours, gamepad letters: jump the red A, attack the yellow X, the skills the green Y and the blue B. */
 const FACE_BUTTONS: readonly FaceButton[] = [
-  { id: 'jump', label: 'Jump', tone: 'red' },
-  { id: 'attack', label: 'Attack', tone: 'yellow' },
-  { id: 'skill1', label: 'Skill 1', tone: 'green' },
-  { id: 'skill2', label: 'Skill 2', tone: 'blue' },
+  { id: 'jump', letter: 'A', tone: 'red' },
+  { id: 'attack', letter: 'X', tone: 'yellow' },
+  { id: 'skill1', letter: 'Y', tone: 'green' },
+  { id: 'skill2', letter: 'B', tone: 'blue' },
 ];
 
 const DIRECTIONS: readonly PadDirection[] = ['up', 'down', 'left', 'right'];
@@ -197,8 +207,8 @@ export function TouchPad<A extends string>({ actions, sink, visible, layout, onI
                   <path className="cap-glint" d={buttonArt.glint} />
                 </>
               )}
+              <path className="cap-letter" d={letterArt[button.letter][held.has(button.id) ? 'held' : 'up']} />
             </svg>
-            <span className="pad-label">{button.label}</span>
           </div>
         ))}
       </div>

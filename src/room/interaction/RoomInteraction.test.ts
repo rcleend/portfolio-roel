@@ -284,4 +284,43 @@ describe('room target picking', () => {
     expect(press()).toBe(false);
     interaction.dispose();
   });
+
+  it('ignores the clicks of the pointer types it is asked to, but not the gestures a target owns', () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const onMiss = vi.fn();
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss,
+      idleCursor: () => 'idle',
+      isEnabled: () => true,
+      ignoresClick: (pointerType) => pointerType === 'touch',
+    });
+    const geometry = new BoxGeometry(1, 1, 1);
+    const material = new MeshBasicMaterial();
+    const tv = new Mesh(geometry, material);
+    tv.updateMatrixWorld();
+    const activate = vi.fn();
+    const pointerDown = vi.fn(() => true);
+    interaction.register({ id: 'tv', object: tv, cursor: () => 'play', activate, pointerDown, pointerUp: () => {} });
+    const tap = (x: number, pointerType: string) => {
+      for (const type of ['pointerdown', 'pointerup']) {
+        canvas.dispatchEvent(
+          new PointerEvent(type, { pointerId: 1, isPrimary: true, button: 0, clientX: x, clientY: 100, pointerType }),
+        );
+      }
+    };
+    tap(10, 'touch');
+    expect(onMiss).not.toHaveBeenCalled();
+    tap(100, 'touch');
+    expect(pointerDown).toHaveBeenCalledOnce();
+    tap(10, 'mouse');
+    expect(onMiss).toHaveBeenCalledOnce();
+    interaction.dispose();
+    geometry.dispose();
+    material.dispose();
+  });
 });

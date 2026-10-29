@@ -15,10 +15,18 @@ const PAD_TONES: Readonly<Record<PadButton, readonly [face: string, shade: strin
 
 type PadButton = Exclude<PadGlyph, 'dpad' | 'start'>;
 
-/** The letter each pad button carries, so the four read apart without their colours (the gamepad's own). */
-export const PAD_LETTERS: Readonly<Record<PadButton, string>> = { red: 'A', yellow: 'X', green: 'Y', blue: 'B' };
+/**
+ * The letter each pad button carries, so the four read apart without their colours (the gamepad's own), in the same
+ * 5 × 5 pixels the touch pad prints on its caps (app/overlays/touchpad/padArt.ts).
+ */
+const PAD_LETTERS: Readonly<Record<PadButton, readonly string[]>> = {
+  red: ['.###.', '#...#', '#####', '#...#', '#...#'],
+  yellow: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+  green: ['#...#', '.#.#.', '..#..', '..#..', '..#..'],
+  blue: ['####.', '#...#', '####.', '#...#', '####.'],
+};
 /** The pad's body, lifted a step so it holds on the hints' dark strip, its highlight and its arrows. */
-const PAD_BODY = { body: '#3d3866', light: '#5d5790', arrow: '#c9c1ff' } as const;
+const PAD_BODY = { body: '#5d5790', light: '#8f86c9', arrow: '#ffffff' } as const;
 const START_WIDTH = 15;
 
 /** Width of the key cap `drawKeyCap` would draw. */
@@ -34,7 +42,7 @@ export function keyCapWidth(gfx: Gfx, label: KeyCapLabel, style: TextStyle): num
 export function drawKeyCap(gfx: Gfx, x: number, y: number, label: KeyCapLabel, style: TextStyle): number {
   const width = keyCapWidth(gfx, label, style);
   if ('pad' in label) {
-    drawPadGlyph(gfx, x, y, label.pad, style);
+    drawPadGlyph(gfx, x, y, label.pad);
     return width;
   }
   gfx.fillRect(x + 1, y, width - 2, HEIGHT, COLORS.outline);
@@ -80,13 +88,15 @@ function drawArrow(gfx: Gfx, cx: number, cy: number, direction: 'left' | 'right'
 }
 
 /** One of the touch pad's controls at a key cap's height: the d-pad, a round lettered button in its colour, or Start. */
-function drawPadGlyph(gfx: Gfx, x: number, y: number, glyph: PadGlyph, style: TextStyle): void {
+function drawPadGlyph(gfx: Gfx, x: number, y: number, glyph: PadGlyph): void {
   if (glyph === 'dpad') drawDpad(gfx, x, y);
   else if (glyph === 'start') drawStart(gfx, x, y);
   else {
     drawButton(gfx, x, y, PAD_TONES[glyph]);
-    const ink = { ...style, fill: COLORS.ink, outline: undefined, shadow: undefined };
-    gfx.text(PAD_LETTERS[glyph], x + Math.floor(HEIGHT / 2) + 1, y + 2, ink, { align: 'center' });
+    PAD_LETTERS[glyph].forEach((row, dy) => {
+      for (let dx = 0; dx < row.length; dx++)
+        if (row[dx] === '#') gfx.fillRect(x + 3 + dx, y + 3 + dy, 1, 1, COLORS.ink);
+    });
   }
 }
 
@@ -129,7 +139,7 @@ function drawButton(gfx: Gfx, x: number, y: number, [face, shade, light]: readon
     const inset = row === 1 || row === HEIGHT - 2 ? 2 : 1;
     gfx.fillRect(x + from + inset, y + row, width - inset * 2, 1, row >= HEIGHT - 3 ? shade : face);
   });
-  gfx.fillRect(x + 2, y + 2, 1, 1, light);
+  gfx.fillRect(x + 2, y + 2, 2, 1, light);
 }
 
 /** The pad's Start: a small dark pill with a lit top edge, centred on the key cap's row. */

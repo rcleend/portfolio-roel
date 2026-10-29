@@ -124,6 +124,30 @@ export const buttonArt = {
   pressedFace: pixelPath(rows(BUTTON_SIZE, BUTTON_SIZE + 1, pressedFace)),
 } as const;
 
+/** The gamepad letter each face button carries (the in-game hints draw the same), 5 × 5 pixels. */
+export type ButtonLetter = 'A' | 'B' | 'X' | 'Y';
+
+const LETTERS: Readonly<Record<ButtonLetter, readonly string[]>> = {
+  A: ['.###.', '#...#', '#####', '#...#', '#...#'],
+  B: ['####.', '#...#', '####.', '#...#', '####.'],
+  X: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+  Y: ['#...#', '.#.#.', '..#..', '..#..', '..#..'],
+};
+const LETTER_AT = BUTTON_CENTRE - 2;
+
+/** A letter in the middle of a cap, and the same a pixel lower for the pressed cap. */
+function letter(glyph: ButtonLetter, dy: number): string {
+  const pixels = LETTERS[glyph];
+  return pixelPath(rows(BUTTON_SIZE, BUTTON_SIZE + 1, (x, y) => pixels[y - LETTER_AT - dy]?.[x - LETTER_AT] === '#'));
+}
+
+export const letterArt: Readonly<Record<ButtonLetter, { readonly up: string; readonly held: string }>> = {
+  A: { up: letter('A', 0), held: letter('A', 1) },
+  B: { up: letter('B', 0), held: letter('B', 1) },
+  X: { up: letter('X', 0), held: letter('X', 1) },
+  Y: { up: letter('Y', 0), held: letter('Y', 1) },
+};
+
 // ── START capsule ─────────────────────────────────────────────────────────
 
 export const START_SIZE = { w: 15, h: 6 } as const;
