@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
+import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
 import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 import { audioRequests, sound, spyOnAudio, timePickToSound, waitAudible } from './radioAudio';
 
@@ -494,7 +494,7 @@ test.describe('on a phone', () => {
 
   test('a tap on the cabinet opens the radio with a bar of keys that also press the model', async ({ page }) => {
     await open(page);
-    await page.touchscreen.tap(195, 90);
+    await tapWayOut(page);
     await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
     await settled(page);
     const radio = await anchor(page, 'radio');
@@ -532,7 +532,7 @@ test.describe('on a phone', () => {
 
   test("the visit's first tap on a CD picks it without flashing its caption", async ({ page }) => {
     await open(page);
-    await page.touchscreen.tap(195, 90);
+    await tapWayOut(page);
     await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
     await settled(page);
     await goToRadio(page, true);
@@ -541,7 +541,7 @@ test.describe('on a phone', () => {
       const record = window as unknown as { __plate: [number, number][]; __finger: Record<string, number> };
       record.__plate = [];
       record.__finger = {};
-      const canvas = document.querySelector('canvas');
+      const canvas = document.querySelector('.room-host canvas');
       for (const type of ['pointerdown', 'pointerup']) {
         canvas?.addEventListener(
           type,
@@ -586,7 +586,7 @@ test.describe('on a phone', () => {
 
     test('the bar becomes a rail down the right edge', async ({ page }) => {
       await open(page);
-      await page.touchscreen.tap(60, 60);
+      await tapWayOut(page);
       await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
       await settled(page);
       await goToRadio(page, true);

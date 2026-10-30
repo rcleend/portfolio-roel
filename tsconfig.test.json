@@ -7,5 +7,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "scripts/glslMinify.ts", "scripts/**/*.test.ts"]
+  "include": ["src", "scripts/glslMinify.ts", "scripts/pngSlim.ts", "scripts/**/*.test.ts"]
 }

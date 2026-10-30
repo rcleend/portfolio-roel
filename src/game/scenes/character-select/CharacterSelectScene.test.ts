@@ -67,7 +67,7 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
     levelArt: {} as LevelArtLibrary,
     session,
     rng: new Rng(1),
-    settings: { reducedMotion: false },
+    settings: { reducedMotion: false, touchControls: false },
     openLink: () => {},
   };
   director.goTo('characterSelect');

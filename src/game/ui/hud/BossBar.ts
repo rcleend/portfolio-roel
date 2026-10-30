@@ -18,17 +18,25 @@ const HEIGHT = 7;
 const BOTTOM = 236;
 /** How far the dark strip behind the bar reaches above it. */
 const STRIP = 15;
-/** The top of the strip once the bar has risen into place: the screen rows from here down are the HUD's. */
-export const BOSS_BAR_TOP = BOTTOM - HEIGHT - STRIP;
-
-/** The top of the strip `age` seconds after the bar appeared: it rises from below the screen, overshoots and settles. */
-export function bossBarTop(age: number): number {
-  return barY(age) - STRIP;
+/**
+ * The top of the strip once the bar has risen into place, on a screen whose bottom `lift` rows are taken (the control
+ * hints'): the screen rows from here down are the HUD's.
+ */
+export function bossBarSettledTop(lift = 0): number {
+  return BOTTOM - lift - HEIGHT - STRIP;
 }
 
-/** The escalated customer's frustration, as a segmented arcade boss bar along the bottom of the screen. */
-export function drawBossBar(gfx: Gfx, text: TextStyles, state: BossBarState): void {
-  const y = barY(state.age);
+/** The top of the strip `age` seconds after the bar appeared: it rises from below, overshoots and settles. */
+export function bossBarTop(age: number, lift = 0): number {
+  return barY(age, lift) - STRIP;
+}
+
+/**
+ * The escalated customer's frustration, as a segmented arcade boss bar along the bottom of the screen, `lift` rows
+ * up: on the control hints, which are drawn over its strip.
+ */
+export function drawBossBar(gfx: Gfx, text: TextStyles, state: BossBarState, lift = 0): void {
+  const y = barY(state.age, lift);
   const x = Math.round((gfx.width - WIDTH) / 2);
   // A dark strip behind the bar, like the control hints, keeps it legible over the busy street.
   const top = y - STRIP;
@@ -48,7 +56,7 @@ export function drawBossBar(gfx: Gfx, text: TextStyles, state: BossBarState): vo
 }
 
 /** The top of the bar itself: it rises 24 px with a bounce over its first 0.35 s. */
-function barY(age: number): number {
+function barY(age: number, lift: number): number {
   const rise = segment(age, 0, 0.35, easeOutBack);
-  return Math.round(BOTTOM + 24 - rise * 24) - HEIGHT;
+  return Math.round(BOTTOM - lift + 24 - rise * 24) - HEIGHT;
 }

@@ -23,4 +23,14 @@ describe('key labels', () => {
     expect(keyCapFor('skill1', 'gamepad')).toEqual({ text: 'Y' });
     expect(keyCapFor('pause', 'gamepad')).toEqual({ text: 'START' });
   });
+
+  it("shows the touch pad's own controls on a touch screen", () => {
+    expect(keyCapFor('left', 'touch')).toEqual({ pad: 'dpad' });
+    expect(keyCapFor('right', 'touch')).toEqual({ pad: 'dpad' });
+    expect(keyCapFor('jump', 'touch')).toEqual({ pad: 'red' });
+    expect(keyCapFor('attack', 'touch')).toEqual({ pad: 'yellow' });
+    expect(keyCapFor('skill1', 'touch')).toEqual({ pad: 'green' });
+    expect(keyCapFor('skill2', 'touch')).toEqual({ pad: 'blue' });
+    expect(keyCapFor('pause', 'touch')).toEqual({ pad: 'start' });
+  });
 });

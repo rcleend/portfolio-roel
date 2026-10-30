@@ -51,8 +51,15 @@ export class Television {
     return this.crt.contentRect;
   }
 
-  /** LED first, then the CRT turn-on; resolves once the picture is up. */
-  powerOn(): Promise<void> {
+  /**
+   * LED first, then the CRT turn-on; resolves once the picture is up. `instant`: LED and picture at once, for a game
+   * the page already showed on the startup still (docs/ROOM.md › Startup).
+   */
+  powerOn(instant = false): Promise<void> {
+    if (instant) {
+      this.led.set(true);
+      return this.crt.powerOn(true);
+    }
     if (this.crt.powerState !== 'off') return this.crt.powerOn();
     this.startingUp ??= (async () => {
       this.led.set(true);

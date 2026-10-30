@@ -1,48 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_STARTUP, loadingProgress, type StartupEvent, type StartupState, startupReducer } from './startup';
+import { INITIAL_STARTUP, type StartupEvent, type StartupState, startupReducer } from './startup';
 
 const run = (...events: StartupEvent[]): StartupState => events.reduce(startupReducer, INITIAL_STARTUP);
 
 describe('startupReducer', () => {
-  it('walks loading → revealing → powering → running in order', () => {
-    const loaded = run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'room' });
-    expect(loaded).toMatchObject({ phase: 'revealing', host: 'room' });
-    expect(startupReducer(loaded, { type: 'revealed' }).phase).toBe('powering');
-    expect(
-      run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'flat' }, { type: 'revealed' }, { type: 'poweredOn' }),
-    ).toMatchObject({ phase: 'running', host: 'flat' });
+  it('walks loading → powering → running on the game alone, the still up throughout', () => {
+    expect(INITIAL_STARTUP).toMatchObject({ phase: 'loading', still: true });
+    expect(run({ type: 'gameLoaded' })).toMatchObject({ phase: 'powering', still: true });
+    expect(run({ type: 'gameLoaded' }, { type: 'poweredOn' })).toMatchObject({ phase: 'running', still: true });
   });
 
-  it('waits for the game before revealing', () => {
-    expect(run({ type: 'hostReady', host: 'room' }).phase).toBe('loading');
+  it('keeps the still until the room hands over, and drops it for a flat host', () => {
+    const room = run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'room' }, { type: 'poweredOn' });
+    expect(room).toMatchObject({ host: 'room', still: true });
+    expect(startupReducer(room, { type: 'stillDone' })).toMatchObject({ phase: 'running', still: false });
+    expect(run({ type: 'hostReady', host: 'flat' })).toMatchObject({ phase: 'loading', host: 'flat', still: false });
   });
 
-  it('ignores power and reveal events that arrive out of order', () => {
+  it('ignores power events that arrive out of order', () => {
     expect(run({ type: 'poweredOn' }).phase).toBe('loading');
-    expect(run({ type: 'revealed' }).phase).toBe('loading');
-    const powering = run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'room' }, { type: 'revealed' });
-    expect(startupReducer(powering, { type: 'revealed' })).toBe(powering);
+    const running = run({ type: 'gameLoaded' }, { type: 'poweredOn' });
+    expect(startupReducer(running, { type: 'gameLoaded' })).toBe(running);
   });
 
   it('fails only while loading', () => {
     expect(run({ type: 'gameFailed' }).phase).toBe('failed');
-    expect(run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'flat' }, { type: 'gameFailed' }).phase).toBe(
-      'revealing',
-    );
-  });
-});
-
-describe('loadingProgress', () => {
-  it('weights the room download over the game assets and never runs backwards', () => {
-    expect(loadingProgress(INITIAL_STARTUP)).toBe(0);
-    const half = run({ type: 'gameLoaded' }, { type: 'hostProgress', fraction: 0.5 });
-    expect(loadingProgress(half)).toBeCloseTo(0.12 + 0.88 * 0.5);
-    expect(loadingProgress(startupReducer(half, { type: 'hostProgress', fraction: 0.2 }))).toBeCloseTo(0.56);
-  });
-
-  it('clamps bogus fractions and is full once revealed', () => {
-    expect(loadingProgress(run({ type: 'hostProgress', fraction: Number.NaN }))).toBe(0);
-    expect(loadingProgress(run({ type: 'hostProgress', fraction: 7 }))).toBeCloseTo(0.88);
-    expect(loadingProgress(run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'room' }))).toBe(1);
+    expect(run({ type: 'gameLoaded' }, { type: 'gameFailed' }).phase).toBe('powering');
   });
 });

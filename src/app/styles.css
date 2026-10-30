@@ -16,6 +16,9 @@
   /* An overshooting arrival (ease-out-back) and a quick settle (ease-out-quint). */
   --ui-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ui-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* The top row on a touch screen: the sound toggle and the TV's way out, one height on one line. */
+  --ui-top-row: max(12px, env(safe-area-inset-top));
+  --ui-top-row-height: 44px;
 }
 
 html,

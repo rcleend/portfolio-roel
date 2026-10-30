@@ -51,7 +51,7 @@ describe('room target picking', () => {
       canvas,
       camera,
       onMiss,
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => enabled,
     });
     const geometry = new BoxGeometry(1, 1, 1);
@@ -63,8 +63,8 @@ describe('room target picking', () => {
     pc.updateMatrixWorld();
     const pcClick = vi.fn();
     const tvClick = vi.fn();
-    interaction.register({ id: 'pc', object: pc, cursor: () => 'zoom-in', activate: pcClick });
-    const removeTv = interaction.register({ id: 'tv', object: tv, cursor: () => 'default', activate: tvClick });
+    interaction.register({ id: 'pc', object: pc, cursor: () => 'enter', activate: pcClick });
+    const removeTv = interaction.register({ id: 'tv', object: tv, cursor: () => 'idle', activate: tvClick });
     const click = (x: number) => clickAt(canvas, x);
     click(100);
     expect(tvClick).toHaveBeenCalledTimes(1);
@@ -93,7 +93,7 @@ describe('room target picking', () => {
       canvas,
       camera,
       onMiss: () => {},
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => true,
       background: queue(tasks),
     });
@@ -103,7 +103,7 @@ describe('room target picking', () => {
     interaction.register({
       id: 'desk',
       object: sphere,
-      cursor: () => 'zoom-in',
+      cursor: () => 'enter',
       activate: (hit) => hits.push(hit.object),
     });
     expect(tasks).toHaveLength(1);
@@ -133,7 +133,7 @@ describe('room target picking', () => {
       canvas,
       camera,
       onMiss: () => {},
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => true,
       background: queue(tasks),
     });
@@ -141,7 +141,7 @@ describe('room target picking', () => {
     const box = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
     box.updateMatrixWorld();
     const boxClicks = vi.fn();
-    interaction.register({ id: 'box', object: box, cursor: () => 'default', activate: boxClicks });
+    interaction.register({ id: 'box', object: box, cursor: () => 'idle', activate: boxClicks });
     const anchor = new Object3D();
     let distance = 2;
     const intersect = vi.fn(() => ({ hit: { object: anchor, point: new Vector3(), uv: null }, distance }));
@@ -154,7 +154,7 @@ describe('room target picking', () => {
       id: 'radio',
       object: big,
       intersect,
-      cursor: () => 'pointer',
+      cursor: () => 'press',
       activate,
       pointerDown,
       pointerMove: (hit) => moves.push(hit?.object ?? null),
@@ -163,10 +163,12 @@ describe('room target picking', () => {
     // Only the box is queued for cutting; the custom target's meshes are never collected.
     expect(tasks).toHaveLength(1);
     canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 100 }));
-    expect(canvas.style.cursor).toBe('pointer');
+    expect(canvas.dataset.cursor).toBe('press');
+    // Drawn as the page's own cursor for it, else the stock one.
+    expect(canvas.style.cursor).toBe('var(--room-cursor-press, pointer)');
     distance = 9;
     canvas.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 100 }));
-    expect(canvas.style.cursor).toBe('default');
+    expect(canvas.dataset.cursor).toBe('idle');
     distance = 2;
     vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
     canvas.dispatchEvent(
@@ -212,7 +214,7 @@ describe('room target picking', () => {
       canvas: stageCanvas(),
       camera: new PerspectiveCamera(),
       onMiss: () => {},
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => true,
       background: queue(tasks),
     });
@@ -220,7 +222,7 @@ describe('room target picking', () => {
     const unregister = interaction.register({
       id: 'desk',
       object: sphere,
-      cursor: () => 'zoom-in',
+      cursor: () => 'enter',
       activate: () => {},
     });
     unregister();
@@ -238,13 +240,13 @@ describe('room target picking', () => {
       canvas,
       camera,
       onMiss: () => {},
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => true,
       onHover: (interactable) => hovers.push(interactable?.id ?? null),
     });
     const tv = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
     tv.updateMatrixWorld();
-    interaction.register({ id: 'tv', object: tv, cursor: () => 'zoom-in', activate: () => {} });
+    interaction.register({ id: 'tv', object: tv, cursor: () => 'enter', activate: () => {} });
     canvas.dispatchEvent(
       new PointerEvent('pointermove', { pointerId: 1, pointerType: 'mouse', clientX: 100, clientY: 100 }),
     );
@@ -266,7 +268,7 @@ describe('room target picking', () => {
       canvas,
       camera,
       onMiss,
-      idleCursor: () => 'default',
+      idleCursor: () => 'idle',
       isEnabled: () => true,
       keepsFocus: () => keep,
     });
@@ -281,5 +283,44 @@ describe('room target picking', () => {
     keep = false;
     expect(press()).toBe(false);
     interaction.dispose();
+  });
+
+  it('ignores the clicks of the pointer types it is asked to, but not the gestures a target owns', () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const onMiss = vi.fn();
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss,
+      idleCursor: () => 'idle',
+      isEnabled: () => true,
+      ignoresClick: (pointerType) => pointerType === 'touch',
+    });
+    const geometry = new BoxGeometry(1, 1, 1);
+    const material = new MeshBasicMaterial();
+    const tv = new Mesh(geometry, material);
+    tv.updateMatrixWorld();
+    const activate = vi.fn();
+    const pointerDown = vi.fn(() => true);
+    interaction.register({ id: 'tv', object: tv, cursor: () => 'play', activate, pointerDown, pointerUp: () => {} });
+    const tap = (x: number, pointerType: string) => {
+      for (const type of ['pointerdown', 'pointerup']) {
+        canvas.dispatchEvent(
+          new PointerEvent(type, { pointerId: 1, isPrimary: true, button: 0, clientX: x, clientY: 100, pointerType }),
+        );
+      }
+    };
+    tap(10, 'touch');
+    expect(onMiss).not.toHaveBeenCalled();
+    tap(100, 'touch');
+    expect(pointerDown).toHaveBeenCalledOnce();
+    tap(10, 'mouse');
+    expect(onMiss).toHaveBeenCalledOnce();
+    interaction.dispose();
+    geometry.dispose();
+    material.dispose();
   });
 });

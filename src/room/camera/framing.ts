@@ -82,6 +82,20 @@ export function frameSubject(request: FramingRequest): CameraPose {
   return { position, target: position.clone().addScaledVector(basis.forward, far) };
 }
 
+/** Where `points` land on the viewport (NDC) seen from `pose` with a vertical fov of `fovY` degrees. */
+export function projectedBounds(
+  points: readonly Vector3[],
+  pose: CameraPose,
+  up: Vector3,
+  fovY: number,
+  aspect: number,
+): NdcRegion {
+  const basis = makeBasis(pose.target.clone().sub(pose.position), up);
+  const tanY = Math.tan(MathUtils.degToRad(fovY) / 2);
+  const { minX, maxX, minY, maxY } = project(points, pose.position, basis, tanY * aspect, tanY);
+  return { left: minX, right: maxX, bottom: minY, top: maxY };
+}
+
 function centredPose(
   points: readonly Vector3[],
   centre: Vector3,

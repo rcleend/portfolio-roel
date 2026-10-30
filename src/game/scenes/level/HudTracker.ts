@@ -2,7 +2,7 @@ import { approach } from '@/engine/math/scalar';
 import { MAX_HEARTS } from '../../entities/player/Player';
 import type { BossBarState } from '../../ui/hud/BossBar';
 import type { HudState } from '../../ui/hud/Hud';
-import { keyCapFor } from '../../ui/hud/keyLabels';
+import { type ControlDevice, keyCapFor } from '../../ui/hud/keyLabels';
 import type { World } from '../../world/World';
 
 const NEVER = Number.NEGATIVE_INFINITY;
@@ -43,7 +43,7 @@ export class HudTracker {
     if (boss) this.#bossTrail = approach(this.#bossTrail, boss.frustration / boss.tuning.frustration, dt * TRAIL_DRAIN);
   }
 
-  hud(world: World, time: number, device: 'keyboard' | 'gamepad'): HudState {
+  hud(world: World, time: number, device: ControlDevice): HudState {
     return {
       characterId: world.player.characterId,
       hearts: world.player.hearts,

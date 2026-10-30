@@ -14,7 +14,7 @@ Writes:
   phone's antenna), which everything the game shows above a customer clears.
 - src/game/art/looks/terraria/customer-concepts/<id>.png + .json: each concept in one frame of `shout` and
   `happy`, its `head` the crown. The concepts are not a look: only the development lineup shows them
-  (?scene=lineup&params={"cast":"customers"}) and the playground's Terraria customers board.
+  (?scene=lineup&params={"cast":"customers"}).
 Python 3.9+ and Pillow only; the same code writes the same bytes, which is what --check relies on.
 """
 from __future__ import annotations

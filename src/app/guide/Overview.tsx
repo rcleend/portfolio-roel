@@ -4,6 +4,7 @@ import { lastInputWasKeyboard } from '../a11y/inputModality';
 import { PropIcon } from './icons';
 import type { Presence } from './presence';
 import { PROP_NAMES } from './propNames';
+import { Socials } from './Socials';
 
 export interface OverviewProps {
   /** Arriving or leaving (presence.ts). */
@@ -32,7 +33,8 @@ const ITEMS: readonly { readonly target: RoomTarget; readonly does: string }[] =
 
 /**
  * The room view's title card (docs/ART-DIRECTION.md › The room's UI): the name stacked RO over EL in Chewy, a
- * gallery label for the room, and a three-item menu to the résumé, the music and the game. Pointing at or focusing an
+ * line saying what the room is, a three-item menu to the résumé, the music and the game, and the quick links to Roel's
+ * profiles elsewhere. Pointing at or focusing an
  * item lights its prop in the room, and pointing at a prop lights its item, so the two read as one.
  */
 export function Overview({
@@ -62,8 +64,7 @@ export function Overview({
         <span style={order(1)}>EL</span>
       </p>
       <p className="overview__label" style={order(2)}>
-        <span className="overview__title">Childhood room, ca. 2007</span>
-        <span className="overview__note">Mixed media. Please touch.</span>
+        <span className="overview__title">A glimpse into my past</span>
       </p>
       <ul className="overview__menu">
         {items.map(({ target, does }, index) => (
@@ -89,6 +90,7 @@ export function Overview({
           </li>
         ))}
       </ul>
+      <Socials style={order(3 + items.length)} />
     </nav>
   );
 }

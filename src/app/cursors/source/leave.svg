@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" data-hotspot="4 3">
+  <title>The room's back-to-the-room cursor</title>
+  <!--
+    "Click to leave this view and go back to the room": the room's arrow (arrow.svg, unchanged, so the pointer doesn't
+    jump when it turns into this one) with a round badge at its heel holding a bold back arrow, white and ink like
+    the arrow, so it still points as precisely. The hotspot (data-hotspot) is the arrow's tip.
+  -->
+  <defs>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#06040e" flood-opacity="0.4"/>
+    </filter>
+    <path id="arrow" d="M5 4.5v11.25l2.7-2.6 2.1 4.7 2.15-1-2.1-4.5 3.5-.2z"/>
+  </defs>
+  <g filter="url(#lift)" stroke-linejoin="round">
+    <use href="#arrow" fill="#0e0b1c" stroke="#0e0b1c" stroke-width="5"/>
+    <use href="#arrow" fill="#fff" stroke="#fff" stroke-width="2"/>
+    <circle cx="22" cy="22" r="6.75" fill="#fff" stroke="#0e0b1c" stroke-width="1.5"/>
+    <!-- ←, its shaft on the pixel grid. -->
+    <path d="M21.5 19 18.5 22l3 3M18.5 22h7" fill="none" stroke="#0e0b1c" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

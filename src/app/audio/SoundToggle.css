@@ -1,20 +1,20 @@
 /* A white line speaker on a round dark glass button: the room UI's own, legible over any part of the room. */
 .sound-toggle {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
+  top: var(--ui-top-row);
   right: max(12px, env(safe-area-inset-right));
   z-index: 20;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: var(--ui-top-row-height);
+  height: var(--ui-top-row-height);
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: var(--ui-glass);
   box-shadow: var(--ui-lift);
   color: var(--ui-ink);
-  cursor: pointer;
+  cursor: var(--ui-cursor-hand, pointer);
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 160ms ease,

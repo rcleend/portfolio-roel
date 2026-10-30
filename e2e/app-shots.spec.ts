@@ -6,7 +6,7 @@ import { GPU_LAUNCH_ARGS } from './gpu';
 
 /**
  * Visual review sheet, not a regression test: `APP_SHOTS=1 pnpm e2e app-shots`
- * writes loading, power-on, TV and room screenshots for each target viewport
+ * writes startup-still, power-on, TV and room screenshots for each target viewport
  * to .shots/app/. Skipped in normal runs.
  */
 test.skip(!process.env.APP_SHOTS, 'set APP_SHOTS=1 to capture the review screenshots');
@@ -18,7 +18,7 @@ const OUT = resolve('.shots/app');
 interface Target {
   readonly name: string;
   readonly context: BrowserContextOptions;
-  /** A point outside the TV (and the touch pad) that sends the camera to the room. */
+  /** A point outside the TV (and the touch pad) that sends the camera to the room (the mouse's: a tap there does not). */
   readonly outside: { readonly x: number; readonly y: number };
 }
 
@@ -26,7 +26,8 @@ const touch = { isMobile: true, hasTouch: true, deviceScaleFactor: 3 } as const;
 const TARGETS: readonly Target[] = [
   { name: 'desktop', context: { viewport: { width: 1440, height: 900 } }, outside: { x: 40, y: 450 } },
   { name: 'phone', context: { viewport: { width: 390, height: 844 }, ...touch }, outside: { x: 195, y: 90 } },
-  { name: 'landscape', context: { viewport: { width: 844, height: 390 }, ...touch }, outside: { x: 422, y: 14 } },
+  // The picture fills a phone on its side top to bottom: the room shows beside the set, above the pad's start button.
+  { name: 'landscape', context: { viewport: { width: 844, height: 390 }, ...touch }, outside: { x: 40, y: 120 } },
 ];
 
 async function shot(page: Page, target: Target, moment: string): Promise<void> {
@@ -40,7 +41,7 @@ async function phase(page: Page): Promise<string | undefined> {
 async function capture(browser: Browser, target: Target): Promise<void> {
   const context = await browser.newContext(target.context);
   const page = await context.newPage();
-  // Hold the big room model back so the loading screen can be photographed mid-way.
+  // Hold the big room model back so the game on the startup still can be photographed before the room is in.
   let release: () => void = () => {};
   const held = new Promise<void>((resolveHeld) => {
     release = resolveHeld;
@@ -51,12 +52,12 @@ async function capture(browser: Browser, target: Target): Promise<void> {
   });
   await page.goto('/?seed=1');
   await page.waitForTimeout(1200);
-  await shot(page, target, '1-loading');
-  release();
+  await shot(page, target, '1-still');
 
   await expect.poll(() => phase(page), { timeout: 30_000, intervals: [20] }).toBe('powering');
   await page.waitForTimeout(330);
   await shot(page, target, '2-power-on');
+  release();
 
   await page.waitForFunction(() => window.__arcadeReady === true, null, { timeout: 30_000 });
   await page.evaluate(() => window.__arcade?.goTo('characterSelect'));

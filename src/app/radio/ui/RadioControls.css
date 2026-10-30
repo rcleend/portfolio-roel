@@ -60,11 +60,6 @@
   white-space: nowrap;
 }
 
-.radio__words {
-  display: grid;
-  gap: 2px;
-}
-
 .radio__title {
   font: 400 19px / 1 var(--ui-display);
   letter-spacing: 0.01em;
@@ -121,57 +116,6 @@
   color: var(--ui-ink-soft);
   font: 800 11px / 1.2 var(--ui-body);
   letter-spacing: 0.02em;
-}
-
-/* The radio's teaching line, along the bottom: a little disc that turns once as it arrives. */
-.radio__hint {
-  position: absolute;
-  bottom: calc(max(20px, env(safe-area-inset-bottom)) + var(--radio-bar));
-  left: 50%;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 22px 10px 14px;
-  translate: -50% 0;
-  opacity: 0;
-  transform: translateY(14px) scale(0.94);
-  transition:
-    opacity 180ms ease,
-    transform 180ms var(--ui-out);
-}
-
-.radio__hint:empty {
-  padding: 0;
-  box-shadow: none;
-}
-
-.radio__hint[data-visible="true"] {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 240ms ease,
-    transform 560ms var(--ui-spring);
-}
-
-.radio__mark {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  filter: drop-shadow(0 1px 2px rgb(6 4 14 / 0.6));
-}
-
-.radio__hint[data-visible="true"] .radio__mark {
-  animation: radio-mark-turn 900ms var(--ui-out) 200ms backwards;
-}
-
-@keyframes radio-mark-turn {
-  from {
-    transform: rotate(-200deg) scale(0.6);
-  }
 }
 
 .radio__announcer,
@@ -234,7 +178,7 @@
   border-radius: 50%;
   background: rgb(255 255 255 / 0.08);
   color: inherit;
-  cursor: pointer;
+  cursor: var(--ui-cursor-hand, pointer);
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 160ms ease,
@@ -302,15 +246,6 @@
   font-size: 12px;
 }
 
-/* The teaching line before anything plays: the hint's heading and line, on two lines if it must. */
-.radio-bar__now[data-hint="true"] {
-  font: 600 12px / 1.25 var(--ui-body);
-}
-
-.radio-bar__now[data-hint="true"] .radio__title {
-  font-size: 17px;
-}
-
 @media (hover: hover) {
   .radio-bar__button:hover {
     background: rgb(255 255 255 / 0.16);
@@ -324,8 +259,6 @@
     animation: none;
   }
 
-  .radio__hint,
-  .radio__hint *,
   .radio-bar__button {
     /* biome-ignore lint/complexity/noImportantStyles: reduced motion beats every arrival's state selector. */
     transform: none !important;

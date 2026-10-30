@@ -61,3 +61,23 @@ test.describe('mission select keys', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test('the menus show their hand for the keys and hide it while the mouse plays', async ({ page }) => {
+  await page.goto('/?host=flat&scene=characterSelect&seed=1');
+  await page.waitForFunction(() => window.__arcadeReady === true);
+  const pointing = () => page.evaluate(() => window.__arcade?.state().pointing);
+  const screen = page.locator('.tv__screen');
+  await screen.focus();
+  expect(await pointing()).toBe(false);
+  const box = await screen.boundingBox();
+  if (!box) throw new Error('No TV screen');
+  // Over the picture with the mouse: the hand goes.
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.2);
+  await page.mouse.move(box.x + box.width * 0.52, box.y + box.height * 0.22);
+  await expect.poll(pointing).toBe(true);
+  // A navigation key brings it back, live.
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(pointing).toBe(false);
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.25);
+  await expect.poll(pointing).toBe(true);
+});

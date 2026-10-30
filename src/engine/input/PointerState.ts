@@ -12,8 +12,12 @@ export class PointerState implements PointerSink {
   #active = false;
 
   move(x: number, y: number): void {
-    this.#x = Math.floor(x);
-    this.#y = Math.floor(y);
+    const px = Math.floor(x);
+    const py = Math.floor(y);
+    // The same pixel again (a host re-sending a resting pointer's place) is no activity.
+    if (this.#over && px === this.#x && py === this.#y) return;
+    this.#x = px;
+    this.#y = py;
     this.#over = true;
     this.#active = true;
   }

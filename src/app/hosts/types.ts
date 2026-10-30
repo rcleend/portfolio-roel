@@ -9,13 +9,13 @@ export type HostView = RoomView;
 
 /** What a host tells the app while it loads and runs. */
 export interface HostEvents {
-  /** Download progress of the host's own assets, 0–1. */
-  onProgress(fraction: number): void;
   /** Loaded and drawn with the tube dark; `kind` is the host actually presenting (after any fallback). */
   onReady(kind: HostKind): void;
   /** The picture is up after `powered` turned true: the game may start. */
   onPoweredOn(): void;
   onViewChange(view: HostView): void;
+  /** The live scene has taken over from the startup still (the room host; docs/ROOM.md › Startup). */
+  onStillDone(): void;
 }
 
 /** The game's scenes as the page sees them (the director): which one shows, and every switch. */
@@ -35,6 +35,8 @@ export interface HostProps {
   readonly scenes: SceneSignal;
   /** Turns the TV on once true. Never turns back off. */
   readonly powered: boolean;
+  /** The startup still is up: the room host shows the game on it until the live scene takes over. */
+  readonly still: boolean;
   readonly insets: Insets;
   readonly events: HostEvents;
   /** The site's sound preference (the sound toggle): the radio's music and mechanics follow it. */

@@ -4,9 +4,9 @@ import { headlinerLockup } from './headliner';
 import { heavyMetalLockup } from './heavy-metal';
 
 /**
- * Every title lockup, in the order the playground lists them. A new lockup
- * is a folder beside `classic/` plus one entry here; its id then becomes a
- * `TitleLockupId`, a valid `lockup` scene param.
+ * Every title lockup. A new lockup is a folder beside `classic/` plus one
+ * entry here; its id then becomes a `TitleLockupId`, a valid `lockup` scene
+ * param.
  */
 export const TITLE_LOCKUPS = [classicLockup, faithfulLockup, headlinerLockup, heavyMetalLockup] as const;
 

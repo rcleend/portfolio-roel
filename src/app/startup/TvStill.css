@@ -1,0 +1,16 @@
+/* The still itself is styled in index.html, so it paints before any stylesheet. */
+.tv-still__failed {
+  position: fixed;
+  right: 16px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 16px;
+  z-index: 6;
+  margin: 0;
+  color: var(--ui-ink-soft);
+  font: 600 15px / 1.35 var(--ui-body);
+  text-align: center;
+}
+
+.tv-still__failed a {
+  color: var(--ui-ink);
+}

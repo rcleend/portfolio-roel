@@ -13,6 +13,8 @@ import type { SessionStore } from './session';
 export interface GameSettings {
   /** From `prefers-reduced-motion`: skip full-screen flashes and screen shake. */
   readonly reducedMotion: boolean;
+  /** From `pointer: coarse`: the page shows its touch pad, so control hints show its buttons until a key is pressed. */
+  readonly touchControls: boolean;
 }
 
 /**

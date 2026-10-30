@@ -66,7 +66,6 @@ export function PopOut({
           </button>
         </div>
         <div className="pc-popout__toolbar">
-          <span className="pc-popout__field">Reflow</span>
           <span className="pc-popout__page">
             Page {pageCount > 0 ? page + 1 : 0} of {pageCount}
           </span>

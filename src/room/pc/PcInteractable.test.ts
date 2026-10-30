@@ -11,12 +11,12 @@ function target(id: 'pc' | 'desk', view: RoomView) {
 describe('PcInteractable', () => {
   it.each([
     // view, target, cursor, click requests
-    ['tv', 'pc', 'zoom-out', 'room'],
-    ['tv', 'desk', 'zoom-out', 'room'],
-    ['room', 'pc', 'zoom-in', 'pc'],
-    ['room', 'desk', 'zoom-in', 'pc'],
-    ['pc', 'pc', 'default', null],
-    ['pc', 'desk', 'zoom-out', 'room'],
+    ['tv', 'pc', 'leave', 'room'],
+    ['tv', 'desk', 'leave', 'room'],
+    ['room', 'pc', 'enter', 'pc'],
+    ['room', 'desk', 'enter', 'pc'],
+    ['pc', 'pc', 'idle', null],
+    ['pc', 'desk', 'leave', 'room'],
   ] as const)('in the %s view, the %s shows %s and a click requests %s', (view, id, cursor, request) => {
     const { target: interactable, views } = target(id, view);
     expect(interactable.cursor()).toBe(cursor);

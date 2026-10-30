@@ -22,6 +22,7 @@ import { addRoomLighting } from './stage/roomLighting';
 import { forEachTexture, uploadTextures } from './stage/sceneTextures';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
+import { pictureOutline } from './tv/tvFraming';
 import { locateTv, type TvModel } from './tv/tvModel';
 import type { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
@@ -89,8 +90,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const pcModel = locatePc(pcRoot, desk);
   const fade = new ScreenFade();
   scene.add(fade.mesh);
-  const rig = new CameraRig(camera, loop, tvModel, pcModel, reducedMotion, fade);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
+  // The TV view frames the picture the game draws into, the content rect the pointer maps through.
+  const picture = pictureOutline(tvModel.screen, television.contentRect);
+  const rig = new CameraRig(camera, loop, { ...tvModel, picture }, pcModel, reducedMotion, fade);
   const background = new IdleWork((): IdleMoment => {
     const power = television.powerState;
     // A flight, the CRT turning on or off, or the radio's lid and discs in motion. A reduced-motion cut held black
@@ -163,7 +166,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     onMiss: () => {
       if (views.view !== 'room') views.request('room');
     },
-    idleCursor: () => (views.view === 'room' || views.moving ? 'default' : 'zoom-out'),
+    // On a touch screen a stray tap beside the picture is too easy while playing: there only the guide's popup
+    // leaves the game (docs/ROOM.md › Using it from the app).
+    ignoresClick: (pointerType) => pointerType !== 'mouse' && views.view === 'tv',
+    idleCursor: () => (views.view === 'room' || views.moving ? 'idle' : 'leave'),
     onPointer: (ndc) => {
       rig.setParallaxPointer(ndc);
       radio.prepared?.setPointer(ndc);
@@ -242,6 +248,16 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   // Asked for the computer before the room had loaded: the camera is already there.
   if (views.view !== 'tv') monitor.prepare('tv', views.view);
   queueUploads(views.view);
+  if (import.meta.env.DEV) {
+    // The startup still's capture (scripts/capture-tv-stills.mjs) reads where the picture lands, in CSS px.
+    (globalThis as { __tvPicture?: () => readonly number[] }).__tvPicture = () => {
+      const { width, height } = stage.size;
+      const points = picture.map((point) => point.clone().project(camera));
+      const xs = points.map((point) => ((point.x + 1) / 2) * width);
+      const ys = points.map((point) => ((1 - point.y) / 2) * height);
+      return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    };
+  }
 
   return {
     rig,

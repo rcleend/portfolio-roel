@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" data-hotspot="9 2">
+  <title>The room's hand cursor</title>
+  <!--
+    The room's "you can click this" hand: a cartoon hand, index finger up, three knuckles curled beside it and the
+    thumb tucked out to the left. Same family as the arrow: white over a 1.5 px dark-ink outline, soft corners, a
+    faint lift. Fingers are round-capped strokes and the palm a path; the ink layer is every part 1.5 px fatter, the
+    white sits on it, the creases between the fingers go on top. White edges on the pixel grid where they run
+    straight. The hotspot (data-hotspot) is the fingertip.
+  -->
+  <defs>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#06040e" flood-opacity="0.4"/>
+    </filter>
+    <path id="palm" d="M7 12h13.5v2.8c0 2-1.1 3.3-2.5 4.2v1.75a1.25 1.25 0 0 1-1.25 1.25h-6.5A1.25 1.25 0 0 1 9 20.75V19c-1.1-1-2-2.2-2-4.2z"/>
+  </defs>
+  <g filter="url(#lift)" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#0e0b1c" fill="#0e0b1c">
+      <path d="M9 4.5v8" stroke-width="7"/>
+      <path d="M12.75 9.15V13" stroke-width="6.5"/>
+      <path d="M16.1 9.8V13" stroke-width="6.2"/>
+      <path d="M19.1 11v3" stroke-width="5.8"/>
+      <path d="M7.7 16.6 5.1 13.9" stroke-width="6.4"/>
+      <use href="#palm" stroke-width="3"/>
+    </g>
+    <g stroke="#fff" fill="#fff">
+      <!-- Index, middle, ring and little finger, then the thumb. -->
+      <path d="M9 4.5v8" stroke-width="4"/>
+      <path d="M12.75 9.15V13" stroke-width="3.5"/>
+      <path d="M16.1 9.8V13" stroke-width="3.2"/>
+      <path d="M19.1 11v3" stroke-width="2.8"/>
+      <path d="M7.7 16.6 5.1 13.9" stroke-width="3.4"/>
+      <use href="#palm" stroke="none"/>
+    </g>
+    <path d="M11 8.9v2.6M14.5 9.3v2.3M17.7 10.4v2" fill="none" stroke="#0e0b1c" stroke-width="1.25"/>
+  </g>
+</svg>

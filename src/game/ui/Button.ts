@@ -18,7 +18,7 @@ export interface ButtonOptions {
   readonly bounds: Rect;
   readonly theme: WindowTheme;
   readonly style: TextStyle;
-  /** Shown left of the button while it has keyboard/gamepad focus. */
+  /** Shown left of the button while it has keyboard/gamepad focus, unless the visitor is pointing. */
   readonly cursor?: SpriteSheet<'point'>;
 }
 
@@ -32,6 +32,7 @@ export class Button {
   #state: ButtonState = 'normal';
   #armed = false;
   #focused = false;
+  #pointing = false;
   #time = 0;
 
   constructor(options: ButtonOptions) {
@@ -46,6 +47,7 @@ export class Button {
   update(input: InputSnapshot<Action>, focused: boolean, dt: number): boolean {
     this.#time += dt;
     this.#focused = focused;
+    this.#pointing = input.pointing;
     const { pointer } = input;
     const over = pointer.over && containsPoint(this.options.bounds, pointer.x, pointer.y);
     if (over && pointer.pressed) this.#armed = true;
@@ -78,7 +80,8 @@ export class Button {
     const textX = face.x + Math.floor((face.w - text.width) / 2);
     const textY = face.y + Math.floor((face.h - text.height) / 2);
     gfx.text(label, textX, textY, style);
-    if (this.#focused && cursor)
+    // The hand shows where the keys are; with the pointer in hand the button under it says enough.
+    if (this.#focused && cursor && !this.#pointing)
       gfx.sprite(cursor, 'point', this.#time, bounds.x - 2, bounds.y + Math.floor(bounds.h / 2));
   }
 }

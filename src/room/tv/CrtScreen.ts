@@ -108,8 +108,17 @@ export class CrtScreen {
     this.uniforms.uPixelRatio.value = pixelRatio;
   }
 
-  /** Runs the power-on sequence; resolves once the picture is fully up. */
-  powerOn(): Promise<void> {
+  /** Runs the power-on sequence; resolves once the picture is fully up. `instant`: up at once, with no sequence. */
+  powerOn(instant = false): Promise<void> {
+    if (instant) {
+      this.stopPowerAnimation?.();
+      this.settlePower?.();
+      this.stopPowerAnimation = null;
+      this.settlePower = null;
+      this.pendingPower = null;
+      this.setPower('on');
+      return Promise.resolve();
+    }
     return this.transition('powering-on', 'on');
   }
 

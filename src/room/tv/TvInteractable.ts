@@ -1,6 +1,6 @@
 import type { Mesh, Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import type { Interactable, InteractionHit } from '../interaction/Interactable';
+import type { Interactable, InteractionHit, RoomCursor } from '../interaction/Interactable';
 import { type NativePoint, type UvRect, uvToNativePixel } from './screenMapping';
 import type { TvModel } from './tvModel';
 
@@ -32,8 +32,10 @@ export class TvInteractable implements Interactable {
     this.gestureSurface = options.tv.screen;
   }
 
-  cursor(): string {
-    return this.options.isInRoomView() ? 'zoom-in' : 'default';
+  /** In the room view the TV is a way back to it; at the TV its picture is the game's while it plays. */
+  cursor(hit: InteractionHit): RoomCursor {
+    if (this.options.isInRoomView()) return 'enter';
+    return this.options.isPlayable() && this.pixelAt(hit, false) ? 'play' : 'idle';
   }
 
   activate(): void {

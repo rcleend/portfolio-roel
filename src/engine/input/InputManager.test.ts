@@ -154,6 +154,29 @@ describe('InputManager', () => {
     expect(left.pointer).toMatchObject({ over: false, down: false, released: true });
   });
 
+  it('tells pointing from keys: the pointer on the screen until a key, a pad or a virtual button is pressed', () => {
+    const input = setup();
+    expect(input.poll().pointing).toBe(false);
+    input.pointer.move(40, 50);
+    expect(input.poll().pointing).toBe(true);
+    // Still pointing while nothing else happens, and through a transition's idle copy.
+    const resting = input.poll();
+    expect(resting.pointing).toBe(true);
+    expect(resting.idle().pointing).toBe(true);
+    key('keydown', 'ArrowLeft');
+    expect(input.poll().pointing).toBe(false);
+    key('keyup', 'ArrowLeft');
+    // A host re-sending the resting pointer's place is not the visitor moving it.
+    input.pointer.move(40, 50);
+    expect(input.poll().pointing).toBe(false);
+    input.pointer.down();
+    expect(input.poll().pointing).toBe(true);
+    input.pointer.up();
+    input.virtual.press('confirm');
+    expect(input.poll().pointing).toBe(false);
+    expect(input.pointing).toBe(false);
+  });
+
   it('produces immutable snapshots and an idle copy without presses', () => {
     const input = setup();
     key('keydown', 'Enter');

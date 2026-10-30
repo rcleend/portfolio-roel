@@ -1,5 +1,5 @@
 import type { Object3D } from 'three';
-import type { Interactable } from '../interaction/Interactable';
+import type { Interactable, RoomCursor } from '../interaction/Interactable';
 import type { ViewController } from '../ViewController';
 
 /**
@@ -16,11 +16,11 @@ export class PcInteractable implements Interactable {
     private readonly views: Pick<ViewController, 'view' | 'request'>,
   ) {}
 
-  cursor(): string {
+  cursor(): RoomCursor {
     const { view } = this.views;
-    if (view === 'room') return 'zoom-in';
+    if (view === 'room') return 'enter';
     // Seated at the computer, its own parts are in use; everything else gets up again.
-    return view === 'pc' && this.id === 'pc' ? 'default' : 'zoom-out';
+    return view === 'pc' && this.id === 'pc' ? 'idle' : 'leave';
   }
 
   activate(): void {

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, trackErrors, waitForRunning } from './helpers';
+import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
 import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
@@ -191,15 +191,15 @@ async function untilIdle(page: Page): Promise<void> {
 /** `performance.now()` when `#game` turned running, recorded from the page's own clock. */
 async function recordRunning(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    // The game runs on the startup still before the room is in (docs/ROOM.md › Startup): from both, the room plays it.
     new MutationObserver((_, observer) => {
       if (document.getElementById('game')?.dataset.phase !== 'running') return;
+      if (document.querySelector('.room-host')?.getAttribute('data-ready') !== 'true') return;
       (window as unknown as { __runningAt: number }).__runningAt = performance.now();
       observer.disconnect();
-    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
+    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase', 'data-ready'] });
   });
 }
-
-const runningAt = (page: Page) => page.evaluate(() => (window as unknown as { __runningAt: number }).__runningAt);
 
 const untilReader = (page: Page) => advanceUntil(page, async () => (await pcState(page)) === 'reader');
 /** The focused element's outline style: the document pane's focus ring is its outline. */
@@ -207,8 +207,9 @@ const focusRing = (page: Page) =>
   page.evaluate(() => (document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : null));
 const mode = (page: Page) =>
   page.evaluate(() => document.querySelector('[data-pc-mode]')?.getAttribute('data-pc-mode'));
+/** What the stage says a click would do under the pointer (docs/ROOM.md › Cursors). */
 const canvasCursor = (page: Page) =>
-  page.evaluate(() => document.querySelector<HTMLCanvasElement>('[data-host] canvas')?.style.cursor);
+  page.evaluate(() => document.querySelector<HTMLCanvasElement>('[data-host] canvas')?.dataset.cursor);
 /** How far down the résumé the pane is scrolled, 0–1. */
 const readingShare = (page: Page) =>
   pane(page).evaluate((element) => element.scrollTop / (element.scrollHeight - element.clientHeight));
@@ -315,7 +316,7 @@ test('a click on the monitor itself keeps the reader open and the keys in the do
   // The tube border beside the picture: part of the computer, which the visitor is using.
   const bezel = { x: placement.left - 12, y: placement.top + placement.height / 2 };
   await page.mouse.move(bezel.x, bezel.y);
-  expect(await canvasCursor(page)).toBe('default');
+  expect(await canvasCursor(page)).toBe('idle');
   await page.mouse.click(bezel.x, bezel.y);
   await advance(page, 300);
   expect(await view(page)).toBe('pc');
@@ -337,7 +338,7 @@ test.describe('in a 4:3 window', () => {
     expect(await mode(page)).toBe('in-glass');
     for (const x of [3, 1020]) {
       await page.mouse.move(x, 384);
-      expect(await canvasCursor(page)).toBe('zoom-out');
+      expect(await canvasCursor(page)).toBe('leave');
     }
     await page.mouse.click(3, 384);
     expect(await view(page)).toBe('room');
@@ -376,15 +377,15 @@ test.describe('in a 4:3 window', () => {
 test.describe('in a short window', () => {
   test.use({ viewport: { width: 1024, height: 600 } });
 
-  test('pops the reader out and drops the hint to click outside, which is not there', async ({ page }) => {
+  test('pops the reader out and leaves the way back to the reader, which has its own', async ({ page }) => {
     await openRoom(page);
     await lookAround(page);
     await sitDown(page);
     await untilReader(page);
     expect(await mode(page)).toBe('pop-out');
-    // Past the hint's own delay.
+    // Past the way back's own delay.
     await advance(page, 1500);
-    await expect(page.locator('.leave-hint')).toBeHidden();
+    await expect(page.locator('.back-button')).toBeHidden();
   });
 
   test('hands the keys back to the stage after a resize while the reader shrinks back', async ({ page }) => {
@@ -474,7 +475,7 @@ test('the keyboard alone reaches the résumé and the game', async ({ page }) =>
   await expect(stage(page)).toBeFocused();
 
   await page.keyboard.press('Tab');
-  const computer = page.getByRole('button', { name: /^Résumé/ });
+  const computer = page.getByRole('button', { name: 'About me (CV)' });
   await expect(computer).toBeFocused();
   await expect(computer).toBeVisible();
   await page.keyboard.press('Enter');
@@ -601,13 +602,18 @@ test.describe('performance', () => {
 
   test('uploads nothing while the game plays, and nothing on the way to the computer', async ({ page }) => {
     await recordUploads(page);
-    await recordRunning(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
+    // The walls' strips go up at the TV just after the room is in, under the startup still (docs/ROOM.md ›
+    // Startup); the visitor's press a moment later hands the game over to the room, and from there on it plays.
+    await page.waitForTimeout(1000);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    const handedOver = await page.evaluate(() => performance.now());
     // Long enough for the still painter to arrive and be prepared between the game's frames.
     await page.waitForTimeout(2500);
     expect(await view(page)).toBe('tv');
-    expect(await largeUploadsSince(page, await runningAt(page))).toBe(0);
+    expect(await largeUploadsSince(page, handedOver)).toBe(0);
     // The first look around draws (and uploads) what the TV view never did, as it always has; the
     // room view's quiet uploads the rest.
     await page.mouse.click(WALL.x, WALL.y);
@@ -726,10 +732,10 @@ test.describe('on a phone', () => {
     await openRoom(page);
     const pad = page.locator('.touchpad');
     await expect(pad).toHaveAttribute('data-visible', 'true');
-    await lookAround(page, () => page.touchscreen.tap(195, 30));
+    await lookAround(page, () => tapWayOut(page));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
-    const item = page.getByRole('button', { name: /^Résumé/ });
+    const item = page.getByRole('button', { name: 'About me (CV)' });
     await expect(item).toBeVisible();
     await item.tap();
     await advanceUntil(page, () => live(page));
@@ -765,12 +771,12 @@ test.describe('on a phone', () => {
     await recordUploads(page);
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await page.touchscreen.tap(195, 30);
+    await tapWayOut(page);
     await page.waitForTimeout(SETTLE_MS);
     // The portrait room view crops the computer out: what only its flight draws is uploaded here.
     await untilIdle(page);
     const since = await page.evaluate(() => performance.now());
-    await page.getByRole('button', { name: /^Résumé/ }).tap();
+    await page.getByRole('button', { name: 'About me (CV)' }).tap();
     await expect(page.locator('[data-pc-screen]')).toHaveAttribute('data-live', 'true');
     expect(await largeUploadsSince(page, since)).toBe(0);
   });
@@ -780,8 +786,8 @@ test.describe('on a phone', () => {
 
     test('takes taps on the menu only once the camera has settled in the room view', async ({ page }) => {
       await openRoom(page);
-      await lookAround(page, () => page.touchscreen.tap(195, 30));
-      const item = page.getByRole('button', { name: /^Résumé/ });
+      await lookAround(page, () => tapWayOut(page));
+      const item = page.getByRole('button', { name: 'About me (CV)' });
       await item.tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
@@ -800,10 +806,10 @@ test.describe('on a phone', () => {
 
     test('also pops the reader out to the whole screen', async ({ page }) => {
       await openRoom(page);
-      await lookAround(page, () => page.touchscreen.tap(422, 20));
+      await lookAround(page, () => tapWayOut(page));
       const pc = await anchor(page, 'pc');
       if (pc.inFrame) await page.touchscreen.tap(pc.x, pc.y);
-      else await page.getByRole('button', { name: /^Résumé/ }).tap();
+      else await page.getByRole('button', { name: 'About me (CV)' }).tap();
       await advanceUntil(page, () => live(page));
       await untilReader(page);
       await expect(page.locator('.pc-screen')).toHaveAttribute('data-pc-mode', 'pop-out');

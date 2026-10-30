@@ -3,7 +3,7 @@ import { type DesktopLayout, desktopLayout } from '../desktop/desktopLayout';
 import { desktopLayoutSize } from '../desktop/desktopScale';
 import { LABEL_FONT, START_FONT } from '../desktop/lunaTokens';
 import { paintIcons, paintTaskbar } from '../desktop/paintChrome';
-import { wallpaperCanvas } from '../desktop/wallpaper';
+import { loadWallpaper, wallpaperCanvas } from '../desktop/wallpaper';
 import type { StillPainter, StillRequest } from '../display';
 
 /**
@@ -27,6 +27,9 @@ export const paintDesktop: StillPainter = Object.assign(
   },
   { prepare: prepareDesktop },
 );
+
+/** Resolves once the wallpaper's photograph has replaced its placeholder (or failed to): the glass wants a repaint. */
+export const wallpaperLoaded: () => Promise<void> = loadWallpaper;
 
 /**
  * The first paint's one-time work, a unit at a time: the wallpaper's bitmap

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, scene, waitForRunning } from './helpers';
+import { hostElement, scene, tapWayOut, waitForRunning } from './helpers';
 
 test.use({
   launchOptions: { args: GPU_LAUNCH_ARGS },
@@ -20,10 +20,14 @@ test('shows the gamepad on touch screens and drives the game with it', async ({ 
   await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
 });
 
-test('hides the gamepad while looking around the room', async ({ page }) => {
+test('leaves the game only by its way out, and hides the gamepad while looking around the room', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
+  // A tap beside the TV is too easy while playing: it does nothing.
   await page.touchscreen.tap(195, 90);
+  await page.waitForTimeout(1300);
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  await tapWayOut(page);
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
   await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
 });
@@ -33,9 +37,9 @@ test('the menu reaches the computer the portrait room view crops out', async ({ 
   await waitForRunning(page);
   const host = hostElement(page);
   const pad = page.locator('.touchpad');
-  await page.touchscreen.tap(195, 90);
+  await tapWayOut(page);
   await page.waitForTimeout(1300);
-  const item = page.getByRole('button', { name: /^Résumé/ });
+  const item = page.getByRole('button', { name: 'About me (CV)' });
   await expect(item).toBeVisible();
   const box = await item.boundingBox();
   expect(box?.width).toBeGreaterThanOrEqual(44);
@@ -63,7 +67,7 @@ test('a tap on the radio in the portrait room view flies to the CD player', asyn
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  await page.touchscreen.tap(195, 90);
+  await tapWayOut(page);
   await page.waitForTimeout(1300);
   const radio = await page.evaluate(() => window.__room?.anchors.find((anchor) => anchor.target === 'radio'));
   if (!radio?.inFrame) throw new Error('The radio is not in the portrait room view');

@@ -1,7 +1,15 @@
-import type { Education, Profile, ProfileLink, Publication } from './types';
+import type { Education, Profile, ProfileLink, Publication, SocialLink } from './types';
 
 /** Primary contact channel, reused wherever the game invites the visitor to get in touch. */
 export const emailLink: ProfileLink = { kind: 'email', label: 'rcleende@gmail.com', href: 'mailto:rcleende@gmail.com' };
+
+const linkedinLink: ProfileLink = {
+  kind: 'linkedin',
+  label: 'linkedin.com/in/roel-leendersit',
+  href: 'https://www.linkedin.com/in/roel-leendersit',
+};
+
+const githubLink: ProfileLink = { kind: 'github', label: 'github.com/rcleend', href: 'https://github.com/rcleend' };
 
 export const profile: Profile = {
   name: 'Roel Leenders',
@@ -12,16 +20,15 @@ export const profile: Profile = {
     'Product engineer who takes ownership of features end to end, from user research and strategy to design and code. ' +
     'Eight years of experience building high-traffic, user-facing products — five of them at early-stage AI startups, ' +
     'working closely with founders on product vision and strategy. Researched human–agent collaboration for an MSc thesis, focusing on voice agents.',
-  links: [
-    emailLink,
-    {
-      kind: 'linkedin',
-      label: 'linkedin.com/in/roel-leendersit',
-      href: 'https://www.linkedin.com/in/roel-leendersit',
-    },
-    { kind: 'github', label: 'github.com/rcleend', href: 'https://github.com/rcleend' },
-  ],
+  links: [emailLink, linkedinLink, githubLink],
 };
+
+/** The overview's quick links, in this order: X, then the résumé's LinkedIn and GitHub. */
+export const socials: readonly SocialLink[] = [
+  { kind: 'x', network: 'X', href: 'https://x.com/LeendersRoel' },
+  { kind: 'linkedin', network: 'LinkedIn', href: linkedinLink.href },
+  { kind: 'github', network: 'GitHub', href: githubLink.href },
+];
 
 export const education: readonly Education[] = [
   {

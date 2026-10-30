@@ -1,12 +1,11 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { blink } from '@/engine/motion/oscillators';
 import type { TextStyles } from '../../../fonts';
 import type { Action } from '../../../input/bindings';
 import { drawKeyCap, keyCapWidth } from '../../../ui/hud/KeyCap';
-import { type KeyCapLabel, keyCapFor } from '../../../ui/hud/keyLabels';
+import { type ControlDevice, type KeyCapLabel, keyCapFor } from '../../../ui/hud/keyLabels';
 
-/** When the hints show, in seconds of scene time. */
-export const HINTS = { from: 1.2, until: 10 } as const;
+/** When the hints show, in seconds of scene time: from just after the level opens, for as long as it lasts. */
+export const HINTS = { from: 1.2 } as const;
 
 interface Hint {
   readonly actions: readonly Action[];
@@ -25,20 +24,23 @@ const GAP = 7;
 const Y = 225;
 
 /**
- * The top of the hints' strip from when it shows until it has blinked out,
- * or null outside that: the screen rows from there down are the HUD's.
+ * The top of the hints' strip once it shows, or null before: the screen
+ * rows from there down are the HUD's.
  */
 export function controlHintsTop(time: number): number | null {
-  return time < HINTS.from || time > HINTS.until ? null : Y - 4;
+  return time < HINTS.from ? null : Y - 4;
 }
 
-/** A strip of key caps along the bottom for the first seconds of a level. */
-export function drawControlHints(gfx: Gfx, text: TextStyles, device: 'keyboard' | 'gamepad', time: number): void {
-  if (time < HINTS.from || time > HINTS.until) return;
-  if (HINTS.until - time < 1 && !blink(time, 4 / 60, 4 / 60)) return;
+/**
+ * A strip of key caps along the bottom of the level, there the whole time:
+ * the keys, the gamepad's buttons or, on a touch screen, the pad's own
+ * controls (its d-pad once for both directions).
+ */
+export function drawControlHints(gfx: Gfx, text: TextStyles, device: ControlDevice, time: number): void {
+  if (time < HINTS.from) return;
   const style = text.label;
   const items = HINT_ROW.map((hint) => ({
-    caps: hint.actions.map((action) => keyCapFor(action, device)),
+    caps: distinct(hint.actions.map((action) => keyCapFor(action, device))),
     label: hint.label,
   }));
   const widthOf = (caps: readonly KeyCapLabel[], label: string): number =>
@@ -53,4 +55,11 @@ export function drawControlHints(gfx: Gfx, text: TextStyles, device: 'keyboard' 
     gfx.text(item.label, x, Y + 1, text.hud);
     x += gfx.measureText(item.label, text.hud).width + GAP;
   }
+}
+
+/** The caps without repeats: the d-pad stands for both of MOVE's directions. */
+function distinct(caps: readonly KeyCapLabel[]): readonly KeyCapLabel[] {
+  return caps.filter(
+    (cap, index) => caps.findIndex((other) => JSON.stringify(other) === JSON.stringify(cap)) === index,
+  );
 }

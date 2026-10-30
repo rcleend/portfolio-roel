@@ -83,8 +83,8 @@ const imageKey = (design: TerrariaDesign): string => `looks/${design.look}/${des
 
 /**
  * Downloads every design, current and revised, into `assets`. The game never
- * does: whoever opens a scene that draws them (the playground, the harness)
- * calls this first, so the scene can read them synchronously.
+ * does: whoever opens a scene that draws them (the harness) calls this
+ * first, so the scene can read them synchronously.
  */
 export async function loadTerrariaDesigns(assets: AssetStore): Promise<void> {
   await Promise.all(
