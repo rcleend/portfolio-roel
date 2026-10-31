@@ -19,7 +19,7 @@ export const characters: readonly Character[] = [
     bio:
       'Sees the interface before it exists. Interaction Technology MSc by day, guitarist by night. ' +
       'Untangles messy flows until they feel obvious.',
-    attack: 'Paint splats',
+    attack: 'Music notes',
     skills: ['ux-elixir', 'power-chord'],
   },
   {
