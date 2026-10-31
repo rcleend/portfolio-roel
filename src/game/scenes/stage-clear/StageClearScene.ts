@@ -11,6 +11,7 @@ import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { Button } from '../../ui/Button';
 import { handCursorSheet } from '../../ui/cursor';
+import { type ControlDevice, controlDevice } from '../../ui/hud/keyLabels';
 import { windowThemes } from '../../ui/theme';
 import { firstOpenLevel, nextLevel } from '../level-select/missions';
 import type { GameScene, GameStep, StageClearParams } from '../params';
@@ -68,6 +69,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
   #options: readonly Option[] = [];
   /** The visitor plays with the pointer: no hand on the focused row (CareerPanel). */
   #pointing = false;
+  #device: ControlDevice;
   #focus: ClearFocus = { area: 'buttons', index: 0 };
   #finale: Finale | null = null;
   #newRecord = false;
@@ -79,6 +81,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
 
   constructor(services: GameServices) {
     this.#services = services;
+    this.#device = controlDevice(null, null, services.settings.touchControls);
     this.#detail = new HighlightDetail(services);
     this.#title = new SlamTitle(['MISSION', 'COMPLETE!'], services.text.title, 2);
     this.#results = new ResultsPanel(services);
@@ -120,6 +123,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
     this.#time += step.dt;
     const { input } = step;
     this.#pointing = input.pointing;
+    this.#device = controlDevice(this.#device, input.lastDevice, this.#services.settings.touchControls);
     if (this.#leaving) return;
 
     if (this.#time < this.#timeline.settled) {
@@ -178,11 +182,12 @@ export class StageClearScene implements GameScene<StageClearParams> {
     this.#career?.render(gfx, Math.round(slide * 200), {
       time: t,
       timeline,
+      device: this.#device,
       focusedRow: t >= timeline.settled && this.#focus.area === 'rows' ? this.#focus.index : null,
       hand: !this.#pointing,
     });
     if (t >= timeline.settled) for (const { button } of this.#options) button.render(gfx);
-    this.#detail.render(gfx);
+    this.#detail.render(gfx, this.#device);
     this.#finale?.render(gfx);
   }
 

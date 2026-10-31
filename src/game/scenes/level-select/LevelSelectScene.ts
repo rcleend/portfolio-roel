@@ -69,7 +69,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
       { ...services.text.label, fill: palette.red },
       { paper: palette.white },
     );
-    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
+    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label, touch: services.settings.touchControls });
     this.#styles = {
       heading: blueprintPrompt(services.text.prompt),
       player: { ...services.text.hud, fill: MISSION_INK.secondary, outline: MISSION_INK.outline },

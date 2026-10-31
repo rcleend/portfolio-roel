@@ -8,7 +8,9 @@ import { frames, segment } from '@/engine/motion/progress';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
+import type { ControlDevice } from '../../ui/hud/keyLabels';
 import { Paragraph } from '../../ui/Paragraph';
+import { drawPrompt } from '../../ui/prompt';
 import { windowThemes } from '../../ui/theme';
 import { drawWindow, windowContent } from '../../ui/Window';
 import { formatYears } from '../level-select/missions';
@@ -28,6 +30,8 @@ export interface CareerView {
   readonly focusedRow: number | null;
   /** The focused row shows the hand (the keys drive the panel, not the pointer). */
   readonly hand: boolean;
+  /** What the prompt names its keys after (the touch pad's buttons on a touch screen). */
+  readonly device: ControlDevice;
 }
 
 /**
@@ -101,8 +105,11 @@ export class CareerPanel {
     gfx.text('STACK', x, stackY + 4, this.#styles.heading);
     this.#stack.render(gfx, x, stackY + 15);
     if (view.time >= view.timeline.settled) {
-      const hint = view.focusedRow === null ? 'UP: READ HIGHLIGHTS' : 'CONFIRM: READ HIGHLIGHT';
-      gfx.text(hint, x, inner.y + inner.h - 9, this.#styles.hint);
+      const prompt =
+        view.focusedRow === null
+          ? { action: 'up' as const, label: 'READ HIGHLIGHTS' }
+          : { action: 'confirm' as const, label: 'READ HIGHLIGHT' };
+      drawPrompt(gfx, x, inner.y + inner.h - 9, this.#styles.hint, { ...prompt, device: view.device });
     }
   }
 

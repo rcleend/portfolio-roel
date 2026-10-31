@@ -91,7 +91,7 @@ export class CharacterSelectScene implements GameScene {
     this.#card = new CardView(services.looks, services.rng.fork());
     this.#details = new DetailsPanel(services.text, services.looks, this.#layout);
     this.#tooltip = new Tooltip({ maxWidth: TOOLTIP_WIDTH, theme: windowThemes.cream, style: services.text.tooltip });
-    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label });
+    this.#keys = new KeyHints({ ...KEY_HINTS, style: services.text.label, touch: services.settings.touchControls });
     this.#state = initialSelectState(characters.length);
   }
 

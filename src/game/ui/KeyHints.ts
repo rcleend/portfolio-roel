@@ -6,6 +6,8 @@ import { containsPoint, type Rect } from '@/engine/math/Rect';
 import type { Action } from '../input/bindings';
 import { palette } from '../palette';
 import type { ButtonState } from './Button';
+import { drawKeyCap } from './hud/KeyCap';
+import { type ControlDevice, controlDevice, keyCapFor } from './hud/keyLabels';
 
 /** The menu keys a select screen offers; each one presses the action it is named after. */
 export type HintKey = Extract<Action, 'confirm' | 'back'>;
@@ -41,6 +43,8 @@ export interface KeyHintsAnchor {
 export interface KeyHintsOptions extends KeyHintsAnchor {
   /** The label face; colours come from `HINT_COLORS`. */
   readonly style: TextStyle;
+  /** A touch screen (`GameSettings.touchControls`): until a key is pressed, the touch pad's buttons show. */
+  readonly touch?: boolean;
 }
 
 const ORDER: readonly HintKey[] = ['confirm', 'back'];
@@ -68,6 +72,8 @@ const GLYPHS: Readonly<Record<HintKey, readonly string[]>> = {
   `),
 };
 const GLYPH_HEIGHT = 7;
+/** The touch pad's lettered button, as the level's hints draw it (hud/KeyCap.ts). */
+const PAD_GLYPH_HEIGHT = 11;
 
 /** The d-pad legend's spacing: key to label, and hint to hint. */
 const LABEL_GAP = 4;
@@ -98,9 +104,15 @@ export class KeyHints {
   #hover: HintKey | null = null;
   #armed: HintKey | null = null;
   #held: ReadonlySet<HintKey> = new Set();
+  readonly #touch: boolean;
+  #device: ControlDevice;
+  readonly #style: TextStyle;
 
   constructor(options: KeyHintsOptions) {
     const { style, right, y } = options;
+    this.#touch = options.touch ?? false;
+    this.#device = controlDevice(null, null, this.#touch);
+    this.#style = style;
     this.#y = y;
     this.#glyphY = legendGlyphTop(y, style, GLYPH_HEIGHT);
     this.#label = { ...style, fill: HINT_COLORS.label };
@@ -139,6 +151,7 @@ export class KeyHints {
    */
   update(input: InputSnapshot<Action>): HintKey | null {
     const { pointer } = input;
+    this.#device = controlDevice(this.#device, input.lastDevice, this.#touch);
     this.#hover = pointer.over ? this.hitTest(pointer.x, pointer.y) : null;
     this.#held = new Set(ORDER.filter((key) => input.isDown(key)));
     if (pointer.pressed) this.#armed = this.#hover;
@@ -159,7 +172,14 @@ export class KeyHints {
       const lit = state !== 'normal';
       // A pressed key sinks a pixel, the way a real key travels; its label stays put beside it.
       const sink = state === 'pressed' ? 1 : 0;
-      drawGlyph(gfx, GLYPHS[hint.key], hint.glyphX, this.#glyphY + sink, lit ? HINT_COLORS.litKey : HINT_COLORS.key);
+      if (this.#device === 'touch') {
+        // No Enter or Backspace on a phone: the pad's A and B, centred in the key's place.
+        const x = hint.glyphX + Math.floor((glyphWidth(hint.key) - PAD_GLYPH_HEIGHT) / 2);
+        const top = legendGlyphTop(this.#y, this.#style, PAD_GLYPH_HEIGHT) + sink;
+        drawKeyCap(gfx, x, top, keyCapFor(hint.key, 'touch'), this.#style);
+      } else {
+        drawGlyph(gfx, GLYPHS[hint.key], hint.glyphX, this.#glyphY + sink, lit ? HINT_COLORS.litKey : HINT_COLORS.key);
+      }
       gfx.text(LABELS[hint.key], hint.labelX, this.#y, lit ? this.#litLabel : this.#label);
     }
   }

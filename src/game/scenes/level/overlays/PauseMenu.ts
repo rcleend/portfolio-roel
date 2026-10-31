@@ -12,6 +12,7 @@ import { drawKeyCap } from '../../../ui/hud/KeyCap';
 import { type ControlDevice, keyCapFor } from '../../../ui/hud/keyLabels';
 import type { LevelTextStyles } from '../../../ui/hud/styles';
 import { drawIconSlot, iconSlotSize } from '../../../ui/iconSlot';
+import { drawPrompt } from '../../../ui/prompt';
 import { windowThemes } from '../../../ui/theme';
 import { drawWindow } from '../../../ui/Window';
 import { dimScreen } from './screen';
@@ -91,16 +92,9 @@ export class PauseMenu {
     gfx.text('PAUSED', gfx.width / 2, FRAME.y + 10, levelText.bannerCool, { align: 'center' });
     for (const button of this.#buttons) button.render(gfx);
     this.#renderMoves(gfx);
-    const resume = this.#kit.device === 'keyboard' ? 'ESC: RESUME' : 'START: RESUME';
-    gfx.text(
-      resume,
-      BUTTON.x + BUTTON.w / 2,
-      FRAME.y + FRAME.h - 18,
-      { ...text.hud, fill: palette.steel },
-      {
-        align: 'center',
-      },
-    );
+    const style = { ...text.hud, fill: palette.steel };
+    const prompt = { action: 'pause', label: 'RESUME', device: this.#kit.device } as const;
+    drawPrompt(gfx, BUTTON.x + BUTTON.w / 2, FRAME.y + FRAME.h - 18, style, prompt, 'center');
   }
 
   /** The character's attack and skills with their keys and rules, from the content. */
