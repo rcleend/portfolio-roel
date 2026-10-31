@@ -38,52 +38,42 @@ export const skills: Readonly<Record<SkillId, Skill>> = {
   'full-stack-attack': {
     id: 'full-stack-attack',
     name: 'FULL-STACK ATTACK',
-    tooltip:
-      'Hurls the whole stack — front-end, back-end and database — in one piercing blast. ' +
-      'Forged in Next.js, NestJS and React Native.',
+    tooltip: 'Hurls the whole stack at once. Nothing in its path stays grumpy.',
     effect: 'A three-layer beam that pierces every unhappy customer in a line.',
     cooldownSeconds: 6,
   },
   'agent-summon': {
     id: 'agent-summon',
     name: 'AGENT SUMMON',
-    tooltip:
-      'Summons an AI sidekick that calls its own tools and hunts down nearby problems. ' +
-      'Its real-life twins lift user retention by up to 30%.',
+    tooltip: 'Calls in a tiny AI drone that hunts down trouble for you.',
     effect: 'An AI drone orbits you for 8 seconds, firing at the nearest unhappy customer.',
     cooldownSeconds: 12,
   },
   'ux-elixir': {
     id: 'ux-elixir',
     name: 'UX ELIXIR',
-    tooltip:
-      'A drinkable potion that makes you deeply understand users and their behavioural patterns. ' +
-      'Suddenly every complaint makes sense.',
+    tooltip: 'One sip and every complaint suddenly makes sense.',
     effect: 'For 6 seconds, unhappy customers calm down, slow down and are won over in one hit.',
     cooldownSeconds: 12,
   },
   'power-chord': {
     id: 'power-chord',
     name: 'POWER CHORD',
-    tooltip:
-      'One mighty strum on the white Strat. The shockwave stuns every unhappy customer in sight. ' +
-      'Tuned at the Conservatorium van Amsterdam.',
+    tooltip: 'One mighty strum. Everyone in earshot freezes mid-rant.',
     effect: 'A screen-wide shockwave that stuns every unhappy customer for 3 seconds.',
     cooldownSeconds: 10,
   },
   'north-star': {
     id: 'north-star',
     name: 'NORTH STAR',
-    tooltip:
-      'Launches a guiding star that homes in on the problem that matters most. ' +
-      'Ignores every vanity metric along the way.',
+    tooltip: 'A guiding star that always finds the angriest customer.',
     effect: 'A homing star that seeks out the most frustrated customer on screen.',
     cooldownSeconds: 7,
   },
   'churn-shield': {
     id: 'churn-shield',
     name: 'CHURN SHIELD',
-    tooltip: 'A retention bubble no hit gets through. Field-tested in real life: it nearly halved monthly churn.',
+    tooltip: 'A shiny bubble no complaint can get through.',
     effect: 'Blocks all damage for 5 seconds. Customers who bump into it calm down.',
     cooldownSeconds: 14,
   },

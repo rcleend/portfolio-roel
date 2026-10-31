@@ -70,9 +70,10 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const pointed = hovered ?? focused;
   const inRoom = view === 'room';
   const overview = usePresence(inRoom, OVERVIEW_EXIT_MS);
-  // On a touch screen the radio's own bar has the way back, with its keys. Mounted only around the views that have
-  // it, so its faces download the first time it is needed.
-  const backView = view === 'pc' || (view === 'radio' && !touch);
+  // On a touch screen the radio's own bar has the way back, with its keys, and the computer's reader its red close
+  // button: the pill is for mice and keyboards. Mounted only around the views that have it, so its faces download the
+  // first time it is needed.
+  const backView = (view === 'pc' || view === 'radio') && !touch;
   const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
   const popup = useLookAroundPopup(scenes, view === 'tv' && settled);

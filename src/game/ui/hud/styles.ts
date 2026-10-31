@@ -26,8 +26,6 @@ export interface LevelTextStyles {
   readonly cardBody: TextStyle;
   /** "POP!", "CHECKPOINT!" and other small world pops. */
   readonly pop: TextStyle;
-  /** Small HUD labels in cream, e.g. the character name. */
-  readonly hudLabel: TextStyle;
 }
 
 const SHADOW_INK = '#1a0804';
@@ -78,6 +76,5 @@ export function createLevelTextStyles(text: TextStyles): LevelTextStyles {
     bubble: { font: cardFont, fill: '#3a0a18' },
     cardBody: { ...text.body, font: cardFont },
     pop: { ...text.hud, fill: palette.white },
-    hudLabel: { ...text.hud, fill: palette.cream },
   };
 }

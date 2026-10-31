@@ -107,7 +107,7 @@
       room takes over. Each framing's lengths are the capture's, in units of its container (the viewport):
       - set (landscape, tall enough for the whole set): fitted to the height and centred; 1440 × 608 at capture.
       - landscape (a phone on its side): the picture fills the height between the pad's clusters; 900 × 390.
-      - portrait: the picture spans the width, centred above the touch pad's 202 px (or in the whole height); 390 × 900.
+      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height); 390 × 900.
     -->
     <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true">
       <picture>
@@ -145,7 +145,7 @@
       }
       @media (orientation: landscape) and (max-height: 544.98px) {
         .tv-still {
-          --picture-left: calc(50cqw - 67.705cqh);
+          --picture-left: calc(50cqw - 71.423cqh);
           --picture-top: 0.1cqh;
           --picture-width: 133.615cqh;
           --picture-height: 99.8cqh;
@@ -158,12 +158,12 @@
         .tv-still {
           --pad: 0px;
           --picture-left: 0.1cqw;
-          --picture-top: calc(50cqh - var(--pad) / 2 - 37.528cqw);
+          --picture-top: calc(50cqh - var(--pad) / 2 - 37.556cqw);
           --picture-width: 99.8cqw;
-          --picture-height: 75.056cqw;
+          --picture-height: 75.113cqw;
         }
         .tv-still__image {
-          top: calc(50cqh - var(--pad) / 2 - 89.487cqw);
+          top: calc(50cqh - var(--pad) / 2 - 86.154cqw);
           left: 0;
           width: 100cqw;
           height: auto;
@@ -171,7 +171,7 @@
       }
       @media (orientation: portrait) and (pointer: coarse) {
         .tv-still {
-          --pad: calc(202px + env(safe-area-inset-bottom, 0px));
+          --pad: calc(228px + env(safe-area-inset-bottom, 0px));
         }
       }
       @media (prefers-reduced-motion: reduce) {

@@ -3,6 +3,7 @@ import type { GameSurface } from '@/engine/core/GameSurface';
 import type { RoomAssets } from './assets/roomAssets';
 import { type AnchorTarget, type PropAnchor, propAnchors, type RoomTarget } from './camera/anchors';
 import { CameraRig, type FramingInsets } from './camera/CameraRig';
+import { boxCorners } from './camera/framing';
 import { ScreenFade } from './camera/ScreenFade';
 import type { Interactable } from './interaction/Interactable';
 import { RoomInteraction } from './interaction/RoomInteraction';
@@ -158,6 +159,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     isInRoomView: () => views.view !== 'tv',
     focusTv: () => views.request('tv'),
   });
+  // Where the top of the TV set lands on the screen (NDC y), from the camera as it is now.
+  const tvCorners = boxCorners(tvModel.bounds.min, tvModel.bounds.max);
+  const tvTopNdc = (): number => Math.max(...tvCorners.map((corner) => corner.clone().project(camera).y));
   const interaction = new RoomInteraction({
     canvas: stage.canvas,
     camera,
@@ -166,9 +170,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     onMiss: () => {
       if (views.view !== 'room') views.request('room');
     },
-    // On a touch screen a stray tap beside the picture is too easy while playing: there only the guide's popup
-    // leaves the game (docs/ROOM.md › Using it from the app).
-    ignoresClick: (pointerType) => pointerType !== 'mouse' && views.view === 'tv',
+    // On a touch screen a stray tap beside or below the picture (the pad's plate) is too easy while playing: there
+    // only a tap above the set, or the guide's popup, leaves the game (docs/ROOM.md › Using it from the app).
+    ignoresClick: (pointerType, ndc) => pointerType !== 'mouse' && views.view === 'tv' && ndc.y < tvTopNdc(),
     idleCursor: () => (views.view === 'room' || views.moving ? 'idle' : 'leave'),
     onPointer: (ndc) => {
       rig.setParallaxPointer(ndc);

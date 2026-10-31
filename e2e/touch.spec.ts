@@ -20,13 +20,24 @@ test('shows the gamepad on touch screens and drives the game with it', async ({ 
   await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
 });
 
-test('leaves the game only by its way out, and hides the gamepad while looking around the room', async ({ page }) => {
+test('leaves the game by a tap above the set or its way out, and hides the gamepad while looking around the room', async ({
+  page,
+}) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  // A tap beside the TV is too easy while playing: it does nothing.
-  await page.touchscreen.tap(195, 90);
+  // A tap under the picture, on the pad's plate, is too easy while playing: it does nothing.
+  await page.touchscreen.tap(195, 560);
   await page.waitForTimeout(1300);
   await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  // Above the set, the room is a tap away, as the popup is.
+  await page.touchscreen.tap(195, 90);
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+  await page.waitForTimeout(1300);
+  const tv = await page.evaluate(() => window.__room?.anchors.find((anchor) => anchor.target === 'tv'));
+  if (!tv) throw new Error('No TV anchor');
+  await page.touchscreen.tap(tv.x, tv.y);
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  await page.waitForTimeout(1300);
   await tapWayOut(page);
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
   await expect(page.locator('.touchpad')).toHaveAttribute('data-visible', 'false');
