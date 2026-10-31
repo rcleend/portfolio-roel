@@ -2,6 +2,8 @@ import { type Material, Mesh, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import { assembleRoom, type RoomScene } from './assembleRoom';
 import { loadRoomAssets } from './assets/roomAssets';
+import { LiveScreenMood } from './atmosphere/LiveScreenMood';
+import type { RoomAir, RoomMood } from './atmosphere/moods';
 import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
 import type { Interactable } from './interaction/Interactable';
@@ -10,6 +12,7 @@ import { ScreenOverlay } from './pc/ScreenOverlay';
 import { type PostersPath, PostersSlot, type PostersState } from './posters/PostersSlot';
 import type { RadioDoor } from './radio/RadioDeck';
 import { RadioDoorHandle } from './radio/RadioDoor';
+import { RainSoundSlot } from './rain/RainSoundSlot';
 import type { PropSpotlight } from './spotlight/PropSpotlight';
 import { SpotlightDoor } from './spotlight/SpotlightDoor';
 import { spotlightKit } from './spotlight/spotlightKit';
@@ -38,6 +41,9 @@ export interface CreateRoomOptions {
   readonly maxDrawingBufferPixels?: number;
   /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
   readonly posters?: boolean;
+  /** Optional night-time finish; original keeps the unprocessed bake for comparison. */
+  readonly mood?: RoomMood;
+  readonly air?: RoomAir;
 }
 
 export interface Room {
@@ -47,6 +53,13 @@ export interface Room {
   readonly view: RoomView;
   /** True while the camera rests at `view`, false while it flies there. */
   readonly settled: boolean;
+  readonly mood: RoomMood;
+  /** Switches the finish in place, without reloading the room or scheduling an animation. */
+  setMood(mood: RoomMood): void;
+  /** Scales the selected mood's illuminated haze and dust (0–2; 1 is its authored finish). */
+  setAir(air: RoomAir): void;
+  /** Shares the app’s sound switch; rain plays everywhere except the TV. */
+  setMuted(muted: boolean): void;
   readonly powerState: PowerState;
   /**
    * Lights the power LED and runs the CRT turn-on; resolves when the picture is up. `instant`: lit at once, for a game
@@ -87,6 +100,10 @@ export interface Room {
 }
 
 export interface RoomStats {
+  /** Current outside storm flash, 0–1 (zero under reduced motion and at the TV). */
+  readonly lightning: number;
+  readonly rainReady: boolean;
+  readonly rainPlaying: boolean;
   readonly framesRendered: number;
   readonly renderLoopIdle: boolean;
   readonly lavaRunning: boolean;
@@ -130,10 +147,13 @@ export function createRoom(options: CreateRoomOptions): Room {
   const stage = new RoomStage(options);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const overlay = new ScreenOverlay(options.overlayContainer ?? options.container, reducedMotion);
+  const screenMood = new LiveScreenMood(overlay.element, options.overlayContainer ?? options.container);
+  screenMood.setMood(stage.mood);
   const pc = new PcMonitorHandle(overlay);
   const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
   const posters = new PostersSlot(options.posters ?? true);
   const spotlight = new SpotlightDoor();
+  const rain = new RainSoundSlot();
   const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
@@ -193,6 +213,10 @@ export function createRoom(options: CreateRoomOptions): Room {
       }, 0),
     );
   });
+  views.onChange((view) => {
+    rain.setView(view);
+    stage.setAtTv(view === 'tv');
+  });
   // Only a camera resting in the room view lights a prop.
   views.onChange(() => spotlight.setOpen(false));
   views.onSettle((view) => spotlight.setOpen(view === 'room'));
@@ -213,6 +237,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       },
       onHover: (target) => spotlight.hover(target),
     });
+    stage.attachAtmosphere();
     if (framingInsets) scene.setFramingInsets(framingInsets);
     for (const [interactable] of queuedInteractables) {
       queuedInteractables.set(interactable, scene.register(interactable));
@@ -260,6 +285,18 @@ export function createRoom(options: CreateRoomOptions): Room {
   return {
     ready,
     postersReady: posters.ready,
+    get mood() {
+      return stage.mood;
+    },
+    setMood: (mood) => {
+      if (disposed) return;
+      stage.setMood(mood);
+      screenMood.setMood(mood);
+    },
+    setAir: (air) => {
+      if (!disposed) stage.setAir(air);
+    },
+    setMuted: (muted) => rain.setMuted(muted),
     get view() {
       return views.view;
     },
@@ -272,6 +309,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     async powerOn(options) {
       await ready;
       await scene?.television.powerOn(options?.instant);
+      if (scene && !disposed) rain.prepare(scene.background);
     },
     async powerOff() {
       await ready;
@@ -308,6 +346,9 @@ export function createRoom(options: CreateRoomOptions): Room {
       const { renderer } = stage;
       const { calls, triangles } = renderer.info.render;
       return {
+        lightning: stage.lightning,
+        rainReady: rain.ready,
+        rainPlaying: rain.playing,
         framesRendered: stage.loop.framesRendered,
         renderLoopIdle: stage.loop.idle,
         lavaRunning: scene?.lava.running ?? false,
@@ -332,6 +373,8 @@ export function createRoom(options: CreateRoomOptions): Room {
     dispose() {
       if (disposed) return;
       disposed = true;
+      screenMood.dispose();
+      rain.dispose();
       pc.detach();
       radio.dispose();
       posters.dispose();

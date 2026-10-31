@@ -1,3 +1,4 @@
+export { ROOM_MOODS, type RoomMood, readRoomMood } from './atmosphere/moods';
 export type { PropAnchor, RoomTarget } from './camera/anchors';
 export type { FramingInsets } from './camera/CameraRig';
 export { type CreateRoomOptions, createRoom, type Room, type RoomStats } from './createRoom';

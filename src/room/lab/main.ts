@@ -1,4 +1,4 @@
-import { createRoom } from '../index';
+import { createRoom, readRoomMood } from '../index';
 import { MockGameSurface } from './MockGameSurface';
 import { MockPcScreen } from './MockPcScreen';
 import { MockRadioApp } from './MockRadioApp';
@@ -25,6 +25,7 @@ const room = createRoom({
   container,
   overlayContainer: screens,
   surface,
+  mood: readRoomMood(params.get('mood')),
   posters: params.get('posters') !== '0',
   onProgress: (fraction) => {
     status.textContent = `loading ${Math.round(fraction * 100)}%`;
@@ -88,6 +89,7 @@ room.ready.then(
     if (params.get('autopower') === '0') return;
     await room.powerOn();
     surface.resume();
+    if (params.get('view') === 'room') room.showRoom();
     if (params.get('view') === 'pc') room.focusPc();
     if (params.get('view') === 'radio') room.focusRadio();
   },

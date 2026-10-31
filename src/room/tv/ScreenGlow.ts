@@ -1,14 +1,17 @@
 import {
-  AdditiveBlending,
+  CustomBlending,
   type Material,
   Matrix4,
   Mesh,
   type Object3D,
+  OneFactor,
   PlaneGeometry,
   ShaderMaterial,
+  SrcAlphaFactor,
   type Texture,
   type Vector2,
   Vector3,
+  ZeroFactor,
 } from 'three';
 
 /**
@@ -79,7 +82,10 @@ void main() {
   // The spill is only a few 8-bit steps bright; dither so it fades instead of banding.
   float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   light = max(light + (noise - 0.5) / 255.0 * step(0.0005, falloff), 0.0);
-  gl_FragColor = vec4(light, 1.0);
+  // The legacy spill was tuned in display values. Decode before a linear post-process target, then encode only
+  // when drawing straight to the screen; otherwise a 0.1 glow becomes a glaring 0.35 after the final conversion.
+  gl_FragColor = sRGBTransferEOTF(vec4(light, 1.0));
+  #include <colorspace_fragment>
 }
 `;
 
@@ -106,7 +112,12 @@ export class ScreenGlow {
         },
         vertexShader: VERTEX,
         fragmentShader: FRAGMENT,
-        blending: AdditiveBlending,
+        blending: CustomBlending,
+        blendSrc: SrcAlphaFactor,
+        blendDst: OneFactor,
+        // Alpha carries the atmosphere's display mask. Add light without turning a screen back into room pixels.
+        blendSrcAlpha: ZeroFactor,
+        blendDstAlpha: OneFactor,
         transparent: true,
         depthWrite: false,
         // Pull the quad towards the camera in depth so it never z-fights the baked surface.
@@ -114,6 +125,7 @@ export class ScreenGlow {
         polygonOffsetFactor: -2,
         polygonOffsetUnits: -8,
       });
+      material.userData.bezelGlow = !patch.fillEmitter;
       const mesh = new Mesh(new PlaneGeometry(patch.size.x, patch.size.y), material);
       mesh.name = 'ScreenGlow';
       const normal = new Vector3().crossVectors(patch.right, patch.up);

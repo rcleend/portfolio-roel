@@ -4,7 +4,7 @@ import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
-import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
+import { postersShown, FINISHED_REDUCED_ROOM_PROGRAMS as ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
  * The computer on the desk in the real app: the room's flight and live
@@ -626,7 +626,8 @@ test.describe('performance', () => {
     expect(await largeUploadsSince(page, since)).toBe(0);
   });
 
-  test('renders nothing while the visitor reads or scrolls, and adds no shader program', async ({ page }) => {
+  test('reduced motion renders nothing while reading or scrolling, and adds no shader program', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/?seed=1');
     await waitForRunning(page);
     await page.mouse.click(WALL.x, WALL.y);

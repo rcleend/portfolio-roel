@@ -29,6 +29,7 @@ const ENTRY = 'index.html';
 const ROOM = 'src/room/index.ts';
 /** Lazy entries measured beyond the entry: their source, and whether they may share the room chunk's three.js. */
 const LAZY_CHUNKS = {
+  RainSound: { source: 'src/room/rain/RainSound.ts', three: 'none' },
   pcStill: { source: 'src/app/pc/still/pcStill.ts', three: 'any' },
   PcExperience: { source: 'src/app/pc/PcExperience.tsx', three: 'none' },
   radioDevice: { source: 'src/room/radio/deckChunk.ts', three: 'room' },

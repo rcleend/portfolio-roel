@@ -22,7 +22,13 @@ It should feel authentic first and polished second: chunky hand-placed pixels, l
 
 ## The room's UI
 
-Everything around the TV's picture and the computer's screen (the startup still, the TV's way out, the sound toggle, the room view's overview and its labels, the way back from the computer and the radio, the CD player's controls and the cursors) is one quiet system, so the arcade stays inside the screens: minimal and slightly playful, white type over the 3D room. Tokens live in `src/app/styles.css` (`--ui-*`).
+The room uses **Velvet dusk**, fixed at **70% haze and 30% dust**: peach lamplight, plum shadows and a dim,
+soft summer-night atmosphere. There are no mood controls. Fine dust catches the lamps; the TV and PC pictures stay
+sharp and readable. Rain falls outside the window, with rounded refracting beads and slow irregular trails on its glass. Occasional off-screen storm flashes cast cool
+light through the blinds across the room, then fade back to the warm lamps. The supplied
+attic-rain recording plays quietly throughout room, computer and radio visits, follows the sound toggle, and fades
+out at the game. Reduced motion freezes visual rain and dust. The rug retains its plush fibres and folded corner,
+with a straight navy-and-white checker pattern and no coloured or diagonal patches. See docs/ROOM.md, Atmosphere.
 
 - **Type.** Headings in Chewy, white; everything else in Nunito 600 (800 for the menu and a track's name), white or 76 % white for the second line. Self-hosted, latin only (`@fontsource/chewy`, `@fontsource/nunito`); `main.tsx` asks for Chewy and Nunito 600 first thing, the rest download the first time something is set in them.
 - **Legibility.** No plates: a soft text shadow, and for small type a dark glass pill (`--ui-glass`, fully rounded, a soft lift shadow). The overview sits in a soft corner shade, never an edge.

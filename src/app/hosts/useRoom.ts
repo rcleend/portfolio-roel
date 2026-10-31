@@ -46,6 +46,8 @@ export function useRoom(
           container: element,
           overlayContainer: overlay,
           surface,
+          mood: 'rose',
+          air: { haze: 0.7, dust: 0.3 },
         });
       } catch (error) {
         fail(error);

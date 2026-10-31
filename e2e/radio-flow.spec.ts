@@ -2,7 +2,12 @@ import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
 import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
-import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
+import {
+  FINISHED_RADIO_PROGRAMS,
+  postersShown,
+  FINISHED_REDUCED_ROOM_PROGRAMS as ROOM_PROGRAMS,
+  spotlightIn,
+} from './programs';
 import { audioRequests, sound, spyOnAudio, timePickToSound, waitAudible } from './radioAudio';
 
 /**
@@ -69,6 +74,12 @@ async function goToRadio(page: Page, tap = false): Promise<void> {
 
 async function untilDiscsUp(page: Page): Promise<void> {
   await expect.poll(() => page.evaluate(() => window.__room?.radio.deck?.live), { timeout: 5000 }).toBe(true);
+  if (await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+    await expect
+      .poll(() => page.evaluate(() => window.__room?.radio.deck?.layout.discs.length ?? 0))
+      .toBeGreaterThanOrEqual(5);
+    return;
+  }
   // The last disc rises by the landing + 1.2 s on a warm visit, later on a cold one (its print uploads first).
   await expect
     .poll(async () => (await cues(page)).filter((cue) => cue === 'disc-rise').length, { timeout: 8000 })
@@ -229,9 +240,10 @@ test('a CD picked while another plays takes its place, on the one element', asyn
   await expect(announced(page)).toHaveText('Playing Overdrive, track 1 of 2, from Solar Drive by Neon Rafters.');
   expect(await page.evaluate(() => window.__spy.audios.length)).toBe(1);
   expect(await elementsPlayed(page)).toBe(1);
-  expect(await page.evaluate(() => window.__spy.decodes)).toBe(0);
-  // The game's audio context and the radio's own for its mechanical sounds: no more.
-  expect(await page.evaluate(() => window.__spy.contexts)).toBeLessThanOrEqual(2);
+  await page.waitForFunction(() => window.__room?.stats.rainReady);
+  expect(await page.evaluate(() => window.__spy.decodes)).toBe(1);
+  // One decode for the rain; the radio still streams. Contexts: game, rain, and the radio's mechanical cues.
+  expect(await page.evaluate(() => window.__spy.contexts)).toBeLessThanOrEqual(3);
 });
 
 test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back to the TV', async ({ page }) => {
@@ -348,7 +360,8 @@ test.describe('performance', () => {
   test('loads nothing of the radio before the game runs and the first look around', async ({ page }) => {
     const lazy: string[] = [];
     page.on('request', (request) => {
-      if (LAZY_RADIO.test(request.url())) lazy.push(new URL(request.url()).pathname);
+      if (LAZY_RADIO.test(request.url()) && !request.url().endsWith('/audio/attic-rain.mp3'))
+        lazy.push(new URL(request.url()).pathname);
     });
     const media = audioRequests(page);
     await open(page);
@@ -364,7 +377,8 @@ test.describe('performance', () => {
     expect(media).toEqual([]);
   });
 
-  test('rests at the radio, ticks once a second playing, and draws nothing at the computer', async ({ page }) => {
+  test('reduced motion rests at the radio, ticks playing, and draws nothing at the computer', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     test.setTimeout(90_000);
     await open(page);
     await lookAround(page);
@@ -380,7 +394,7 @@ test.describe('performance', () => {
     await settled(page);
 
     await goToRadio(page);
-    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + FINISHED_RADIO_PROGRAMS);
     // Resting with nothing in the player (past the float's rest 7.2 s after the last input): no frame at all, but for
     // the sharper skin's one as it swaps in, should a busy machine bring it this late.
     await page.mouse.move(1430, 890);
@@ -418,7 +432,7 @@ test.describe('performance', () => {
     expect((await sound(page))?.paused).toBe(false);
     await expect.poll(async () => (await sound(page))?.volume, { timeout: 3000 }).toBeCloseTo(0.56, 2);
     expect(await framesOver(page, 2000)).toBe(0);
-    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
+    expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + FINISHED_RADIO_PROGRAMS);
   });
 
   test('keeps the flights to and from the radio, and the arrival, free of long frames at 6× CPU', {

@@ -77,12 +77,16 @@ interface CreateRoomOptions {
   assetBaseUrl?: string;            // absolute URL of the assets folder; default `${BASE_URL}room/`
   maxPixelRatio?: number;           // default 2
   maxDrawingBufferPixels?: number;  // default 3 000 000
+  mood?: RoomMood;                  // 'original' (default), 'honey', 'rose' or 'midnight'
 }
 
 interface Room {
   readonly ready: Promise<void>;
   readonly view: RoomView;                 // 'tv' | 'room' | 'pc' | 'radio', at or flying to
   readonly settled: boolean;               // the camera rests at `view`
+  readonly mood: RoomMood;
+  setMood(mood: RoomMood): void;           // changes the finish in place, with no animation or reload
+  setAir(air: RoomAir): void;             // haze/dust multipliers, each 0–2 (1 uses the mood's settings)
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
   powerOn(): Promise<void>;
   powerOff(): Promise<void>;
@@ -171,7 +175,7 @@ The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-D
 
 The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
 
-- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 202 px (on coarse pointers). 7–20 kB of webp each, chosen by a `<picture>` before any script.
+- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 202 px (on coarse pointers). 6–17 kB of webp each, chosen by a `<picture>` before any script.
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines, the touch pad and the sound toggle already there. Keys and the pad reach it from the start; the pointer, until the room is in.
 - The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
 - Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
@@ -200,6 +204,15 @@ room/
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
     roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
+  atmosphere/
+    moods.ts            three opt-in summer-night finishes and the original-bake comparison
+    RoomAtmosphere.ts   one room render, quarter-size highlight extraction, mip-based bloom and split-tone finish
+    RoomDust.ts         one point draw of 580 seeded world-space motes, depth-tested and excluded from screens
+    AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
+    RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows
+    RoomHalation.ts     depth-tested warm halos at the two practical lamps; no animation
+    RoomScreens.ts      display mask in the frame's alpha; keeps content clear and removes duplicate bezel halos
+    LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
   camera/
     CameraRig.ts        TV / room / computer viewpoints, flights, reduced-motion cut, pointer parallax
     roomFraming.ts      pure: the whole-room overview for an aspect, tall to wide
@@ -352,9 +365,89 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** The five revision-6 runtime GLBs contain 351,791 triangles and, with credits, total 7.42 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
+- **Cost.** The five revision-6 runtime GLBs contain 351,791 triangles and, with credits, total 7.40 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the room glow reads the screen's mean colour from the 1 × 1 mip on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
+
+## Atmosphere
+
+The production app fixes **Velvet dusk** (`rose`) at **70% haze and 30% dust**, passed to `createRoom` together so the
+first frame already has the intended finish. There are no mood controls or production URL overrides. The lab keeps
+`?mood=original|honey|rose|midnight` and `setMood`/`setAir` for visual regression comparisons.
+
+| Mood | Direction |
+| --- | --- |
+| Honey & dust (`honey`) | Golden lamps, tobacco-brown shadows and slowly drifting amber dust; the warmest evening. |
+| Velvet dusk (`rose`) | Peach lamplight, plum shadows, softer haze and the most dust; a nostalgic summer dream. |
+| Moonlit hideaway (`midnight`) | The darkest exposure, cool blue window air, copper lamps and finer silver dust. |
+
+The bake remains the source of light and occlusion. Hard surfaces receive a shared shader extension for restrained,
+view-dependent lamp/window reflections; fabric, posters and screens stay matte. All baked room surfaces keep their
+occlusion while their light near the lamps warms up. The existing lamps carry soft, depth-tested halos.
+The scene draws once into a multisampled half-float target (8-bit fallback without float colour
+buffers), then two full-screen triangles extract highlights at quarter resolution and composite their mip-based glow
+with a linear split-tone grade and vignette. No second tone mapping is applied to the baked display transform.
+The finish stays on throughout the room, TV, radio and computer views, including their camera flights. Warm pools of
+light sit against darker ambient exposure, with restrained bloom and varnish. Screens keep their contrast and sharpness:
+`RoomScreens` marks the `replaceable_screen` meshes in the existing frame's alpha, so their pictures receive only 12%
+of the colour grade and no additional bloom or vignette. The mask follows the real geometry, including occlusion and
+hover movement, with no extra render pass. Additive light preserves that alpha. `LiveScreenMood` applies the same
+subtle tint to the computer's live DOM screen; its SVG filter is removed for the original comparison. The old fixed
+bezel glow quads are disabled while a finish is active: the actual screen's bloom supplies the surrounding glow,
+avoiding a second rectangular rim during flights and hover. Screen spill is decoded from its display-space tuning
+before drawing into a linear target, preventing double encoding and glare. Grain is fixed.
+
+The frame also resolves its depth. The composite integrates three soft volumes of illuminated air (desk lamp, lava
+lamp and slanted window light) along the camera ray, ending at the first surface. There is no ray marching or temporal
+history to leave trails during flights. A final single draw of 580 deterministically placed points adds fine, gently
+drifting dust. Each mote checks the frame depth for occlusion and its alpha to stay off both screen pictures; size is
+capped at five CSS pixels to avoid foreground glare. Neither haze nor particles cover live PC text.
+Rain shares the existing composite: no additional render target, draw call, shader program or texture. A camera ray
+intersects the window plane at z=-2.43 within its world bounds. Scene depth masks the frame, blinds, sash and computer.
+Rounded water lenses and fine beads distort the already-loaded exterior tree texture directly; its existing mip chain
+softens the damp glass between drops. Moving drops pause and accelerate, leaving narrow, irregular tapered trails.
+Small warm/cool reflections and darker menisci give the clear beads volume. World-space coordinates keep them attached
+to the glass through flights. Sampling the exterior directly prevents foreground objects from bleeding into refraction.
+The visual reference is Surin's [Rain drips on glass](https://www.youtube.com/watch?v=yl6Vh-hmKjk).
+
+Sporadic off-screen storm flashes brighten the exterior and send cool light through the actual opening. The baked
+materials receive a directional flash with projected sash/blind bands and softer indirect bounce, retaining the baked
+contact shadows and texture detail. Window haze also catches the flash. There are no visible bolts or screen overlays.
+An irregular double flicker lasts about a second every 45–91 seconds; the first is around 18 seconds into the first
+room visit. Reduced motion suppresses flashes entirely, including clearing an active flash immediately. The recording
+supplies its own quiet thunder; flash timing is independent of those recorded sounds.
+
+The shared rain/dust timer requests at most 24 frames/s and defers to existing game/flight frames. It stops at the TV,
+with the original bake, while hidden or context-lost, on disposal, or when both dust is zero and the window is outside
+the frustum. Reduced motion freezes rain and dust. The resolved depth adds at most 12 MB at the 3 MP cap.
+
+The finish adds six shader programs plus two linear-output material variants to the first room view
+(`e2e/programs.ts`, `ATMOSPHERE_PROGRAMS`). Reduced-motion cuts add the linear-target veil; the real radio adds its prewarmed and linear-output CD variants. The first comparison with original also compiles screen-output variants;
+subsequent switches reuse them. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse, idle frames,
+reduced motion, the fixed production finish, dust visibility and scheduling, device navigation, TV contrast and exclusion of
+dust/haze from its picture, live-PC tint and hand-over, resize and WebGL context restoration.
+
+### Rain audio
+
+`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on. The supplied
+`public/audio/attic-rain.mp3` is decoded once at 24 kHz stereo (~23 MB) and driven by one looping AudioBufferSourceNode.
+An offline equal-power crossfade blends its final eight seconds into the first eight; the loop resumes at t=8,
+continuing the incoming samples without MP3 padding or a JS timer seam. The original file is retained verbatim.
+`Room.setMuted` shares the app sound switch. Rain plays throughout room/PC/radio navigation; the gain fades over
+180 ms at the TV, on mute or when the document hides, then the audio context suspends. Returning resumes the same
+source/playhead. Browser autoplay restrictions are retried on real gestures. Disposal aborts loading, removes
+listeners and closes the context. `stats.rainReady`/`rainPlaying` expose diagnostics. `e2e/rain.spec.ts` checks the
+actual decoded loop seam, stereo/rate, all views, mute, one-source reuse and context cleanup.
+
+### Rug texture
+
+`tools/room/assets/rug-geometric.png` is the generated navy/white checker albedo; the original wool shading,
+folded backing, mesh and placement remain. For a targeted update, run
+`node tools/room/retexture-rug.mjs --work <dir> --prepare`, open the native restyled `room-source.blend` in Blender and
+run `tools/room/retexture-rug.py -- --work <dir>`, then run the node command without `--prepare`. It transfers source
+UVs onto the shipped geometry, bakes only the rug into its existing atlas islands and replaces that embedded image.
+Other geometry/compressed buffers remain byte-for-byte unchanged; hashes/lengths are regenerated and the GLB validated.
+`pnpm verify:room` checks the published assets.
 
 ## CRT look (crtShader.ts)
 

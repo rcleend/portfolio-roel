@@ -30,6 +30,19 @@ export const SPOTLIGHT_PROGRAMS = 2;
 export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRAMS;
 
 /**
+ * Night finishes: varnish, lamp halation, highlight extraction, composition, dust and the monitor's display mask,
+ * plus linear-output versions also precompiled for the screen by the full poster path. None are allocated by original.
+ */
+export const ATMOSPHERE_PROGRAMS = POSTERS_PATH === 'lite' ? 6 : 8;
+
+/** Production uses Velvet dusk; the lab retains the original bake for isolated device tests. */
+export const FINISHED_ROOM_PROGRAMS = ROOM_PROGRAMS + ATMOSPHERE_PROGRAMS;
+/** Reduced-motion cuts additionally draw the black veil through the linear atmosphere target. */
+export const FINISHED_REDUCED_ROOM_PROGRAMS = FINISHED_ROOM_PROGRAMS + 1;
+/** The real CD material prewarms in screen output, then draws into the finish's linear target. */
+export const FINISHED_RADIO_PROGRAMS = 2;
+
+/**
  * Waits until the spotlight's chunk is in (RoomStats.spotlight), so a program count is deterministic: it is imported
  * after the first flight's first frame, in real time.
  */
