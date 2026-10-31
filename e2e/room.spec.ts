@@ -481,3 +481,57 @@ test("the pointer hides until the mouse moves, then wears the room's own cursors
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('idle');
   expect(await pointsAt('arrow')).toBe(generated('arrow'));
 });
+
+/** The overview's grid, from the boxes the page lays out (round seven): one margin, a top and a bottom row, two columns. */
+async function overviewGrid(page: import('@playwright/test').Page) {
+  await page.addInitScript(() =>
+    localStorage.setItem('reo-leo:view-hints', JSON.stringify({ lookedAround: true, toured: true })),
+  );
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+  await expect.poll(() => page.evaluate(() => window.__room?.settled === true)).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  return page.evaluate(() => {
+    const box = (element: Element | null) => {
+      const r = element?.getBoundingClientRect() ?? new DOMRect();
+      return {
+        left: r.left,
+        right: r.right,
+        top: r.top,
+        bottom: r.bottom,
+        cx: r.x + r.width / 2,
+        cy: r.y + r.height / 2,
+      };
+    };
+    const mute = box(document.querySelector('.sound-toggle'));
+    const glyphs = [...document.querySelectorAll('.socials__glyph')].map(box);
+    const items = [...document.querySelectorAll('.overview__item')].map(box);
+    return { mute, glyphs, items, width: innerWidth, height: innerHeight };
+  });
+}
+
+test('the overview keeps a strict grid: one margin, the top and bottom rows, the right column', async ({ page }) => {
+  const { mute, glyphs, items, width, height } = await overviewGrid(page);
+  const edge = mute.top;
+  expect(width - mute.right).toBeCloseTo(edge, 0);
+  // Top row: the menu on the toggle's centre line (its words' ink is nudged onto it: within a pixel).
+  for (const item of items) expect(Math.abs(item.cy - mute.cy)).toBeLessThanOrEqual(1);
+  // Bottom row: the marks on one centre line, as far from the bottom as the top row's is from the top.
+  for (const glyph of glyphs) expect(glyph.cy).toBeCloseTo(height - mute.cy, 0);
+  // Right column: the envelope's centre under the toggle's.
+  expect(glyphs.at(-1)?.cx).toBeCloseTo(mute.cx, 0);
+});
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('the overview keeps the same grid: one margin, the marks on the bottom row', async ({ page }) => {
+    const { mute, glyphs, width, height } = await overviewGrid(page);
+    expect(width - mute.right).toBeCloseTo(mute.top, 0);
+    for (const glyph of glyphs) expect(glyph.cy).toBeCloseTo(height - mute.cy, 0);
+    // The marks centred along the bottom.
+    expect(((glyphs[0]?.cx ?? 0) + (glyphs.at(-1)?.cx ?? 0)) / 2).toBeCloseTo(width / 2, 0);
+  });
+});

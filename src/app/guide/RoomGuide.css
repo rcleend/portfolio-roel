@@ -320,11 +320,18 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 /* ——— The overview: the room view's corners ——— */
 
 /*
- * The whole viewport, its parts in the corners on one shared margin (`--ui-edge`, the sound toggle's too): the name
- * and the menu top left on the toggle's centre line, the line bottom left, the quick links bottom right. No plates:
- * white type lifted by its shadow. It takes no pointer itself, so the room stays clickable around it.
+ * The whole viewport, its parts in the corners on one strict grid (round seven): one margin all round (`--ui-edge`,
+ * the sound toggle's too, or the safe area), a top row and a bottom row each `--ui-top-row-height` tall at that
+ * margin. Top row: the name, the menu and the toggle on one centre line. Bottom row: the line and the quick links on
+ * one centre line. Left column: the name's ink and the line's ink start on the margin (Chewy's side bearing taken
+ * back). Right column: the envelope's centre under the toggle's. No plates: white type lifted by its shadow. It takes
+ * no pointer itself, so the room stays clickable around it. e2e/room.spec.ts measures the grid.
  */
 .overview {
+  --ui-bottom-row: max(var(--ui-edge), env(safe-area-inset-bottom));
+  --ui-right-edge: max(var(--ui-edge), env(safe-area-inset-right));
+  /* Chewy's left side bearing, taken back so its ink starts on the margin. */
+  --chewy-bearing: -0.026em;
   position: fixed;
   inset: 0;
   z-index: 16;
@@ -350,8 +357,11 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 }
 
 .overview__name {
+  position: relative;
+  /* Its ink, not its line box, on the row's centre line. */
+  top: 0.022em;
   display: grid;
-  margin: 0;
+  margin: 0 0 0 var(--chewy-bearing);
   font: 400 19px / 0.8 var(--ui-display);
   letter-spacing: 0.03em;
 }
@@ -373,6 +383,8 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 /* Text only. The hit area reaches 12 px round the word, so the word itself sits on the bar's rhythm. */
 .overview__item {
   position: relative;
+  /* The word's ink on the row's centre line. */
+  top: 0.044em;
   box-sizing: border-box;
   min-width: 44px;
   min-height: 44px;
@@ -443,18 +455,23 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 
 .overview__label {
   position: absolute;
-  bottom: max(var(--ui-edge), env(safe-area-inset-bottom));
+  /* Its ink, not its line box, on the row's centre line. */
+  bottom: calc(var(--ui-bottom-row) + 0.105em);
   left: max(var(--ui-edge), env(safe-area-inset-left));
-  margin: 0;
+  display: flex;
+  align-items: center;
+  height: var(--ui-top-row-height);
+  margin: 0 0 0 var(--chewy-bearing);
   font: 400 22px / 1 var(--ui-display);
   letter-spacing: 0.01em;
 }
 
 /* The quick links to Roel elsewhere: the networks' marks in the soft ink, their own corner. */
+/* Centred in the bottom row; the envelope's 40 px target centred under the toggle's 44 px button. */
 .socials {
   position: absolute;
-  right: max(calc(var(--ui-edge) - 9px), env(safe-area-inset-right));
-  bottom: max(calc(var(--ui-edge) - 9px), env(safe-area-inset-bottom));
+  right: calc(var(--ui-right-edge) + (var(--ui-top-row-height) - 40px) / 2);
+  bottom: calc(var(--ui-bottom-row) + (var(--ui-top-row-height) - 40px) / 2);
   display: flex;
   gap: 2px;
   margin: 0;
@@ -559,7 +576,8 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
 
   .overview__name {
     position: absolute;
-    top: var(--ui-top-row);
+    /* Its ink on the sound toggle's centre line. */
+    top: calc(var(--ui-top-row) + 0.048em);
     left: max(var(--ui-edge), env(safe-area-inset-left));
     align-content: center;
     height: var(--ui-top-row-height);
@@ -600,7 +618,7 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
     left: 0;
     justify-content: center;
     gap: 16px;
-    bottom: max(var(--ui-edge), env(safe-area-inset-bottom));
+    bottom: calc(var(--ui-bottom-row) + (var(--ui-top-row-height) - 48px) / 2);
   }
 
   .socials__link {

@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import { jelly } from '../motion/jelly';
 import './SoundToggle.css';
 
 export interface SoundToggleProps {
@@ -8,9 +10,11 @@ export interface SoundToggleProps {
 /**
  * The speaker in the top-right corner, in the room UI's white line style. A real toggle button (`aria-pressed` =
  * muted) reachable with Tab; a mouse click does not take focus from the game, so play continues with the keyboard
- * right after. Turning the sound on sends the waves out again; muting swaps them for a cross.
+ * right after. Turning the sound on sends the waves out again; muting swaps them for a cross; the speaker wobbles like
+ * jelly either way, and the button squashes under the press and springs back, like the radio's play key.
  */
 export function SoundToggle({ muted, onToggle }: SoundToggleProps) {
+  const glyph = useRef<SVGSVGElement>(null);
   return (
     <button
       type="button"
@@ -19,9 +23,13 @@ export function SoundToggle({ muted, onToggle }: SoundToggleProps) {
       aria-pressed={muted}
       title={muted ? 'Sound off' : 'Sound on'}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={onToggle}
+      onClick={() => {
+        onToggle();
+        // The radio's play key's pair: the speaker wobbles as its waves and cross change.
+        jelly(glyph.current);
+      }}
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true">
+      <svg ref={glyph} viewBox="0 0 24 24" aria-hidden="true">
         <path
           className="sound-toggle__speaker"
           d="M3.5 10a1.4 1.4 0 0 1 1.4-1.4h2.4l3.9-3.4c.8-.7 1.9-.1 1.9.9v11.8c0 1-1.1 1.6-1.9.9l-3.9-3.4H4.9A1.4 1.4 0 0 1 3.5 14z"

@@ -1,8 +1,9 @@
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { nextRovingIndex } from '../../a11y/roving';
-import { useMediaQuery } from '../../useMediaQuery';
+import { REDUCED_MOTION, useMediaQuery } from '../../useMediaQuery';
 import type { RadioDeck } from '../deck';
 import type { PlayerSnapshot, RadioPlayer } from '../player/RadioPlayer';
+import { PlayMorph } from './PlayMorph';
 
 export interface TransportBarProps {
   readonly deck: RadioDeck;
@@ -18,14 +19,16 @@ export const RAIL_QUERY = '(orientation: landscape) and (max-height: 479.98px)';
 
 /** The play button's radius, px (`--radio-play` is its diameter), and the title's gap from its rim to the baseline. */
 const PLAY_RADIUS = 40;
-const TITLE_GAP = 7;
-/** The title's baseline: an arc over the top of the button, concentric with it, drawn left to right. */
-const TITLE_RADIUS = PLAY_RADIUS + TITLE_GAP;
-/** The title's box: the arc plus the letters standing on it. */
-const TITLE_BOX = (TITLE_RADIUS + 22) * 2;
-
-const PLAY = 'M8.6 5.6v12.8l10.2-6.4z';
-const PAUSE = 'M7 5.8h3.4v12.4H7zM13.6 5.8H17v12.4h-3.4z';
+const TITLE_GAP = 15;
+/**
+ * The title's baseline: a gentle arc over the button, centred over it, its top `TITLE_GAP` above the rim. A radius
+ * well beyond the button's keeps the curve flat, so the words bow over the button rather than wrap round it.
+ */
+const TITLE_RADIUS = 118;
+/** How far either way of the top the baseline runs, radians: room for the words with some to spare. */
+const TITLE_SPAN = 1.05;
+/** The title's box, centred on the button: the arc's circle plus the letters standing on it. */
+const TITLE_BOX = (TITLE_RADIUS + 30) * 2;
 
 /**
  * The radio's controls for fingers (round six, item 35): the 3D keys are too small to tap on a phone, so a primary
@@ -41,6 +44,7 @@ export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: Tra
   const bar = useRef<HTMLDivElement>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const rail = useMediaQuery(RAIL_QUERY);
+  const reduced = useMediaQuery(REDUCED_MOTION);
   const [active, setActive] = useState(1);
 
   useEffect(() => {
@@ -116,10 +120,7 @@ export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: Tra
           onFocus={() => setActive(1)}
           onClick={playPause}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path className="radio-bar__glyph radio-bar__glyph--play" d={PLAY} />
-            <path className="radio-bar__glyph radio-bar__glyph--pause" d={PAUSE} />
-          </svg>
+          <PlayMorph playing={playing} reduced={reduced} />
         </button>
       </div>
       {rail ? null : (
@@ -140,15 +141,19 @@ export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: Tra
 }
 
 /**
- * "Some songs I made" in Chewy, set on a curve round the top of the play button like the label round a badge (round
- * six, item 35 and the captain's refinement): an SVG `<textPath>` on an arc concentric with the button, centred over
- * it, so it stays crisp at every size. Shown while nothing plays, popping in and out with the button's spring. The
- * words are also a real heading for a screen reader.
+ * "Some songs I made" in Chewy, set on a curve over the play button like the label round a badge (round six, item 35,
+ * flattened and given more room in round seven): an SVG `<textPath>` on a gentle arc centred over the button, so it
+ * stays crisp at every size. Shown while nothing plays, springing in and out from the button's centre with its own
+ * spring. The words are also a real heading for a screen reader.
  */
 function ShelfTitle({ shown }: { readonly shown: boolean }) {
   const id = useId();
+  // The button's centre is the box's; the arc's own centre sits below it, so its top is just over the rim.
   const centre = TITLE_BOX / 2;
-  const arc = `M ${centre - TITLE_RADIUS} ${centre} A ${TITLE_RADIUS} ${TITLE_RADIUS} 0 0 1 ${centre + TITLE_RADIUS} ${centre}`;
+  const arcY = centre - PLAY_RADIUS - TITLE_GAP + TITLE_RADIUS;
+  const dx = TITLE_RADIUS * Math.sin(TITLE_SPAN);
+  const y = arcY - TITLE_RADIUS * Math.cos(TITLE_SPAN);
+  const arc = `M ${(centre - dx).toFixed(2)} ${y.toFixed(2)} A ${TITLE_RADIUS} ${TITLE_RADIUS} 0 0 1 ${(centre + dx).toFixed(2)} ${y.toFixed(2)}`;
   return (
     <>
       <h2 className="radio__hidden">Some songs I made</h2>

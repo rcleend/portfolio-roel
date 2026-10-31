@@ -18,10 +18,12 @@
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 160ms ease,
-    transform 260ms var(--ui-spring);
+    transform 520ms var(--ui-bounce);
 }
 
 .sound-toggle svg {
+  /* The speaker wobbles about its middle (jelly.ts). */
+  transform-origin: center;
   width: 24px;
   height: 24px;
   overflow: visible;
@@ -79,9 +81,10 @@
   }
 }
 
+/* Squashed under the press; springs back with a bounce (the transition below), like the radio's play key. */
 .sound-toggle:active {
-  transform: scale(0.92);
-  transition-duration: 160ms, 90ms;
+  transform: scale(1.06, 0.88);
+  transition-duration: 160ms, 110ms;
 }
 
 .sound-toggle:focus-visible {

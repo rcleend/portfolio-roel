@@ -12,7 +12,7 @@
 }
 
 .radio[data-coarse="true"][data-rail="false"] {
-  --radio-bar: calc(134px + env(safe-area-inset-bottom));
+  --radio-bar: calc(144px + env(safe-area-inset-bottom));
 }
 
 /* Keyboard stand-ins for the discs and the keys: invisible until a keyboard focus rings the real thing. */
@@ -148,8 +148,8 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 14px;
   align-items: center;
-  height: calc(var(--radio-play) + 54px + env(safe-area-inset-bottom));
-  padding: 30px max(var(--ui-edge), env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+  height: calc(var(--radio-play) + 64px + env(safe-area-inset-bottom));
+  padding: 40px max(var(--ui-edge), env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
     max(var(--ui-edge), env(safe-area-inset-left));
 }
 
@@ -236,6 +236,7 @@
 }
 
 .radio-bar__play {
+  position: relative;
   display: grid;
   place-items: center;
   width: var(--radio-play);
@@ -251,40 +252,58 @@
   -webkit-tap-highlight-color: transparent;
   transition:
     background-color 160ms ease,
-    transform 260ms var(--ui-spring);
+    transform 520ms var(--ui-bounce);
 }
 
-.radio-bar__play svg {
-  width: 36px;
-  height: 36px;
+.radio-bar__morph {
+  width: 38px;
+  height: 38px;
   overflow: visible;
+  fill: currentcolor;
+  stroke: currentcolor;
+  /* The round joins of a stroke in the fill's colour round every corner of the glyph. */
+  stroke-width: 3.6;
+  stroke-linejoin: round;
   filter: drop-shadow(0 1px 1px rgb(6 4 14 / 0.5));
 }
 
-.radio-bar__glyph {
-  fill: currentcolor;
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 160ms ease,
-    transform 360ms var(--ui-spring);
-}
-
-.radio-bar__glyph--pause,
-.radio-bar__play[data-playing="true"] .radio-bar__glyph--play {
+/* While a song plays, a soft ring breathes out from the key, now and then. */
+.radio-bar__play::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.55);
   opacity: 0;
-  transform: scale(0.3) rotate(-90deg);
+  pointer-events: none;
 }
 
-.radio-bar__play[data-playing="true"] .radio-bar__glyph--pause {
-  opacity: 1;
-  transform: none;
+.radio-bar__play[data-playing="true"]::before {
+  animation: radio-play-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) 0.5s infinite backwards;
 }
 
-.radio-bar__back:active,
-.radio-bar__play:active {
+@keyframes radio-play-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+
+  70%,
+  to {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+.radio-bar__back:active {
   transform: scale(0.92);
   transition-duration: 160ms, 90ms;
+}
+
+/* Squashed under the finger, then a springy release (its transition's bounce). */
+.radio-bar__play:active {
+  transform: scale(1.07, 0.86);
+  transition-duration: 160ms, 110ms;
 }
 
 .radio-bar__back:focus-visible,
@@ -334,19 +353,23 @@
   overflow: visible;
   pointer-events: none;
   fill: var(--ui-ink);
-  font: 400 19px / 1 var(--ui-display);
-  letter-spacing: 0.02em;
+  font: 400 23px / 1 var(--ui-display);
+  letter-spacing: 0.03em;
   filter: drop-shadow(0 1px 1px rgb(6 4 14 / 0.6)) drop-shadow(0 2px 8px rgb(6 4 14 / 0.45));
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.86) rotate(-12deg);
+  transform: translate(-50%, -50%) translateY(12px) scale(0.72);
   transition:
-    opacity 160ms ease,
-    transform 360ms var(--ui-spring);
+    opacity 140ms ease,
+    transform 260ms var(--ui-out);
 }
 
+/* It springs up out of the key, a beat after the key's own glyph has turned over. */
 .radio-bar__title[data-shown="true"] {
   opacity: 1;
   transform: translate(-50%, -50%);
+  transition:
+    opacity 220ms ease 120ms,
+    transform 620ms var(--ui-bounce) 120ms;
 }
 
 @media (hover: hover) {
@@ -364,9 +387,12 @@
   }
 
   .radio-bar__title,
-  .radio-bar__now,
-  .radio-bar__glyph {
+  .radio-bar__now {
     transition: none;
+  }
+
+  .radio-bar__play[data-playing="true"]::before {
+    animation: none;
   }
 
   .radio-bar__back,
