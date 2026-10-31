@@ -116,6 +116,7 @@ function AtticStage({
   const [gated] = useState(() => new FocusGatedSurface(surface));
   const status = useRoom(stageRef, screensRef, gated);
   const room = status.state === 'ready' ? status.room : null;
+  useEffect(() => room?.setMuted(muted), [room, muted]);
   const [view, setView] = useState<RoomView>('tv');
   // Whether the camera rests at `view`: what waits for the landing (the computer chip, its prefetch) reads it.
   const [settled, setSettled] = useState(true);

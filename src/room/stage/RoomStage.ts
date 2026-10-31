@@ -1,4 +1,6 @@
 import { NoToneMapping, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import type { RoomAir, RoomMood } from '../atmosphere/moods';
+import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
 import { RenderLoop } from './RenderLoop';
 import { isSoftwareGpu } from './softwareGpu';
 
@@ -8,6 +10,8 @@ export interface StageOptions {
   readonly maxPixelRatio?: number;
   /** Upper bound for drawing-buffer pixels (width × height), whatever the DPR. */
   readonly maxDrawingBufferPixels?: number;
+  readonly mood?: RoomMood;
+  readonly air?: RoomAir;
 }
 
 export interface ViewportSize {
@@ -40,6 +44,10 @@ export class RoomStage {
   private visibleOnPage = true;
   private readonly intersectionObserver: IntersectionObserver;
   private contextLost = false;
+  private atmosphere: RoomAtmosphere | null = null;
+  private atTv = true;
+  private currentMood: RoomMood = 'original';
+  private air: RoomAir = { haze: 1, dust: 1 };
 
   constructor(private readonly options: StageOptions) {
     this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -66,6 +74,7 @@ export class RoomStage {
     this.resizeObserver.observe(options.container);
     this.intersectionObserver = new IntersectionObserver((entries) => {
       this.visibleOnPage = entries.some((entry) => entry.isIntersecting);
+      this.atmosphere?.syncMotion();
       this.loop.invalidate();
     });
     this.intersectionObserver.observe(this.canvas);
@@ -73,6 +82,8 @@ export class RoomStage {
     this.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.resize();
+    if (options.air) this.setAir(options.air);
+    this.setMood(options.mood ?? 'original');
   }
 
   get size(): ViewportSize {
@@ -82,6 +93,42 @@ export class RoomStage {
   /** True while the canvas is on screen and the tab is visible. */
   get visible(): boolean {
     return this.visibleOnPage && !document.hidden;
+  }
+
+  get lightning(): number {
+    return this.atmosphere?.lightning ?? 0;
+  }
+
+  get mood(): RoomMood {
+    return this.currentMood;
+  }
+
+  setMood(mood: RoomMood): void {
+    if (mood === this.currentMood) return;
+    this.currentMood = mood;
+    this.atmosphere ??= new RoomAtmosphere(this.renderer, this.loop, () => this.visible && !this.contextLost);
+    this.atmosphere.attach(this.scene);
+    this.atmosphere.setAir(this.air);
+    this.atmosphere.setMood(mood);
+    this.atmosphere.setAtTv(this.atTv);
+    this.loop.invalidate();
+  }
+
+  setAtTv(atTv: boolean): void {
+    this.atTv = atTv;
+    this.atmosphere?.setAtTv(atTv);
+  }
+
+  setAir(air: RoomAir): void {
+    const bounded = (value: number) => (Number.isFinite(value) ? Math.max(0, Math.min(2, value)) : 1);
+    this.air = { haze: bounded(air.haze), dust: bounded(air.dust) };
+    this.atmosphere?.setAir(this.air);
+    this.loop.invalidate();
+  }
+
+  /** Called once the room's baked surfaces have joined the scene. */
+  attachAtmosphere(): void {
+    this.atmosphere?.attach(this.scene);
   }
 
   onResize(listener: (size: ViewportSize) => void): () => void {
@@ -97,6 +144,7 @@ export class RoomStage {
 
   dispose(): void {
     this.loop.dispose();
+    this.atmosphere?.dispose();
     this.resizeObserver.disconnect();
     this.intersectionObserver.disconnect();
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
@@ -128,11 +176,13 @@ export class RoomStage {
 
   private readonly draw = (): void => {
     if (this.contextLost) return;
-    this.renderer.render(this.scene, this.camera);
+    if (this.atmosphere) this.atmosphere.render(this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
     for (const listener of this.renderListeners) listener();
   };
 
   private readonly onVisibilityChange = (): void => {
+    this.atmosphere?.syncMotion();
     this.loop.invalidate();
   };
 
@@ -140,10 +190,12 @@ export class RoomStage {
     // Prevent the default so the browser is allowed to restore the context later.
     event.preventDefault();
     this.contextLost = true;
+    this.atmosphere?.syncMotion();
   };
 
   private readonly onContextRestored = (): void => {
     this.contextLost = false;
+    this.atmosphere?.syncMotion();
     this.loop.invalidate();
   };
 }
