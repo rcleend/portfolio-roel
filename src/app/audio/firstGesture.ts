@@ -4,7 +4,7 @@
  * not `touchstart`, Safari is the reverse in places, so listen to all of them
  * and let the first one that works win.
  */
-export const GESTURE_EVENTS = ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'click'] as const;
+const GESTURE_EVENTS = ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'click'] as const;
 
 /**
  * Calls `attempt` on every user gesture until it succeeds once, then stops
