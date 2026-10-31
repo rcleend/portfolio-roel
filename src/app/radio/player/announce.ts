@@ -69,7 +69,7 @@ export function announcement(
       return previous.disc === null ? null : transportWords(previous, next, starting, selected);
     case 'ended':
       if (previous.transport === 'playing' && next.transport === 'stopped') return SAY.endOfDisc;
-      return next.track !== previous.track ? starting() : null;
+      return next.track !== previous.track || next.disc !== previous.disc ? starting() : null;
     case 'error':
       return next.error && !previous.error ? SAY.failed : null;
     case 'error-advance':

@@ -267,7 +267,7 @@ describe('the keys', () => {
 });
 
 describe('the end of a track and of the disc', () => {
-  it('plays on into the next track, then stops after the last', () => {
+  it('plays on into the next track, then puts the next disc in after the last, and wraps round the shelf', () => {
     const world = setup();
     playDisc(world);
     world.audio.emit('ended');
@@ -277,8 +277,14 @@ describe('the end of a track and of the disc', () => {
     world.wait(300);
     world.audio.ended = true;
     world.audio.emit('ended');
-    expect(world.deck.state).toMatchObject({ transport: 'stopped', lcd: { kind: 'total' } });
-    expect(world.words.at(-1)).toBe('End of the CD.');
+    expect(world.deck.state).toMatchObject({ loaded: 'low-tide', transport: 'playing' });
+    expect(world.audio.src).toBe('/albums/low-tide/01.m4a');
+    expect(world.words.at(-1)).toBe('Playing Slow Water, track 1 of 1, from Low Tide by Harbour Lights.');
+    world.deck.seat('low-tide');
+    world.audio.ended = true;
+    world.audio.emit('ended');
+    expect(world.deck.state).toMatchObject({ loaded: 'night-shift', transport: 'playing' });
+    expect(world.audio.src).toBe('/albums/night-shift/01.m4a');
   });
 });
 

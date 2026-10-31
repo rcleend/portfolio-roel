@@ -11,7 +11,7 @@ import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
 import { bossBarSettledTop, bossBarTop, drawBossBar } from '../../ui/hud/BossBar';
 import { drawHud } from '../../ui/hud/Hud';
-import type { ControlDevice } from '../../ui/hud/keyLabels';
+import { type ControlDevice, controlDevice } from '../../ui/hud/keyLabels';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { Autopilot } from '../../world/autopilot';
 import type { WorldEvent } from '../../world/events';
@@ -104,8 +104,7 @@ export class LevelScene implements GameScene<LevelParams> {
       screen: { width: 320, height: 240 },
     });
     if (this.#dev.startAt !== null) world.skipTo(this.#dev.startAt);
-    // Until the player presses something, a touch screen's player is taken to play on its pad.
-    if (this.#services.settings.touchControls && this.#device === 'keyboard') this.#device = 'touch';
+    this.#device = controlDevice(null, null, this.#services.settings.touchControls);
     if (this.#dev.skipIntro) this.#time = SKIPPED_INTRO;
     if (this.#dev.autopilot) this.#autopilot = new Autopilot();
     this.#world = world;
@@ -121,9 +120,7 @@ export class LevelScene implements GameScene<LevelParams> {
     if (!world) return;
     const { dt, input } = step;
     this.#time += dt;
-    if (input.lastDevice === 'gamepad' || input.lastDevice === 'keyboard' || input.lastDevice === 'touch') {
-      this.#device = input.lastDevice;
-    }
+    this.#device = controlDevice(this.#device, input.lastDevice, this.#services.settings.touchControls);
 
     const phase = this.#phase;
     switch (phase.kind) {

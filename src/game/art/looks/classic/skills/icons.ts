@@ -77,24 +77,27 @@ const potion = pixels(`
   ................
 `);
 
-/** A white Strat-style electric guitar: double-cutaway body, dark pickups, maple neck. */
-const guitar = pixels(`
-  .............oo.
-  ............onNo
-  ...........onNo.
-  ..........onNo..
-  .........onNo...
-  ..oo....onNo....
-  .owwo..onNo.....
-  .owwwoonNo......
-  .owwwwkko.......
-  ..owwkkwwo......
-  .owwkkwwwwo.....
-  owwwwwwkkwo.....
-  owwwwwwwwWo.....
-  owwwwwwwWWo.....
-  .owwwWWWWo......
-  ..oooooooo......
+/**
+ * The DESIGNER's music (round six, item 39): a beamed pair of eighth notes drawn like the notes his strums fire in
+ * the level (terraria-revised/characters/artsy/attack.png): the same plum outline, pink body and white glint.
+ */
+const notes = pixels(`
+  ................
+  ................
+  ....oooooooooooo
+  ....oPWPPPPPPPPo
+  ....oPPPPPPPPPPo
+  ....oPPooooooPPo
+  ....oPPo....oPPo
+  ....oPPo....oPPo
+  ....oPPo....oPPo
+  ..oooPPo..oooPPo
+  .oPWPPPo.oPWPPPo
+  oPPPPPPooPPPPPPo
+  oPPPPPPooPPPPPPo
+  .oPPPPo..oPPPPo.
+  ..oooo....oooo..
+  ................
 `);
 
 const star = pixels(`
@@ -152,10 +155,16 @@ export const skillIconSheets: Readonly<Record<SkillId, PixelArtSheet<SkillIconAn
     withRows(potion, { 10: '..oppppppwppqo..', 11: '..opppppwppppo..' }),
   ),
   'power-chord': icon(
-    { w: '#f6f6fa', W: '#b4b8c8', n: '#e0a560', N: '#9a6232', k: '#1d1d26', y: '#ffc83d' },
-    guitar,
-    // The strum: a ring of sound pulses out from the body.
-    withRows(guitar, { 10: '.owwkkwwwwo.y...', 11: 'owwwwwwkkwo..y..', 12: 'owwwwwwwwWo.y...' }),
+    { o: '#4f0b2c', P: '#ff4fa3', W: '#ffffff', y: '#ffd23f', c: '#3fd6f2' },
+    notes,
+    // The glint runs along the beam, and a note's sparks fly off in the projectiles' other two colours.
+    withRows(notes, {
+      0: '.y..............',
+      1: 'y.y.............',
+      2: '.y..oooooooooooo',
+      3: '....oPPPPPPPPWPo',
+      7: '.c..oPPo....oPPo',
+    }),
   ),
   'north-star': icon(
     { y: '#ffd84d', Y: '#fff1a0', W: '#ffffff' },

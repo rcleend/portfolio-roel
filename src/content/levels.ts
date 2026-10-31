@@ -22,7 +22,7 @@ export const levels: readonly LevelInfo[] = [
     city: 'BERLIN',
     country: 'GERMANY',
     briefing:
-      'Berlin, the city that is never finished building. Founding product engineer at an AI startup: grow teams, ' +
+      'Berlin, the city that is never finished building. Founding product engineer at an AI startup: grow ARR, ' +
       'fix onboarding, ship an app and turn every complaint into a renewal.',
     target: 'FIND PRODUCT-MARKET FIT',
     complaints: ['MY POST GOT 3 LIKES!', "WHERE'S THE TEAM PLAN?", 'ONBOARDING IS CONFUSING!', 'IS THERE AN APP?!'],

@@ -15,18 +15,25 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Social previews. og:image is root-relative until the site's public origin is known. -->
+    <link rel="canonical" href="https://roel.work/" />
+
+    <!-- Social previews, on the production origin. A new preview render gets a new file name, so scrapers fetch it. -->
     <meta property="og:type" content="profile" />
     <meta property="og:site_name" content="Roel Leenders" />
+    <meta property="og:url" content="https://roel.work/" />
     <meta property="og:title" content="Roel Leenders — Product Engineer" />
     <meta
       property="og:description"
       content="A product engineer who owns features end to end. Play the portfolio as a 16-bit arcade game on a CRT in an attic, or read the résumé."
     />
-    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:image" content="https://roel.work/og-room-3.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="A CRT television in a night-time attic room showing Roel's arcade portfolio." />
+    <meta
+      property="og:image:alt"
+      content="Roel's teenage attic room at night: a desk with a Windows XP computer, a radio, posters and a CRT TV showing his arcade portfolio, with the menu About, Music, Game."
+    />
     <meta property="profile:first_name" content="Roel" />
     <meta property="profile:last_name" content="Leenders" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -35,7 +42,11 @@
       name="twitter:description"
       content="A product engineer who owns features end to end. Play the portfolio as a 16-bit arcade game, or read the résumé."
     />
-    <meta name="twitter:image" content="/og-image.jpg" />
+    <meta name="twitter:image" content="https://roel.work/og-room-3.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Roel's teenage attic room at night: a desk with a Windows XP computer, a radio, posters and a CRT TV showing his arcade portfolio, with the menu About, Music, Game."
+    />
 
     <script type="application/ld+json">
       {
@@ -107,7 +118,7 @@
       room takes over. Each framing's lengths are the capture's, in units of its container (the viewport):
       - set (landscape, tall enough for the whole set): fitted to the height and centred; 1440 × 608 at capture.
       - landscape (a phone on its side): the picture fills the height between the pad's clusters; 900 × 390.
-      - portrait: the picture spans the width, centred above the touch pad's 202 px (or in the whole height); 390 × 900.
+      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height); 390 × 900.
     -->
     <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true">
       <picture>
@@ -145,7 +156,7 @@
       }
       @media (orientation: landscape) and (max-height: 544.98px) {
         .tv-still {
-          --picture-left: calc(50cqw - 67.705cqh);
+          --picture-left: calc(50cqw - 71.423cqh);
           --picture-top: 0.1cqh;
           --picture-width: 133.615cqh;
           --picture-height: 99.8cqh;
@@ -158,12 +169,12 @@
         .tv-still {
           --pad: 0px;
           --picture-left: 0.1cqw;
-          --picture-top: calc(50cqh - var(--pad) / 2 - 37.528cqw);
+          --picture-top: calc(50cqh - var(--pad) / 2 - 37.556cqw);
           --picture-width: 99.8cqw;
-          --picture-height: 75.056cqw;
+          --picture-height: 75.113cqw;
         }
         .tv-still__image {
-          top: calc(50cqh - var(--pad) / 2 - 89.487cqw);
+          top: calc(50cqh - var(--pad) / 2 - 86.154cqw);
           left: 0;
           width: 100cqw;
           height: auto;
@@ -171,7 +182,7 @@
       }
       @media (orientation: portrait) and (pointer: coarse) {
         .tv-still {
-          --pad: calc(202px + env(safe-area-inset-bottom, 0px));
+          --pad: calc(228px + env(safe-area-inset-bottom, 0px));
         }
       }
       @media (prefers-reduced-motion: reduce) {

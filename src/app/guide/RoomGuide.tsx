@@ -18,6 +18,7 @@ import { LookAround, useLookAroundPopup } from './LookAround';
 import { Overview } from './Overview';
 import { PropLabel } from './PropLabel';
 import { usePresence } from './presence';
+import { useTiltLook } from './tilt';
 import './RoomGuide.css';
 
 export interface RoomGuideProps {
@@ -70,15 +71,18 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const pointed = hovered ?? focused;
   const inRoom = view === 'room';
   const overview = usePresence(inRoom, OVERVIEW_EXIT_MS);
-  // On a touch screen the radio's own bar has the way back, with its keys. Mounted only around the views that have
-  // it, so its faces download the first time it is needed.
-  const backView = view === 'pc' || (view === 'radio' && !touch);
+  // On a touch screen the radio's own bar has the way back, with its keys, and the computer's reader its red close
+  // button: the pill is for mice and keyboards. Mounted only around the views that have it, so its faces download the
+  // first time it is needed.
+  const backView = (view === 'pc' || view === 'radio') && !touch;
   const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
   const popup = useLookAroundPopup(scenes, view === 'tv' && settled);
-  useTour(inRoom && settled && !progress.toured, radio, pointer, setTouring, () => learn(recordTour));
+  useTiltLook(room, touch, inRoom && settled);
+  // On a touch screen the props neither glow nor wear their names (no pointer to point with): the menu alone leads.
+  useTour(inRoom && settled && !progress.toured && !touch, radio, pointer, setTouring, () => learn(recordTour));
 
-  const request = inRoom ? (pointed ?? touring) : null;
+  const request = inRoom && !touch ? (pointed ?? touring) : null;
   useEffect(() => room.spotlight.light(request), [room, request]);
   // Reaching for the music is intent: the radio's device and sharper skin get ready, as a hover on the radio does.
   useEffect(() => {
@@ -102,19 +106,18 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
       {view === 'tv' ? (
         <LookAround onLookAround={showRoom} shown={popup.shown} intro={popup.intro} touch={touch} handOver={handOver} />
       ) : null}
-      {overview ? (
-        <Overview
-          presence={overview}
-          arriving={!settled}
-          settled={settled}
-          lit={inRoom ? lit : null}
-          radio={radio}
-          onHover={setHovered}
-          onKeyboard={setFocused}
-          onPick={go}
-        />
-      ) : null}
-      <PropLabel spotlight={room.spotlight} />
+      {/* Always in the page, hidden until the room view (Overview › presence). */}
+      <Overview
+        presence={overview ?? 'idle'}
+        arriving={!settled}
+        settled={settled}
+        lit={inRoom ? lit : null}
+        radio={radio}
+        onHover={setHovered}
+        onKeyboard={setFocused}
+        onPick={go}
+      />
+      {touch ? null : <PropLabel spotlight={room.spotlight} />}
       {back ? <BackButton due={backView && settled} onBack={showRoom} /> : null}
     </>
   );

@@ -29,7 +29,8 @@ describe('the shelf', () => {
   it('passes every rule against its files: schema, lengths, codecs, streaming, art', async () => {
     const report = await validateAlbums(ALBUMS, disk);
     expect(report.problems).toEqual([]);
-    expect(report.placeholderAudioBytes).toBeGreaterThan(0);
+    expect(report.placeholderAudioBytes).toBe(0);
+    expect(report.audioBytes).toBeGreaterThan(0);
   });
 
   it('bundles a URL for every local file it names', () => {
@@ -40,8 +41,8 @@ describe('the shelf', () => {
     }
   });
 
-  it('marks every placeholder so the caption can say so', () => {
-    expect(ALBUMS.every((album) => album.placeholder === true)).toBe(true);
+  it("holds Roel's own songs, none marked as a placeholder", () => {
+    expect(ALBUMS.some((album) => album.placeholder === true)).toBe(false);
   });
 });
 
@@ -122,6 +123,8 @@ describe('validateAlbums', () => {
     );
     const report = await validateAlbums(big, fake({}, { '01-one.m4a': aac(200, 'moov-first', 6_000_000) }));
     expect(report.problems.join()).toMatch(/placeholder audio/);
+    expect(report.problems.join()).toMatch(/a track may take 5 MB/);
+    expect(report.problems.join()).toMatch(/the shelf's audio takes/);
   });
 });
 

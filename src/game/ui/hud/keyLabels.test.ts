@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyCapFor, keyCapForCode } from './keyLabels';
+import { controlDevice, keyCapFor, keyCapForCode } from './keyLabels';
 
 describe('key labels', () => {
   it('names physical keys the way players know them', () => {
@@ -32,5 +32,18 @@ describe('key labels', () => {
     expect(keyCapFor('skill1', 'touch')).toEqual({ pad: 'green' });
     expect(keyCapFor('skill2', 'touch')).toEqual({ pad: 'blue' });
     expect(keyCapFor('pause', 'touch')).toEqual({ pad: 'start' });
+  });
+});
+
+describe('controlDevice', () => {
+  it('starts on the pad on a touch screen and on the keyboard elsewhere', () => {
+    expect(controlDevice(null, null, true)).toBe('touch');
+    expect(controlDevice(null, null, false)).toBe('keyboard');
+  });
+
+  it('follows the last press, and a pointer leaves it as it is', () => {
+    expect(controlDevice('touch', 'keyboard', true)).toBe('keyboard');
+    expect(controlDevice('keyboard', 'touch', false)).toBe('touch');
+    expect(controlDevice('gamepad', 'pointer', true)).toBe('gamepad');
   });
 });

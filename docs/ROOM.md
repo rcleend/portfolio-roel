@@ -51,7 +51,7 @@ What the room does to the game, so the app does not have to:
 | Moment | Effect on the surface | The computer's live screen |
 | --- | --- | --- |
 | `createRoom` | `setInputEnabled(true)` (the page opens on the TV) | hidden |
-| Click outside the TV while watching it, or `showRoom()` (a tap or a pen there does nothing: on a touch screen only the app's popup leaves the game, `ignoresClick` in `assembleRoom.ts`) | pointer released, `setInputEnabled(false)`, `pause()` (only if running), camera flies to the room | hidden |
+| Click outside the TV while watching it, or `showRoom()` (a tap or a pen leaves only from above the set, where it lands in NDC over the set's top: below and beside it is the touch pad's plate and too easy to hit, `ignoresClick` in `assembleRoom.ts`) | pointer released, `setInputEnabled(false)`, `pause()` (only if running), camera flies to the room | hidden |
 | Click/tap the TV in the room view, or `focusTv()` | camera flies back; on landing `resume()` (only if the room paused it) and `setInputEnabled(true)` | hidden |
 | Click/tap the computer or the desk in the room view, or `focusPc()` | camera cranes onto the desk, straight in front of the monitor; the game stays paused with input disabled | revealed on the landing frame (`pc.live` turns true), fading in over 160 ms |
 | Click/tap outside the computer (wall, window, desk…), Escape on the stage, or `showRoom()` while at or flying to the computer | camera pulls back to the room; the game stays paused | hidden synchronously, before the flight's first frame |
@@ -175,8 +175,8 @@ The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-D
 
 The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
 
-- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 202 px (on coarse pointers). 6–17 kB of webp each, chosen by a `<picture>` before any script.
-- The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines, the touch pad and the sound toggle already there. Keys and the pad reach it from the start; the pointer, until the room is in.
+- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 6–17 kB of webp each, chosen by a `<picture>` before any script.
+- The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
 - Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
 
@@ -206,15 +206,17 @@ room/
     LavaLamp.ts         48 s lava clip at 24 fps, only while visible
   atmosphere/
     moods.ts            three opt-in summer-night finishes and the original-bake comparison
-    RoomAtmosphere.ts   one room render, quarter-size highlight extraction, mip-based bloom and split-tone finish
+    RoomAtmosphere.ts   one room render, quarter-size highlight extraction, mip-based bloom and split-tone finish; the
+                        TV's light in the haze, and only its brightest pixels' glare from a display
     RoomDust.ts         one point draw of 580 seeded world-space motes, depth-tested and excluded from screens
     AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
-    RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows
+    RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows; lights
+                        them with the TV's picture (tv/screenLight.ts)
     RoomHalation.ts     depth-tested warm halos at the two practical lamps; no animation
-    RoomScreens.ts      display mask in the frame's alpha; keeps content clear and removes duplicate bezel halos
+    RoomScreens.ts      display mask in the frame's alpha; keeps content clear and hides the monitor's bezel quad
     LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
   camera/
-    CameraRig.ts        TV / room / computer viewpoints, flights, reduced-motion cut, pointer parallax
+    CameraRig.ts        TV / room / computer viewpoints, flights, reduced-motion cut, pointer (and phone tilt) parallax
     roomFraming.ts      pure: the whole-room overview for an aspect, tall to wide
     framing.ts          pure: fit points into (part of) the viewport for a fov and aspect
     cameraPath.ts       pure: arc and crane interpolation between viewpoints, look-at lead, fov-for-aspect
@@ -225,13 +227,14 @@ room/
     tvModel.ts          finds the screen/buttons in the TV asset; measured aperture constant
     tvFraming.ts        pure: the TV viewpoint (the whole set, or the picture on portrait and short screens); the
                         picture's outline on the curved glass
-    Television.ts       the device: CRT + LED + room glow, power choreography
+    Television.ts       the device: CRT + LED + the light its picture casts, power choreography
     CrtScreen.ts        ShaderMaterial on the glass, CanvasTexture updated on onFrame, power state
-    crtShader.ts        GLSL: scanlines, aperture grille, bloom, vignette, power raster, glass
+    crtShader.ts        GLSL: scanlines, aperture grille, bloom, vignette, power raster, halation, glass
+    screenLight.ts      the picture as an area light (§ The TV's light): its frame on the glass, and the GLSL the
+                        finish lights the room and its haze with
     powerTimeline.ts    pure: power-on/off animation as a function of time
     osd.ts              the TV's PAUSE on-screen display (5×7 bitmap font)
-    ScreenGlow.ts       additive light-spill quads tinted by a screen's mean colour (shared by every screen)
-    glowLayout.ts       where the TV's live spill lands in the attic (bezel and floor; cabinet bounce is baked)
+    ScreenGlow.ts       additive light-spill quads tinted by a screen's mean colour (the computer's monitor)
     PowerLed.ts         emissive LED + halo beside the power button
     TvInteractable.ts   the TV as an Interactable: focus button in the room, pointer surface on the TV
     screenMapping.ts    pure: picture rect in UV space, UV → native pixel
@@ -315,7 +318,7 @@ pnpm verify:room
 
 It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6, then the radio's lazy `radio-closeup.glb` and `radio-skin-2k.webp` and the posters' `posters.glb`, `posters-2k.webp` and `posters-1k.webp` (`lazyFiles`; § The CD player, § Posters). Existing attribution remains in `CREDITS.txt`, which now also records the close-up.
 The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
-The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and additive glow remain dynamic. There is no runtime studio environment capture.
+The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and the light it casts (§ The TV's light) remain dynamic. There is no runtime studio environment capture.
 The night rig keeps blue window highlights, tungsten desk light and amber lava glow, with substantially reduced ambient/fill illumination for deep shadows and stronger local contrast. The pillow and ceiling beams are removed; the old wall posters gave way to the decorated walls (§ Posters). The folded rug is square at the original width and rotated 15° clockwise; its raised corner is nearest the TV. Desk drawer fronts share the white enamel, and the oak floor has more natural grain. Changing the baked mood requires rebuilding all atlases.
 The monitor, keyboard and mouse are rebuilt as a lightweight beige 1990s desktop set from the linked Sketchfab visual reference. The existing tower under the desk remains; desktop cables and floppy disks are removed.
 The original lightweight wastepaper basket is moved clear of the desk. Its 15 inner papers settle onto the base in an offline physics pass; the three original floor papers remain. No runtime geometry or physics is added. The TV keeps its original printed color and continuous source UVs with smoother casing normals and a satin finish; its screen and interactions remain unchanged. The TV cabinet, desk, desk lamp, static lava housing and window frame also use repaired normals and supersampled offline bakes, reduced to the same runtime atlas sizes.
@@ -366,7 +369,7 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
 - **Cost.** The five revision-6 runtime GLBs contain 351,791 triangles and, with credits, total 7.40 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
-  The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the room glow reads the screen's mean colour from the 1 × 1 mip on the GPU (no pixel readback).
+  The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 
 ## Atmosphere
@@ -391,11 +394,54 @@ The finish stays on throughout the room, TV, radio and computer views, including
 light sit against darker ambient exposure, with restrained bloom and varnish. Screens keep their contrast and sharpness:
 `RoomScreens` marks the `replaceable_screen` meshes in the existing frame's alpha, so their pictures receive only 12%
 of the colour grade and no additional bloom or vignette. The mask follows the real geometry, including occlusion and
-hover movement, with no extra render pass. Additive light preserves that alpha. `LiveScreenMood` applies the same
-subtle tint to the computer's live DOM screen; its SVG filter is removed for the original comparison. The old fixed
-bezel glow quads are disabled while a finish is active: the actual screen's bloom supplies the surrounding glow,
-avoiding a second rectangular rim during flights and hover. Screen spill is decoded from its display-space tuning
-before drawing into a linear target, preventing double encoding and glare. Grain is fixed.
+hover movement, with no extra render pass. Additive light preserves that alpha. A display is light of its own colour,
+not lamplight: in the highlight extraction only its brightest pixels (a soft knee from 0.65 to 1.3) glare, at a
+fraction and with the warm bloom tint divided out, so the picture's mean colour no longer settles over the set as a
+milky veil; its light reaches the room as light (§ The TV's light). `LiveScreenMood` applies the same subtle tint to
+the computer's live DOM screen; its SVG filter is removed for the original comparison. The monitor's fixed bezel glow
+quad is disabled while a finish is active, avoiding a detached rectangular rim during flights and hover; its spill is
+decoded from its display-space tuning before drawing into a linear target, preventing double encoding and glare. Grain
+is fixed.
+
+### The TV's light
+
+The picture is an area light (`tv/screenLight.ts`), and the finish lights the room with it. `Television` measures it
+on the set: the picture's outline on the curved glass gives its extent and the plane it emits from (the depth of its
+edges, about 1 cm behind the glass's bulging middle), and the bezel's aperture at the front of the set, 1.6 cm in
+front of that plane, is the opening it is seen through. It publishes the uniforms on the glass (`userData.screenLight`)
+and sets their output from the tube's (`syncGlow`, so power on and off dim it); `RoomAtmosphere` shares them with its
+composite and with every baked surface `RoomGloss` extends, scaled by the finish (three times the picture's displayed
+values, as the tube outshines the dim baked room more than an 8-bit display can show; zero for the original bake).
+
+- **Diffuse.** Every baked surface in front of the picture's plane receives the form factor of the part of the picture
+  the opening lets it see: Lambert's polygon formula over its four corners (three's LTC edge fit), with Heitz and
+  Hill's clipped-sphere horizon. The opening, projected from the surface onto the picture's plane, hides what the chin
+  and the bezel hide from the cabinet top and the plant beside the set. The bake stands in for albedo (25 × the baked
+  colour, at most 0.85: the room's dim night light is about 4 % of full light where the TV stands). Nothing is lit
+  behind the picture's plane (the wall, the cabinet top beside the set), nothing whose horizon hides the whole picture
+  (the flat front of the set around it, which a recessed picture cannot reach), and nothing beyond 3.5 m (it fades from
+  2.5 m, where it is a fraction of an 8-bit step).
+- **Colour.** The picture near the surface, from the picture texture's mip chain: a footprint 2.5 × the surface's
+  distance wide (half of a Lambertian surface's light from a large emitter comes from within about that radius). So the
+  bezel's lip takes the colour of the picture's edge beside it, and the floor a metre away the picture's mean.
+- **Specular.** The set's own plastic (`device_tv_front_BAKED_UNLIT`) mirrors the picture through a satin lobe about 25°
+  wide: where its mirror ray meets the picture, blurred over the lobe's footprint and weighted by Fresnel and by how
+  much of the lobe the picture fills. Its steep inner lip above and below the picture shows a blurred band of the
+  picture's edge, as on a real set; the shallower side lips mirror the room.
+- **Haze.** The composite adds single scattering of the picture's mean colour in the air in front of the set: a
+  Lambertian point 25 cm behind the glass, its cos / r² intensity integrated in closed form along the view ray, over the
+  cone within 1.2 m in front of the glass and from 2 m from the eye on. Across the room it hangs in front of the set;
+  from the TV view (at most 1.75 m back) the air between the eye and the set is too thin to see, so it never veils the
+  set or the picture.
+- **The glass.** The CRT shader's halation carries a little of the picture's light (its LOD 2, so the edge's own
+  colour) a few millimetres past the raster into the tube's dark border, fading before the bezel (`exp(−0.4 ×` native
+  pixels`)`); away from the glass's sheen the border is black rather than flat grey.
+
+The light follows every game frame (a phosphor's afterglow lasts about a millisecond), from the mips the picture's
+upload already makes: no readback, no extra pass, draw call, render target or program. The unprocessed bake (`original`)
+has no live TV light: its own baked screen emitter is what it shows. `e2e/tv-light.spec.ts` paints the lab's picture in
+menu colours and checks that the lip and the tube's border take its colour, the set's front stays dark (the veil this
+replaced added 19–31 levels there), the floor before the set brightens and the far wall does not.
 
 The frame also resolves its depth. The composite integrates three soft volumes of illuminated air (desk lamp, lava
 lamp and slanted window light) along the camera ray, ending at the first surface. There is no ray marching or temporal
@@ -452,7 +498,7 @@ Other geometry/compressed buffers remain byte-for-byte unchanged; hashes/lengths
 ## CRT look (crtShader.ts)
 
 Linear-light pipeline: the sRGB canvas texture is decoded on sampling and re-encoded by three's `colorspace_fragment`.
-Per pixel: content rect → power deflection and vertical roll → sharp-bilinear horizontal sampling (slight softness) → Gaussian beam per scanline (brighter rows bloom wider) → white raster mix during power-on → mip-based bloom on bright pixels → aperture grille in device pixels → vignette → rounded raster edge → glass (soft sheen, Fresnel) on top of a dark green-grey unlit tube.
+Per pixel: content rect → power deflection and vertical roll → sharp-bilinear horizontal sampling (slight softness) → Gaussian beam per scanline (brighter rows bloom wider) → white raster mix during power-on → mip-based bloom on bright pixels → aperture grille in device pixels → vignette → rounded raster edge → halation a few millimetres past it into the dark border → glass (soft sheen, Fresnel) on top of a dark green-grey unlit tube.
 Power-on (≈600 ms after a 140 ms LED lead): dot → horizontal line → vertical snap-open with overshoot → white raster fades into the picture with a brightness bloom and a short roll. Power-off reverses it. Under `prefers-reduced-motion` both are 160 ms fades and camera moves become a 280 ms fade-through-black cut.
 
 ## The computer's monitor (`pc/`)
@@ -652,11 +698,11 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 ## Known gaps
 
 - Clicks are ray-cast against registered interactables only, so a prop standing in front of the TV in the room view would not block a click on the TV (none does from the room viewpoint today).
-- The room glow layout assumes the attic's TV placement (TV facing -X); moving the TV in Blender means re-measuring the three surface numbers in `glowLayout.ts`. Likewise `monitorGlow.ts` measures the desk top (y 0.785).
+- `monitorGlow.ts` measures the desk top (y 0.785); moving the desk in Blender means re-measuring it. The TV's light measures itself from the set (`screenLight.ts`).
 - `TV_SCREEN_APERTURE` is a measured constant; re-run `scripts/inspect-tv-screen.mjs` after a TV asset change.
 - `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
 - Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
 - Under software GL the room is fill-bound everywhere (flights 5–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. The first frame under SwiftShader comes about 60 ms later than before the computer (it did in the previous round too).
-- The first look around uploads the room's atlases the TV view never drew in the middle of its flight (as before the computer: a few frames over 34 ms at 6×, a 277 ms task at the reduced-motion cut). Uploading them ahead at the TV would cost every visitor ~120 MB of GPU memory and, on weak or software GPUs, frames of the game; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap enough for both and cut texture memory by about four, a room-wide follow-up.
+- The room's atlases the TV view never draws go up from the TV, 4 s after the picture is on (`assembleRoom` › `prewarm`), as small uploads between the game's frames where an idle period can hold one, else in a quiet moment or, at the latest, in the first look around's flight as before (round six: on an iPhone the first look around lagged). It costs a visitor who stays at the TV the ~120 MB of GPU memory the first look around would; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap and cut texture memory by about four, a room-wide follow-up.
 - Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
 - The radio: a room rebuild changes `radio-base.glb`'s fingerprint, so `verify:room` fails (and the radio stays scenery at runtime) until `pnpm build:radio` runs; Metal bakes of the 2K skin differ between runs by a few pixels (mean 0.05/255), the close-up is reproducible byte for byte. The rocker pivots 7 mm behind its face, so while pressed (6°, deep enough to be seen) it slides 0.7 mm across the panel and a few sub-pixel specks of the neighbouring keys' bevels can show in a close crop. A disc chosen before it is out of the radio comes out first, so it is heard 1.2–1.6 s after the pick (its own climb out of the well), not 0.95 s. A phone turned while the discs are rising or between picks can still make two discs graze: in the 5-disc sweeps (portrait 390 × 844 ↔ landscape 844 × 390) a turn with no pick touches in 18 of the swept turn times, all 2260–2430 ms after the click towards the radio (up to 7.9 mm, for one 8 ms frame; landscape to portrait none), and a pick, a turn 0–1000 ms later and another pick 0–1500 ms after it touch in 312 of 2112 runs portrait to landscape and 81 landscape to portrait (none jumps). A disc hovered within 100 ms of the pick of its neighbour on a portrait phone can come forward into the inserting disc's path (5 of 1220 runs). The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.

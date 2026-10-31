@@ -1,5 +1,4 @@
 import type { CharacterId, SkillId } from '@/content';
-import { getCharacter } from '@/content';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { blink } from '@/engine/motion/oscillators';
 import type { FxSprites } from '../../art/fx';
@@ -55,14 +54,14 @@ const SLOT_SIZE = 22;
 const DIGIT_HEIGHT = 8;
 
 /**
- * The Metal Slug-style HUD across the top: portrait, name and hearts on the
+ * The Metal Slug-style HUD across the top: portrait and hearts on the
  * left, the two skills with cooldown sweeps and key hints next to them, MRR
  * as big orange numerals and highlights collected on the right. No panel
  * behind it — outlined elements over the stage, like the arcade original.
  */
 export function drawHud(gfx: Gfx, kit: HudKit, state: HudState): void {
   drawPortrait(gfx, kit, state.characterId);
-  drawNameAndHearts(gfx, kit, state);
+  drawHearts(gfx, kit, state);
   const size = iconSlotSize(
     SLOT_SIZE,
     state.slots.map((slot) => kit.looks.skills[slot.skillId].icon),
@@ -87,15 +86,15 @@ function drawPortrait(gfx: Gfx, kit: HudKit, characterId: CharacterId): void {
   });
 }
 
-function drawNameAndHearts(gfx: Gfx, kit: HudKit, state: HudState): void {
+/** The hearts beside the portrait, on its middle (the portrait says who is playing; no name). */
+function drawHearts(gfx: Gfx, kit: HudKit, state: HudState): void {
   const x = PORTRAIT.x + PORTRAIT.size + 4;
-  gfx.text(getCharacter(state.characterId).name, x, TOP, kit.levelText.hudLabel);
   const sheet = kit.fx.heart;
   for (let i = 0; i < state.maxHearts; i++) {
     const full = i < state.hearts;
     // The heart just lost blinks a few times before going hollow.
     const losing = i === state.hearts && state.hurtFor < 0.6 && blink(state.hurtFor, 3 / 60, 3 / 60);
-    gfx.sprite(sheet, full || losing ? 'full' : 'empty', 0, x - 1 + i * 10, TOP + 11);
+    gfx.sprite(sheet, full || losing ? 'full' : 'empty', 0, x - 1 + i * 10, TOP + 9);
   }
 }
 

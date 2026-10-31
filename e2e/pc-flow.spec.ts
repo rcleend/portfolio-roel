@@ -732,7 +732,8 @@ test.describe('on a phone', () => {
   test('the menu leads to a full-screen reader whose close button returns to the room', async ({ page }) => {
     await openRoom(page);
     const pad = page.locator('.touchpad');
-    await expect(pad).toHaveAttribute('data-visible', 'true');
+    // On the title the pad waits for the press that begins; it never shows while looking around either.
+    await expect(pad).toHaveAttribute('data-visible', 'false');
     await lookAround(page, () => tapWayOut(page));
     await expect(pad).toHaveAttribute('data-visible', 'false');
 
@@ -765,7 +766,8 @@ test.describe('on a phone', () => {
     await page.touchscreen.tap(tv.x, tv.y);
     await advance(page, SETTLE_MS);
     expect(await view(page)).toBe('tv');
-    await expect(pad).toHaveAttribute('data-visible', 'true');
+    // Back at the TV, still on the title: the pad waits for the press that begins.
+    await expect(pad).toHaveAttribute('data-visible', 'false');
   });
 
   test('flies to the computer without uploading a texture on the way', async ({ page }) => {

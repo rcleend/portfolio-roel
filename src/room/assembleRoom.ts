@@ -1,8 +1,9 @@
-import { Box3, Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, Mesh, type Object3D, Vector2, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { RoomAssets } from './assets/roomAssets';
 import { type AnchorTarget, type PropAnchor, propAnchors, type RoomTarget } from './camera/anchors';
 import { CameraRig, type FramingInsets } from './camera/CameraRig';
+import { boxCorners } from './camera/framing';
 import { ScreenFade } from './camera/ScreenFade';
 import type { Interactable } from './interaction/Interactable';
 import { RoomInteraction } from './interaction/RoomInteraction';
@@ -26,6 +27,13 @@ import { pictureOutline } from './tv/tvFraming';
 import { locateTv, type TvModel } from './tv/tvModel';
 import type { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
+
+/**
+ * What one of the room's texture uploads is assumed to cost on the main thread before one is timed, when they go up
+ * from the TV (`prewarm`): a decoded image's copy to the GPU. Without it the first would be judged by the longest unit
+ * any task has run, and never fit between the game's frames.
+ */
+const PREWARM_UNIT_ESTIMATE_MS = 2;
 
 export interface RoomSceneOptions {
   readonly stage: RoomStage;
@@ -64,6 +72,10 @@ export interface RoomScene {
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
   refreshCursor(): void;
+  /** Starts uploading the rest of the room's textures from the TV, ahead of the first look around. */
+  prewarm(): void;
+  /** The phone's tilt as the room view's parallax (Room.setTilt). */
+  tilt(tilt: { readonly x: number; readonly y: number } | null): void;
   dispose(): void;
 }
 
@@ -110,13 +122,18 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     const playing = (views.atTv && power === 'on' && !surface.paused) || overlay.live || radio.prepared?.ambient;
     return playing ? 'playing' : 'quiet';
   });
-  // The TV view's own textures are on the GPU with the first frame; the rest wait until the visitor
-  // first looks around, so a visitor who stays at the TV never allocates them (about 120 MB).
+  // The TV view's own textures are on the GPU with the first frame; the rest (about 120 MB) go up a while after the
+  // TV turns on (`prewarm`), between the game's frames where an idle period can hold one and else in a quiet moment,
+  // so the first look around no longer uploads them in its flight (on a phone that flight lagged: round six, item 32);
+  // or, at the latest, once the visitor first looks around.
   let uploadQueued = false;
-  const queueUploads = (view: RoomView): void => {
+  const queueUploads = (view: RoomView | 'prewarm'): void => {
     if (uploadQueued || view === 'tv') return;
     uploadQueued = true;
-    background.add(uploadTextures(scene, stage.renderer));
+    background.add(
+      uploadTextures(scene, stage.renderer),
+      view === 'prewarm' ? { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS } : {},
+    );
   };
   const stopUploads = views.onChange(queueUploads);
   const monitor = new Monitor({
@@ -134,6 +151,11 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     isInView: () => views.moving || views.view === 'room' || views.view === 'pc',
     background,
   });
+  // The monitor's light spill draws with ScreenGlow's program, which the TV's own spill quads used to compile with the
+  // room; the TV's light is now drawn by the finish's programs, so it is compiled here, and no flight that first shows
+  // the spill stops to compile it (e2e/programs.ts counts it in the room's first view).
+  const spill = scene.getObjectByName('ScreenGlow');
+  if (spill) stage.prepare(spill);
   const lava = new LavaLamp({
     root: assets.room.scene,
     clips: assets.room.animations,
@@ -158,6 +180,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     isInRoomView: () => views.view !== 'tv',
     focusTv: () => views.request('tv'),
   });
+  // Where the top of the TV set lands on the screen (NDC y), from the camera as it is now.
+  const tvCorners = boxCorners(tvModel.bounds.min, tvModel.bounds.max);
+  const tvTopNdc = (): number => Math.max(...tvCorners.map((corner) => corner.clone().project(camera).y));
   const interaction = new RoomInteraction({
     canvas: stage.canvas,
     camera,
@@ -166,9 +191,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     onMiss: () => {
       if (views.view !== 'room') views.request('room');
     },
-    // On a touch screen a stray tap beside the picture is too easy while playing: there only the guide's popup
-    // leaves the game (docs/ROOM.md › Using it from the app).
-    ignoresClick: (pointerType) => pointerType !== 'mouse' && views.view === 'tv',
+    // On a touch screen a stray tap beside or below the picture (the pad's plate) is too easy while playing: there
+    // only a tap above the set, or the guide's popup, leaves the game (docs/ROOM.md › Using it from the app).
+    ignoresClick: (pointerType, ndc) => pointerType !== 'mouse' && views.view === 'tv' && ndc.y < tvTopNdc(),
     idleCursor: () => (views.view === 'room' || views.moving ? 'idle' : 'leave'),
     onPointer: (ndc) => {
       rig.setParallaxPointer(ndc);
@@ -276,6 +301,8 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       publishAnchors();
     },
     refreshCursor: () => interaction.refreshCursor(),
+    prewarm: () => queueUploads('prewarm'),
+    tilt: (tilt) => rig.setParallaxPointer(tilt ? new Vector2(tilt.x, tilt.y) : null),
     dispose() {
       background.dispose();
       stopUploads();

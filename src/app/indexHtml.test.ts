@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { profile } from '@/content';
@@ -50,5 +50,15 @@ describe('index.html', () => {
     ]) {
       expect(html).toContain(tag);
     }
+  });
+
+  it('points the canonical address and the link previews at the production origin, on a preview file that exists', () => {
+    expect(html).toContain('<link rel="canonical" href="https://roel.work/" />');
+    expect(html).toContain('<meta property="og:url" content="https://roel.work/" />');
+    const image = /<meta property="og:image" content="https:\/\/roel\.work\/([^"]+)"/.exec(html)?.[1];
+    expect(image).toBeDefined();
+    expect(existsSync(resolve(import.meta.dirname, '../../public', image ?? ''))).toBe(true);
+    expect(html).toContain(`<meta name="twitter:image" content="https://roel.work/${image}" />`);
+    expect(html).not.toContain('vercel.app');
   });
 });

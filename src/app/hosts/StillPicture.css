@@ -39,11 +39,16 @@
   filter: brightness(1.12);
 }
 
-/* A darker band at the foot of every game row, as the tube draws them. */
+/* A darker band at the foot of every game row, as the tube draws them. One repeating gradient over the whole
+   picture, never a tiled background: WebKit paints a background tile a fraction of a pixel tall wrongly, and on an
+   iPhone the startup still's lower part came out as one solid band of the shade (round six, item 30). */
 .still-picture__scanlines {
   position: absolute;
   inset: 0;
-  background: linear-gradient(transparent 62%, rgb(0 0 0 / 0.16) 62%) 0 0 / 100% calc(100% / var(--rows));
+  background: repeating-linear-gradient(
+    transparent 0 calc(62% / var(--rows)),
+    rgb(0 0 0 / 0.16) 0 calc(100% / var(--rows))
+  );
   pointer-events: none;
 }
 

@@ -3,7 +3,9 @@ import type { TextStyle } from '@/engine/gfx/TextStyle';
 import type { Rect } from '@/engine/math/Rect';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
+import type { ControlDevice } from '../../ui/hud/keyLabels';
 import { Paragraph } from '../../ui/Paragraph';
+import { drawPrompt } from '../../ui/prompt';
 import { WINDOW_BORDER, windowThemes } from '../../ui/theme';
 import { drawWindow } from '../../ui/Window';
 import { describeMetric, type HighlightRow } from './career';
@@ -79,7 +81,7 @@ export class HighlightDetail {
     if (this.#content) this.#frame++;
   }
 
-  render(gfx: Gfx): void {
+  render(gfx: Gfx, device: ControlDevice): void {
     const content = this.#content;
     if (!content) return;
     gfx.withAlpha(0.6, () => gfx.fillRect(0, 0, gfx.width, gfx.height, palette.ink));
@@ -107,9 +109,8 @@ export class HighlightDetail {
     gfx.fillRect(x, y, frame.w - PADDING * 2, 1, '#e6d7a0');
     y += 5;
     content.body.render(gfx, x, y);
-    gfx.text('CONFIRM: CLOSE', frame.x + frame.w - PADDING, frame.y + frame.h - PADDING - 7, this.#styles.hint, {
-      align: 'right',
-    });
+    const prompt = { action: 'confirm', label: 'CLOSE', device } as const;
+    drawPrompt(gfx, frame.x + frame.w - PADDING, frame.y + frame.h - PADDING - 7, this.#styles.hint, prompt, 'right');
   }
 
   #frameRect(gfx: Gfx, content: Content): Rect {

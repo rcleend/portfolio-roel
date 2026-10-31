@@ -101,6 +101,13 @@ export class MockGameSurface implements GameSurface {
     this.draw();
   }
 
+  /** Fills the picture with one colour without running, to check the light it casts into the room. */
+  fill(color: string): void {
+    this.context.fillStyle = color;
+    this.context.fillRect(0, 0, WIDTH, HEIGHT);
+    for (const listener of this.listeners) listener();
+  }
+
   private redrawIfPaused(): void {
     if (!this.running) this.draw();
   }

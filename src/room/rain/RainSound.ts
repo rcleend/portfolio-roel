@@ -5,6 +5,7 @@ export class RainSound {
   private readonly abort = new AbortController();
   private source: AudioBufferSourceNode | null = null;
   private wanted = false;
+  private unlocked = false;
   private disposed = false;
   private suspendTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly gestures = ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const;
@@ -12,7 +13,7 @@ export class RainSound {
   constructor() {
     this.gain.gain.value = 0;
     this.gain.connect(this.context.destination);
-    for (const event of this.gestures) window.addEventListener(event, this.sync, { capture: true, passive: true });
+    for (const event of this.gestures) window.addEventListener(event, this.onGesture, { capture: true, passive: true });
     document.addEventListener('visibilitychange', this.sync);
     this.sync();
     void this.load().catch((error: unknown) => {
@@ -72,6 +73,24 @@ export class RainSound {
     this.sync();
   }
 
+  /**
+   * Every gesture resumes the context, wanted or not, so iOS lets it start: the tap that turns the sound on lands its
+   * touch events before the mute changes, and a resume made later, outside the gesture, would be refused. Sync then
+   * puts it back to sleep after 200 ms when it is not wanted. Once a gesture has started it, a script may resume it.
+   */
+  private readonly onGesture = (): void => {
+    if (this.disposed) return;
+    if (!this.unlocked && this.context.state !== 'running') {
+      void this.context.resume().then(
+        () => {
+          this.unlocked = true;
+        },
+        () => {},
+      );
+    }
+    this.sync();
+  };
+
   private readonly sync = (): void => {
     if (this.disposed) return;
     if (this.suspendTimer !== null) clearTimeout(this.suspendTimer);
@@ -95,7 +114,7 @@ export class RainSound {
     this.disposed = true;
     this.abort.abort();
     if (this.suspendTimer !== null) clearTimeout(this.suspendTimer);
-    for (const event of this.gestures) window.removeEventListener(event, this.sync, true);
+    for (const event of this.gestures) window.removeEventListener(event, this.onGesture, true);
     document.removeEventListener('visibilitychange', this.sync);
     this.source?.stop();
     this.source?.disconnect();

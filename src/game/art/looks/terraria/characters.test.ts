@@ -72,7 +72,9 @@ describe('the Terraria looks', () => {
 
   // The revision redraws only heads, so its looks import the Terraria look's attack strips from its folder
   // rather than ship copies: retiring or promoting that look has to carry them over.
-  it.each(drawn.filter(([look]) => look !== 'terraria'))(
+  // But for the revised DESIGNER, whose strums fire music notes of his own on the same frames and timing.
+  const notes = ([look, hero]: readonly [string, string]): boolean => look === 'terraria-revised' && hero === 'artsy';
+  it.each(drawn.filter((entry) => entry[0] !== 'terraria' && !notes(entry)))(
     "%s %s plays the Terraria look's own attack strip",
     async (look, hero) => {
       const [revised, original] = await Promise.all([
@@ -82,6 +84,17 @@ describe('the Terraria looks', () => {
       expect(revised.fx.attack).toEqual(original.fx.attack);
     },
   );
+
+  it("times the revised DESIGNER's music notes as the Terraria look's paintballs", async () => {
+    const [revised, original] = await Promise.all([
+      lookRegistry.hero('terraria-revised', 'artsy'),
+      lookRegistry.hero('terraria', 'artsy'),
+    ]);
+    expect(revised.fx.attack).not.toEqual(original.fx.attack);
+    const timing = (sheet: typeof revised.fx.attack) =>
+      JSON.stringify(sheet, (key, value) => (key === 'image' || key === 'png' ? undefined : value));
+    expect(timing(revised.fx.attack)).toBe(timing(original.fx.attack));
+  });
 });
 
 describe.each(drawn)('the %s %s', (look, hero) => {

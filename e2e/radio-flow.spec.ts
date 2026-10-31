@@ -35,6 +35,8 @@ const announced = (page: Page) => page.locator('.radio__announcer');
 /** The page on the TV with the game running and the radio's mechanical cues recorded from then on. */
 async function open(page: Page, path = '/?seed=1'): Promise<void> {
   await spyOnAudio(page);
+  // A first visit starts with the sound off; these visits have turned it on before.
+  await page.addInitScript(() => localStorage.setItem('reo-leo:session', JSON.stringify({ version: 1, muted: false })));
   await page.goto(path);
   await waitForRunning(page);
   await page.evaluate(() => {
@@ -170,24 +172,25 @@ test('plays a CD on the radio, keeps it going around the room and makes way for 
   expect(await paused(page)).toBe(true);
   expect(media).toEqual([]);
 
-  const insertCoin = await disc(page, 'insert-coin');
-  const elapsed = await timePickToSound(page, () => page.mouse.click(insertCoin.x, insertCoin.y));
+  const gekke = await disc(page, 'gekke-synth-lange-frans');
+  const elapsed = await timePickToSound(page, () => page.mouse.click(gekke.x, gekke.y));
   expect(elapsed).toBeLessThanOrEqual(1000);
-  expect((await sound(page))?.src).toMatch(/insert-coin\/01-attract-mode/);
-  await expect(announced(page)).toHaveText('Playing Attract Mode, track 1 of 3, from Insert Coin by 8-Bit Lodgers.');
+  expect((await sound(page))?.src).toMatch(/gekke-synth-lange-frans\/gekke-synth-lange-frans/);
+  await expect(announced(page)).toHaveText(
+    'Playing gekkeSynthLangeFrans, track 1 of 1, from gekkeSynthLangeFrans by Roel Leenders.',
+  );
 
-  // ▷II on the model pauses; ■ stops on track 1 at 0:00; ⏭ chooses track 2; ▷II plays it.
+  // ▷II on the model pauses; ■ stops at 0:00; ▷II plays the song again from the top.
   await pressModelKey(page, 'play-pause');
   await expect.poll(async () => (await sound(page))?.paused).toBe(true);
   await expect(announced(page)).toHaveText('Paused.');
   await pressModelKey(page, 'stop');
   await expect(announced(page)).toHaveText('Stopped.');
-  expect(await sound(page)).toMatchObject({ paused: true, src: expect.stringMatching(/01-attract-mode/) });
-  await pressModelKey(page, 'next');
+  expect(await sound(page)).toMatchObject({ paused: true, src: expect.stringMatching(/gekke-synth-lange-frans/) });
   await pressModelKey(page, 'play-pause');
-  const second = await waitAudible(page);
-  expect(second.src).toMatch(/insert-coin\/02-high-score-dreams/);
-  expect(second.time).toBeLessThan(3);
+  const again = await waitAudible(page);
+  expect(again.src).toMatch(/gekke-synth-lange-frans/);
+  expect(again.time).toBeLessThan(3);
 
   // Escape: back to the room, the music a little farther off.
   await page.keyboard.press('Escape');
@@ -229,15 +232,19 @@ test('a CD picked while another plays takes its place, on the one element', asyn
   await open(page);
   await lookAround(page);
   await goToRadio(page);
-  const first = await disc(page, 'insert-coin');
+  const first = await disc(page, 'gekke-synth-lange-frans');
   await page.mouse.click(first.x, first.y);
   await waitAudible(page);
-  const fourth = await disc(page, 'solar-drive');
+  const fourth = await disc(page, 'midnight-mirage');
   await page.mouse.click(fourth.x, fourth.y);
-  await expect.poll(async () => (await sound(page))?.src, { timeout: 3000 }).toMatch(/solar-drive\/01-overdrive/);
+  await expect
+    .poll(async () => (await sound(page))?.src, { timeout: 3000 })
+    .toMatch(/midnight-mirage\/midnight-mirage/);
   const swapped = await waitAudible(page);
   expect(swapped.time).toBeLessThan(3);
-  await expect(announced(page)).toHaveText('Playing Overdrive, track 1 of 2, from Solar Drive by Neon Rafters.');
+  await expect(announced(page)).toHaveText(
+    'Playing Midnight Mirage, track 1 of 1, from Midnight Mirage by Roel Leenders.',
+  );
   expect(await page.evaluate(() => window.__spy.audios.length)).toBe(1);
   expect(await elementsPlayed(page)).toBe(1);
   await page.waitForFunction(() => window.__room?.stats.rainReady);
@@ -261,18 +268,18 @@ test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back 
   await expect(host).toHaveAttribute('data-view', 'radio');
   // Landed: the keyboard is on the first CD, ringed for a keyboard user.
   const cds = page.getByRole('toolbar', { name: 'CDs' });
-  const nightShift = cds.getByRole('button', { name: 'Night Shift by Studio Attic, 2 tracks' });
-  await expect(nightShift).toBeFocused({ timeout: 3000 });
-  await expect(nightShift).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+  const firstCd = cds.getByRole('button', { name: "It's all in your head by Roel Leenders ft. Bram Reker, 1 track" });
+  await expect(firstCd).toBeFocused({ timeout: 3000 });
+  await expect(firstCd).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
-  await expect(cds.getByRole('button', { name: /^Low Tide by Harbour Lights/ })).toBeFocused();
+  await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toBeFocused();
   // Chosen the moment the camera lands, before it is out of the radio: it comes up and over to its column first (no
   // disc passes through another), then flies in. Heard within 1.5 s, against 1 s for a disc already out.
   const elapsed = await timePickToSound(page, () => page.keyboard.press('Enter'));
   expect(elapsed).toBeLessThanOrEqual(1500);
-  expect((await sound(page))?.src).toMatch(/low-tide\/01-slow-water/);
-  await expect(cds.getByRole('button', { name: /^Low Tide by Harbour Lights/ })).toHaveAttribute(
+  expect((await sound(page))?.src).toMatch(/drop-the-bombs\/drop-the-bombs/);
+  await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toHaveAttribute(
     'aria-current',
     'true',
   );
@@ -302,14 +309,14 @@ test.describe('with reduced motion', () => {
     await page.mouse.click(radio.x, radio.y);
     await expect.poll(() => page.evaluate(() => window.__room?.radio.deck?.live)).toBe(true);
     await expect.poll(async () => (await stats(page))?.radioLidDegrees).toBe(84);
-    const lowTide = await disc(page, 'low-tide');
+    const lowTide = await disc(page, 'drop-the-bombs');
     const elapsed = await timePickToSound(page, () => page.mouse.click(lowTide.x, lowTide.y));
     expect(elapsed).toBeLessThanOrEqual(350);
     expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
     // A swap switches at once too, to the disc that was picked.
-    const nightShift = await disc(page, 'night-shift');
-    await page.mouse.click(nightShift.x, nightShift.y);
-    await expect.poll(async () => (await sound(page))?.src).toMatch(/night-shift\/01-kettle-on/);
+    const firstCd = await disc(page, 'its-all-in-your-head');
+    await page.mouse.click(firstCd.x, firstCd.y);
+    await expect.poll(async () => (await sound(page))?.src).toMatch(/its-all-in-your-head\/its-all-in-your-head/);
     expect((await waitAudible(page)).time).toBeLessThan(2);
   });
 });
@@ -331,10 +338,10 @@ test('the sound toggle silences the music and the mechanics, and a CD chosen mea
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await lookAround(page);
   await goToRadio(page);
-  const sunday = await disc(page, 'sunday-roast');
-  await page.mouse.click(sunday.x, sunday.y);
+  const last = await disc(page, 'async-002');
+  await page.mouse.click(last.x, last.y);
   await expect(announced(page)).toHaveText(
-    'Playing Coffee Break, track 1 of 2, from Sunday Roast by Trio Placeholder. Sound is off.',
+    'Playing Async_002, track 1 of 1, from Async_002 by Roel Leenders. Sound is off.',
   );
   await expect.poll(async () => (await sound(page))?.paused, { timeout: 3000 }).toBe(false);
   await page.waitForTimeout(1200);
@@ -407,7 +414,7 @@ test.describe('performance', () => {
     const skinLanded = ((await stats(page))?.radioTexturePixels ?? 0) !== pixels;
     expect(resting).toBe(skinLanded ? 1 : 0);
     // Playing, resting: the seated disc is its radial average; only the LCD's clock draws.
-    const lowTide = await disc(page, 'low-tide');
+    const lowTide = await disc(page, 'drop-the-bombs');
     await page.mouse.click(lowTide.x, lowTide.y);
     await waitAudible(page);
     await page.mouse.move(1430, 890);
@@ -506,7 +513,9 @@ test.describe('performance', () => {
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('a tap on the cabinet opens the radio with a bar of keys that also press the model', async ({ page }) => {
+  test('a tap on the cabinet opens the radio with its play key, which also presses the model, and the way back', async ({
+    page,
+  }) => {
     await open(page);
     await tapWayOut(page);
     await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
@@ -519,16 +528,23 @@ test.describe('on a phone', () => {
     await untilDiscsUp(page);
     const bar = page.getByRole('toolbar', { name: 'CD player controls' });
     await expect(bar).toBeVisible();
-    const box = await bar.boundingBox();
-    expect(box?.y ?? 0).toBeGreaterThan(844 - 64 - 40);
     for (const button of await bar.getByRole('button').all()) {
       const size = await button.boundingBox();
       expect(size?.width).toBeGreaterThanOrEqual(44);
       expect(size?.height).toBeGreaterThanOrEqual(44);
     }
+    // The way back is in the sound toggle's row, exactly its height and on its centre line.
+    const toggle = await page.getByRole('button', { name: 'Mute sound' }).boundingBox();
+    const back = await bar.getByRole('button', { name: 'Back to the room' }).boundingBox();
+    expect(back?.height).toBeCloseTo(toggle?.height ?? 0, 0);
+    expect((back?.y ?? 0) + (back?.height ?? 0) / 2).toBeCloseTo((toggle?.y ?? 0) + (toggle?.height ?? 0) / 2, 0);
+    // The discs hang clear of both.
+    const layout = await page.evaluate(() => window.__room?.radio.deck?.layout.discs ?? []);
+    for (const anchor of layout)
+      expect(anchor.y - anchor.radius).toBeGreaterThanOrEqual((back?.y ?? 0) + (back?.height ?? 0));
 
-    const nightShift = await disc(page, 'night-shift');
-    await page.touchscreen.tap(nightShift.x, nightShift.y);
+    const firstCd = await disc(page, 'its-all-in-your-head');
+    await page.touchscreen.tap(firstCd.x, firstCd.y);
     await waitAudible(page);
     const before = (await cues(page)).length;
     await bar.getByRole('button', { name: 'Pause' }).tap();
@@ -539,7 +555,7 @@ test.describe('on a phone', () => {
       .toEqual(expect.arrayContaining(['key-down', 'key-up']));
     await bar.getByRole('button', { name: 'Play' }).tap();
     await waitAudible(page);
-    await bar.getByRole('button', { name: 'Look around the room' }).tap();
+    await bar.getByRole('button', { name: 'Back to the room' }).tap();
     await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
     expect((await sound(page))?.paused).toBe(false);
   });
@@ -574,8 +590,8 @@ test.describe('on a phone', () => {
     });
     // A real finger: down for 100 ms, then up (Playwright's own tap lifts it at once).
     const cdp = await page.context().newCDPSession(page);
-    const lowTide = await disc(page, 'low-tide');
-    const point = { x: lowTide.x, y: lowTide.y };
+    const dropTheBombs = await disc(page, 'drop-the-bombs');
+    const point = { x: dropTheBombs.x, y: dropTheBombs.y };
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
     await new Promise((resolve) => setTimeout(resolve, 100));
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -598,7 +614,7 @@ test.describe('on a phone', () => {
   test.describe('held sideways', () => {
     test.use({ viewport: { width: 844, height: 390 } });
 
-    test('the bar becomes a rail down the right edge', async ({ page }) => {
+    test('the way back and the play key become a rail down the right edge', async ({ page }) => {
       await open(page);
       await tapWayOut(page);
       await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
@@ -606,9 +622,9 @@ test.describe('on a phone', () => {
       await goToRadio(page, true);
       await expect(page.locator('.radio')).toHaveAttribute('data-rail', 'true');
       const box = await page.getByRole('toolbar', { name: 'CD player controls' }).boundingBox();
-      expect(box?.x ?? 0).toBeGreaterThanOrEqual(844 - 64 - 50);
+      expect(box?.x ?? 0).toBeGreaterThanOrEqual(844 - 100 - 50);
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeCloseTo(844, 0);
-      expect(box?.height ?? 0).toBeGreaterThan(200);
+      expect(box?.height ?? 0).toBeGreaterThan(140);
       // The discs are framed clear of the rail.
       const layout = await page.evaluate(() => window.__room?.radio.deck?.layout.discs ?? []);
       for (const anchor of layout) expect(anchor.x + anchor.radius).toBeLessThanOrEqual(box?.x ?? 0);

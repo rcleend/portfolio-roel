@@ -41,11 +41,7 @@
   height: calc(2 * var(--row));
 }
 
-/* START and its word side by side: a short row that keeps clear of the face buttons. */
 .touchpad__cluster--start {
-  display: flex;
-  gap: 8px;
-  align-items: center;
   padding: 6px 10px;
 }
 
@@ -58,7 +54,7 @@
 
 /*
  * A banded dark plate under the controls, so they read as a controller rather than stickers on the room. START sits
- * over the d-pad, as it does on its side: the face buttons have the right half to themselves, whatever the width.
+ * in the middle, a step above the face buttons' top row, so it stays clear of them and of the d-pad at any width.
  */
 .touchpad--bottom::before {
   content: "";
@@ -84,9 +80,13 @@
   bottom: calc(30px + var(--safe-bottom));
 }
 
+/* Centred by its margins (the build's CSS minifier drops `translate`): 12 px over the face buttons' top (178 px). */
 .touchpad--bottom .touchpad__cluster--start {
-  left: calc(18px + var(--safe-left) + 7 * var(--px) - 10px);
-  bottom: calc(30px + 29 * var(--px) + 12px + var(--safe-bottom));
+  right: 0;
+  bottom: calc(30px + 32 * var(--px) + 26px + var(--safe-bottom));
+  left: 0;
+  width: fit-content;
+  margin: 0 auto;
 }
 
 /* ── Layout: landscape, the clusters flank the TV ── */
@@ -252,19 +252,6 @@
 
 .start-highlight {
   fill: #4f4a78;
-}
-
-.pad-label {
-  font:
-    400 8px / 1 Silkscreen,
-    ui-monospace,
-    monospace;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #b9b0e8;
-  text-shadow: 1px 1px 0 #07060f;
-  -webkit-font-smoothing: none;
-  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,5 @@
 import { GamepadButton } from '@/engine/input/bindings';
+import type { InputDevice } from '@/engine/input/InputSnapshot';
 import { type Action, bindings } from '../../input/bindings';
 
 /** The touch pad's controls as the game draws them: its d-pad, its four round buttons by colour, its Start. */
@@ -15,6 +16,15 @@ export type KeyCapLabel =
 
 /** What the player plays with: a keyboard, a gamepad, or the on-screen touch pad. */
 export type ControlDevice = 'keyboard' | 'gamepad' | 'touch';
+
+/**
+ * The device a screen's prompts speak of: where the player last pressed something (a pointer leaves it as it is),
+ * and before any press the touch pad on a touch screen (`GameSettings.touchControls`), else the keyboard.
+ */
+export function controlDevice(current: ControlDevice | null, last: InputDevice | null, touch: boolean): ControlDevice {
+  if (last === 'keyboard' || last === 'gamepad' || last === 'touch') return last;
+  return current ?? (touch ? 'touch' : 'keyboard');
+}
 
 const ARROWS: Readonly<Record<string, 'left' | 'right' | 'up' | 'down'>> = {
   ArrowLeft: 'left',

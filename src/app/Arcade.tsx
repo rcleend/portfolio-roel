@@ -1,4 +1,5 @@
 import { type Dispatch, useEffect, useMemo, useRef, useState } from 'react';
+
 import type { CreatedGame } from '@/game/createGame';
 import { bindings } from '@/game/input/bindings';
 import { SoundToggle } from './audio/SoundToggle';
@@ -6,6 +7,7 @@ import { useAudioWiring } from './audio/useAudioWiring';
 import type { HarnessConfig } from './harness/config';
 import { startGame } from './harness/harness';
 import { type HostEvents, type HostKind, type HostView, hosts } from './hosts';
+import type { SceneSignal } from './hosts/types';
 import { padActionMap } from './overlays/touchpad/padActions';
 import { type Insets, NO_INSETS } from './overlays/touchpad/padGeometry';
 import { TouchPad } from './overlays/touchpad/TouchPad';
@@ -35,6 +37,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   const landscape = useMediaQuery('(orientation: landscape)');
   const audio = useAudioWiring(services.audio, services.session, view);
   const started = useRef(false);
+  const begun = useBegun(services.director);
   const running = startup.phase === 'running';
   // A capture of the startup stills keeps the tube dark (harness/config.ts).
   const powering = (startup.phase === 'powering' || running) && !config.capture;
@@ -78,11 +81,29 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
         <TouchPad
           actions={PAD_ACTIONS}
           sink={game.input.virtual}
-          visible={running && view === 'tv'}
+          visible={running && view === 'tv' && begun}
           layout={landscape ? 'sides' : 'bottom'}
           onInsetsChange={setPadInsets}
         />
       ) : null}
     </>
   );
+}
+
+/**
+ * Whether the visitor has pressed past the title (round six, item 33): the touch pad fades in only then, so the start
+ * screen shows the game alone with "PRESS TO BEGIN", and a tap anywhere begins. Once begun it stays.
+ */
+function useBegun(scenes: SceneSignal): boolean {
+  const [begun, setBegun] = useState(false);
+  useEffect(() => {
+    if (begun) return;
+    const check = (): void => {
+      const id = scenes.current;
+      if (id !== null && id !== 'boot' && id !== 'title') setBegun(true);
+    };
+    check();
+    return scenes.onSceneChange(check);
+  }, [scenes, begun]);
+  return begun;
 }

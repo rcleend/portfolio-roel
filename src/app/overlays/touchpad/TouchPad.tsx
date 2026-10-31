@@ -227,7 +227,6 @@ export function TouchPad<A extends string>({ actions, sink, visible, layout, onI
           <path className="start-body" d={held.has('start') ? startArt.pressed : startArt.body} />
           {held.has('start') ? null : <path className="start-highlight" d={startArt.highlight} />}
         </svg>
-        <span className="pad-label">Start</span>
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ export const socials: readonly SocialLink[] = [
   { kind: 'x', network: 'X', href: 'https://x.com/LeendersRoel' },
   { kind: 'linkedin', network: 'LinkedIn', href: linkedinLink.href },
   { kind: 'github', network: 'GitHub', href: githubLink.href },
+  { kind: 'email', network: 'Email', href: emailLink.href },
 ];
 
 export const education: readonly Education[] = [
