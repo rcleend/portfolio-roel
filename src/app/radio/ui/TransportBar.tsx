@@ -36,9 +36,9 @@ const TITLE_BOX = (TITLE_RADIUS + 30) * 2;
  * its glyph turning over the way the mute button's does, under the shelf's title curved round its top; and the way
  * back to the room, a pill in the room UI's style at the top left, in the mute button's row and of its height (on a
  * landscape phone both go down a right rail). No skip keys: the discs are picked from the shelf, and a disc
- * that ends puts the next one in. Play on an empty player puts the first disc in. While nothing plays, what is in
- * the player is named beside it. It tells the room how much of the viewport it covers, so the room frames the radio
- * clear of it.
+ * that ends puts the next one in. Play on an empty player puts the first disc in. The key stands on its own: what
+ * plays is in its name, for screen readers, not written beside it. It tells the room how much of the viewport it
+ * covers, so the room frames the radio clear of it.
  */
 export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: TransportBarProps) {
   const bar = useRef<HTMLDivElement>(null);
@@ -114,7 +114,7 @@ export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: Tra
           }}
           type="button"
           className="radio-bar__play"
-          aria-label={playing ? 'Pause' : 'Play'}
+          aria-label={playLabel(playing, snapshot)}
           data-playing={playing}
           tabIndex={active === 1 ? 0 : -1}
           onFocus={() => setActive(1)}
@@ -123,19 +123,6 @@ export function TransportBar({ deck, player, snapshot, firstDisc, onLeave }: Tra
           <PlayMorph playing={playing} reduced={reduced} />
         </button>
       </div>
-      {rail ? null : (
-        <p className="radio-bar__now" aria-hidden="true" data-shown={!playing && snapshot.album !== null}>
-          {snapshot.album && snapshot.trackTitle ? (
-            <>
-              <span className="radio-bar__track">{snapshot.trackTitle}</span>
-              <span className="radio-bar__album">
-                {snapshot.album.artist}
-                {snapshot.album.year === undefined ? '' : ` · ${snapshot.album.year}`}
-              </span>
-            </>
-          ) : null}
-        </p>
-      )}
     </div>
   );
 }
@@ -175,4 +162,14 @@ function ShelfTitle({ shown }: { readonly shown: boolean }) {
       </svg>
     </>
   );
+}
+
+/**
+ * The key's name says what it does and, once a disc is in, to which song: "Pause It's all in your head, by Roel
+ * Leenders ft. Bram Reker". Nothing about the song is written beside the key (round eight, item 45).
+ */
+function playLabel(playing: boolean, snapshot: PlayerSnapshot): string {
+  const action = playing ? 'Pause' : 'Play';
+  const { album, trackTitle } = snapshot;
+  return album && trackTitle ? `${action} ${trackTitle}, by ${album.artist}` : action;
 }

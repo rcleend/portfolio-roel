@@ -139,7 +139,7 @@
   touch-action: manipulation;
 }
 
-/* The large play key centred at the foot, its curved title over it, what is in the player beside it. */
+/* The large play key centred at the foot, its curved title over it, standing on its own. */
 .radio-bar--bottom {
   right: 0;
   bottom: 0;
@@ -312,39 +312,6 @@
   outline-offset: 3px;
 }
 
-.radio-bar__now {
-  grid-row: 1;
-  grid-column: 3;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  margin: 0;
-  gap: 2px;
-  font: 800 15px / 1.2 var(--ui-body);
-  text-shadow: var(--ui-text-shadow);
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-/* Named only while nothing plays (paused or stopped): playing, the bar is just the two buttons. */
-.radio-bar__now[data-shown="true"] {
-  opacity: 1;
-}
-
-/* Two lines, each cut short on its own: the song, then (smaller, softer) who made it and when. */
-.radio-bar__track,
-.radio-bar__album {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.radio-bar__album {
-  color: var(--ui-ink-soft);
-  font-weight: 600;
-  font-size: 12px;
-}
-
 /* The shelf's title round the top of the play key, concentric with it; it pops in and out with the key's spring. */
 .radio-bar__title {
   position: absolute;
@@ -386,8 +353,7 @@
     animation: none;
   }
 
-  .radio-bar__title,
-  .radio-bar__now {
+  .radio-bar__title {
     transition: none;
   }
 

@@ -17,7 +17,7 @@ export const ALBUMS: readonly Album[] = [
     year: 2016,
     cover: 'cover.webp',
     disc: 'disc.webp',
-    tracks: [{ title: "It's all in your head", file: 'its-all-in-your-head.m4a', seconds: 229.18 }],
+    tracks: [{ title: "It's all in your head", file: 'its-all-in-your-head-v2.m4a', seconds: 229.18 }],
   },
   {
     id: 'gekke-synth-lange-frans',
@@ -26,7 +26,7 @@ export const ALBUMS: readonly Album[] = [
     year: 2018,
     cover: 'cover.webp',
     disc: 'disc.webp',
-    tracks: [{ title: 'gekkeSynthLangeFrans', file: 'gekke-synth-lange-frans.m4a', seconds: 80.06 }],
+    tracks: [{ title: 'gekkeSynthLangeFrans', file: 'gekke-synth-lange-frans-v2.m4a', seconds: 80.06 }],
   },
   {
     id: 'drop-the-bombs',
@@ -35,7 +35,7 @@ export const ALBUMS: readonly Album[] = [
     year: 2025,
     cover: 'cover.webp',
     disc: 'disc.webp',
-    tracks: [{ title: 'DROP THE BOMBS', file: 'drop-the-bombs.m4a', seconds: 280.06 }],
+    tracks: [{ title: 'DROP THE BOMBS', file: 'drop-the-bombs-v2.m4a', seconds: 280.06 }],
   },
   {
     id: 'midnight-mirage',
@@ -44,7 +44,7 @@ export const ALBUMS: readonly Album[] = [
     year: 2025,
     cover: 'cover.webp',
     disc: 'disc.webp',
-    tracks: [{ title: 'Midnight Mirage', file: 'midnight-mirage.m4a', seconds: 231.87 }],
+    tracks: [{ title: 'Midnight Mirage', file: 'midnight-mirage-v2.m4a', seconds: 231.87 }],
   },
   {
     id: 'async-002',
@@ -53,6 +53,6 @@ export const ALBUMS: readonly Album[] = [
     year: 2026,
     cover: 'cover.webp',
     disc: 'disc.webp',
-    tracks: [{ title: 'Async_002', file: 'async-002.m4a', seconds: 122.94 }],
+    tracks: [{ title: 'Async_002', file: 'async-002-v2.m4a', seconds: 122.94 }],
   },
 ];

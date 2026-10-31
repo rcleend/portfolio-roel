@@ -62,7 +62,7 @@ test('a pick starts silently in the gesture and is heard within a second, after 
   const seated = await page.evaluate(() => window.__radioLab?.events.find((event) => event.type === 'seated')?.at ?? 0);
   expect(seated).toBeGreaterThan(0);
   expect(new Set(requests)).toEqual(
-    new Set(['/src/content/radio/albums/gekke-synth-lange-frans/gekke-synth-lange-frans.m4a']),
+    new Set(['/src/content/radio/albums/gekke-synth-lange-frans/gekke-synth-lange-frans-v2.m4a']),
   );
   await expect(announced(page)).toHaveText(
     'Playing gekkeSynthLangeFrans, track 1 of 1, from gekkeSynthLangeFrans by Roel Leenders.',
@@ -105,7 +105,7 @@ test('the keys follow a CD player: pause, play, stop, next and previous', async 
   await expect(announced(page)).toHaveText('Playing.');
   const resumed = await waitAudible(page);
   expect(resumed.time).toBeGreaterThanOrEqual(pausedAt - 0.05);
-  expect(resumed.src).toMatch(/gekke-synth-lange-frans\.m4a/);
+  expect(resumed.src).toMatch(/gekke-synth-lange-frans-v2\.m4a/);
 
   // A one-song disc: ⏭ has nowhere to go (the skip rules are unit-tested, playerState.test.ts); ⏮ after 3 s restarts it.
   await page.evaluate(() => {
@@ -123,7 +123,7 @@ test('the keys follow a CD player: pause, play, stop, next and previous', async 
     const element = window.__spy.audios[0];
     if (element) element.currentTime = element.duration - 0.4;
   });
-  await expect.poll(async () => (await sound(page))?.src, { timeout: 5000 }).toMatch(/drop-the-bombs\.m4a/);
+  await expect.poll(async () => (await sound(page))?.src, { timeout: 5000 }).toMatch(/drop-the-bombs-v2\.m4a/);
   await waitAudible(page, 4000);
   await expect(announced(page)).toHaveText(/^Playing DROP THE BOMBS, track 1 of 1/);
   expect(await page.evaluate(() => window.__radioLab?.deck.state.loaded)).toBe('drop-the-bombs');
@@ -135,7 +135,7 @@ test('the keys follow a CD player: pause, play, stop, next and previous', async 
   expect(await lcd(page)).toEqual({ kind: 'total', tracks: 1, seconds: 280 });
   await modelKey(page, 'play-pause').click();
   const fromTop = await waitAudible(page);
-  expect(fromTop.src).toMatch(/drop-the-bombs\.m4a/);
+  expect(fromTop.src).toMatch(/drop-the-bombs-v2\.m4a/);
   expect(fromTop.time).toBeLessThan(1);
   expect(errors).toEqual([]);
 });
@@ -191,7 +191,7 @@ test('the media session names the track and its controls drive the player', asyn
   expect(await page.evaluate(() => window.__radioLab?.events.some((event) => event.type === 'press'))).toBe(true);
 
   await page.evaluate(() => window.__spy.handlers.play?.({ action: 'play' }));
-  expect((await waitAudible(page)).src).toMatch(/async-002\.m4a/);
+  expect((await waitAudible(page)).src).toMatch(/async-002-v2\.m4a/);
   expect(await page.evaluate(() => navigator.mediaSession.playbackState)).toBe('playing');
 });
 
@@ -267,7 +267,7 @@ test('muted: the choice says the sound is off, and the music plays silently unti
 
 test('a song that cannot be played shows the error, says so and waits; another disc still plays', async ({ page }) => {
   await spyOnAudio(page);
-  await page.route('**/its-all-in-your-head.m4a*', (route) =>
+  await page.route('**/its-all-in-your-head-v2.m4a*', (route) =>
     route.request().resourceType() === 'media' ? route.abort() : route.continue(),
   );
   await open(page);
@@ -278,7 +278,7 @@ test('a song that cannot be played shows the error, says so and waits; another d
   await page.waitForTimeout(2500);
   expect(await lcd(page)).toEqual({ kind: 'error' });
   await disc(page, 'gekke-synth-lange-frans').click();
-  expect((await waitAudible(page, 6000)).src).toMatch(/gekke-synth-lange-frans\.m4a/);
+  expect((await waitAudible(page, 6000)).src).toMatch(/gekke-synth-lange-frans-v2\.m4a/);
 });
 
 test.describe('without a gesture', () => {
@@ -294,7 +294,7 @@ test.describe('without a gesture', () => {
     await page.getByRole('toolbar', { name: 'CD player controls' }).getByRole('button', { name: 'Play' }).focus();
     await page.keyboard.press('Enter');
     const playing = await waitAudible(page);
-    expect(playing.src).toMatch(/its-all-in-your-head\.m4a/);
+    expect(playing.src).toMatch(/its-all-in-your-head-v2\.m4a/);
     expect(playing.time).toBeLessThan(2);
   });
 });
@@ -362,16 +362,19 @@ test.describe('on a phone', () => {
 
     // Play on an empty player puts the first disc in.
     await play.tap();
-    expect((await waitAudible(page)).src).toMatch(/its-all-in-your-head\.m4a/);
-    // Playing: the title and what plays go; the key reads Pause.
+    expect((await waitAudible(page)).src).toMatch(/its-all-in-your-head-v2\.m4a/);
+    // Playing: the title goes; the key stands alone, and its name says what it pauses (nothing written beside it).
     await expect(title).toHaveAttribute('data-shown', 'false');
-    await expect(bar.locator('.radio-bar__now')).toHaveAttribute('data-shown', 'false');
+    await expect(bar.locator('p')).toHaveCount(0);
+    await expect(
+      bar.getByRole('button', { name: "Pause It's all in your head, by Roel Leenders ft. Bram Reker", exact: true }),
+    ).toBeVisible();
     await bar.getByRole('button', { name: 'Pause' }).tap();
     await expect.poll(async () => (await sound(page))?.paused).toBe(true);
-    // Paused: the song and who made it, and the title again.
-    await expect(bar.locator('.radio-bar__now')).toHaveAttribute('data-shown', 'true');
-    await expect(bar.locator('.radio-bar__track')).toHaveText("It's all in your head");
-    await expect(bar.locator('.radio-bar__album')).toHaveText('Roel Leenders ft. Bram Reker · 2016');
+    // Paused: the title again, and the key's name says what it plays.
+    await expect(
+      bar.getByRole('button', { name: "Play It's all in your head, by Roel Leenders ft. Bram Reker", exact: true }),
+    ).toBeVisible();
     await expect(title).toHaveAttribute('data-shown', 'true');
     expect(
       await page.evaluate(() => window.__radioLab?.events.filter((e) => e.type === 'press').map((e) => e.detail)),
