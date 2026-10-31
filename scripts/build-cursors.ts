@@ -1,6 +1,6 @@
 /**
  * The room's cursors (docs/ART-DIRECTION.md › The room's UI): rasterises the drawn ones
- * (src/app/cursors/source/*.svg) and the game's menu hand (src/game/ui/cursor.ts) to the
+ * (src/app/cursors/source/*.svg) and the game's pixel hand (src/game/ui/cursor.ts) to the
  * PNGs the `cursor` property points at, 1x and 2x, and writes every hotspot, in 1x CSS px,
  * to src/app/cursors/hotspots.json.
  *
@@ -15,7 +15,7 @@ import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { parseHex } from '@/engine/gfx/color';
 import { TRANSPARENT_KEY } from '@/engine/gfx/PixelArt';
-import { handCursorSheet } from '@/game/ui/cursor';
+import { HAND_PALETTE, POINTER_HAND, POINTER_TIP } from '@/game/ui/cursor';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const CURSORS = join(ROOT, 'src/app/cursors');
@@ -23,8 +23,8 @@ const CURSORS = join(ROOT, 'src/app/cursors');
 const BUDGET_BYTES = 1500;
 /** The drawn cursors, each a 32-unit square that is 32 CSS px. */
 const DRAWN = ['arrow', 'hand', 'leave'] as const;
-/** Screen px per sprite px for the game's hand at 1x, about its size on the TV's picture; 2x doubles it. */
-const GAME_HAND_SCALE = 3;
+/** CSS px per sprite px for the game's hand at 1x: 32 × 30, a full-size cursor; 2x doubles it. */
+const GAME_HAND_SCALE = 2;
 
 interface Hotspot {
   readonly x: number;
@@ -55,43 +55,27 @@ async function drawn(name: string): Promise<Cursor> {
 }
 
 /**
- * The game's menu hand, its resting frame, turned a quarter to the left so it points up, as
- * a pointer does. The fingertip is the end of the finger the sheet's origin points from: the
- * opaque column nearest the origin, at the middle of its run, on the edge facing the origin;
- * turned, the top edge of that pixel.
+ * The pointer over the game: the classic pixel hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the
+ * left as a pointer does, scaled nearest-neighbour by whole numbers so it stays crisp; the hotspot is the fingertip
+ * pixel's top-left corner, the point of the finger.
  */
 async function gameHand(): Promise<Cursor> {
-  const { palette, size, animations } = handCursorSheet;
-  const origin = handCursorSheet.origin ?? { x: Math.floor(size.w / 2), y: size.h };
-  const rest = animations.point.frames[0];
-  if (!rest) throw new Error('handCursorSheet has no resting frame');
-  const opaque = (x: number, y: number): boolean => (rest[y]?.[x] ?? TRANSPARENT_KEY) !== TRANSPARENT_KEY;
-
-  const columns = Array.from({ length: size.w }, (_, x) => x).filter((x) => rest.some((_, y) => opaque(x, y)));
-  const tipX = columns.reduce((best, x) => (Math.abs(x + 0.5 - origin.x) < Math.abs(best + 0.5 - origin.x) ? x : best));
-  const run = rest.map((_, y) => y).filter((y) => opaque(tipX, y));
-  const tipY = run[Math.floor(run.length / 2)] ?? 0;
-  // A quarter turn to the left: column x of the sheet becomes row (w - 1 - x), row y becomes column y.
-  const up = (x: number, y: number): string => rest[x]?.[size.w - 1 - y] ?? TRANSPARENT_KEY;
-  const hotspot = {
-    x: tipY * GAME_HAND_SCALE + Math.floor(GAME_HAND_SCALE / 2),
-    y: (size.w - 1 - tipX) * GAME_HAND_SCALE + (origin.x > tipX ? 0 : GAME_HAND_SCALE - 1),
-  };
-
+  const rows = POINTER_HAND;
+  const height = rows.length;
+  const width = Math.max(...rows.map((row) => [...row].length));
+  const hotspot = { x: POINTER_TIP.x * GAME_HAND_SCALE, y: POINTER_TIP.y * GAME_HAND_SCALE };
   const raster = (scale: number): Promise<Buffer> => {
-    const width = size.h * scale;
-    const height = size.w * scale;
-    const data = Buffer.alloc(width * height * 4);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const key = up(Math.floor(x / scale), Math.floor(y / scale));
-        const colour = palette[key];
+    const data = Buffer.alloc(width * scale * height * scale * 4);
+    for (let y = 0; y < height * scale; y++) {
+      for (let x = 0; x < width * scale; x++) {
+        const key = [...(rows[Math.floor(y / scale)] ?? '')][Math.floor(x / scale)] ?? TRANSPARENT_KEY;
+        const colour = (HAND_PALETTE as Readonly<Record<string, string>>)[key];
         if (key === TRANSPARENT_KEY || !colour) continue;
         const { r, g, b, a } = parseHex(colour);
-        data.set([r, g, b, a], (y * width + x) * 4);
+        data.set([r, g, b, a], (y * width * scale + x) * 4);
       }
     }
-    return encode(sharp(data, { raw: { width, height, channels: 4 } }));
+    return encode(sharp(data, { raw: { width: width * scale, height: height * scale, channels: 4 } }));
   };
   const [one, two] = await Promise.all([raster(GAME_HAND_SCALE), raster(GAME_HAND_SCALE * 2)]);
   if (!one || !two) throw new Error('the game hand did not render');
