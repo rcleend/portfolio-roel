@@ -145,7 +145,7 @@ function reduce(state: PlayerState, event: PlayerEvent, counts: TrackCounts): St
     case 'ended':
       if (state.disc === null || state.transport !== 'playing') return stay(state);
       if (state.track < tracks) return { state: nextTrack(state), effects: [{ type: 'switch', debounce: false }] };
-      return stay({ ...state, transport: 'stopped', track: 1, position: 0 });
+      return nextDisc(state, counts) ?? stay({ ...state, transport: 'stopped', track: 1, position: 0 });
     case 'error': {
       if (state.disc === null || state.error) return stay(state);
       if (state.transport === 'playing' && state.track < tracks) {
@@ -223,6 +223,22 @@ function media(state: PlayerState, action: MediaAction, atTv: boolean, tracks: n
     case 'nexttrack':
       return press(state, 'next', tracks);
   }
+}
+
+/**
+ * The end of a disc's last track changes the disc, like a CD changer: the next one on the shelf goes in and plays,
+ * and after the last the first (round six, item 35). A shelf of one disc stops instead. The element has played
+ * from a gesture already, so the browser lets it go on without one.
+ */
+function nextDisc(state: PlayerState, counts: TrackCounts): Step | null {
+  const shelf = Object.keys(counts);
+  if (state.disc === null || shelf.length < 2) return null;
+  const next = shelf[(shelf.indexOf(state.disc) + 1) % shelf.length];
+  if (next === undefined) return null;
+  return {
+    state: { ...EMPTY_PLAYER, disc: next, transport: 'playing', phase: 'inserting', reading: true },
+    effects: [{ type: 'start', swap: false }],
+  };
 }
 
 function nextTrack(state: PlayerState): PlayerState {

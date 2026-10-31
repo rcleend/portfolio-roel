@@ -520,6 +520,11 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   animation-delay: calc(var(--overview-delay) + var(--order) * 60ms);
 }
 
+/* Mounted ahead and hidden while the camera is elsewhere: its first show is like every later one. */
+.overview[data-presence="idle"] {
+  visibility: hidden;
+}
+
 .overview[data-presence="out"] {
   opacity: 0;
   transition: opacity 180ms ease;

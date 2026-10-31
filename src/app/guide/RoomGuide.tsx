@@ -18,6 +18,7 @@ import { LookAround, useLookAroundPopup } from './LookAround';
 import { Overview } from './Overview';
 import { PropLabel } from './PropLabel';
 import { usePresence } from './presence';
+import { useTiltLook } from './tilt';
 import './RoomGuide.css';
 
 export interface RoomGuideProps {
@@ -77,6 +78,7 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
   const popup = useLookAroundPopup(scenes, view === 'tv' && settled);
+  useTiltLook(room, touch, inRoom && settled);
   // On a touch screen the props neither glow nor wear their names (no pointer to point with): the menu alone leads.
   useTour(inRoom && settled && !progress.toured && !touch, radio, pointer, setTouring, () => learn(recordTour));
 
@@ -104,18 +106,17 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
       {view === 'tv' ? (
         <LookAround onLookAround={showRoom} shown={popup.shown} intro={popup.intro} touch={touch} handOver={handOver} />
       ) : null}
-      {overview ? (
-        <Overview
-          presence={overview}
-          arriving={!settled}
-          settled={settled}
-          lit={inRoom ? lit : null}
-          radio={radio}
-          onHover={setHovered}
-          onKeyboard={setFocused}
-          onPick={go}
-        />
-      ) : null}
+      {/* Always in the page, hidden until the room view (Overview › presence). */}
+      <Overview
+        presence={overview ?? 'idle'}
+        arriving={!settled}
+        settled={settled}
+        lit={inRoom ? lit : null}
+        radio={radio}
+        onHover={setHovered}
+        onKeyboard={setFocused}
+        onPick={go}
+      />
       {touch ? null : <PropLabel spotlight={room.spotlight} />}
       {back ? <BackButton due={backView && settled} onBack={showRoom} /> : null}
     </>

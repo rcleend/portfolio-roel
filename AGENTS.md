@@ -9,6 +9,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - The stage's cursor is a named `RoomCursor` (`idle`/`enter`/`leave`/`press`/`play`) drawn through `--room-cursor-*` custom properties that `app/cursors/cursors.css` themes (docs/ROOM.md › Cursors); tests read `canvas.dataset.cursor`, not `style.cursor`.
 - The page opens on a pre-rendered still of the TV view (`index.html` › `.tv-still`, docs/ROOM.md › Startup); anything that changes the TV, its set or its framing must re-render it with `node scripts/capture-tv-stills.mjs` and update the lengths in index.html.
 - The build slims every emitted PNG (`scripts/pngSlim.ts`); committed art stays byte-for-byte what its generators write, so never hand-optimise PNGs in the repo.
+- A first visit starts muted (`defaultSession().muted`); an e2e test that needs sound seeds `localStorage['reo-leo:session']` with `{ version: 1, muted: false }` (see `e2e/radio-flow.spec.ts` › `open`). Radio tracks are held to 5 MB each, 16 MB in all, by `src/content/radio/validate.ts` (`pnpm verify:radio`).
 - Reduced motion in this project means no transitions or animations at all (things appear and go), and entrance animations use `backwards` fill so finished ones leave `document.getAnimations()` empty (several e2e tests wait for it).
 
 ## Maintaining this file

@@ -59,8 +59,12 @@ describe('migrate', () => {
       highlights: { luna: ['luna-agent'] },
       bestScore: { scripe: 99 },
       bootSeen: false,
-      muted: false,
+      muted: true,
     });
+  });
+
+  it('starts a first visit with the sound off', () => {
+    expect(defaultSession().muted).toBe(true);
   });
 
   it('discards data from an unknown future version', () => {

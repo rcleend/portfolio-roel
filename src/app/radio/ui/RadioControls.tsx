@@ -150,7 +150,13 @@ export function RadioControls({ deck, player, snapshot, albums, muted, onLeave, 
         })}
       </div>
       {coarse ? (
-        <TransportBar deck={deck} player={player} snapshot={snapshot} onLeave={onLeave} />
+        <TransportBar
+          deck={deck}
+          player={player}
+          snapshot={snapshot}
+          firstDisc={albums[0]?.id ?? null}
+          onLeave={onLeave}
+        />
       ) : (
         <div
           role="toolbar"

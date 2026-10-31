@@ -78,26 +78,26 @@ const potion = pixels(`
 `);
 
 /**
- * The DESIGNER's own guitar as he plays it in the level (terraria-revised/characters/artsy): a cream double-cutaway
- * body shaded along its lower edge, dark pickups across it, a tan maple neck up to the right, a brown-black outline.
+ * The DESIGNER's music (round six, item 39): a beamed pair of eighth notes drawn like the notes his strums fire in
+ * the level (terraria-revised/characters/artsy/attack.png): the same plum outline, pink body and white glint.
  */
-const guitar = pixels(`
-  .............oo.
-  ............onNo
-  ...........onNo.
-  ..........onNo..
-  .........onNo...
-  ...ooo..onNo....
-  ..owccoonNo.....
-  ..occccnNo......
-  ...occkkco......
-  ...occccco......
-  ..occckkcco.....
-  .owcccccccco....
-  .occcckkkcso....
-  .occcccccsso....
-  ..osssssssoo....
-  ...ooooooo......
+const notes = pixels(`
+  ................
+  ................
+  ....oooooooooooo
+  ....oPWPPPPPPPPo
+  ....oPPPPPPPPPPo
+  ....oPPooooooPPo
+  ....oPPo....oPPo
+  ....oPPo....oPPo
+  ....oPPo....oPPo
+  ..oooPPo..oooPPo
+  .oPWPPPo.oPWPPPo
+  oPPPPPPooPPPPPPo
+  oPPPPPPooPPPPPPo
+  .oPPPPo..oPPPPo.
+  ..oooo....oooo..
+  ................
 `);
 
 const star = pixels(`
@@ -155,10 +155,16 @@ export const skillIconSheets: Readonly<Record<SkillId, PixelArtSheet<SkillIconAn
     withRows(potion, { 10: '..oppppppwppqo..', 11: '..opppppwppppo..' }),
   ),
   'power-chord': icon(
-    { o: '#1e110a', w: '#fffaf0', c: '#e9e1c8', s: '#b3a786', n: '#e0bb7c', N: '#765034', k: '#2a2219', y: '#ffc83d' },
-    guitar,
-    // The strum: a ring of sound pulses out from the body.
-    withRows(guitar, { 10: '..occckkcco..y..', 11: '.owcccccccco..y.', 12: '.occcckkkcso.y..' }),
+    { o: '#4f0b2c', P: '#ff4fa3', W: '#ffffff', y: '#ffd23f', c: '#3fd6f2' },
+    notes,
+    // The glint runs along the beam, and a note's sparks fly off in the projectiles' other two colours.
+    withRows(notes, {
+      0: '.y..............',
+      1: 'y.y.............',
+      2: '.y..oooooooooooo',
+      3: '....oPPPPPPPPWPo',
+      7: '.c..oPPo....oPPo',
+    }),
   ),
   'north-star': icon(
     { y: '#ffd84d', Y: '#fff1a0', W: '#ffffff' },

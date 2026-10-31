@@ -186,3 +186,43 @@ describe('the overview menu', () => {
     expect(lit()).toBeNull();
   });
 });
+
+describe('the overview’s first show', () => {
+  it('is mounted ahead, hidden, at the TV, and the room view shows that same element once (no remount)', () => {
+    window.localStorage.clear();
+    saveGuideProgress(window.localStorage, { toured: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const render = (view: 'tv' | 'room', settled: boolean): void =>
+      act(() =>
+        root.render(
+          <RoomGuide
+            room={stubRoom()}
+            view={view}
+            settled={settled}
+            scenes={scenes}
+            handOver={{ current: false }}
+            onFocusStage={() => {}}
+          />,
+        ),
+      );
+    render('tv', true);
+    const waiting = host.querySelector('.overview');
+    expect(waiting?.getAttribute('data-presence')).toBe('idle');
+    expect(waiting?.getAttribute('aria-hidden')).toBe('true');
+    expect(waiting?.querySelectorAll('.socials__link')).toHaveLength(4);
+
+    render('room', false);
+    const shown = host.querySelector('.overview');
+    expect(shown).toBe(waiting);
+    expect(shown?.getAttribute('data-presence')).toBe('in');
+    expect(shown?.getAttribute('data-arriving')).toBe('true');
+    // The camera landing re-renders it, but never re-times or restarts its arrival.
+    render('room', true);
+    expect(host.querySelector('.overview')).toBe(waiting);
+    expect(shown?.getAttribute('data-arriving')).toBe('true');
+    act(() => root.unmount());
+    host.remove();
+  });
+});

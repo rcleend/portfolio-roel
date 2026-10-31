@@ -138,7 +138,9 @@ export class TitleScene implements GameScene<TitleParams | undefined> {
     const confirmedFor = this.#confirmedAt === null ? null : this.#time - this.#confirmedAt;
     const center = gfx.width / 2;
     if (promptLit(time, confirmedFor)) {
-      gfx.text('PRESS ANY BUTTON', center, TITLE_LAYOUT.promptY, this.#services.text.prompt, { align: 'center' });
+      // A touch screen has no buttons yet (its pad fades in once the title is left): a tap anywhere begins.
+      const prompt = this.#services.settings.touchControls ? 'PRESS TO BEGIN' : 'PRESS ANY BUTTON';
+      gfx.text(prompt, center, TITLE_LAYOUT.promptY, this.#services.text.prompt, { align: 'center' });
     }
     gfx.text('© 1996 LEENDERS CORP.', center, TITLE_LAYOUT.copyrightY, this.#copyright, { align: 'center' });
   }

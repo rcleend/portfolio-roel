@@ -78,22 +78,25 @@ for (const target of TARGETS) {
 }
 
 /**
- * The 1200 × 630 link-preview image: the attic at night, game paused on the title. Publish with
- * `sips -s format jpeg -s formatOptions 86 .shots/app/og-image.png --out public/og-image.jpg`.
+ * The 1200 × 630 link-preview image: the attic at night in the room view, with the overview in its corners as a
+ * visitor sees it. Publish with `sips -s format jpeg -s formatOptions 84 .shots/app/og-image.png --out
+ * public/og-room-2.jpg`, and bump the file's name in index.html with every new render, so link scrapers fetch it anew.
  */
 test('review shots: og image', async ({ browser }) => {
   await mkdir(OUT, { recursive: true });
   const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, reducedMotion: 'reduce' });
   const page = await context.newPage();
+  await page.addInitScript(() =>
+    localStorage.setItem('reo-leo:view-hints', JSON.stringify({ lookedAround: true, toured: true })),
+  );
   await page.goto('/?seed=1&scene=title');
   await page.waitForFunction(() => window.__arcadeReady === true, null, { timeout: 30_000 });
   await page.waitForTimeout(2500);
-  await page.mouse.click(30, 315);
-  await page.waitForTimeout(1500);
-  // A link preview is a poster, not a UI: no page chrome over the room.
-  await page.addStyleTag({
-    content: '.sound-toggle, .guide-pill, .overview, .prop-label { display: none !important; }',
-  });
+  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
+  await page.waitForTimeout(3000);
+  await page.mouse.move(600, 600);
+  // The overview as a visitor sees it; no label or pill for a prop under the pointer.
+  await page.addStyleTag({ content: '.prop-label, .guide-pill { display: none !important; }' });
   await page.screenshot({ path: join(OUT, 'og-image.png') });
   await context.close();
 });

@@ -10,14 +10,20 @@ test.use({
   isMobile: true,
 });
 
-test('shows the gamepad on touch screens and drives the game with it', async ({ page }) => {
+test('the title waits for a tap anywhere, then the gamepad fades in and drives the game', async ({ page }) => {
   await page.goto('/?seed=1&scene=title&frames=60');
   await waitForRunning(page);
   await page.evaluate(() => window.__arcade?.resume());
   const pad = page.locator('.touchpad');
-  await expect(pad).toHaveAttribute('data-visible', 'true');
-  await page.locator('[data-control="start"]').tap();
+  // "PRESS TO BEGIN": no buttons yet, a tap on the picture begins.
+  await expect(pad).toHaveAttribute('data-visible', 'false');
+  await page.touchscreen.tap(195, 300);
   await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
+  await expect(pad).toHaveAttribute('data-visible', 'true');
+  // A (jump) confirms, once the select screen has come in.
+  await page.waitForTimeout(1000);
+  await page.locator('[data-control="jump"]').tap();
+  await expect.poll(() => scene(page), { timeout: 10_000 }).toBe('levelSelect');
 });
 
 test('leaves the game by a tap above the set or its way out, and hides the gamepad while looking around the room', async ({
@@ -74,7 +80,8 @@ test('the menu reaches the computer the portrait room view crops out', async ({ 
   if (!tv) throw new Error('No TV anchor');
   await page.touchscreen.tap(tv.x, tv.y);
   await expect(host).toHaveAttribute('data-view', 'tv');
-  await expect(pad).toHaveAttribute('data-visible', 'true');
+  // Still on the title: the pad waits for the press that begins.
+  await expect(pad).toHaveAttribute('data-visible', 'false');
 });
 
 test('a tap on the radio in the portrait room view flies to the CD player', async ({ page }) => {

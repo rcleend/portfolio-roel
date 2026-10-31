@@ -54,7 +54,9 @@ async function main(): Promise<void> {
       console.log(`  ${track.file.padEnd(28)} ${seconds.padStart(7)} s  ${size}`);
     }
   }
-  console.log(`\nPlaceholder audio: ${(report.placeholderAudioBytes / 1e6).toFixed(2)} MB`);
+  console.log(
+    `\nAudio: ${(report.audioBytes / 1e6).toFixed(2)} MB (placeholders ${(report.placeholderAudioBytes / 1e6).toFixed(2)} MB)`,
+  );
 
   if (report.corrections.length > 0) {
     console.log('\nPaste these lengths into src/content/radio/albums.ts:');

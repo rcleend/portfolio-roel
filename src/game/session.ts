@@ -17,8 +17,9 @@ export const SESSION_STORAGE_KEY = 'reo-leo:session';
 /** The subset of `Storage` the session needs, so tests can pass a plain object. */
 export type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+/** A first visit starts with the sound off (round six, item 36): turning it on is the visitor's choice, and is kept. */
 export function defaultSession(): SessionState {
-  return { version: 1, characterId: null, completed: [], highlights: {}, bestScore: {}, bootSeen: false, muted: false };
+  return { version: 1, characterId: null, completed: [], highlights: {}, bestScore: {}, bootSeen: false, muted: true };
 }
 
 /**

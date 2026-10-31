@@ -37,6 +37,8 @@ export interface ShelfReport {
   readonly corrections: readonly Correction[];
   /** Bytes of audio in placeholder albums (they ship in the repository). */
   readonly placeholderAudioBytes: number;
+  /** Bytes of every local track together (each is fetched only when its CD plays). */
+  readonly audioBytes: number;
 }
 
 /** How far `seconds` may be from the file before the verifier asks for the right value. */
@@ -46,6 +48,13 @@ export const MAX_KBPS = 256;
 const KBPS_OVERHEAD = 1.05;
 /** All placeholder audio together, in bytes. */
 export const PLACEHOLDER_AUDIO_BUDGET = 5.5e6;
+/**
+ * One local track, in bytes: what a pick fetches (streamed, so the sound starts long before the end arrives).
+ * 5 MB is about five minutes at 128 kb/s.
+ */
+export const TRACK_BYTES_BUDGET = 5e6;
+/** Every local track together, in bytes: what ships in the repository and the deploy, never in the first load. */
+export const AUDIO_BUDGET = 16e6;
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const REMOTE = /^https:\/\//i;
 const COVER_FORMATS = new Set(['jpeg', 'webp', 'png']);
@@ -54,6 +63,7 @@ export async function validateAlbums(albums: readonly Album[], files: FileReader
   const problems: string[] = [];
   const corrections: Correction[] = [];
   let placeholderAudioBytes = 0;
+  let audioBytes = 0;
 
   if (albums.length < ALBUM_LIMITS.albums.min || albums.length > ALBUM_LIMITS.albums.max) {
     problems.push(
@@ -132,6 +142,12 @@ export async function validateAlbums(albums: readonly Album[], files: FileReader
           seconds: round(info.seconds),
         });
       }
+      if (bytes.length > TRACK_BYTES_BUDGET) {
+        problems.push(
+          `${at}: ${track.file} is ${(bytes.length / 1e6).toFixed(2)} MB; a track may take ${TRACK_BYTES_BUDGET / 1e6} MB`,
+        );
+      }
+      audioBytes += bytes.length;
       if (album.placeholder) placeholderAudioBytes += bytes.length;
     }
   }
@@ -140,12 +156,15 @@ export async function validateAlbums(albums: readonly Album[], files: FileReader
       `the placeholder audio takes ${(placeholderAudioBytes / 1e6).toFixed(2)} MB of ${PLACEHOLDER_AUDIO_BUDGET / 1e6} MB`,
     );
   }
+  if (audioBytes > AUDIO_BUDGET) {
+    problems.push(`the shelf's audio takes ${(audioBytes / 1e6).toFixed(2)} MB of ${AUDIO_BUDGET / 1e6} MB`);
+  }
   for (const correction of corrections) {
     problems.push(
       `album "${correction.album}", track ${correction.track} "${correction.title}": seconds is ${correction.declared}, the file is ${correction.seconds}`,
     );
   }
-  return { problems, corrections, placeholderAudioBytes };
+  return { problems, corrections, placeholderAudioBytes, audioBytes };
 }
 
 function round(seconds: number): number {

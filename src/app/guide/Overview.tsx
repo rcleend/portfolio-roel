@@ -6,8 +6,13 @@ import { PROP_ACCESSIBLE_NAMES, PROP_NAMES } from './propNames';
 import { Socials } from './Socials';
 
 export interface OverviewProps {
-  /** Arriving or leaving (presence.ts). */
-  readonly presence: Exclude<Presence, null>;
+  /**
+   * Arriving or leaving (presence.ts), or `idle`: mounted ahead, hidden, while the camera is elsewhere. The guide
+   * keeps it in the page from the start, so its first show only starts its arrival on parts long laid out with their
+   * marks loaded, as every later show does (round six, item 32: on a phone the first show used to mount it mid-flight
+   * and its parts flickered in and out).
+   */
+  readonly presence: Exclude<Presence, null> | 'idle';
   /** The camera is still on its way in: the overview arrives as it lands. */
   readonly arriving: boolean;
   /** The camera rests in the room view: only then does the menu take a pointer. */
@@ -47,8 +52,13 @@ export function Overview({
   onKeyboard,
   onPick,
 }: OverviewProps) {
-  // How it came in decides its whole arrival, so a landing midway never re-times it.
-  const [arriving] = useState(arrivingNow);
+  // How it came in decides its whole arrival, so a landing midway never re-times it; each show decides its own.
+  const [arriving, setArriving] = useState(arrivingNow);
+  const [shownAs, setShownAs] = useState(presence);
+  if (presence !== shownAs) {
+    setShownAs(presence);
+    if (presence === 'in') setArriving(arrivingNow);
+  }
   const id = useId();
   const items = radio ? ITEMS : ITEMS.filter((item) => item.target !== 'radio');
   return (
@@ -56,6 +66,7 @@ export function Overview({
       className="overview"
       aria-label="Roel's room"
       data-presence={presence}
+      aria-hidden={presence === 'idle' ? true : undefined}
       data-arriving={arriving}
       data-settled={settled}
     >

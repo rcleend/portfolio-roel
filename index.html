@@ -15,18 +15,25 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Social previews. og:image is root-relative until the site's public origin is known. -->
+    <link rel="canonical" href="https://roel.work/" />
+
+    <!-- Social previews, on the production origin. A new preview render gets a new file name, so scrapers fetch it. -->
     <meta property="og:type" content="profile" />
     <meta property="og:site_name" content="Roel Leenders" />
+    <meta property="og:url" content="https://roel.work/" />
     <meta property="og:title" content="Roel Leenders — Product Engineer" />
     <meta
       property="og:description"
       content="A product engineer who owns features end to end. Play the portfolio as a 16-bit arcade game on a CRT in an attic, or read the résumé."
     />
-    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:image" content="https://roel.work/og-room-2.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="A CRT television in a night-time attic room showing Roel's arcade portfolio." />
+    <meta
+      property="og:image:alt"
+      content="Roel's teenage attic room at night: a desk with a Windows XP computer, a radio, posters and a CRT TV showing his arcade portfolio, with the menu About, Music, Game."
+    />
     <meta property="profile:first_name" content="Roel" />
     <meta property="profile:last_name" content="Leenders" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -35,7 +42,11 @@
       name="twitter:description"
       content="A product engineer who owns features end to end. Play the portfolio as a 16-bit arcade game, or read the résumé."
     />
-    <meta name="twitter:image" content="/og-image.jpg" />
+    <meta name="twitter:image" content="https://roel.work/og-room-2.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Roel's teenage attic room at night: a desk with a Windows XP computer, a radio, posters and a CRT TV showing his arcade portfolio, with the menu About, Music, Game."
+    />
 
     <script type="application/ld+json">
       {

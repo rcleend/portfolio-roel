@@ -1,4 +1,4 @@
-import { Box3, Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, Mesh, type Object3D, Vector2, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { RoomAssets } from './assets/roomAssets';
 import { type AnchorTarget, type PropAnchor, propAnchors, type RoomTarget } from './camera/anchors';
@@ -27,6 +27,13 @@ import { pictureOutline } from './tv/tvFraming';
 import { locateTv, type TvModel } from './tv/tvModel';
 import type { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
+
+/**
+ * What one of the room's texture uploads is assumed to cost on the main thread before one is timed, when they go up
+ * from the TV (`prewarm`): a decoded image's copy to the GPU. Without it the first would be judged by the longest unit
+ * any task has run, and never fit between the game's frames.
+ */
+const PREWARM_UNIT_ESTIMATE_MS = 2;
 
 export interface RoomSceneOptions {
   readonly stage: RoomStage;
@@ -65,6 +72,10 @@ export interface RoomScene {
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
   refreshCursor(): void;
+  /** Starts uploading the rest of the room's textures from the TV, ahead of the first look around. */
+  prewarm(): void;
+  /** The phone's tilt as the room view's parallax (Room.setTilt). */
+  tilt(tilt: { readonly x: number; readonly y: number } | null): void;
   dispose(): void;
 }
 
@@ -111,13 +122,18 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     const playing = (views.atTv && power === 'on' && !surface.paused) || overlay.live || radio.prepared?.ambient;
     return playing ? 'playing' : 'quiet';
   });
-  // The TV view's own textures are on the GPU with the first frame; the rest wait until the visitor
-  // first looks around, so a visitor who stays at the TV never allocates them (about 120 MB).
+  // The TV view's own textures are on the GPU with the first frame; the rest (about 120 MB) go up a while after the
+  // TV turns on (`prewarm`), between the game's frames where an idle period can hold one and else in a quiet moment,
+  // so the first look around no longer uploads them in its flight (on a phone that flight lagged: round six, item 32);
+  // or, at the latest, once the visitor first looks around.
   let uploadQueued = false;
-  const queueUploads = (view: RoomView): void => {
+  const queueUploads = (view: RoomView | 'prewarm'): void => {
     if (uploadQueued || view === 'tv') return;
     uploadQueued = true;
-    background.add(uploadTextures(scene, stage.renderer));
+    background.add(
+      uploadTextures(scene, stage.renderer),
+      view === 'prewarm' ? { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS } : {},
+    );
   };
   const stopUploads = views.onChange(queueUploads);
   const monitor = new Monitor({
@@ -280,6 +296,8 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       publishAnchors();
     },
     refreshCursor: () => interaction.refreshCursor(),
+    prewarm: () => queueUploads('prewarm'),
+    tilt: (tilt) => rig.setParallaxPointer(tilt ? new Vector2(tilt.x, tilt.y) : null),
     dispose() {
       background.dispose();
       stopUploads();

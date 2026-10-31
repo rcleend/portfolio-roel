@@ -23,9 +23,9 @@ export interface ProfileLink {
   readonly href: string;
 }
 
-/** A profile elsewhere, as the room's overview links it: an icon, its network's name and the address. */
+/** A profile elsewhere, as the room's overview links it: an icon, its network's name and the address (or a mailto:). */
 export interface SocialLink {
-  readonly kind: 'x' | 'linkedin' | 'github';
+  readonly kind: 'x' | 'linkedin' | 'github' | 'email';
   /** The network's name, for the link's accessible label. */
   readonly network: string;
   readonly href: string;

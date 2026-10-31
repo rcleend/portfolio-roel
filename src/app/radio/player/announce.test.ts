@@ -76,7 +76,13 @@ describe('announcement', () => {
   });
 
   it('says the end of the CD, a failed track, a refused play and an outside pause', () => {
-    expect(say({ ...playing, track: 2 }, { type: 'ended' }).words).toBe('End of the CD.');
+    expect(say({ ...playing, track: 2 }, { type: 'ended' }).words).toBe(
+      'Playing Overdrive, track 1 of 1, from Album b by Studio Attic.',
+    );
+    const shelfOfOne = playerReducer({ ...playing, track: 2 }, { type: 'ended' }, { a: 2 }).state;
+    expect(announcement({ ...playing, track: 2 }, shelfOfOne, { type: 'ended' }, describeTrack, false)).toBe(
+      'End of the CD.',
+    );
     expect(say(playing, { type: 'error' }).words).toBe('This track could not be played.');
     expect(say(playing, { type: 'blocked' }).words).toBe('Press play to start the music.');
     expect(say(playing, { type: 'interrupted' }).words).toBe('Paused.');

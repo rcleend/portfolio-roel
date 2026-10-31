@@ -22,6 +22,8 @@ import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
 
+/** How long after the TV turns on the room's textures start going up (assembleRoom › prewarm). */
+const PREWARM_DELAY_MS = 4000;
 export interface CreateRoomOptions {
   /** Element the room's canvas fills; its size drives the framing. */
   readonly container: HTMLElement;
@@ -81,6 +83,11 @@ export interface Room {
   onSettle(listener: (view: RoomView) => void): () => void;
   /** Keeps the TV framing clear of app overlays (CSS-pixel strips of the viewport). */
   setFramingInsets(insets: FramingInsets): void;
+  /**
+   * The phone's tilt, −1…1 each way (right, up), which looks gently round the room view as the pointer's parallax
+   * does (only there, and not under reduced motion); null lets go.
+   */
+  setTilt(tilt: { readonly x: number; readonly y: number } | null): void;
   /** Adds a clickable prop (radio, poster…); returns its unregister function. */
   registerInteractable(interactable: Interactable): () => void;
   /** The computer's monitor; usable before `ready` (calls are remembered). */
@@ -310,6 +317,10 @@ export function createRoom(options: CreateRoomOptions): Room {
       await ready;
       await scene?.television.powerOn(options?.instant);
       if (scene && !disposed) rain.prepare(scene.background);
+      // The room's textures go up from the TV once the picture has settled in, ahead of the first look around.
+      setTimeout(() => {
+        if (!disposed) scene?.prewarm();
+      }, PREWARM_DELAY_MS);
     },
     async powerOff() {
       await ready;
@@ -321,6 +332,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     focusRadio: () => views.request('radio'),
     onViewChange: (listener) => views.onChange(listener),
     onSettle: (listener) => views.onSettle(listener),
+    setTilt: (tilt) => scene?.tilt(tilt),
     setFramingInsets(insets) {
       framingInsets = insets;
       scene?.setFramingInsets(insets);

@@ -274,7 +274,9 @@ test('the game takes keys only while the TV has focus', async ({ page }) => {
   await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
 });
 
-test('the sound toggle is reachable by keyboard and remembers the choice', async ({ page }) => {
+test('the sound starts off on a first visit; the toggle is reachable by keyboard and remembers the choice', async ({
+  page,
+}) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const toggle = page.getByRole('button', { name: 'Mute sound' });
@@ -283,15 +285,15 @@ test('the sound toggle is reachable by keyboard and remembers the choice', async
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(toggle).toBeFocused();
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  await page.keyboard.press('Enter');
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   const session = await page.evaluate(() => window.__arcade?.state().session);
-  expect(session).toMatchObject({ muted: true });
+  expect(session).toMatchObject({ muted: false });
 
   await page.reload();
   await waitForRunning(page);
-  await expect(page.getByRole('button', { name: 'Mute sound' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Mute sound' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('shows the way out five seconds into the first level, and whenever the visitor is back at the TV', async ({

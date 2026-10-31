@@ -172,8 +172,18 @@ describe('the end of a track and of the disc', () => {
     });
   });
 
-  it('stops after the last, back on track 1', () => {
-    expect(reduce(playing(3, 50), { type: 'ended' })).toEqual({ state: { ...stopped(), track: 1 }, effects: [] });
+  it('changes the disc after the last track: the next on the shelf goes in and plays, the first after the last', () => {
+    const changed = { ...EMPTY_PLAYER, transport: 'playing', phase: 'inserting', reading: true } as const;
+    expect(reduce(playing(3, 50), { type: 'ended' })).toEqual({
+      state: { ...changed, disc: 'b' },
+      effects: [{ type: 'start', swap: false }],
+    });
+    expect(reduce({ ...playing(1, 50), disc: 'single' }, { type: 'ended' }).state).toEqual({ ...changed, disc: 'a' });
+  });
+
+  it('stops after the last track of a shelf of one, back on track 1', () => {
+    const shelfOfOne = playerReducer(playing(3, 50), { type: 'ended' }, { a: 3 });
+    expect(shelfOfOne).toEqual({ state: { ...stopped(), track: 1 }, effects: [] });
   });
 
   it('ignores an end while not playing', () => {
@@ -324,7 +334,7 @@ describe('a single-track disc', () => {
   it('ends the disc after its only track and never skips', () => {
     const one = { ...playing(1, 5), disc: 'single' };
     expect(reduce(one, press('next')).effects).toEqual([]);
-    expect(reduce(one, { type: 'ended' }).state.transport).toBe('stopped');
+    expect(playerReducer(one, { type: 'ended' }, { single: 1 }).state.transport).toBe('stopped');
     expect(reduce(one, { type: 'error' }).state).toMatchObject({ transport: 'stopped', error: true });
   });
 });
