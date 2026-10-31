@@ -5,7 +5,7 @@ import { smallFont } from '../../art/fonts/small';
 import type { Action } from '../../input/bindings';
 import { KeyHints } from '../../ui/KeyHints';
 import { readSelectEvents } from './intents';
-import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, KEY_HINTS, NAME_ROW, SKILL_NAME_HEIGHT, selectLayout } from './layout';
+import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, CARD, KEY_HINTS, NAME_ROW, SKILL_NAME_HEIGHT, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -22,71 +22,41 @@ const { hitTest, skillRows: SKILL_ROWS } = selectLayout();
 
 describe('readSelectEvents', () => {
   it('reads nothing from idle input', () => {
-    expect(readSelectEvents(input(), IDLE_POINTER, hitTest)).toEqual([]);
+    expect(readSelectEvents(input(), hitTest)).toEqual([]);
   });
 
-  it('maps the d-pad to switching and focus moves', () => {
-    expect(readSelectEvents(input(['left', 'down']), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'switch', delta: -1 },
-      { type: 'move', delta: 1 },
-    ]);
-    expect(readSelectEvents(input(['right', 'up']), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'switch', delta: 1 },
-      { type: 'move', delta: -1 },
-    ]);
+  it('maps left/right to switching, and up/down to nothing: the skills are no stop', () => {
+    expect(readSelectEvents(input(['left']), hitTest)).toEqual([{ type: 'switch', delta: -1 }]);
+    expect(readSelectEvents(input(['right']), hitTest)).toEqual([{ type: 'switch', delta: 1 }]);
+    expect(readSelectEvents(input(['up', 'down']), hitTest)).toEqual([]);
   });
 
   it('orders switching before confirm, so confirm commits to the character landed on', () => {
-    expect(readSelectEvents(input(['confirm', 'right']), IDLE_POINTER, hitTest)).toEqual([
+    expect(readSelectEvents(input(['confirm', 'right']), hitTest)).toEqual([
       { type: 'switch', delta: 1 },
       { type: 'confirm' },
     ]);
   });
 
   it('reads back', () => {
-    expect(readSelectEvents(input(['back']), IDLE_POINTER, hitTest)).toEqual([{ type: 'back' }]);
+    expect(readSelectEvents(input(['back']), hitTest)).toEqual([{ type: 'back' }]);
   });
 
   it('switches when an arrow is clicked', () => {
     const left = centre(ARROW_LEFT_HIT);
     const right = centre(ARROW_RIGHT_HIT);
     const press = { over: true, down: true, pressed: true };
-    expect(readSelectEvents(input([], { ...left, ...press }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'switch', delta: -1 },
-    ]);
-    expect(readSelectEvents(input([], { ...right, ...press }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'switch', delta: 1 },
-    ]);
+    expect(readSelectEvents(input([], { ...left, ...press }), hitTest)).toEqual([{ type: 'switch', delta: -1 }]);
+    expect(readSelectEvents(input([], { ...right, ...press }), hitTest)).toEqual([{ type: 'switch', delta: 1 }]);
   });
 
-  it('focuses what the pointer moves onto', () => {
-    const skill = centre(SKILL_ROWS[1]);
-    expect(readSelectEvents(input([], { ...skill, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'skill2', pressed: false },
-    ]);
-    const heading = centre(NAME_ROW);
-    expect(readSelectEvents(input([], { ...heading, over: true }), IDLE_POINTER, hitTest)).toEqual([
-      { type: 'point', target: 'card', pressed: false },
-    ]);
-  });
-
-  it('marks a press on a focusable element as a tap', () => {
-    const skill = { ...centre(SKILL_ROWS[0]), over: true };
-    const previous = { ...IDLE_POINTER, ...skill };
-    expect(readSelectEvents(input([], { ...skill, down: true, pressed: true }), previous, hitTest)).toEqual([
-      { type: 'point', target: 'skill1', pressed: true },
-    ]);
-  });
-
-  it('does not let a resting pointer steal focus back from the keyboard', () => {
-    const skill = { ...centre(SKILL_ROWS[0]), over: true };
-    const previous = { ...IDLE_POINTER, ...skill };
-    expect(readSelectEvents(input(['down'], skill), previous, hitTest)).toEqual([{ type: 'move', delta: 1 }]);
-  });
-
-  it('ignores a pointer that is off the screen', () => {
-    const skill = centre(SKILL_ROWS[0]);
-    expect(readSelectEvents(input([], { ...skill, over: false }), IDLE_POINTER, hitTest)).toEqual([]);
+  it('reads nothing from a pointer hovering, pressing or tapping the skills, the heading or the card', () => {
+    for (const area of [SKILL_ROWS[0], SKILL_ROWS[1], NAME_ROW, CARD]) {
+      const at = { ...centre(area), over: true };
+      expect(readSelectEvents(input([], at), hitTest)).toEqual([]);
+      expect(readSelectEvents(input([], { ...at, down: true, pressed: true }), hitTest)).toEqual([]);
+      expect(readSelectEvents(input([], { ...at, released: true }), hitTest)).toEqual([]);
+    }
   });
 });
 
@@ -94,10 +64,13 @@ describe('hitTest', () => {
   it('finds every interactive area and nothing in the gaps', () => {
     expect(hitTest(centre(ARROW_LEFT_HIT).x, centre(ARROW_LEFT_HIT).y)).toBe('arrowLeft');
     expect(hitTest(centre(ARROW_RIGHT_HIT).x, centre(ARROW_RIGHT_HIT).y)).toBe('arrowRight');
-    expect(hitTest(80, 100)).toBe('card');
-    expect(hitTest(centre(SKILL_ROWS[0]).x, centre(SKILL_ROWS[0]).y)).toBe('skill1');
-    expect(hitTest(centre(NAME_ROW).x, centre(NAME_ROW).y)).toBe('card');
     expect(hitTest(319, 0)).toBeNull();
+  });
+
+  it('finds nothing on the card, the heading or the skills', () => {
+    for (const area of [CARD, NAME_ROW, SKILL_ROWS[0], SKILL_ROWS[1]]) {
+      expect(hitTest(centre(area).x, centre(area).y)).toBeNull();
+    }
   });
 
   it("grows the skill rows with a look's bigger icons and keeps them clear of the CONFIRM and BACK keys", () => {
@@ -111,8 +84,7 @@ describe('hitTest', () => {
     const reach = Math.min(keys.area('confirm').y, keys.area('back').y);
     expect(second.y + second.h).toBeLessThanOrEqual(reach);
     expect(second.y + (32 - SKILL_NAME_HEIGHT) / 2 + SKILL_NAME_HEIGHT).toBeLessThanOrEqual(reach);
-    expect(tall.hitTest(centre(second).x, centre(second).y)).toBe('skill2');
-    expect(tall.hitTest(second.x + 2, second.y + second.h - 1)).toBe('skill2');
+    expect(tall.hitTest(centre(second).x, centre(second).y)).toBeNull();
   });
 
   it('keeps classic-sized rows where the select screen lays them out, under the SKILLS header', () => {

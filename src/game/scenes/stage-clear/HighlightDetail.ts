@@ -12,7 +12,7 @@ import { describeMetric, type HighlightRow } from './career';
 
 const WIDTH = 236;
 const PADDING = WINDOW_BORDER + 6;
-/** Size of the window on each frame of the pop-in, as in the UI kit's tooltip: grow, overshoot 1 px, settle. */
+/** Size of the window on each frame of the pop-in: grow, overshoot 1 px, settle. */
 const POP_IN = [0.35, 0.75, 1, 1] as const;
 
 interface Content {
@@ -38,8 +38,8 @@ export class HighlightDetail {
     const { text } = services;
     this.#styles = {
       title: { ...text.label, fill: palette.navy, shadow: undefined },
-      metric: { ...text.tooltip, fill: '#b2361c' },
-      body: { ...text.tooltip, lineSpacing: 2 },
+      metric: { ...text.caption, fill: '#b2361c' },
+      body: { ...text.caption, lineSpacing: 2 },
       hint: { ...text.label, fill: '#a8955e', shadow: undefined },
     };
   }

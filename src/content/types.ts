@@ -91,8 +91,6 @@ export type SkillId =
 export interface Skill {
   readonly id: SkillId;
   readonly name: string;
-  /** Tooltip copy: what the skill does, in-game and (winkingly) in real life. */
-  readonly tooltip: string;
   /** Short gameplay rules shown in the pause menu / HUD help. */
   readonly effect: string;
   /** Seconds before the skill can be used again. */

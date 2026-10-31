@@ -8,7 +8,7 @@ import { palette } from './palette';
 
 /**
  * The three typefaces, by role:
- * - `small`  — body copy (bios, briefings, tooltips). Hand-drawn glyph data.
+ * - `small`  — body copy (bios, briefings, captions). Hand-drawn glyph data.
  * - `label`  — 8 px arcade labels and HUD. Silkscreen Bold (OFL), rasterised at its native size.
  * - `arcade` — chunky display prompts. Hand-drawn glyph data.
  */
@@ -18,7 +18,7 @@ export interface GameFonts {
   readonly arcade: BitmapFont;
 }
 
-export type TextStyleName = 'body' | 'label' | 'prompt' | 'title' | 'hud' | 'tooltip';
+export type TextStyleName = 'body' | 'label' | 'prompt' | 'title' | 'hud' | 'caption';
 export type TextStyles = Readonly<Record<TextStyleName, TextStyle>>;
 
 const SILKSCREEN = 'Silkscreen';
@@ -76,6 +76,6 @@ export function createTextStyles(fonts: GameFonts): TextStyles {
       shadow: { color: '#5a1408', x: 1, y: 2 },
     },
     hud: { font: fonts.label, fill: palette.white, outline: palette.ink },
-    tooltip: { font: fonts.small, fill: palette.navy, lineSpacing: 1 },
+    caption: { font: fonts.small, fill: palette.navy, lineSpacing: 1 },
   };
 }

@@ -73,7 +73,7 @@ export class Postcards {
     this.#styles = {
       tab: { ...text.label, fill: palette.gold },
       company: { ...text.label, fill: inks.folder, shadow: undefined },
-      caption: { ...text.tooltip, fill: '#5b4a2a' },
+      caption: { ...text.caption, fill: '#5b4a2a' },
       badge: { ...text.body, fill: palette.gold },
     };
   }

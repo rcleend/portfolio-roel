@@ -165,13 +165,19 @@ describe('CharacterSelectScene', () => {
     expect(director.current).toBe('title');
   });
 
-  it('only chimes when focus actually moves', () => {
-    const { audio, step } = setup();
-    const [row] = selectLayout().skillRows;
-    const skill = { x: row.x + 4, y: row.y + 4, over: true };
-    step([], skill);
-    step([], skill);
-    step([], { ...skill, x: skill.x + 1 });
-    expect(audio.playedSfx).toEqual(['menu-move']);
+  it('does not react to the skills: no sound or state on hover, tap or up/down', () => {
+    const { audio, step, session } = setup('artsy');
+    for (const row of selectLayout().skillRows) {
+      const skill = { x: row.x + 4, y: row.y + 4, over: true };
+      step([], skill);
+      step([], { ...skill, x: skill.x + 1 });
+      step([], { ...skill, down: true, pressed: true });
+      step([], { ...skill, released: true });
+    }
+    step(['up']);
+    step(['down']);
+    expect(audio.playedSfx).toEqual([]);
+    step(['confirm']);
+    expect(session.state.characterId).toBe('artsy');
   });
 });

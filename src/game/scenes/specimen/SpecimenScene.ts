@@ -12,7 +12,6 @@ import type { GameServices } from '../../services';
 import { Button } from '../../ui/Button';
 import { handCursorSheet } from '../../ui/cursor';
 import { drawIconSlot, iconSlotSize } from '../../ui/iconSlot';
-import { Tooltip } from '../../ui/Tooltip';
 import { TypewriterText } from '../../ui/TypewriterText';
 import { windowThemes } from '../../ui/theme';
 import { drawWindow, windowContent } from '../../ui/Window';
@@ -31,7 +30,6 @@ const LABEL_HEIGHT = 8;
 export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
   readonly #services: GameServices;
   readonly #cursor = SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor');
-  readonly #tooltip: Tooltip;
   readonly #typewriter: TypewriterText;
   readonly #buttons: Button[];
   #page = 0;
@@ -40,7 +38,6 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
 
   constructor(services: GameServices) {
     this.#services = services;
-    this.#tooltip = new Tooltip({ maxWidth: 128, theme: windowThemes.cream, style: services.text.tooltip });
     this.#typewriter = new TypewriterText(
       'LEENDERS PRODUCTION — typed one character every four frames.',
       services.text.body,
@@ -63,7 +60,6 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
 
   enter(params: SpecimenParams | undefined): void {
     this.#page = mod(params?.page ?? 0, PAGES.length);
-    this.#tooltip.show(skills['ux-elixir'].tooltip);
   }
 
   exit(): void {}
@@ -78,7 +74,6 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
     this.#buttons.forEach((button, i) => {
       button.update(input, i === this.#focus, step.dt);
     });
-    this.#tooltip.update();
     this.#typewriter.update();
   }
 
@@ -100,7 +95,7 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
       ['title', 'PRODUCT ENGINEER'],
       ['label', 'FULL-STACK ATTACK  LV.99'],
       ['hud', 'SCORE 0012340  1UP=3'],
-      ['body', 'Sees the button before it exists.'],
+      ['body', 'Sees the interface before it exists.'],
     ];
     let y = 18;
     for (const [name, sample] of samples) {
@@ -108,9 +103,9 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
       const block = gfx.text(sample, 64, y, text[name]);
       y += block.height + 7;
     }
-    const tooltipStyle = text.tooltip;
+    const captionStyle = text.caption;
     gfx.fillRect(62, y - 2, 252, 13, palette.cream);
-    gfx.text('Tooltip: dark navy on cream paper.', 64, y, tooltipStyle);
+    gfx.text('Caption: dark navy on cream paper.', 64, y, captionStyle);
     y += 16;
     const small = { ...text.body, fill: palette.white, shadow: undefined };
     gfx.text('ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789', 6, y, small);
@@ -195,7 +190,6 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
     const typed = { x: 8, y: 74, w: 170, h: 50 };
     drawWindow(gfx, typed, windowThemes.indigo, { title: 'TYPEWRITER', titleStyle: text.label });
     this.#typewriter.render(gfx, typed.x + 8, typed.y + 12);
-    this.#tooltip.render(gfx, 186, 20);
     for (const button of this.#buttons) button.render(gfx);
     gfx.text('UP/DOWN: FOCUS', 190, 210, { ...text.hud, fill: palette.steel });
     const swatches = Object.values(palette);

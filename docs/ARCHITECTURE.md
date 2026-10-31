@@ -168,7 +168,7 @@ Fonts are self-hosted (`@fontsource/*`, OFL) and loaded before the first frame.
 | `label`  | Silkscreen Bold 8 px (`@fontsource/silkscreen`), 1 px tighter tracking | labels, HUD                     |
 | `arcade` | hand-drawn glyph data (`game/art/fonts/arcade.ts`), 11 px caps, 2 px strokes | display prompts (caps only) |
 
-Named styles (`services.text`): `body`, `label`, `prompt` (white → lavender, navy outline and shadow: the INSERT COIN look), `title` (orange bands, dark-red shadow), `hud` (outlined), `tooltip` (navy on cream).
+Named styles (`services.text`): `body`, `label`, `prompt` (white → lavender, navy outline and shadow: the INSERT COIN look), `title` (orange bands, dark-red shadow), `hud` (outlined), `caption` (navy on cream).
 Draw with `gfx.text(text, x, y, style, { align, maxWidth })`, where (x, y) is the top-left of the first glyph cell and `align` anchors each line on `x`; it returns the laid-out block.
 Derive variants inline (`{ ...text.label, fill: palette.gold }`): styled atlases are cached by value.
 `gfx.measureText`, `layoutText` and the pure `wrapText` size text without drawing, `textBounds` gives the box drawn text covers, outline and shadow included, and `textInk` the box of pixels it actually paints, for lining text up by its ink; `?scene=specimen` shows every font, style, sprite and widget.
@@ -217,7 +217,7 @@ game/
   audio/               ids, music (tracker data), sfx (synth recipes)
   fonts.ts             font registry and named TextStyles
   scenes/              boot, title, character-select, level-select, level, stage-clear
-  ui/                  pixel UI widgets: Window, Tooltip, Button, KeyHints, TypewriterText, Hud
+  ui/                  pixel UI widgets: Window, Button, KeyHints, TypewriterText, Hud
   entities/            player, unhappy customer, projectiles, pickups, platforms, hazards
   skills/              one module per SkillId implementing the shared Skill behaviour contract
   world/               level runtime: tile grid, AABB collision, layout DSL + validation, camera, World, autopilot
@@ -246,7 +246,7 @@ Scene registry (`game/scenes/index.ts`): each feature crew owns one folder and r
 Stubs draw a yellow `STUB · NAME` banner (`scenes/StubBanner.ts`); delete it once every stub is replaced.
 A development scene may draw art the game itself never loads, such as the lineup's Terraria designs and customer concepts, so the lineup and its art stay out of the visitor's download: `preloadSceneArt(id, assets)` (`scenes/index.ts`) imports the scene and fetches its art, and the harness awaits it before opening that scene.
 
-UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, { title })` with `windowContent(rect)` for the inner area; `Tooltip` (pops in over four frames with a 1 px overshoot); `Button` (pointer and focus, activates on release); `KeyHints` (the clickable ⏎ CONFIRM ⌫ BACK legend that closes both select screens' controls: keys light while pointed at, sink while pressed and click on release, and `HINT_COLORS` and `legendGlyphTop` keep other legends in step); `Paragraph` (wrapped once, can render the first N characters); `TypewriterText`; `handCursorSheet`. Shared UI colours live in `game/palette.ts`.
+UI kit (`game/ui`): `drawWindow(gfx, rect, windowThemes.indigo | steel | cream, { title })` with `windowContent(rect)` for the inner area; `Button` (pointer and focus, activates on release); `KeyHints` (the clickable ⏎ CONFIRM ⌫ BACK legend that closes both select screens' controls: keys light while pointed at, sink while pressed and click on release, and `HINT_COLORS` and `legendGlyphTop` keep other legends in step); `Paragraph` (wrapped once, can render the first N characters); `TypewriterText`; `handCursorSheet`. Shared UI colours live in `game/palette.ts`.
 Both select screens stand on the blueprint title's paper: `printOnPaper(pattern)` (`scenes/title/backdrops/blueprint/sheet.ts`) paints it as the title lights it, with a screen's own lines a ramp step above, so the menus and the title cannot drift apart.
 
 ### Title variants

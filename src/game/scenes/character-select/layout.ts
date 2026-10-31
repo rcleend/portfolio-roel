@@ -1,6 +1,5 @@
 import { containsPoint, type Rect } from '@/engine/math/Rect';
 import type { KeyHintsAnchor } from '../../ui/KeyHints';
-import type { FocusTarget } from './selectMachine';
 
 /**
  * Screen layout of the character select, in native pixels. One place for
@@ -12,7 +11,7 @@ import type { FocusTarget } from './selectMachine';
  *     │pedestal│     SKILLS
  *     │        │     [icon] SKILL 1
  *     └────────┘     [icon] SKILL 2
- *   ◀▶ CHANGE ▲▼ SKILLS       ⏎ CONFIRM ⌫ BACK
+ *   ◀▶ CHANGE                 ⏎ CONFIRM ⌫ BACK
  */
 
 export const CARD: Rect = { x: 22, y: 18, w: 120, h: 190 };
@@ -56,25 +55,26 @@ export const SKILL_NAME_HEIGHT = 8;
 const SKILL_ROWS_Y = SKILLS_Y + 14;
 const SKILL_ROW_GAP = 4;
 
-/** Where the card's focus is shown, and pointing at it focuses the card: the class heading stands for the character. */
+/** The class heading's row: the heading stands for the character, and the hand cursor points at it. */
 export const NAME_ROW: Rect = { x: DETAILS.x, y: NAME_Y - 2, w: DETAILS.w, h: 16 };
+/** The point the hand cursor's fingertip touches, just left of the class heading. */
+export const CURSOR_ANCHOR = { x: NAME_ROW.x - 3, y: NAME_ROW.y + Math.floor(NAME_ROW.h / 2) } as const;
 
 /** Top of the control legend's row, under the card. */
 export const HINTS_Y = CARD.y + CARD.h + 10;
 /** CONFIRM and BACK close the legend, flush with the details column's right edge. */
 export const KEY_HINTS: KeyHintsAnchor = { right: DETAILS.x + DETAILS.w, y: HINTS_Y };
 
-export type HitTarget = FocusTarget | 'arrowLeft' | 'arrowRight';
+/** The only parts of the screen the pointer acts on besides the CONFIRM and BACK keys: the skills are not among them. */
+export type HitTarget = 'arrowLeft' | 'arrowRight';
 
 /** The parts of the screen that follow the size of the skill icons on show. */
 export interface SelectLayout {
   readonly slotSize: number;
-  /** A skill row: the bevelled icon slot plus the name beside it. */
+  /** A skill row: the bevelled icon slot plus the name beside it. Drawn only: it reacts to nothing. */
   readonly skillRows: readonly [Rect, Rect];
   /** What the pointer at (x, y) is over, if anything. */
   hitTest(x: number, y: number): HitTarget | null;
-  /** The point the hand cursor's fingertip touches when `target` has focus. */
-  cursorAnchor(target: FocusTarget): { readonly x: number; readonly y: number };
 }
 
 /**
@@ -93,10 +93,6 @@ export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
   const hitAreas: readonly (readonly [HitTarget, Rect])[] = [
     ['arrowLeft', ARROW_LEFT_HIT],
     ['arrowRight', ARROW_RIGHT_HIT],
-    ['card', CARD],
-    ['card', NAME_ROW],
-    ['skill1', skillRows[0]],
-    ['skill2', skillRows[1]],
   ];
   return {
     slotSize,
@@ -104,10 +100,6 @@ export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
     hitTest(x, y) {
       for (const [target, area] of hitAreas) if (containsPoint(area, x, y)) return target;
       return null;
-    },
-    cursorAnchor(target) {
-      const focused = target === 'card' ? NAME_ROW : skillRows[target === 'skill1' ? 0 : 1];
-      return { x: focused.x - 3, y: focused.y + Math.floor(focused.h / 2) };
     },
   };
 }

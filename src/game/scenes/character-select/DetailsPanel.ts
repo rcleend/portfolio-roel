@@ -10,7 +10,6 @@ import { palette } from '../../palette';
 import { drawIconSlot } from '../../ui/iconSlot';
 import { Paragraph } from '../../ui/Paragraph';
 import { windowThemes } from '../../ui/theme';
-import { LIT_WINDOW } from '../title/backdrops/blueprint/inks';
 import { classThemes } from './classThemes';
 import { BIO_Y, DETAILS, NAME_Y, PROMPT_Y, type SelectLayout, SKILL_NAME_HEIGHT, SKILLS_Y } from './layout';
 
@@ -27,8 +26,6 @@ export interface DetailsRenderOptions {
   readonly time: number;
   /** Horizontal settle of the name after a switch. */
   readonly nameOffset: number;
-  /** Skill slot (0 or 1) to light up, if any. */
-  readonly litSkill: 0 | 1 | null;
 }
 
 /**
@@ -72,23 +69,22 @@ export class DetailsPanel {
     gfx.text('SKILLS', x, SKILLS_Y, { ...text.label, fill: palette.gold });
 
     character.skills.forEach((skillId, slot) => {
-      this.#renderSkill(gfx, skillId, slot === 0 ? 0 : 1, options);
+      this.#renderSkill(gfx, skillId, slot === 0 ? 0 : 1, options.time);
     });
   }
 
-  #renderSkill(gfx: Gfx, skillId: SkillId, slot: 0 | 1, options: DetailsRenderOptions): void {
+  #renderSkill(gfx: Gfx, skillId: SkillId, slot: 0 | 1, time: number): void {
     const { skillRows, slotSize } = this.#layout;
     const row = skillRows[slot];
-    const lit = options.litSkill === slot;
-    drawIconSlot(gfx, this.#looks.skills[skillId].icon, options.time, {
+    drawIconSlot(gfx, this.#looks.skills[skillId].icon, time, {
       x: row.x,
       y: row.y,
       size: slotSize,
-      theme: lit ? LIT_WINDOW : windowThemes.steel,
+      theme: windowThemes.steel,
     });
     gfx.text(skills[skillId].name, row.x + slotSize + 6, row.y + Math.floor((slotSize - SKILL_NAME_HEIGHT) / 2), {
       ...this.#text.label,
-      fill: lit ? palette.gold : palette.white,
+      fill: palette.white,
     });
   }
 }
