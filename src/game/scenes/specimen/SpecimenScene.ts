@@ -100,7 +100,7 @@ export class SpecimenScene implements GameScene<SpecimenParams | undefined> {
       ['title', 'PRODUCT ENGINEER'],
       ['label', 'FULL-STACK ATTACK  LV.99'],
       ['hud', 'SCORE 0012340  1UP=3'],
-      ['body', 'Sees the interface before it exists.'],
+      ['body', 'Sees the button before it exists.'],
     ];
     let y = 18;
     for (const [name, sample] of samples) {

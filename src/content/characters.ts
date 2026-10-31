@@ -6,9 +6,7 @@ export const characters: readonly Character[] = [
     id: 'hackerman',
     name: 'HACKERMAN',
     className: 'ENGINEER',
-    bio:
-      'Speaks fluent TypeScript. Ships end to end: React front-ends, NestJS back-ends, a native iOS app ' +
-      '— and AI agents that actually call the right tools.',
+    bio: 'Types faster than complaints can pile up. Fixes the bug before it lands, then ships the fix twice.',
     attack: 'Code bolts',
     skills: ['full-stack-attack', 'agent-summon'],
   },
@@ -16,9 +14,7 @@ export const characters: readonly Character[] = [
     id: 'artsy',
     name: 'ARTSY',
     className: 'DESIGNER',
-    bio:
-      'Sees the interface before it exists. Interaction Technology MSc by day, guitarist by night. ' +
-      'Untangles messy flows until they feel obvious.',
+    bio: 'Sees the button before it exists. Turns tangled screens into ones that feel obvious, then plays a riff.',
     attack: 'Music notes',
     skills: ['ux-elixir', 'power-chord'],
   },
@@ -26,9 +22,7 @@ export const characters: readonly Character[] = [
     id: 'strategy',
     name: 'STRATEGY',
     className: 'STRATEGIST',
-    bio:
-      'Talks to customers before writing a line of code. Turns fuzzy founder ideas into jobs-to-be-done, ' +
-      'roadmaps and metrics that move.',
+    bio: 'Asks the customer first, swings second. Turns every grumble into a plan and every plan into a win.',
     attack: 'Sticky notes',
     skills: ['north-star', 'churn-shield'],
   },
