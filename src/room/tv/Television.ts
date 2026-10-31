@@ -1,18 +1,19 @@
 import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
+import { boxCorners } from '../camera/framing';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { CrtScreen } from './CrtScreen';
-import { atticGlowPatches } from './glowLayout';
 import { PowerLed, type PowerLedPlacement } from './PowerLed';
 import type { PowerState } from './powerTimeline';
-import { ScreenGlow } from './ScreenGlow';
+import { type ScreenLightUniforms, screenLight } from './screenLight';
 import type { UvRect } from './screenMapping';
-import type { TvModel } from './tvModel';
+import { pictureOutline } from './tvFraming';
+import { TV_SCREEN_APERTURE, type TvModel } from './tvModel';
 
 export interface TelevisionOptions {
   readonly model: TvModel;
   readonly surface: GameSurface;
-  /** Where the power LED and the room glow are added. */
+  /** Where the power LED is added. */
   readonly scene: Object3D;
   readonly loop: RenderLoop;
   readonly reducedMotion: MediaQueryList;
@@ -24,12 +25,13 @@ const LED_OFFSET_FROM_BUTTONS = new Vector3(-0.001, 0, -0.022);
 const LED_LEAD_MS = 140;
 
 /**
- * The CRT television as one device: its screen, its power LED and the light it spills into
- * the room, switched on and off together.
+ * The CRT television as one device: its screen, its power LED and the light its picture casts
+ * into the room, switched on and off together.
  */
 export class Television {
   private readonly crt: CrtScreen;
-  private readonly glow: ScreenGlow;
+  /** The picture as an area light, published on the glass for the room's finish to light the room with. */
+  private readonly light: ScreenLightUniforms;
   private readonly led: PowerLed;
   /** The power-on in progress, including the LED's lead before the tube reacts. */
   private startingUp: Promise<void> | null = null;
@@ -37,7 +39,16 @@ export class Television {
   constructor(private readonly options: TelevisionOptions) {
     const { model, surface, scene, loop, reducedMotion } = options;
     this.crt = new CrtScreen({ tv: model, surface, loop, reducedMotion });
-    this.glow = new ScreenGlow(scene, this.crt.picture, atticGlowPatches(model, this.crt.contentRect));
+    this.light = screenLight(
+      pictureOutline(model.screen, this.crt.contentRect),
+      model.facing,
+      new Box3().setFromObject(model.screen),
+      TV_SCREEN_APERTURE,
+      Math.max(...boxCorners(model.bounds.min, model.bounds.max).map((corner) => corner.dot(model.facing))),
+      surface.width,
+      this.crt.picture,
+    );
+    model.screen.userData.screenLight = this.light;
     this.led = new PowerLed(scene, ledPlacement(model), loop);
   }
 
@@ -79,14 +90,14 @@ export class Television {
     this.crt.setPixelRatio(pixelRatio);
   }
 
-  /** Call after each drawn frame so the room glow follows the tube's light output. */
+  /** Call after each drawn frame so the picture's light follows the tube's output. */
   syncGlow(): void {
-    this.glow.setLit(this.crt.lit);
+    this.light.uScreenOptics.value.z = this.crt.lit;
   }
 
   dispose(): void {
     this.led.dispose();
-    this.glow.dispose();
+    delete this.options.model.screen.userData.screenLight;
     this.crt.dispose();
   }
 }

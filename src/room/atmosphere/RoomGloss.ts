@@ -1,5 +1,13 @@
 import { type Material, Mesh, type MeshBasicMaterial, type Object3D } from 'three';
+import { SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import type { MoodFinish } from './moods';
+
+/**
+ * Satin surfaces that mirror the TV's picture, on top of the diffuse light every surface takes from it: the set's own
+ * plastic, whose inner lip shows a blurred band of the picture's edge as on a real set. (Everything else that faces the
+ * picture is matte or, like the cabinet's faces, never turns its mirror ray towards it.)
+ */
+const SHEEN: Readonly<Record<string, number>> = { device_tv_front_BAKED_UNLIT: 1 };
 
 /** Only varnished hard surfaces catch reflections. Cloth, paper, the screens and walls stay matte. */
 const VARNISH: Readonly<Record<string, number>> = {
@@ -19,8 +27,10 @@ const FRAGMENT_DECLARATIONS = /* glsl */ `
 varying vec3 vFinishPosition;
 varying vec3 vFinishNormal;
 uniform float uVarnish;
+uniform float uSheen;
 uniform float uWarmth;
 uniform float uStorm;
+${SCREEN_LIGHT}
 
 // Broad, view-dependent reflections of the existing practicals, with no second scene render.
 float reflection(vec3 source, vec3 normal, vec3 view, float tightness) {
@@ -68,6 +78,9 @@ float grain = smoothstep(0.005, 0.19, bakedLight);
 float fresnel = 0.35 + 0.65 * pow(1.0 - max(dot(finishNormal, finishView), 0.0), 3.0);
 outgoingLight += uVarnish * grain * fresnel * (vec3(0.8, 0.29, 0.055) * (amber + desk * 0.65)
   + vec3(0.24, 0.32, 0.52) * window * 0.38);
+// The TV's picture lights what faces it. The bake stands in for each surface's albedo: it is that colour under the
+// room's dim night light, about 4 % of full light where the TV stands.
+outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, min(diffuseColor.rgb * 25.0, vec3(0.85)), uSheen);
 `;
 
 /** Extends the existing unlit program, retaining the bake and each material's identity for the prop spotlight. */
@@ -80,6 +93,9 @@ export class RoomGloss {
   private readonly storm = { value: 0 };
   private finish: MoodFinish | null = null;
 
+  /** `screen`: the TV's light as the finish draws it (RoomAtmosphere owns and updates it). */
+  constructor(private readonly screen: ScreenLightUniforms) {}
+
   attach(root: Object3D): void {
     root.traverse((object) => {
       if (!(object instanceof Mesh)) return;
@@ -91,8 +107,10 @@ export class RoomGloss {
         basic.onBeforeCompile = (shader, renderer) => {
           original.compile.call(basic, shader, renderer);
           shader.uniforms.uVarnish = varnish;
+          shader.uniforms.uSheen = { value: SHEEN[basic.name] ?? 0 };
           shader.uniforms.uWarmth = this.warmth;
           shader.uniforms.uStorm = this.storm;
+          Object.assign(shader.uniforms, this.screen);
           shader.vertexShader =
             VERTEX_DECLARATIONS +
             shader.vertexShader.replace(

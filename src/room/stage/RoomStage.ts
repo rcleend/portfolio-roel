@@ -1,4 +1,4 @@
-import { NoToneMapping, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NoToneMapping, type Object3D, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
 import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
 import { RenderLoop } from './RenderLoop';
@@ -129,6 +129,12 @@ export class RoomStage {
   /** Called once the room's baked surfaces have joined the scene. */
   attachAtmosphere(): void {
     this.atmosphere?.attach(this.scene);
+  }
+
+  /** Compiles `object`'s materials now, for the target frames draw them into (the finish's, or the screen). */
+  prepare(object: Object3D): void {
+    if (this.atmosphere) this.atmosphere.prepare(this.scene, object, this.camera);
+    else this.renderer.compile(object, this.camera, this.scene);
   }
 
   onResize(listener: (size: ViewportSize) => void): () => void {

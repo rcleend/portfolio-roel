@@ -151,6 +151,11 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     isInView: () => views.moving || views.view === 'room' || views.view === 'pc',
     background,
   });
+  // The monitor's light spill draws with ScreenGlow's program, which the TV's own spill quads used to compile with the
+  // room; the TV's light is now drawn by the finish's programs, so it is compiled here, and no flight that first shows
+  // the spill stops to compile it (e2e/programs.ts counts it in the room's first view).
+  const spill = scene.getObjectByName('ScreenGlow');
+  if (spill) stage.prepare(spill);
   const lava = new LavaLamp({
     root: assets.room.scene,
     clips: assets.room.animations,

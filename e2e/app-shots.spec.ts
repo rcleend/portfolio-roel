@@ -80,7 +80,7 @@ for (const target of TARGETS) {
 /**
  * The 1200 × 630 link-preview image: the attic at night in the room view, with the overview in its corners as a
  * visitor sees it. Publish with `sips -s format jpeg -s formatOptions 84 .shots/app/og-image.png --out
- * public/og-room-2.jpg`, and bump the file's name in index.html with every new render, so link scrapers fetch it anew.
+ * public/og-room-3.jpg`, and bump the file's name in index.html with every new render, so link scrapers fetch it anew.
  */
 test('review shots: og image', async ({ browser }) => {
   await mkdir(OUT, { recursive: true });

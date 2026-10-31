@@ -9,6 +9,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
   type PerspectiveCamera,
   Scene,
   ShaderMaterial,
@@ -20,6 +21,7 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import type { RenderLoop } from '../stage/RenderLoop';
+import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import { AirMotion } from './AirMotion';
 import { ROOM_MOODS, type RoomAir, type RoomMood, SCREEN_FINISH_STRENGTH } from './moods';
 import { RoomDust } from './RoomDust';
@@ -36,19 +38,30 @@ void main() {
 }
 `;
 
+/**
+ * The TV's picture as a light (screenLight.ts): its radiance against its displayed values (three times: the tube
+ * outshines the dim baked room more than an 8-bit display can show), and the haze's scattering of it per unit of the
+ * finish's haze.
+ */
+const SCREEN_LIGHT_GAIN = 3;
+const SCREEN_AIR = 0.08;
+
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
 uniform vec2 uTexel;
+uniform vec3 uBloomTint;
 varying vec2 vUv;
 void main() {
-  vec3 color = (texture2D(uScene, vUv + uTexel * vec2(-0.5, -0.5)).rgb
-    + texture2D(uScene, vUv + uTexel * vec2(0.5, -0.5)).rgb
-    + texture2D(uScene, vUv + uTexel * vec2(-0.5, 0.5)).rgb
-    + texture2D(uScene, vUv + uTexel * vec2(0.5, 0.5)).rgb) * 0.25;
+  vec4 color = (texture2D(uScene, vUv + uTexel * vec2(-0.5, -0.5))
+    + texture2D(uScene, vUv + uTexel * vec2(0.5, -0.5))
+    + texture2D(uScene, vUv + uTexel * vec2(-0.5, 0.5))
+    + texture2D(uScene, vUv + uTexel * vec2(0.5, 0.5))) * 0.25;
   float brightness = max(max(color.r, color.g), color.b);
-  // Soft-knee extraction: the lamp and reflected light bloom, black corners never fog over.
-  float contribution = smoothstep(0.16, 0.7, brightness);
-  gl_FragColor = vec4(color * contribution, 1.0);
+  // Soft-knee extraction: the lamp and reflected light bloom, black corners never fog over. A display (alpha 0) is light
+  // of its own colour: only its brightest pixels glare, faintly and untinted by the warm bloom, so no veil of the
+  // picture's mean colour settles over the set around it; its light reaches the room as light (screenLight.ts).
+  vec3 glare = color.rgb / uBloomTint * smoothstep(0.65, 1.3, brightness) * 0.15;
+  gl_FragColor = vec4(mix(glare, color.rgb * smoothstep(0.16, 0.7, brightness), color.a), 1.0);
 }
 `;
 
@@ -72,6 +85,7 @@ uniform float uDiffusion;
 uniform float uVignette;
 varying vec2 vUv;
 ${WINDOW_RAIN}
+${SCREEN_LIGHT}
 
 vec3 blur(float level) {
   vec2 stepSize = uBloomTexel * exp2(level) * 0.65;
@@ -128,6 +142,8 @@ void main() {
   float windowAir = density(eye, ray, reach, vec3(-1.15, 1.25, -0.95), vec3(0.95, 0.55, 1.7), 0.42);
   color += uWindowTint * windowAir * uLightning * 0.24;
   color += (uAirTint * (deskAir + lampAir * 0.8) + uWindowTint * windowAir * 0.42) * uHaze;
+  // The TV lights the air in front of it in its picture's colour: a cone, brightest along its axis, never a halo.
+  color += screenAir(eye, ray, reach) * uHaze * ${SCREEN_AIR};
   gl_FragColor = vec4(mix(display, color, scene.a), 1.0);
   #include <colorspace_fragment>
   // Fixed film grain is also dither; it never animates or schedules another frame.
@@ -145,7 +161,12 @@ export class RoomAtmosphere {
   private readonly extract: ShaderMaterial;
   private readonly composite: ShaderMaterial;
   private readonly quad: Mesh<BufferGeometry, ShaderMaterial>;
-  private readonly gloss = new RoomGloss();
+  /** The TV's light: the set's own uniforms once attached (Television), scaled by the finish's gain. */
+  private readonly screenLight: ScreenLightUniforms & { uScreenGain: { value: number } } = {
+    ...createScreenLightUniforms(),
+    uScreenGain: { value: 0 },
+  };
+  private readonly gloss = new RoomGloss(this.screenLight);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -175,10 +196,11 @@ export class RoomAtmosphere {
       minFilter: LinearMipmapLinearFilter,
       generateMipmaps: true,
     });
+    const bloomTint = { value: new Vector3() };
     this.extract = new ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: HIGHLIGHTS,
-      uniforms: { uScene: { value: this.frame.texture }, uTexel: { value: new Vector2() } },
+      uniforms: { uScene: { value: this.frame.texture }, uTexel: { value: new Vector2() }, uBloomTint: bloomTint },
       depthTest: false,
       depthWrite: false,
     });
@@ -198,7 +220,7 @@ export class RoomAtmosphere {
         uBloomTexel: { value: new Vector2() },
         uShadows: { value: new Vector3() },
         uLights: { value: new Vector3() },
-        uBloomTint: { value: new Vector3() },
+        uBloomTint: bloomTint,
         uAirTint: { value: new Vector3() },
         uWindowTint: { value: new Vector3() },
         uHaze: { value: 0 },
@@ -207,6 +229,7 @@ export class RoomAtmosphere {
         uBloom: { value: 0 },
         uDiffusion: { value: 0 },
         uVignette: { value: 0 },
+        ...this.screenLight,
       },
       depthTest: false,
       depthWrite: false,
@@ -219,6 +242,10 @@ export class RoomAtmosphere {
 
   attach(scene: Scene): void {
     scene.traverse((object) => {
+      if (object.userData.screenLight) {
+        Object.assign(this.screenLight, object.userData.screenLight);
+        Object.assign(this.composite.uniforms, object.userData.screenLight);
+      }
       if (
         object.userData.exterior &&
         object instanceof Mesh &&
@@ -232,12 +259,21 @@ export class RoomAtmosphere {
     this.screens.attach(scene);
   }
 
+  /** Compiles `object`'s materials for the target this finish draws the room into (the screen for the bake). */
+  prepare(scene: Scene, object: Object3D, camera: PerspectiveCamera): void {
+    const previous = this.renderer.getRenderTarget();
+    if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
+    this.renderer.compile(object, camera, scene);
+    this.renderer.setRenderTarget(previous);
+  }
+
   setMood(mood: RoomMood): void {
     this.mood = mood;
     const finish = mood === 'original' ? null : ROOM_MOODS[mood].finish;
     this.gloss.setFinish(finish);
     this.halation.setFinish(finish);
     this.screens.setActive(finish !== null);
+    this.screenLight.uScreenGain.value = finish ? SCREEN_LIGHT_GAIN : 0;
     this.motion.setSpeed(finish ? 1 : 0);
     if (!finish) return;
     this.dust.setFinish(finish, this.air.dust);

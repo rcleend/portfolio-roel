@@ -151,6 +151,14 @@ void main() {
   float raster = pictureCoverage(picture * uPictureSize, uPictureSize, 5.0) * blanking;
   vec3 light = color * raster * uBrightness;
 
+  // Halation: the thick faceplate carries a little of the picture's light past the raster, so the dark border glows
+  // beside a bright edge and fades within a few millimetres, before the bezel.
+  if (raster < 1.0) {
+    vec2 edge = clamp(picture, 0.0, 1.0);
+    vec3 spill = mix(textureLod(uPicture, edge, 2.0).rgb, vec3(1.0), uFlash);
+    light += spill * exp(-length((picture - edge) * uPictureSize) * 0.4) * 0.16 * (1.0 - raster) * uBrightness;
+  }
+
   // Hot spot of a collapsed beam: a soft glow around the dot or the line.
   vec2 spotExtent = max(deflection * vec2(uPictureSize.x / uPictureSize.y, 1.0), vec2(0.02));
   vec2 spot = (content - 0.5) * vec2(uPictureSize.x / uPictureSize.y, 1.0) / spotExtent;
@@ -158,7 +166,8 @@ void main() {
   light += vec3(0.85, 0.9, 1.0) * exp(-dot(spot, spot) * 2.0) * collapsed * uBrightness * 0.6;
 
   // Glass: the room's dim light caught by the curved face (a soft sheen top-left, fading
-  // towards the rim where the tube curves away) plus Fresnel at grazing angles.
+  // towards the rim where the tube curves away) plus Fresnel at grazing angles. The night room
+  // is dark, so away from the sheen the black border stays black rather than a flat grey.
   vec3 normal = normalize(vViewNormal);
   vec3 view = normalize(vViewPosition);
   float fresnel = pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 4.0);
@@ -166,7 +175,7 @@ void main() {
   float sheen = exp(-dot(fromSheen, fromSheen) * 4.0);
   vec2 rim = abs(vUv - 0.5) * 2.0;
   float face = 1.0 - smoothstep(0.55, 1.0, max(rim.x, rim.y));
-  vec3 glass = vec3(0.016, 0.019, 0.028) * (0.25 + 1.6 * sheen) * face + vec3(0.06, 0.07, 0.09) * fresnel;
+  vec3 glass = vec3(0.016, 0.019, 0.028) * (0.05 + 1.6 * sheen) * face + vec3(0.06, 0.07, 0.09) * fresnel;
 
   gl_FragColor = vec4(TUBE + light + glass, 1.0);
   #include <colorspace_fragment>
