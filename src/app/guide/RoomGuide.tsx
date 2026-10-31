@@ -76,9 +76,10 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
   const popup = useLookAroundPopup(scenes, view === 'tv' && settled);
-  useTour(inRoom && settled && !progress.toured, radio, pointer, setTouring, () => learn(recordTour));
+  // On a touch screen the props neither glow nor wear their names (no pointer to point with): the menu alone leads.
+  useTour(inRoom && settled && !progress.toured && !touch, radio, pointer, setTouring, () => learn(recordTour));
 
-  const request = inRoom ? (pointed ?? touring) : null;
+  const request = inRoom && !touch ? (pointed ?? touring) : null;
   useEffect(() => room.spotlight.light(request), [room, request]);
   // Reaching for the music is intent: the radio's device and sharper skin get ready, as a hover on the radio does.
   useEffect(() => {
@@ -114,7 +115,7 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
           onPick={go}
         />
       ) : null}
-      <PropLabel spotlight={room.spotlight} />
+      {touch ? null : <PropLabel spotlight={room.spotlight} />}
       {back ? <BackButton due={backView && settled} onBack={showRoom} /> : null}
     </>
   );

@@ -2,7 +2,7 @@
 .sound-toggle {
   position: fixed;
   top: var(--ui-top-row);
-  right: max(12px, env(safe-area-inset-right));
+  right: max(var(--ui-edge), env(safe-area-inset-right));
   z-index: 20;
   display: grid;
   place-items: center;

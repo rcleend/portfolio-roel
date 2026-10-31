@@ -44,8 +44,11 @@ test('the menu reaches the computer the portrait room view crops out', async ({ 
   const box = await item.boundingBox();
   expect(box?.width).toBeGreaterThanOrEqual(44);
   expect(box?.height).toBeGreaterThanOrEqual(44);
-  // A thumb's reach: along the bottom of the screen.
-  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThan(844 - 80);
+  // Large in the middle of the room, the props without their glow and labels (no pointer to point with).
+  expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - 195)).toBeLessThan(4);
+  expect(box?.y ?? 0).toBeGreaterThan(844 / 4);
+  await expect(item).toHaveText('About');
+  await expect(page.locator('.prop-label')).toHaveCount(0);
 
   await item.tap();
   await expect(host).toHaveAttribute('data-view', 'pc');

@@ -216,7 +216,7 @@ test('pointing at a prop lights it, labels it and lights its menu item; the menu
   await page.mouse.move(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit?.target)).toBe('tv');
   await expect(page.locator('.prop-label')).toHaveAttribute('data-shown', 'true');
-  await expect(page.locator('.prop-label')).toHaveText('Play game');
+  await expect(page.locator('.prop-label')).toHaveText('Game');
   await expect(page.locator('.overview__item[data-target="tv"]')).toHaveAttribute('data-lit', 'true');
   // The label stands over the TV.
   const label = await page.locator('.prop-label__word').boundingBox();
@@ -225,7 +225,7 @@ test('pointing at a prop lights it, labels it and lights its menu item; the menu
 
   await page.getByRole('button', { name: 'About me (CV)' }).hover();
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit?.target)).toBe('pc');
-  await expect(page.locator('.prop-label')).toHaveText('About me (CV)');
+  await expect(page.locator('.prop-label')).toHaveText('About');
   await page.mouse.move(WALL.x, WALL.y);
   await expect.poll(() => page.evaluate(() => window.__room?.spotlight.lit ?? null)).toBeNull();
   await expect(page.locator('.prop-label')).toHaveAttribute('data-shown', 'false');
