@@ -1,5 +1,5 @@
 import type { PointerSink } from '../core/GameSurface';
-import type { PointerSnapshot } from './InputSnapshot';
+import type { PointerKind, PointerSnapshot } from './InputSnapshot';
 
 /** Receives host-mapped pointer events and turns them into per-step snapshots with edges. */
 export class PointerState implements PointerSink {
@@ -10,8 +10,10 @@ export class PointerState implements PointerSink {
   #pressed = false;
   #released = false;
   #active = false;
+  #kind: PointerKind = 'mouse';
 
-  move(x: number, y: number): void {
+  move(x: number, y: number, kind: PointerKind = 'mouse'): void {
+    this.#kind = kind;
     const px = Math.floor(x);
     const py = Math.floor(y);
     // The same pixel again (a host re-sending a resting pointer's place) is no activity.
@@ -27,7 +29,8 @@ export class PointerState implements PointerSink {
     if (this.#down) this.up();
   }
 
-  down(): void {
+  down(kind?: PointerKind): void {
+    if (kind) this.#kind = kind;
     if (this.#down) return;
     this.#down = true;
     this.#pressed = true;
@@ -49,6 +52,7 @@ export class PointerState implements PointerSink {
       down: this.#down,
       pressed: this.#pressed,
       released: this.#released,
+      kind: this.#kind,
     };
     const active = this.#active;
     this.#pressed = false;

@@ -1,11 +1,12 @@
 import { getExperience, getLevel, type LevelInfo } from '@/content';
+import type { GameCursor } from '@/engine/core/GameSurface';
 import { fade, iris } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { layoutText } from '@/engine/gfx/TextStyle';
 import { fxSprites } from '../../art/fx';
 import type { BubbleText } from '../../entities/complaints/SpeechBubble';
-import { IDLE_INTENT } from '../../entities/player/Player';
+import { IDLE_INTENT, type PlayerIntent } from '../../entities/player/Player';
 import type { LevelArt } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
 import { handCursorSheet } from '../../ui/cursor';
@@ -20,9 +21,10 @@ import type { GameScene, GameStep, LevelParams } from '../params';
 import { type LevelDevOptions, readDevOptions } from './devOptions';
 import { Finale } from './finale';
 import { HudTracker } from './HudTracker';
-import { intentFromInput, walkTowards } from './intent';
+import { combineIntents, intentFromInput, isIdle, walkTowards } from './intent';
+import { MousePlay } from './mouse/MousePlay';
 import { drawEscalationBanner, drawSlamBanner } from './overlays/banners';
-import { controlHintsTop, drawControlHints } from './overlays/controlHints';
+import { ControlHints, controlHintsTop, HINTS, type HintPresses } from './overlays/controlHints';
 import { HighlightCard } from './overlays/HighlightCard';
 import { drawMissionIntro, missionYears } from './overlays/missionIntro';
 import { type PauseChoice, PauseMenu } from './overlays/PauseMenu';
@@ -52,6 +54,8 @@ const BUBBLE_TEXT_WIDTH = 76;
 const AUTOPILOT_READING = 3;
 /** Intro and hints are skipped by pretending the scene has been running this long. */
 const SKIPPED_INTRO = 30;
+/** A click on the strip's JUMP holds jump this long at least, for the full jump a click is too short to hold. */
+const STRIP_JUMP_SECONDS = 0.35;
 
 /**
  * A playable mission: a short side-scroller through the employer's city,
@@ -74,6 +78,10 @@ export class LevelScene implements GameScene<LevelParams> {
   #arenaAt: number | null = null;
   readonly #hud = new HudTracker();
   readonly #stage = new StageRenderer();
+  readonly #hints: ControlHints;
+  readonly #mouse = new MousePlay();
+  /** Seconds the strip's JUMP still holds jump for. */
+  #stripJump = 0;
   /** Where the HUD along the bottom begins, refilled every frame so drawing the stage allocates nothing for it. */
   readonly #bottomHud = { settled: 0, top: 0 };
 
@@ -81,6 +89,7 @@ export class LevelScene implements GameScene<LevelParams> {
     this.#services = services;
     this.#levelText = createLevelTextStyles(services.text);
     this.#cursor = SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor');
+    this.#hints = new ControlHints(services.text);
   }
 
   enter(params: LevelParams): void {
@@ -124,14 +133,21 @@ export class LevelScene implements GameScene<LevelParams> {
 
     const phase = this.#phase;
     switch (phase.kind) {
-      case 'play':
-        if (input.wasPressed('pause')) {
+      case 'play': {
+        const strip = this.#hints.update(input, this.#device, this.#time >= HINTS.from);
+        if (input.wasPressed('pause') || strip.pressed.has('pause')) {
           this.#pause();
           return;
         }
-        world.step(this.#autopilot?.intent(world) ?? intentFromInput(input), dt);
+        const keys = intentFromInput(input);
+        // A key, the touch pad or a key of the strip takes over from a walk the mouse asked for.
+        if (!isIdle(keys) || strip.pressed.size > 0) this.#mouse.stopWalking();
+        const inPlay = !this.#hints.covers(input.pointer.y, this.#time);
+        const mouse = this.#mouse.update(input, world, this.#time, dt, inPlay);
+        world.step(this.#autopilot?.intent(world) ?? combineIntents(keys, this.#stripIntent(strip, dt), mouse), dt);
         this.#handle(world.drainEvents());
         break;
+      }
       case 'card':
         phase.card.update(input, dt);
         if (this.#autopilot && phase.card.age > AUTOPILOT_READING) phase.card.dismiss();
@@ -162,6 +178,11 @@ export class LevelScene implements GameScene<LevelParams> {
         break;
     }
     this.#hud.update(world, this.#time, dt);
+  }
+
+  /** Over the play, what a click would do there (docs/ROOM.md › Cursors); anywhere else, and in menus, the hand. */
+  cursor(): GameCursor {
+    return this.#phase.kind === 'play' ? this.#mouse.cursor : 'hand';
   }
 
   render(gfx: Gfx): void {
@@ -203,6 +224,7 @@ export class LevelScene implements GameScene<LevelParams> {
           break;
         case 'playerDown':
           this.#phase = { kind: 'down', since: this.#time, heal: event.reason === 'hearts' };
+          this.#mouse.reset();
           break;
         case 'arenaEntered':
           this.#arenaAt = this.#time;
@@ -213,6 +235,7 @@ export class LevelScene implements GameScene<LevelParams> {
           break;
         case 'bossRetained':
           this.#phase = { kind: 'retained', since: this.#time };
+          this.#mouse.reset();
           audio.stopMusic({ fadeOutMs: 400 });
           audio.playSfx('flash');
           break;
@@ -245,6 +268,7 @@ export class LevelScene implements GameScene<LevelParams> {
     if (!params) return;
     const { audio, text, looks } = this.#services;
     audio.playSfx('pause');
+    this.#mouse.reset();
     const menu = new PauseMenu(
       { text, levelText: this.#levelText, looks, cursor: this.#cursor, device: this.#device },
       params.characterId,
@@ -302,7 +326,7 @@ export class LevelScene implements GameScene<LevelParams> {
     drawMissionIntro(gfx, this.#levelText, text, level, missionYears(experience.start, experience.end), this.#time);
     // Hints would only add noise under a dimmed card or menu.
     const modal = this.#phase.kind === 'card' || this.#phase.kind === 'paused';
-    if (!modal) drawControlHints(gfx, text, this.#device, this.#time);
+    if (!modal) this.#hints.render(gfx, this.#device, this.#time);
     if (this.#arenaAt !== null) {
       drawEscalationBanner(gfx, this.#levelText, text, world.stage.theme.bossPlan, this.#time - this.#arenaAt);
     }
@@ -345,6 +369,20 @@ export class LevelScene implements GameScene<LevelParams> {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /** The strip's keys as the hero's intent: held for as long as the mouse holds them, JUMP for a full jump. */
+  #stripIntent(strip: HintPresses, dt: number): PlayerIntent {
+    const { held, pressed } = strip;
+    this.#stripJump = pressed.has('jump') ? STRIP_JUMP_SECONDS : Math.max(0, this.#stripJump - dt);
+    return {
+      x: held.has('right') ? 1 : held.has('left') ? -1 : 0,
+      jumpPressed: pressed.has('jump'),
+      jumpHeld: held.has('jump') || this.#stripJump > 0,
+      attackHeld: held.has('attack') || pressed.has('attack'),
+      skill1Pressed: pressed.has('skill1'),
+      skill2Pressed: pressed.has('skill2'),
+    };
+  }
 
   #layoutBubble(text: string): BubbleText {
     const block = layoutText(this.#levelText.bubble, text, { maxWidth: BUBBLE_TEXT_WIDTH });

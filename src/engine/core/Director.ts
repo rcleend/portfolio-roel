@@ -1,4 +1,5 @@
 import type { Gfx } from '../gfx/Gfx';
+import type { GameCursor } from './GameSurface';
 import type { GameRoot, Scene, Step } from './Scene';
 import { cut, type Transition, type TransitionPhase } from './transitions';
 
@@ -103,6 +104,12 @@ export class Director<M extends SceneMap<M>, A extends string = string> implemen
       this.#queued = null;
       this.#begin(queued);
     }
+  }
+
+  /** The active scene's cursor; mid-transition, when nothing can be clicked, the game's hand. */
+  cursor(): GameCursor {
+    if (this.#transition) return 'hand';
+    return this.#current?.scene.cursor?.() ?? 'hand';
   }
 
   render(gfx: Gfx): void {

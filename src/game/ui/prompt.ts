@@ -32,8 +32,8 @@ export function drawPrompt(
     return;
   }
   const cap = keyCapFor(action, 'touch');
-  const width = keyCapWidth(gfx, cap, style) + GAP + gfx.measureText(prompt.label, style).width;
+  const width = keyCapWidth(cap, style) + GAP + gfx.measureText(prompt.label, style).width;
   const left = align === 'right' ? x - width : align === 'center' ? Math.round(x - width / 2) : x;
   drawKeyCap(gfx, left, legendGlyphTop(y, style, PAD_GLYPH_HEIGHT), cap, style);
-  gfx.text(prompt.label, left + keyCapWidth(gfx, cap, style) + GAP, y, style);
+  gfx.text(prompt.label, left + keyCapWidth(cap, style) + GAP, y, style);
 }

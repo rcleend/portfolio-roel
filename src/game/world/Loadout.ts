@@ -36,6 +36,11 @@ export class Loadout {
     ];
   }
 
+  /** Primary shots fired so far, so a single click can hold the attack until exactly one has left. */
+  get fired(): number {
+    return this.#fired;
+  }
+
   /**
    * Advances cooldowns and returns what `intent` triggers. `hand` is where
    * shots leave from; `canAct` is false while knocked back or after the

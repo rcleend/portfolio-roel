@@ -2,7 +2,7 @@ import { context2d } from '../gfx/canvas';
 import { Gfx } from '../gfx/Gfx';
 import type { InputManager } from '../input/InputManager';
 import { FixedLoop, STEP_SECONDS } from './FixedLoop';
-import type { GameSurface, PointerSink } from './GameSurface';
+import type { GameCursor, GameSurface, PointerSink } from './GameSurface';
 import type { GameRoot } from './Scene';
 
 /** Abstraction over `requestAnimationFrame`, so tests can drive the loop by hand. */
@@ -44,6 +44,8 @@ export class Game<A extends string> implements GameSurface {
   readonly #scheduler: FrameScheduler;
   readonly #visibility: Document | null;
   readonly #frameListeners = new Set<() => void>();
+  readonly #cursorListeners = new Set<(cursor: GameCursor) => void>();
+  #cursor: GameCursor = 'hand';
   #frame = 0;
   #handle: number | null = null;
   #lastTime: number | null = null;
@@ -121,15 +123,29 @@ export class Game<A extends string> implements GameSurface {
     this.render();
   }
 
-  /** Renders the current state and notifies frame listeners. */
+  /** The cursor the root asks for over the picture, as of the last rendered frame. */
+  get cursor(): GameCursor {
+    return this.#cursor;
+  }
+
+  /** Renders the current state and notifies frame listeners, and cursor listeners when the cursor changed. */
   render(): void {
     this.#root.render(this.gfx);
     for (const listener of this.#frameListeners) listener();
+    const cursor = this.#root.cursor?.() ?? 'hand';
+    if (cursor === this.#cursor) return;
+    this.#cursor = cursor;
+    for (const listener of this.#cursorListeners) listener(cursor);
   }
 
   onFrame(listener: () => void): () => void {
     this.#frameListeners.add(listener);
     return () => this.#frameListeners.delete(listener);
+  }
+
+  onCursorChange(listener: (cursor: GameCursor) => void): () => void {
+    this.#cursorListeners.add(listener);
+    return () => this.#cursorListeners.delete(listener);
   }
 
   readonly #tick = (timeMs: number): void => {

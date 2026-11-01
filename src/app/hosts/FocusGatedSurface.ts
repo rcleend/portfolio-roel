@@ -1,4 +1,4 @@
-import type { GameSurface, PointerSink } from '@/engine/core/GameSurface';
+import type { GameCursor, GameSurface, PointerSink } from '@/engine/core/GameSurface';
 
 /**
  * A `GameSurface` whose keyboard and gamepad input is gated by DOM focus.
@@ -37,8 +37,16 @@ export class FocusGatedSurface implements GameSurface {
     return this.#inner.pointer;
   }
 
+  get cursor(): GameCursor {
+    return this.#inner.cursor;
+  }
+
   onFrame(listener: () => void): () => void {
     return this.#inner.onFrame(listener);
+  }
+
+  onCursorChange(listener: (cursor: GameCursor) => void): () => void {
+    return this.#inner.onCursorChange(listener);
   }
 
   pause(): void {

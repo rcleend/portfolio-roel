@@ -1,9 +1,13 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
-import type { TextStyle } from '@/engine/gfx/TextStyle';
+import { layoutText, type TextStyle } from '@/engine/gfx/TextStyle';
+import { palette } from '../../palette';
+import type { ButtonState } from '../Button';
 import type { KeyCapLabel, PadGlyph } from './keyLabels';
 
 const HEIGHT = 11;
 const COLORS = { outline: '#0b0a1f', face: '#e4dcff', light: '#ffffff', side: '#8a80c0', ink: '#14123a' } as const;
+/** A key the mouse points at or holds: ringed in gold, its face lit white, its side a step lighter. */
+const LIT = { outline: palette.gold, face: '#ffffff', side: '#b4aaf0' } as const;
 
 /** The touch pad's colours (app/overlays/touchpad/TouchPad.css): each button's face, shade and light, and the dark body. */
 const PAD_TONES: Readonly<Record<PadButton, readonly [face: string, shade: string, light: string]>> = {
@@ -30,33 +34,46 @@ const PAD_BODY = { body: '#5d5790', light: '#8f86c9', arrow: '#ffffff' } as cons
 const START_WIDTH = 15;
 
 /** Width of the key cap `drawKeyCap` would draw. */
-export function keyCapWidth(gfx: Gfx, label: KeyCapLabel, style: TextStyle): number {
+export function keyCapWidth(label: KeyCapLabel, style: TextStyle): number {
   if ('pad' in label) return label.pad === 'start' ? START_WIDTH : HEIGHT;
-  return 'arrow' in label ? HEIGHT : Math.max(HEIGHT, gfx.measureText(label.text, style).width + 6);
+  return 'arrow' in label ? HEIGHT : Math.max(HEIGHT, layoutText(style, label.text).width + 6);
 }
 
 /**
  * A little raised keyboard key with its legend, for control hints: light
- * face, darker bottom edge, one-pixel outline. Returns the width drawn.
+ * face, darker bottom edge, one-pixel outline. Pointed at (`hover`) it is lit
+ * and ringed in gold; `pressed`, it also sinks a pixel into its bottom edge,
+ * the way a real key travels. Returns the width drawn.
  */
-export function drawKeyCap(gfx: Gfx, x: number, y: number, label: KeyCapLabel, style: TextStyle): number {
-  const width = keyCapWidth(gfx, label, style);
+export function drawKeyCap(
+  gfx: Gfx,
+  x: number,
+  y: number,
+  label: KeyCapLabel,
+  style: TextStyle,
+  state: ButtonState = 'normal',
+): number {
+  const width = keyCapWidth(label, style);
+  const sink = state === 'pressed' ? 1 : 0;
   if ('pad' in label) {
-    drawPadGlyph(gfx, x, y, label.pad);
+    drawPadGlyph(gfx, x, y + sink, label.pad);
     return width;
   }
-  gfx.fillRect(x + 1, y, width - 2, HEIGHT, COLORS.outline);
-  gfx.fillRect(x, y + 1, width, HEIGHT - 2, COLORS.outline);
-  gfx.fillRect(x + 1, y + 1, width - 2, HEIGHT - 2, COLORS.side);
-  gfx.fillRect(x + 1, y + 1, width - 2, HEIGHT - 4, COLORS.face);
-  gfx.fillRect(x + 2, y + 1, width - 4, 1, COLORS.light);
+  const colors = state === 'normal' ? COLORS : { ...COLORS, ...LIT };
+  const top = y + sink;
+  const height = HEIGHT - sink;
+  gfx.fillRect(x + 1, top, width - 2, height, colors.outline);
+  gfx.fillRect(x, top + 1, width, height - 2, colors.outline);
+  gfx.fillRect(x + 1, top + 1, width - 2, height - 2, colors.side);
+  gfx.fillRect(x + 1, top + 1, width - 2, HEIGHT - 4, colors.face);
+  gfx.fillRect(x + 2, top + 1, width - 4, 1, colors.light);
   if ('arrow' in label) {
-    drawArrow(gfx, x + Math.floor(width / 2), y + 4, label.arrow);
+    drawArrow(gfx, x + Math.floor(width / 2), top + 4, label.arrow);
   } else {
     gfx.text(
       label.text,
       x + Math.floor(width / 2),
-      y + 2,
+      top + 2,
       { ...style, fill: COLORS.ink, outline: undefined, shadow: undefined },
       {
         align: 'center',

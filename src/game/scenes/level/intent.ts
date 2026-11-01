@@ -15,6 +15,26 @@ export function intentFromInput(input: InputSnapshot<Action>): PlayerIntent {
   };
 }
 
+/** True when `intent` asks for nothing at all. */
+export function isIdle(intent: PlayerIntent): boolean {
+  const { x, jumpPressed, jumpHeld, attackHeld, skill1Pressed, skill2Pressed } = intent;
+  return x === 0 && !jumpPressed && !jumpHeld && !attackHeld && !skill1Pressed && !skill2Pressed;
+}
+
+/** Several sources played at once (keys, the strip's keys, the mouse): the first that moves steers, presses add up. */
+export function combineIntents(...intents: readonly PlayerIntent[]): PlayerIntent {
+  const face = intents.find((intent) => intent.face !== undefined)?.face;
+  const combined: PlayerIntent = {
+    x: intents.find((intent) => intent.x !== 0)?.x ?? 0,
+    jumpPressed: intents.some((intent) => intent.jumpPressed),
+    jumpHeld: intents.some((intent) => intent.jumpHeld),
+    attackHeld: intents.some((intent) => intent.attackHeld),
+    skill1Pressed: intents.some((intent) => intent.skill1Pressed),
+    skill2Pressed: intents.some((intent) => intent.skill2Pressed),
+  };
+  return face === undefined ? combined : { ...combined, face };
+}
+
 /** Walks towards `targetX` and nothing else — the finale's autopilot. */
 export function walkTowards(fromX: number, targetX: number): PlayerIntent {
   const dx = targetX - fromX;
