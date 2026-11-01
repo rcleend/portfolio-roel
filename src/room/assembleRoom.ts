@@ -49,6 +49,8 @@ export interface RoomSceneOptions {
   readonly onAnchorsChange: (anchors: readonly PropAnchor[]) => void;
   /** The prop the pointer is over (its click flies there from the room view), or null. */
   readonly onHover: (target: RoomTarget | null) => void;
+  /** While true, a touch anywhere on the TV set presses the game (Room.setTapToBegin). */
+  readonly tapToBegin: () => boolean;
 }
 
 /** Everything that exists once the room's assets are loaded. */
@@ -179,6 +181,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     isPlayable: () => views.atTv && television.powerState === 'on',
     isInRoomView: () => views.view !== 'tv',
     focusTv: () => views.request('tv'),
+    tapToBegin: options.tapToBegin,
   });
   // Where the top of the TV set lands on the screen (NDC y), from the camera as it is now.
   const tvCorners = boxCorners(tvModel.bounds.min, tvModel.bounds.max);

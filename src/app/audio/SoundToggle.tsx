@@ -8,20 +8,21 @@ export interface SoundToggleProps {
 }
 
 /**
- * The speaker in the top-right corner, in the room UI's white line style. A real toggle button (`aria-pressed` =
- * muted) reachable with Tab; a mouse click does not take focus from the game, so play continues with the keyboard
- * right after. Turning the sound on sends the waves out again; muting swaps them for a cross; the speaker wobbles like
+ * The speaker in the top-right corner, in the room UI's white line style, named for what it does next: "unmute me"
+ * while muted, "mute me" while the sound is on, the words written beside the speaker for mice (a touch screen shows the
+ * speaker alone, its name for screen readers). A real button reachable with Tab; a mouse click does not take focus
+ * from the game, so play continues with the keyboard right after. Turning the sound on sends the waves out again; muting swaps them for a cross; the speaker wobbles like
  * jelly either way, and the button squashes under the press and springs back, like the radio's play key.
  */
 export function SoundToggle({ muted, onToggle }: SoundToggleProps) {
   const glyph = useRef<SVGSVGElement>(null);
+  const label = muted ? 'Unmute me' : 'Mute me';
   return (
     <button
       type="button"
       className="sound-toggle"
-      aria-label="Mute sound"
-      aria-pressed={muted}
-      title={muted ? 'Sound off' : 'Sound on'}
+      data-muted={muted}
+      aria-label={label}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => {
         onToggle();
@@ -38,6 +39,9 @@ export function SoundToggle({ muted, onToggle }: SoundToggleProps) {
         <path className="sound-toggle__wave" d="M18.4 6.9a7.4 7.4 0 0 1 0 10.2" />
         <path className="sound-toggle__cross" d="m16.4 9.8 4.4 4.4m0-4.4-4.4 4.4" />
       </svg>
+      <span className="sound-toggle__label" aria-hidden="true">
+        {muted ? 'unmute me' : 'mute me'}
+      </span>
     </button>
   );
 }

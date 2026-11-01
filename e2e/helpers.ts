@@ -37,11 +37,11 @@ export async function waitForRunning(page: Page): Promise<void> {
 }
 
 /**
- * Leaves the TV the one way a touch screen has: the "Tired of playing?" popup (the room's button for it, shown or
- * not: in a level it shows five seconds in; tests leave from the title).
+ * Leaves the TV the way a touch screen has: the TV's way out, "Explore the room" (the room's button for it, shown or
+ * not: it shows from the first press; tests leave from the title).
  */
 export async function tapWayOut(page: Page): Promise<void> {
-  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
+  await page.locator('.tv-way-out, .way-out').first().dispatchEvent('click');
 }
 
 /** The element of whichever host is presenting (`data-host` is room or flat, `data-view` tv or room). */

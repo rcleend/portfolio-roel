@@ -256,7 +256,7 @@ test('a CD picked while another plays takes its place, on the one element', asyn
 test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back to the TV', async ({ page }) => {
   await open(page);
   const host = hostElement(page);
-  await expect(page.locator('.look-around')).toBeAttached();
+  await expect(page.locator('.tv-way-out')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'room');
@@ -333,9 +333,9 @@ test('the sound toggle silences the music and the mechanics, and a CD chosen mea
       return connect.apply(this, args);
     } as AudioNode['connect'];
   });
-  const toggle = page.getByRole('button', { name: 'Mute sound' });
+  const toggle = page.locator('.sound-toggle');
   await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveAttribute('data-muted', 'true');
   await lookAround(page);
   await goToRadio(page);
   const last = await disc(page, 'async-002');
@@ -358,7 +358,7 @@ test('the sound toggle silences the music and the mechanics, and a CD chosen mea
   const gains = await mechanics();
   expect(gains.length).toBeGreaterThan(0);
   expect(gains.every((gain) => gain === 0)).toBe(true);
-  await page.getByRole('button', { name: 'Mute sound' }).click();
+  await page.locator('.sound-toggle').click();
   await expect.poll(async () => (await sound(page))?.muted).toBe(false);
   await expect.poll(async () => (await mechanics()).every((gain) => gain === 1)).toBe(true);
 });
@@ -534,7 +534,7 @@ test.describe('on a phone', () => {
       expect(size?.height).toBeGreaterThanOrEqual(44);
     }
     // The way back is in the sound toggle's row, exactly its height and on its centre line.
-    const toggle = await page.getByRole('button', { name: 'Mute sound' }).boundingBox();
+    const toggle = await page.locator('.sound-toggle').boundingBox();
     const back = await bar.getByRole('button', { name: 'Back to the room' }).boundingBox();
     expect(back?.height).toBeCloseTo(toggle?.height ?? 0, 0);
     expect((back?.y ?? 0) + (back?.height ?? 0) / 2).toBeCloseTo((toggle?.y ?? 0) + (toggle?.height ?? 0) / 2, 0);

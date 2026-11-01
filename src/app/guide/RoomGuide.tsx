@@ -12,9 +12,8 @@ import type { PropSpotlight, Room, RoomTarget, RoomView } from '@/room';
 import type { SceneSignal } from '../hosts/types';
 import { browserStorage } from '../storage/localFlag';
 import { COARSE_POINTER, useMediaQuery } from '../useMediaQuery';
-import { BackButton } from './BackButton';
+import { BackButton, TvWayOut } from './BackButton';
 import { type GuideProgress, loadGuideProgress, recordTour, saveGuideProgress } from './guideProgress';
-import { LookAround, useLookAroundPopup } from './LookAround';
 import { Overview } from './Overview';
 import { PropLabel } from './PropLabel';
 import { usePresence } from './presence';
@@ -53,7 +52,7 @@ const GO: Readonly<Record<RoomTarget, (room: Room) => void>> = {
 
 /**
  * Everything the room host shows around the TV and the computer besides the sound toggle (docs/ART-DIRECTION.md ›
- * The room's UI): the TV view's way out and its popup, the room view's overview with its menu, the label over the prop
+ * The room's UI): the TV view's way out, the room view's overview with its menu, the label over the prop
  * in the light, and the way back from the computer and the radio. A lazy chunk the room host loads once the TV's
  * picture is up.
  */
@@ -77,7 +76,8 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   const backView = (view === 'pc' || view === 'radio') && !touch;
   const back = usePresence(backView, BACK_EXIT_MS);
   const pointer = usePointer();
-  const popup = useLookAroundPopup(scenes, view === 'tv' && settled);
+  const begun = useBegun(scenes, view);
+  const returning = useBeenAway(view);
   useTiltLook(room, touch, inRoom && settled);
   // On a touch screen the props neither glow nor wear their names (no pointer to point with): the menu alone leads.
   useTour(inRoom && settled && !progress.toured && !touch, radio, pointer, setTouring, () => learn(recordTour));
@@ -104,7 +104,13 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
   return (
     <>
       {view === 'tv' ? (
-        <LookAround onLookAround={showRoom} shown={popup.shown} intro={popup.intro} touch={touch} handOver={handOver} />
+        <TvWayOut
+          due={begun && settled}
+          returning={returning}
+          onLookAround={showRoom}
+          touch={touch}
+          handOver={handOver}
+        />
       ) : null}
       {/* Always in the page, hidden until the room view (Overview › presence). */}
       <Overview
@@ -121,6 +127,44 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
       {back ? <BackButton due={backView && settled} onBack={showRoom} /> : null}
     </>
   );
+}
+
+/** The game's opening scenes: the first press leaves them. */
+const OPENING: ReadonlySet<string | null> = new Set([null, 'boot', 'title']);
+
+/**
+ * True from the visitor's first press on this page (a key, a click or a tap anywhere), or once the game is past its
+ * title or the camera has left the TV, whichever comes first (the guide may come in after any of them). Once begun it
+ * stays.
+ */
+function useBegun(scenes: SceneSignal, view: RoomView): boolean {
+  const [begun, setBegun] = useState(() => view !== 'tv' || !OPENING.has(scenes.current));
+  if (!begun && view !== 'tv') setBegun(true);
+  useEffect(() => {
+    if (begun) return;
+    const begin = (): void => setBegun(true);
+    const check = (id: string | null): void => {
+      if (!OPENING.has(id)) begin();
+    };
+    check(scenes.current);
+    const stop = scenes.onSceneChange(check);
+    const options = { capture: true, passive: true } as const;
+    window.addEventListener('pointerdown', begin, options);
+    window.addEventListener('keydown', begin, options);
+    return () => {
+      stop();
+      window.removeEventListener('pointerdown', begin, options);
+      window.removeEventListener('keydown', begin, options);
+    };
+  }, [scenes, begun]);
+  return begun;
+}
+
+/** True once the camera has been away from the TV on this visit. */
+function useBeenAway(view: RoomView): boolean {
+  const [away, setAway] = useState(view !== 'tv');
+  if (!away && view !== 'tv') setAway(true);
+  return away;
 }
 
 /** The visitor's progress, kept for later visits. */

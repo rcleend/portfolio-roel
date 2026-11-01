@@ -92,7 +92,7 @@ test('review shots: og image', async ({ browser }) => {
   await page.goto('/?seed=1&scene=title');
   await page.waitForFunction(() => window.__arcadeReady === true, null, { timeout: 30_000 });
   await page.waitForTimeout(2500);
-  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
+  await page.locator('.tv-way-out, .way-out').first().dispatchEvent('click');
   await page.waitForTimeout(3000);
   await page.mouse.move(600, 600);
   // The overview as a visitor sees it; no label or pill for a prop under the pointer.

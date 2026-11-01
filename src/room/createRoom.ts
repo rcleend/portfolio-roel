@@ -88,6 +88,12 @@ export interface Room {
    * does (only there, and not under reduced motion); null lets go.
    */
   setTilt(tilt: { readonly x: number; readonly y: number } | null): void;
+  /**
+   * While on, a tap or a pen (not a mouse) anywhere on the TV set at the TV view, its bezel and its bottom panel
+   * included, presses the game as a tap on its picture does: the title's "PRESS TO BEGIN" (docs/ROOM.md › Using it
+   * from the app). Usable before `ready`.
+   */
+  setTapToBegin(on: boolean): void;
   /** Adds a clickable prop (radio, poster…); returns its unregister function. */
   registerInteractable(interactable: Interactable): () => void;
   /** The computer's monitor; usable before `ready` (calls are remembered). */
@@ -165,6 +171,7 @@ export function createRoom(options: CreateRoomOptions): Room {
   let scene: RoomScene | null = null;
   let disposed = false;
   let framingInsets: FramingInsets | null = null;
+  let tapToBegin = false;
   let anchors: readonly PropAnchor[] = [];
   const anchorListeners = new Set<(anchors: readonly PropAnchor[]) => void>();
   const queuedInteractables = new Map<Interactable, () => void>();
@@ -243,6 +250,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         for (const listener of anchorListeners) listener(next);
       },
       onHover: (target) => spotlight.hover(target),
+      tapToBegin: () => tapToBegin,
     });
     stage.attachAtmosphere();
     if (framingInsets) scene.setFramingInsets(framingInsets);
@@ -333,6 +341,9 @@ export function createRoom(options: CreateRoomOptions): Room {
     onViewChange: (listener) => views.onChange(listener),
     onSettle: (listener) => views.onSettle(listener),
     setTilt: (tilt) => scene?.tilt(tilt),
+    setTapToBegin: (on) => {
+      tapToBegin = on;
+    },
     setFramingInsets(insets) {
       framingInsets = insets;
       scene?.setFramingInsets(insets);

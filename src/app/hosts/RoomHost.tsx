@@ -37,18 +37,18 @@ const RadioSlot = lazy(() =>
 );
 
 /**
- * The room's guide (docs/ART-DIRECTION.md › The room's UI: the TV's way out and its click-outside hint, the room
- * view's overview and menu, the props' labels, the way up from the computer) leaves the first load: it is fetched at
- * idle once the TV's picture is up, long before its first hint is due, and mounts only once it is in. The stage's own
+ * The room's guide (docs/ART-DIRECTION.md › The room's UI: the TV's way out, the room view's overview and menu, the
+ * props' labels, the way back from the computer and the radio) leaves the first load: it is fetched at idle once the
+ * TV's picture is up, and mounts only once it is in. The stage's own
  * keys only play again (Enter in the room view) and get up (Escape at the computer or the radio), so the TV's way out
  * is `WayOut`, in the first load, which stays exactly as long as the guide's own is not there.
  */
 const RoomGuide = lazy(() => import('../guide/RoomGuide').then((module) => ({ default: module.RoomGuide })));
 
 /**
- * The TV view's way out, with the same name the guide's hint wears: unseen until it takes keyboard focus, then a pill
- * over the room. The guide's own, which also teaches the click outside, takes its place once it is in, so there is
- * only ever one; `handOver` tells it to take the keyboard with it when it does.
+ * The TV view's way out, with the same name the guide's wears on a first visit: unseen until it takes keyboard focus,
+ * then a pill over the room. The guide's own, which also shows itself once the game has begun, takes its place once it
+ * is in, so there is only ever one; `handOver` tells it to take the keyboard with it when it does.
  */
 function WayOut({
   view,
@@ -69,7 +69,7 @@ function WayOut({
   if (view !== 'tv') return null;
   return (
     <button ref={button} type="button" className="way-out" onClick={onLookAround}>
-      Look around the room
+      Explore the room
     </button>
   );
 }
@@ -167,6 +167,18 @@ function AtticStage({
       if (import.meta.env.DEV && window.__room === room) delete window.__room;
     };
   }, [room]);
+
+  // On the title a finger anywhere on the TV set begins, as one on its picture does (the room ignores mice here).
+  useEffect(() => {
+    if (!room) return;
+    const sync = (): void => room.setTapToBegin(scenes.current === 'title');
+    sync();
+    const stop = scenes.onSceneChange(sync);
+    return () => {
+      stop();
+      room.setTapToBegin(false);
+    };
+  }, [room, scenes]);
 
   // On the startup still the flat picture turns on and the game starts there (StillPicture); the room's tube then
   // lights at once, already showing the game, for the hand-over. Without the still, the room turns its tube on itself.

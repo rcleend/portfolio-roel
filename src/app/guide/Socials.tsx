@@ -6,8 +6,8 @@ import email from './socials/mail.svg';
 import x from './socials/x.svg';
 
 /**
- * The networks' own marks, from Simple Icons (CC0), and an envelope for email, drawn through a mask in the link's
- * colour (RoomGuide.css).
+ * The networks' own marks, from Simple Icons (CC0), and Roel's own envelope for email, drawn through a mask in the
+ * link's colour (RoomGuide.css).
  */
 const GLYPHS: Readonly<Record<SocialLink['kind'], string>> = { x, linkedin, github, email };
 

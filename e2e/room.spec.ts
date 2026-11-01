@@ -127,7 +127,7 @@ test('the TV view keeps its way out when the room guide never loads', async ({ p
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  const lookAround = page.getByRole('button', { name: 'Look around the room' });
+  const lookAround = page.getByRole('button', { name: 'Explore the room' });
   // One button, before the guide is due and once its import has failed for good.
   await expect(lookAround).toHaveCount(1);
   await failed;
@@ -156,7 +156,7 @@ test('the guide takes the keyboard over from the way out it replaces', async ({ 
   await page.keyboard.press('Tab');
   await expect(wayOut).toBeFocused();
 
-  const hint = page.locator('.look-around');
+  const hint = page.locator('.tv-way-out');
   await expect(hint).toBeAttached({ timeout: 10_000 });
   await expect(wayOut).toHaveCount(0);
   await expect(hint).toBeFocused();
@@ -169,9 +169,9 @@ test('the keyboard reaches the computer and the TV without the mouse', async ({ 
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  const lookAround = page.getByRole('button', { name: 'Look around the room' });
+  const lookAround = page.getByRole('button', { name: 'Explore the room' });
   // The room's guide loads at idle once the picture is up, and its own hint takes the entry's way out's place.
-  await expect(page.locator('.look-around')).toBeAttached();
+  await expect(page.locator('.tv-way-out')).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(lookAround).toBeFocused();
   await expect(lookAround).toHaveCSS('opacity', '1');
@@ -235,7 +235,7 @@ test('pointing at a prop lights it, labels it and lights its menu item; the menu
 test('a prop under the pointer comes before the menu item the keyboard has', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  await expect(page.locator('.look-around')).toBeAttached();
+  await expect(page.locator('.tv-way-out')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
@@ -279,56 +279,56 @@ test('the sound starts off on a first visit; the toggle is reachable by keyboard
 }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  const toggle = page.getByRole('button', { name: 'Mute sound' });
-  // Past the TV view's "Look around the room", once the room's guide has loaded.
-  await expect(page.locator('.look-around')).toBeAttached();
+  const toggle = page.locator('.sound-toggle');
+  // Past the TV view's "Explore the room", once the room's guide has loaded.
+  await expect(page.locator('.tv-way-out')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(toggle).toBeFocused();
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  // Named for what it does next, the words beside the speaker for a mouse.
+  await expect(toggle).toHaveAccessibleName('Unmute me');
+  await expect(toggle).toHaveText('unmute me');
+  await expect(toggle.locator('.sound-toggle__label')).toBeVisible();
   await page.keyboard.press('Enter');
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveAccessibleName('Mute me');
+  await expect(toggle).toHaveText('mute me');
   const session = await page.evaluate(() => window.__arcade?.state().session);
   expect(session).toMatchObject({ muted: false });
 
   await page.reload();
   await waitForRunning(page);
-  await expect(page.getByRole('button', { name: 'Mute sound' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.sound-toggle')).toHaveAccessibleName('Mute me');
 });
 
-test('shows the way out five seconds into the first level, and whenever the visitor is back at the TV', async ({
+test('the TV view\'s way out: "Explore the room" from the first press, "Back to the room" once back from the room', async ({
   page,
 }) => {
-  await page.clock.install();
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  const popup = page.locator('.look-around');
-  await expect(popup).toBeAttached();
-  // Not on the title, however long it shows.
-  await expect.poll(() => scene(page), { timeout: 15_000, intervals: [50] }).not.toBe('boot');
-  await page.clock.runFor(10_000);
-  await expect(popup).toHaveAttribute('data-shown', 'false');
-  // A level's start counts: five seconds later it arrives.
-  await page.evaluate(() => window.__arcade?.goTo('level', { levelId: 'luna', characterId: 'hackerman' }));
-  await expect.poll(() => scene(page)).toBe('level');
-  await page.clock.runFor(4_500);
-  await expect(popup).toHaveAttribute('data-shown', 'false');
-  await page.clock.runFor(1_000);
-  await expect(popup).toHaveAttribute('data-shown', 'true');
-  await expect(popup).toHaveAttribute('data-intro', 'true');
-  await expect(popup).toHaveText('Tired of playing?Click outside the TV to explore');
-  // It is a way out itself.
-  await popup.click();
+  const wayOut = page.locator('.tv-way-out');
+  await expect(wayOut).toBeAttached();
+  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
+  await expect(wayOut).toHaveAttribute('data-shown', 'false');
+  // The first press begins: it is there at once, the way back's pill without its key.
+  await page.keyboard.press('Shift');
+  await expect(wayOut).toHaveAttribute('data-shown', 'true');
+  await expect(wayOut).toHaveText('Explore the room');
+  await expect(wayOut).not.toHaveAttribute('aria-keyshortcuts');
+  await expect(wayOut.locator('.back-button__key')).toHaveCount(0);
+  const pill = await wayOut.boundingBox();
+  const height = page.viewportSize()?.height ?? 0;
+  expect((pill?.y ?? 0) + (pill?.height ?? 0)).toBeGreaterThan(height - 80);
+  await wayOut.click();
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
-  await expect(popup).toHaveCount(0);
+  await expect(wayOut).toHaveCount(0);
   await expect(page.getByRole('navigation', { name: "Roel's room" })).toBeVisible();
 
-  // Back at the TV it is there again as soon as the camera lands, quietly (its pictogram plays once a visit).
-  await page.clock.runFor(1_500);
+  // Back at the TV it rises a beat after the camera lands, as the other ways back do, and says so.
+  await page.waitForTimeout(1300);
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
-  await page.clock.runFor(2_000);
-  await expect(popup).toHaveAttribute('data-shown', 'true');
-  await expect(popup).toHaveAttribute('data-intro', 'false');
+  await expect(wayOut).toHaveAttribute('data-shown', 'true', { timeout: 5_000 });
+  await expect(page.getByRole('button', { name: 'Back to the room' })).toHaveCount(1);
+  await expect(wayOut).toHaveText('Back to the room');
 });
 
 test('the computer and the radio have a way back to the room, by pointer and by keyboard', async ({ page }) => {
@@ -408,7 +408,7 @@ test('the keyboard reaches the radio from the room view', async ({ page }) => {
   await page.goto('/?seed=1');
   await waitForRunning(page);
   const host = hostElement(page);
-  await expect(page.locator('.look-around')).toBeAttached();
+  await expect(page.locator('.tv-way-out')).toBeAttached();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(host).toHaveAttribute('data-view', 'room');
@@ -489,7 +489,7 @@ async function overviewGrid(page: import('@playwright/test').Page) {
   );
   await page.goto('/?seed=1');
   await waitForRunning(page);
-  await page.locator('.look-around, .way-out').first().dispatchEvent('click');
+  await page.locator('.tv-way-out, .way-out').first().dispatchEvent('click');
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
   await expect.poll(() => page.evaluate(() => window.__room?.settled === true)).toBe(true);
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
@@ -505,7 +505,10 @@ async function overviewGrid(page: import('@playwright/test').Page) {
         cy: r.y + r.height / 2,
       };
     };
-    const mute = box(document.querySelector('.sound-toggle'));
+    // The speaker's own round: on a mouse its words ride beside it in the toggle's pill.
+    const toggle = box(document.querySelector('.sound-toggle'));
+    const speaker = box(document.querySelector('.sound-toggle svg'));
+    const mute = { ...toggle, cx: speaker.cx };
     const glyphs = [...document.querySelectorAll('.socials__glyph')].map(box);
     const items = [...document.querySelectorAll('.overview__item')].map(box);
     return { mute, glyphs, items, width: innerWidth, height: innerHeight };

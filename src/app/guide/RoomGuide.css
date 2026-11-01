@@ -27,7 +27,7 @@
   filter: drop-shadow(0 1px 2px rgb(6 4 14 / 0.6));
 }
 
-/* ——— The pill: the click-outside hint at the TV, the way up at the computer ——— */
+/* ——— The pill: the way out at the TV, the way back at the computer and the radio ——— */
 
 /* Centred by its margins: the build's CSS minifier drops a `translate` set beside a `transform`. */
 .guide-pill {
@@ -67,63 +67,10 @@
     transform 560ms var(--ui-spring);
 }
 
-.guide-pill__words {
-  display: grid;
-  gap: 2px;
-}
-
 .guide-pill__title {
   font: 400 20px / 1 var(--ui-display);
   letter-spacing: 0.01em;
   white-space: nowrap;
-}
-
-.guide-pill__body {
-  color: var(--ui-ink-soft);
-}
-
-/* The TV's way out: a button, shown by the hint or by a keyboard focus. */
-.look-around {
-  cursor: var(--ui-cursor-hand, pointer);
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-.look-around:focus-visible {
-  opacity: 1;
-  transform: none;
-  outline: 2px solid var(--ui-ink);
-  outline-offset: 3px;
-}
-
-.look-around[data-shown="true"] {
-  pointer-events: auto;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .look-around[data-shown="true"]:hover {
-    background: var(--ui-glass-hover);
-    transform: translateY(-2px);
-    transition:
-      background-color 160ms ease,
-      transform 240ms var(--ui-out);
-  }
-}
-
-/*
- * On a touch screen the pad has the bottom: the hint drops in from the top, clear of the sound toggle, on its row and
- * exactly its height, so the two read as one line of controls.
- */
-.look-around[data-touch="true"] {
-  top: var(--ui-top-row);
-  bottom: auto;
-  height: var(--ui-top-row-height);
-  max-width: calc(100% - 128px);
-  transform: translateY(-14px) scale(0.94);
-}
-
-.look-around[data-touch="true"][data-shown="true"] {
-  transform: none;
 }
 
 /* The way back from the computer and the radio: a button in the pill's place, one Chewy line and its key. */
@@ -202,118 +149,70 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
   display: none;
 }
 
-/* The pictogram: a pointer glides out of the little screen and clicks beside it, three times on the popup's first
- * showing, then rests there (and simply rests on every later one). */
-.click-outside {
-  flex: none;
-  width: 45px;
-  height: 30px;
-  overflow: visible;
+/*
+ * The TV's way out: the way back's pill without its key. Always in the tab order (the keyboard's way out of the game),
+ * so it stays focusable while hidden, and a keyboard focus shows it.
+ */
+.tv-way-out {
+  visibility: visible;
 }
 
-.click-outside__screen {
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.tv-way-out:focus-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
-.click-outside__ring {
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 1.6;
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.click-outside__pointer {
-  fill: currentcolor;
-  stroke: rgb(14 11 28);
-  stroke-width: 1.2;
-  stroke-linejoin: round;
-  transform-box: fill-box;
-  transform-origin: 0 0;
-}
-
-/* Narrow: a smaller line and mark, so the question keeps to one line between the edge and the sound toggle. */
-.look-around[data-touch="true"] {
-  gap: 10px;
-  padding: 0 18px 0 12px;
-}
-
-.look-around[data-touch="true"] .guide-pill__title {
-  font-size: 18px;
-}
-
-.look-around[data-touch="true"] .guide-pill__body {
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.look-around[data-touch="true"] .click-outside {
-  width: 36px;
-  height: 24px;
+.tv-way-out .guide-pill__title {
+  padding-right: 8px;
 }
 
 /*
- * A phone on its side: the game's picture fills the height, so the way out keeps to the corner beside it, a round
- * button with its pictogram mirroring the sound toggle at its size (its words are its name for screen readers).
+ * On a touch screen the pad has the bottom: exactly where the radio's own "Back to the room" stands (RadioControls.css ›
+ * .radio-bar__back), in the sound toggle's row at the top left and its height, dropping in from the top.
  */
-@media (orientation: landscape) and (max-height: 500px) {
-  .look-around[data-touch="true"] {
-    left: max(var(--ui-edge), env(safe-area-inset-left));
+.tv-way-out[data-touch="true"] {
+  top: var(--ui-top-row);
+  right: auto;
+  bottom: auto;
+  left: max(var(--ui-edge), env(safe-area-inset-left));
+  gap: 8px;
+  min-height: 0;
+  height: var(--ui-top-row-height);
+  margin: 0;
+  padding: 8px 14px 8px 12px;
+  transform: translateY(-14px) scale(0.94);
+}
+
+.tv-way-out[data-touch="true"][data-shown="true"] {
+  transform: none;
+}
+
+.tv-way-out[data-touch="true"] .back-button__arrow {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.tv-way-out[data-touch="true"] .guide-pill__title {
+  padding-right: 0;
+  font-size: 17px;
+}
+
+/* A phone on its side (TransportBar.tsx › RAIL_QUERY): the radio's round key at the top of its right rail. */
+@media (orientation: landscape) and (max-height: 479.98px) {
+  .tv-way-out[data-touch="true"] {
+    top: 76px;
+    right: calc(12px + env(safe-area-inset-right));
+    left: auto;
     justify-content: center;
-    width: var(--ui-top-row-height);
-    max-width: none;
-    margin: 0;
+    width: 48px;
+    height: 48px;
     padding: 0;
   }
 
-  .look-around[data-touch="true"] .guide-pill__words {
+  .tv-way-out[data-touch="true"] .guide-pill__title {
     display: none;
-  }
-}
-
-.look-around[data-shown="true"][data-intro="true"] > .click-outside .click-outside__pointer {
-  animation: click-outside-pointer 2400ms var(--ui-out) 700ms 3 backwards;
-}
-
-.look-around[data-shown="true"][data-intro="true"] > .click-outside .click-outside__ring {
-  animation: click-outside-ring 2400ms ease-out 700ms 3 backwards;
-}
-
-@keyframes click-outside-pointer {
-  0%,
-  8% {
-    transform: translate(-14px, 1px);
-  }
-  40% {
-    transform: none;
-  }
-  47% {
-    transform: scale(0.78);
-  }
-  55%,
-  100% {
-    transform: none;
-  }
-}
-
-@keyframes click-outside-ring {
-  0%,
-  46% {
-    opacity: 0;
-    transform: scale(0.2);
-  }
-  52% {
-    opacity: 1;
-  }
-  90%,
-  100% {
-    opacity: 0;
-    transform: scale(1.6);
   }
 }
 
@@ -724,10 +623,6 @@ body:has(.pc-popout[data-shown="true"]) .back-button {
     transition: none !important;
     /* biome-ignore lint/complexity/noImportantStyles: reduced motion beats every arrival's state selector. */
     animation: none !important;
-  }
-
-  .click-outside__ring {
-    opacity: 0.6;
   }
 }
 

@@ -26,6 +26,35 @@ test('the title waits for a tap anywhere, then the gamepad fades in and drives t
   await expect.poll(() => scene(page), { timeout: 10_000 }).toBe('levelSelect');
 });
 
+test('on the title a tap on the set itself begins too, and the way out comes at once where the radio has its way back', async ({
+  page,
+}) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  const wayOut = page.locator('.tv-way-out');
+  await expect(wayOut).toBeAttached();
+  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
+  await expect(wayOut).toHaveAttribute('data-shown', 'false');
+  // The set's bottom panel, under the picture (portrait: 390 wide, the picture spans the width up to about y 455).
+  await page.touchscreen.tap(195, 520);
+  await expect(wayOut).toHaveAttribute('data-shown', 'true');
+  await expect(wayOut).toHaveText('Explore the room');
+  await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  // In the sound toggle's row at the top left, exactly its height: the radio's "Back to the room" place.
+  const toggle = await page.locator('.sound-toggle').boundingBox();
+  const pill = await wayOut.boundingBox();
+  expect(pill?.height).toBeCloseTo(toggle?.height ?? 0, 0);
+  expect(pill?.y).toBeCloseTo(toggle?.y ?? 0, 0);
+  // On the left margin, as the toggle is on the right one.
+  const right = 390 - (toggle?.x ?? 0) - (toggle?.width ?? 0);
+  expect(pill?.x).toBeCloseTo(right, 0);
+  // No words beside the speaker on a touch screen.
+  await expect(page.locator('.sound-toggle__label')).toBeHidden();
+  await wayOut.tap();
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+});
+
 test('leaves the game by a tap above the set or its way out, and hides the gamepad while looking around the room', async ({
   page,
 }) => {

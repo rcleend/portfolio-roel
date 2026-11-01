@@ -26,8 +26,8 @@ test('rain loops seamlessly outside the game, shares mute, and keeps one source 
   await page.evaluate(() => window.__room?.showRoom());
   // A real gesture unlocks browser audio. Reduced motion must not silence sound.
   await page.keyboard.press('Shift');
-  const toggle = page.getByRole('button', { name: 'Mute sound', exact: true });
-  if ((await toggle.getAttribute('aria-pressed')) === 'true') await toggle.click();
+  const toggle = page.locator('.sound-toggle');
+  if ((await toggle.getAttribute('data-muted')) === 'true') await toggle.click();
   await expect.poll(() => page.evaluate(() => window.__room?.stats.rainPlaying)).toBe(true);
   const loop = await page.evaluate(() => {
     const source = (window as unknown as { rainSources: AudioBufferSourceNode[] }).rainSources.find(
@@ -69,7 +69,7 @@ test('rain loops seamlessly outside the game, shares mute, and keeps one source 
     await page.waitForFunction((view) => window.__room?.view === view && window.__room.settled, view);
     expect(await page.evaluate(() => window.__room?.stats.rainPlaying)).toBe(true);
   }
-  await page.getByRole('button', { name: 'Mute sound', exact: true }).click();
+  await page.locator('.sound-toggle').click();
   await expect.poll(() => page.evaluate(() => window.__room?.stats.rainPlaying)).toBe(false);
   await toggle.click();
   await expect.poll(() => page.evaluate(() => window.__room?.stats.rainPlaying)).toBe(true);
