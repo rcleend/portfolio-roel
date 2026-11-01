@@ -1,5 +1,8 @@
 export type InputDevice = 'keyboard' | 'gamepad' | 'pointer' | 'touch';
 
+/** The device behind the pointer (`PointerEvent.pointerType`): a mouse hovers and has a cursor, a finger or pen taps. */
+export type PointerKind = 'mouse' | 'touch' | 'pen';
+
 /** Pointer state in native pixels, as fed by the host through `PointerSink`. */
 export interface PointerSnapshot {
   readonly x: number;
@@ -11,6 +14,8 @@ export interface PointerSnapshot {
   readonly pressed: boolean;
   /** Went up since the previous step. */
   readonly released: boolean;
+  /** The device of the last move or press: menus take any, but only a mouse aims, walks and clicks keys in a level. */
+  readonly kind: PointerKind;
 }
 
 export interface ActionState {
@@ -93,4 +98,5 @@ export const IDLE_POINTER: PointerSnapshot = Object.freeze({
   down: false,
   pressed: false,
   released: false,
+  kind: 'mouse',
 });

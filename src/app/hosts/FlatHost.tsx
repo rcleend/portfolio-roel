@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { pointerKind, showGameCursor } from '../cursors/gameCursor';
 import { integerScale, toNativePixels } from './integerScale';
 import type { HostProps } from './types';
 import './FlatHost.css';
@@ -35,7 +36,11 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
     screen.focus({ preventScroll: true });
     // Sync explicitly: when the screen already had focus (e.g. a StrictMode re-mount) no focus event fires.
     surface.setInputEnabled(document.activeElement === screen);
+    // Over a level's play the game names what a click would do there; the hand everywhere else.
+    showGameCursor(screen, surface.cursor);
+    const stopCursor = surface.onCursorChange((cursor) => showGameCursor(screen, cursor));
     return () => {
+      stopCursor();
       canvas.remove();
       surface.setInputEnabled(false);
     };
@@ -55,7 +60,7 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
   const sendPointer = (event: PointerEvent<HTMLDivElement>): void => {
     const rect = surface.canvas.getBoundingClientRect();
     const { x, y } = toNativePixels(event.clientX, event.clientY, rect, surface.width, surface.height);
-    surface.pointer.move(x, y);
+    surface.pointer.move(x, y, pointerKind(event.pointerType));
   };
 
   // Scanlines are drawn per game row: the darker band is a whole number of CSS pixels at every zoom.
@@ -79,7 +84,7 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
           className="tv__screen"
           role="application"
           aria-roledescription="arcade game"
-          aria-label="Roel Leenders' portfolio as an arcade game. Use the arrow keys to move, Z or Space to jump and confirm, X to attack. The same content is in the résumé after this game."
+          aria-label="Roel Leenders' portfolio as an arcade game. Use the arrow keys to move, Z or Space to jump and confirm, X to attack; with a mouse, click to attack and double-click the floor to walk there. The same content is in the résumé after this game."
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the screen is the game's keyboard focus target.
           tabIndex={0}
           onFocus={() => surface.setInputEnabled(true)}
@@ -88,7 +93,7 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
           onPointerDown={(event) => {
             event.currentTarget.focus({ preventScroll: true });
             sendPointer(event);
-            surface.pointer.down();
+            surface.pointer.down(pointerKind(event.pointerType));
           }}
           onPointerUp={(event) => {
             sendPointer(event);
@@ -128,7 +133,8 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
         </div>
       </div>
       <p className="flat-host__hint">
-        Click the screen to play · Arrows move · Z / Space jump · X attack · Enter start
+        Click the screen to play · Arrows move · Z / Space jump · X attack · Enter start · Or click to attack and
+        double-click the floor to walk
       </p>
     </section>
   );

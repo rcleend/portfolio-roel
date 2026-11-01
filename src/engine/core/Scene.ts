@@ -1,5 +1,6 @@
 import type { Gfx } from '../gfx/Gfx';
 import type { InputSnapshot } from '../input/InputSnapshot';
+import type { GameCursor } from './GameSurface';
 
 /** One fixed 60 Hz simulation step. */
 export interface Step<A extends string = string> {
@@ -23,10 +24,14 @@ export interface Scene<P = void, A extends string = string> {
   update(step: Step<A>): void;
   /** Draws the current state. Must not mutate state, so a frame can be re-rendered at any time. */
   render(gfx: Gfx): void;
+  /** How the pointer over the picture should look now; a scene without one shows the game's hand. */
+  cursor?(): GameCursor;
 }
 
 /** Anything the game loop can drive: usually a `Director`. */
 export interface GameRoot<A extends string = string> {
   update(step: Step<A>): void;
   render(gfx: Gfx): void;
+  /** The cursor over the picture; the game's hand when left out. */
+  cursor?(): GameCursor;
 }

@@ -1,6 +1,7 @@
 /**
  * The room's cursors (docs/ART-DIRECTION.md › The room's UI): rasterises the drawn ones
- * (src/app/cursors/source/*.svg) and the game's pixel hand (src/game/ui/cursor.ts) to the
+ * (src/app/cursors/source/*.svg), the game's pixel hand (src/game/ui/cursor.ts) and its play
+ * cursors (src/game/ui/playCursors.ts) to the
  * PNGs the `cursor` property points at, 1x and 2x, and writes every hotspot, in 1x CSS px,
  * to src/app/cursors/hotspots.json.
  *
@@ -16,6 +17,7 @@ import sharp from 'sharp';
 import { parseHex } from '@/engine/gfx/color';
 import { TRANSPARENT_KEY } from '@/engine/gfx/PixelArt';
 import { HAND_PALETTE, POINTER_HAND, POINTER_TIP } from '@/game/ui/cursor';
+import { PLAY_CURSORS } from '@/game/ui/playCursors';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const CURSORS = join(ROOT, 'src/app/cursors');
@@ -55,15 +57,19 @@ async function drawn(name: string): Promise<Cursor> {
 }
 
 /**
- * The pointer over the game: the classic pixel hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the
- * left as a pointer does, scaled nearest-neighbour by whole numbers so it stays crisp; the hotspot is the fingertip
- * pixel's top-left corner, the point of the finger.
+ * A cursor drawn in the game's pixels in the hand's palette, scaled nearest-neighbour by whole numbers so it stays
+ * crisp, its hotspot at `tip` in sprite pixels (the top-left corner of a pixel, or its middle for a half). The pointer over the game is the classic pixel
+ * hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the left as a pointer does, its hotspot on the
+ * fingertip, the point of the finger; over a level's play, the play cursors.
  */
-async function gameHand(): Promise<Cursor> {
-  const rows = POINTER_HAND;
+async function pixelCursor(
+  name: string,
+  rows: readonly string[],
+  tip: { readonly x: number; readonly y: number },
+): Promise<Cursor> {
   const height = rows.length;
   const width = Math.max(...rows.map((row) => [...row].length));
-  const hotspot = { x: POINTER_TIP.x * GAME_HAND_SCALE, y: POINTER_TIP.y * GAME_HAND_SCALE };
+  const hotspot = { x: tip.x * GAME_HAND_SCALE, y: tip.y * GAME_HAND_SCALE };
   const raster = (scale: number): Promise<Buffer> => {
     const data = Buffer.alloc(width * scale * height * scale * 4);
     for (let y = 0; y < height * scale; y++) {
@@ -78,12 +84,21 @@ async function gameHand(): Promise<Cursor> {
     return encode(sharp(data, { raw: { width: width * scale, height: height * scale, channels: 4 } }));
   };
   const [one, two] = await Promise.all([raster(GAME_HAND_SCALE), raster(GAME_HAND_SCALE * 2)]);
-  if (!one || !two) throw new Error('the game hand did not render');
-  return { name: 'game-hand', png: { '1x': one, '2x': two }, hotspot };
+  if (!one || !two) throw new Error(`${name} did not render`);
+  return { name, png: { '1x': one, '2x': two }, hotspot };
+}
+
+/** The play cursors, one each: the footprints, the footprints with their arrow, the reticle. */
+function playCursors(): Promise<Cursor>[] {
+  return Object.entries(PLAY_CURSORS).map(([kind, { rows, hotspot }]) => pixelCursor(kind, rows, hotspot));
 }
 
 async function main(): Promise<void> {
-  const cursors = [...(await Promise.all(DRAWN.map(drawn))), await gameHand()];
+  const cursors = await Promise.all([
+    ...DRAWN.map(drawn),
+    pixelCursor('game-hand', POINTER_HAND, POINTER_TIP),
+    ...playCursors(),
+  ]);
   const problems: string[] = [];
   const hotspots: Record<string, Hotspot> = {};
   for (const { name, png, hotspot } of cursors) {

@@ -1,5 +1,6 @@
 import type { Mesh, Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
+import type { PointerKind } from '@/engine/input/InputSnapshot';
 import type { Interactable, InteractionHit, RoomCursor } from '../interaction/Interactable';
 import { type NativePoint, type UvRect, uvToNativePixel } from './screenMapping';
 import type { TvModel } from './tvModel';
@@ -34,10 +35,15 @@ export class TvInteractable implements Interactable {
     this.gestureSurface = options.tv.screen;
   }
 
-  /** In the room view the TV is a way back to it; at the TV its picture is the game's while it plays. */
+  /**
+   * In the room view the TV is a way back to it; at the TV its picture is the game's while it plays, with the
+   * game's cursor over a level's play.
+   */
   cursor(hit: InteractionHit): RoomCursor {
     if (this.options.isInRoomView()) return 'enter';
-    return this.options.isPlayable() && this.pixelAt(hit, false) ? 'play' : 'idle';
+    if (!this.options.isPlayable() || !this.pixelAt(hit, false)) return 'idle';
+    const game = this.options.surface.cursor;
+    return game === 'hand' ? 'play' : game;
   }
 
   activate(): void {
@@ -49,8 +55,9 @@ export class TvInteractable implements Interactable {
     const pixel = this.pixelAt(hit, false);
     // Beside the picture, on the set's bezel or its bottom panel: a finger begins the game all the same.
     if (!pixel) return this.pressToBegin(pointerType);
-    this.options.surface.pointer.move(pixel.x, pixel.y);
-    this.options.surface.pointer.down();
+    const kind = pointerKind(pointerType ?? 'mouse');
+    this.options.surface.pointer.move(pixel.x, pixel.y, kind);
+    this.options.surface.pointer.down(kind);
     this.overPicture = true;
     this.pressed = true;
     return true;
@@ -62,16 +69,16 @@ export class TvInteractable implements Interactable {
    */
   pressToBegin(pointerType?: string): boolean {
     if (pointerType === 'mouse' || !this.options.isPlayable() || !this.options.tapToBegin?.()) return false;
-    this.options.surface.pointer.down();
+    this.options.surface.pointer.down(pointerKind(pointerType ?? 'touch'));
     this.pressed = true;
     return true;
   }
 
-  pointerMove(hit: InteractionHit | null): void {
+  pointerMove(hit: InteractionHit | null, pointerType = 'mouse'): void {
     if (!this.options.isPlayable()) return;
     const pixel = this.pixelAt(hit, this.pressed);
     if (pixel) {
-      this.options.surface.pointer.move(pixel.x, pixel.y);
+      this.options.surface.pointer.move(pixel.x, pixel.y, pointerKind(pointerType));
       this.overPicture = true;
     } else if (!this.pressed) {
       this.pointerLeave();
@@ -100,4 +107,9 @@ export class TvInteractable implements Interactable {
     if (!hit?.uv || hit.object !== this.options.tv.screen) return null;
     return uvToNativePixel(hit.uv.x, hit.uv.y, this.options.contentRect, this.options.surface, clamp);
   }
+}
+
+/** The game's name for a DOM pointer's device: a finger or a pen taps, anything else is a mouse. */
+function pointerKind(pointerType: string): PointerKind {
+  return pointerType === 'touch' || pointerType === 'pen' ? pointerType : 'mouse';
 }

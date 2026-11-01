@@ -1,4 +1,4 @@
-import type { GameSurface, PointerSink } from '@/engine/core/GameSurface';
+import type { GameCursor, GameSurface, PointerSink } from '@/engine/core/GameSurface';
 
 const WIDTH = 320;
 const HEIGHT = 240;
@@ -14,6 +14,8 @@ export class MockGameSurface implements GameSurface {
   readonly width = WIDTH;
   readonly height = HEIGHT;
   readonly pointer: PointerSink;
+  /** The test card shows the game's hand everywhere. */
+  readonly cursor: GameCursor = 'hand';
   /** Recent pointer calls, newest last; the lab exposes them to automated checks. */
   readonly pointerLog: string[] = [];
 
@@ -23,7 +25,7 @@ export class MockGameSurface implements GameSurface {
   private running = false;
   private inputEnabled = false;
   private handle = 0;
-  private cursor: { x: number; y: number; down: boolean } | null = null;
+  private crosshair: { x: number; y: number; down: boolean } | null = null;
 
   constructor() {
     this.canvas.width = WIDTH;
@@ -38,22 +40,22 @@ export class MockGameSurface implements GameSurface {
     };
     this.pointer = {
       move: (x, y) => {
-        this.cursor = { x, y, down: this.cursor?.down ?? false };
+        this.crosshair = { x, y, down: this.crosshair?.down ?? false };
         log(`move ${x},${y}`);
         this.redrawIfPaused();
       },
       leave: () => {
-        this.cursor = null;
+        this.crosshair = null;
         log('leave');
         this.redrawIfPaused();
       },
       down: () => {
-        if (this.cursor) this.cursor.down = true;
+        if (this.crosshair) this.crosshair.down = true;
         log('down');
         this.redrawIfPaused();
       },
       up: () => {
-        if (this.cursor) this.cursor.down = false;
+        if (this.crosshair) this.crosshair.down = false;
         log('up');
         this.redrawIfPaused();
       },
@@ -72,6 +74,10 @@ export class MockGameSurface implements GameSurface {
   onFrame(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  onCursorChange(): () => void {
+    return () => {};
   }
 
   pause(): void {
@@ -161,8 +167,8 @@ export class MockGameSurface implements GameSurface {
     label('BR', WIDTH - 22, HEIGHT - 17);
     label(`MOCK 320x240  F${String(t).padStart(5, '0')}`, 88, 196);
 
-    if (this.cursor) {
-      const { x, y, down } = this.cursor;
+    if (this.crosshair) {
+      const { x, y, down } = this.crosshair;
       g.fillStyle = down ? '#ff2d6f' : '#00ff9c';
       g.fillRect(x - 6, y, 13, 1);
       g.fillRect(x, y - 6, 1, 13);

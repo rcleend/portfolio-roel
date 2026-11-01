@@ -12,10 +12,14 @@
 // - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
 //   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce) and posterWall;
 // - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
+// - mousePlay: a level's mouse play (docs/ARCHITECTURE.md › Mouse play), the route planner and walker with it, fetched
+//   from the mission select.
 // PcSlot, the glue that loads the computer's screen, is part of the entry; RadioSlot, the radio's, loads the first time
 // the camera leaves the TV. PcExperience, RadioSlot and RadioExperience must not
 // contain three.js (none of their files may be the room chunk or one it loads, nor carry three's names), and
-// radioDevice must bring no three.js of its own.
+// radioDevice must bring no three.js of its own. mousePlay must import nothing at all (`standalone`): a runtime import of
+// the game from it splits the game's shared modules out of the entry into common chunks, which gzip worse (it gets the
+// game through src/game/world/nav/kit.ts instead).
 // A lazy row whose source file does not exist (yet: another branch adds it) is reported as absent, not failed.
 // Exits non-zero on any overrun, or when something it must measure is missing.
 import { existsSync, readFileSync } from 'node:fs';
@@ -38,6 +42,7 @@ const LAZY_CHUNKS = {
   posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
   RoomGuide: { source: 'src/app/guide/RoomGuide.tsx', three: 'none' },
   propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
+  mousePlay: { source: 'src/game/scenes/level/mouse/MousePlay.ts', three: 'none', standalone: true },
 };
 
 const { budgets, baseline } = JSON.parse(readFileSync(join(ROOT, 'bundle-budgets.json'), 'utf8'));
@@ -53,7 +58,7 @@ const room = manifest[ROOM];
 if (room) rows.push(row('room', await gzipped([room.file]), budgets.room, baseline.room));
 else problems.push(`${ROOM} is not in the manifest`);
 
-for (const [name, { source, three }] of Object.entries(LAZY_CHUNKS)) {
+for (const [name, { source, three, standalone }] of Object.entries(LAZY_CHUNKS)) {
   if (!existsSync(join(ROOT, source))) {
     rows.push({ name, size: undefined, budget: budgets[name], status: 'absent' });
     continue;
@@ -75,6 +80,8 @@ for (const [name, { source, three }] of Object.entries(LAZY_CHUNKS)) {
     const found = await threeIn(files, { allowRoom: true });
     if (found) problems.push(`${name} brings its own three.js (${found})`);
   }
+  const imports = manifest[source].imports ?? [];
+  if (standalone && imports.length > 0) problems.push(`${name} imports ${imports.join(', ')} at runtime`);
 }
 
 console.table(Object.fromEntries(rows.map(({ name, ...rest }) => [name, rest])));

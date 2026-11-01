@@ -13,6 +13,8 @@ export interface PlayerIntent extends MoveIntent {
   readonly attackHeld: boolean;
   readonly skill1Pressed: boolean;
   readonly skill2Pressed: boolean;
+  /** Turn this way whatever the move says, e.g. to attack where the mouse clicked. */
+  readonly face?: -1 | 1;
 }
 
 export const IDLE_INTENT: PlayerIntent = {
@@ -142,7 +144,7 @@ export class Player {
   ): PlayerStep {
     const locked = this.isLocked(time);
     const move: MoveIntent = locked ? { x: 0, jumpPressed: false, jumpHeld: false } : intent;
-    if (!locked && intent.x !== 0) this.facing = intent.x;
+    if (!locked) this.facing = intent.face ?? (intent.x !== 0 ? intent.x : this.facing);
 
     const jumped = this.#motor.step(this.body, move, dt, locked ? { speed: 0, jump: 0 } : scale);
     if (jumped && this.#riding) {

@@ -10,6 +10,7 @@ import { frames, segment } from '@/engine/motion/progress';
 import { palette } from '../../palette';
 import type { GameServices } from '../../services';
 import { KeyHints } from '../../ui/KeyHints';
+import { preloadMousePlay } from '../level/mouse/load';
 import type { GameScene, GameStep, LevelSelectParams } from '../params';
 import { InkStamp } from './art/InkStamp';
 import { BriefingPanel } from './BriefingPanel';
@@ -84,6 +85,8 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
     this.#panel = new BriefingPanel(this.#services, this.#characterId);
     this.#focus(initialFocus(this.#slots, params?.focus), false);
     this.#services.audio.playMusic('mission-select');
+    // A mission is a confirm away: fetch the level's mouse play now, off the first load.
+    preloadMousePlay();
   }
 
   exit(): void {}

@@ -22,6 +22,8 @@ function fakeSurface(): GameSurface & { inputEnabled: boolean | null; pauses: nu
       surface.inputEnabled = enabled;
     },
     pointer: { move() {}, leave() {}, down() {}, up() {} },
+    cursor: 'hand' as const,
+    onCursorChange: () => () => {},
   };
   return surface;
 }

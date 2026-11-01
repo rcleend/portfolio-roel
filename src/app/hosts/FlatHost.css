@@ -35,7 +35,10 @@
   border-radius: 14px / 12px;
   background: #000;
   outline: none;
-  /* The game's own menu hand over its picture, where the page draws cursors (app/cursors/cursors.css). */
+  /*
+   * The game's own menu hand over its picture, where the page draws cursors (app/cursors/cursors.css); over a level's
+   * play the game names a walk, jump or attack cursor instead, set inline (cursors/gameCursor.ts).
+   */
   cursor: var(--room-cursor-play, pointer);
   touch-action: none;
   user-select: none;

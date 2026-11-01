@@ -365,4 +365,56 @@ describe('room target picking', () => {
     expect(pointerUp).toHaveBeenCalledOnce();
     interaction.dispose();
   });
+
+  it("redraws a resting mouse's cursor when what a click would do changes under it, a gesture's owner included", () => {
+    const canvas = stageCanvas();
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const onHover = vi.fn();
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss: () => {},
+      idleCursor: () => 'leave',
+      isEnabled: () => true,
+      onHover,
+    });
+    const geometry = new BoxGeometry(1, 1, 1);
+    const material = new MeshBasicMaterial();
+    const tv = new Mesh(geometry, material);
+    tv.updateMatrixWorld();
+    let game: 'play' | 'walk' | 'attack' = 'play';
+    interaction.register({
+      id: 'tv',
+      object: tv,
+      gestureSurface: tv,
+      cursor: () => game,
+      activate: () => {},
+      pointerDown: () => true,
+      pointerUp: () => {},
+    });
+    // Nothing to redraw before a mouse rests on the stage.
+    interaction.redrawCursor();
+    expect(canvas.dataset.cursor).toBeUndefined();
+    const at = { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100, pointerType: 'mouse' };
+    canvas.dispatchEvent(new PointerEvent('pointermove', at));
+    expect(canvas.dataset.cursor).toBe('play');
+    const hovers = onHover.mock.calls.length;
+    game = 'walk';
+    interaction.redrawCursor();
+    expect(canvas.dataset.cursor).toBe('walk');
+    // Drawn as the page's own, else a pointer; an attack's stock cursor is a crosshair.
+    expect(canvas.style.cursor).toBe('var(--room-cursor-walk, pointer)');
+    vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
+    canvas.dispatchEvent(new PointerEvent('pointerdown', at));
+    game = 'attack';
+    interaction.redrawCursor();
+    expect(canvas.style.cursor).toBe('var(--room-cursor-attack, crosshair)');
+    // A redraw is not a new hover: the spotlight hears nothing of it.
+    expect(onHover.mock.calls.length).toBe(hovers);
+    interaction.dispose();
+    geometry.dispose();
+    material.dispose();
+  });
 });

@@ -1,6 +1,7 @@
 import { type CSSProperties, type PointerEvent, useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { GameSurface } from '@/engine/core/GameSurface';
+import { pointerKind } from '../cursors/gameCursor';
 import { TV_STILL_ID } from '../startup/TvStill';
 import { REDUCED_MOTION, useMediaQuery } from '../useMediaQuery';
 import { toNativePixels } from './integerScale';
@@ -44,7 +45,7 @@ export function StillPicture({ surface, powered, onLit, passThrough }: StillPict
   const sendPointer = (event: PointerEvent<HTMLDivElement>): void => {
     const rect = surface.canvas.getBoundingClientRect();
     const { x, y } = toNativePixels(event.clientX, event.clientY, rect, surface.width, surface.height);
-    surface.pointer.move(x, y);
+    surface.pointer.move(x, y, pointerKind(event.pointerType));
   };
 
   const still = document.getElementById(TV_STILL_ID);
@@ -63,7 +64,7 @@ export function StillPicture({ surface, powered, onLit, passThrough }: StillPict
       onPointerMove={sendPointer}
       onPointerDown={(event) => {
         sendPointer(event);
-        surface.pointer.down();
+        surface.pointer.down(pointerKind(event.pointerType));
       }}
       onPointerUp={(event) => {
         sendPointer(event);
