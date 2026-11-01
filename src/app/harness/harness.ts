@@ -2,6 +2,7 @@ import { transitions } from '@/engine/core/transitions';
 import type { CreatedGame } from '@/game/createGame';
 import type { Action } from '@/game/input/bindings';
 import { isSceneId } from '@/game/scenes';
+import type { LevelProbe } from '@/game/scenes/level/probe';
 import type { SceneId } from '@/game/scenes/params';
 import type { HarnessConfig } from './config';
 
@@ -19,6 +20,8 @@ export interface ArcadeHarness {
   /** Holds `action` for `frames` steps, then releases it and steps once more (frames + 1 steps in total). */
   press(action: Action, frames?: number): void;
   state(): ArcadeState;
+  /** In a level, what it shows (development builds, `game/scenes/level/probe.ts`); null elsewhere. */
+  level(): LevelProbe | null;
 }
 
 export interface ArcadeState {
@@ -89,6 +92,7 @@ function createHarness(created: CreatedGame): ArcadeHarness {
       session: services.session.state,
       pointing: game.input.pointing,
     }),
+    level: () => (services.director.scene as { probe?: () => LevelProbe | null } | null)?.probe?.() ?? null,
   };
 }
 

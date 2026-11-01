@@ -31,6 +31,7 @@ import { HighlightCard } from './overlays/HighlightCard';
 import { drawMissionIntro, missionYears } from './overlays/missionIntro';
 import { type PauseChoice, PauseMenu } from './overlays/PauseMenu';
 import { fadeScreen } from './overlays/screen';
+import { levelProbe } from './probe';
 import { drawHitboxes } from './render/hitboxes';
 import { levelRenderKit } from './render/renderKit';
 import { StageRenderer } from './render/StageRenderer';
@@ -85,6 +86,16 @@ export class LevelScene implements GameScene<LevelParams> {
   #mouse: MousePlay | null = null;
   /** Seconds the strip's JUMP still holds jump for. */
   #stripJump = 0;
+  /** Development builds: what the level shows, for end-to-end tests that play it as a visitor would (`probe.ts`). */
+  readonly probe = import.meta.env.DEV
+    ? () => {
+        const world = this.#world;
+        if (!world) return null;
+        const walking = this.#mouse?.walking ?? false;
+        const sources = { world, phase: this.#phase.kind, walking, cursor: this.cursor() };
+        return levelProbe({ ...sources, hints: this.#hints, device: this.#device });
+      }
+    : undefined;
   /** Where the HUD along the bottom begins, refilled every frame so drawing the stage allocates nothing for it. */
   readonly #bottomHud = { settled: 0, top: 0 };
 

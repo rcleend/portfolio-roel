@@ -61,6 +61,11 @@ export class Director<M extends SceneMap<M>, A extends string = string> implemen
     return this.#current?.id ?? null;
   }
 
+  /** The active scene itself, for development tools; scenes never reach for each other. */
+  get scene(): Scene<unknown, A> | null {
+    return this.#current?.scene ?? null;
+  }
+
   get transition(): TransitionState | null {
     const active = this.#transition;
     if (!active) return null;
