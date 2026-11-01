@@ -42,4 +42,17 @@ describe('the TV set under a finger', () => {
     expect(pointer.down).not.toHaveBeenCalled();
     expect(later.pointer.down).not.toHaveBeenCalled();
   });
+
+  it('presses the game for a finger off the set too (the cabinet, the floor) while the title waits, never for a mouse', () => {
+    const { tv, pointer } = setUp(true);
+    expect(tv.pressToBegin('mouse')).toBe(false);
+    expect(tv.pressToBegin('touch')).toBe(true);
+    expect(pointer.down).toHaveBeenCalledOnce();
+    expect(pointer.move).not.toHaveBeenCalled();
+    tv.pointerUp();
+    expect(pointer.up).toHaveBeenCalledOnce();
+    const later = setUp(false);
+    expect(later.tv.pressToBegin('touch')).toBe(false);
+    expect(later.pointer.down).not.toHaveBeenCalled();
+  });
 });

@@ -89,8 +89,8 @@ export interface Room {
    */
   setTilt(tilt: { readonly x: number; readonly y: number } | null): void;
   /**
-   * While on, a tap or a pen (not a mouse) anywhere on the TV set at the TV view, its bezel and its bottom panel
-   * included, presses the game as a tap on its picture does: the title's "PRESS TO BEGIN" (docs/ROOM.md › Using it
+   * While on, a tap or a pen (not a mouse) anywhere on the TV set at the TV view or below its top (its bezel and
+   * bottom panel, the cabinet under it, the room beside it) presses the game as a tap on its picture does: the title's "PRESS TO BEGIN" (docs/ROOM.md › Using it
    * from the app). Usable before `ready`.
    */
   setTapToBegin(on: boolean): void;

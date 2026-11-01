@@ -22,6 +22,11 @@ export interface RoomInteractionOptions {
    */
   readonly ignoresClick?: (pointerType: string, ndc: Vector2) => boolean;
   /**
+   * A press no interactable took (it hit nothing, or something that wants no gesture): returns the interactable that
+   * takes the gesture instead, its `pointerDown` already handled, or null. Its release then goes to it, not a click.
+   */
+  readonly claimsPress?: (pointerType: string, ndc: Vector2) => Interactable | null;
+  /**
    * Where large meshes are cut into pick chunks, off the room's first frame; until a cut is done
    * its interactable's rays test the whole meshes. Without it they are cut as they are registered.
    */
@@ -151,11 +156,10 @@ export class RoomInteraction {
     if (!event.isPrimary || event.button !== 0 || !this.options.isEnabled()) return;
     this.setNdc(event);
     const found = this.pick();
-    let owner: Interactable | null = null;
-    if (found?.interactable.pointerDown?.(found.hit, event.pointerType)) {
-      owner = found.interactable;
-      this.options.canvas.setPointerCapture(event.pointerId);
-    }
+    const owner = found?.interactable.pointerDown?.(found.hit, event.pointerType)
+      ? found.interactable
+      : (this.options.claimsPress?.(event.pointerType, this.ndc) ?? null);
+    if (owner) this.options.canvas.setPointerCapture(event.pointerId);
     this.gesture = { pointerId: event.pointerId, owner, x: event.clientX, y: event.clientY };
   };
 

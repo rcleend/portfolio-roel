@@ -13,7 +13,7 @@ export interface TvInteractableOptions {
   /** True while the camera is in (or heading to) the room view. */
   readonly isInRoomView: () => boolean;
   readonly focusTv: () => void;
-  /** While true, a touch anywhere on the set (bezel, bottom panel) presses the game too: the title's PRESS TO BEGIN. */
+  /** While true, a touch on the set (bezel, bottom panel) or below its top presses the game too: the title's PRESS TO BEGIN. */
   readonly tapToBegin?: () => boolean;
 }
 
@@ -47,16 +47,22 @@ export class TvInteractable implements Interactable {
   pointerDown(hit: InteractionHit, pointerType?: string): boolean {
     if (!this.options.isPlayable()) return false;
     const pixel = this.pixelAt(hit, false);
-    if (!pixel) {
-      // Beside the picture, on the set's bezel or its bottom panel: a finger begins the game all the same.
-      if (pointerType === 'mouse' || !this.options.tapToBegin?.()) return false;
-      this.options.surface.pointer.down();
-      this.pressed = true;
-      return true;
-    }
+    // Beside the picture, on the set's bezel or its bottom panel: a finger begins the game all the same.
+    if (!pixel) return this.pressToBegin(pointerType);
     this.options.surface.pointer.move(pixel.x, pixel.y);
     this.options.surface.pointer.down();
     this.overPicture = true;
+    this.pressed = true;
+    return true;
+  }
+
+  /**
+   * A finger anywhere off the picture (the set, the cabinet under it, the floor, the room beside it) presses the game
+   * while the title waits for a tap: `down()` without a move, `up()` on release. True when it took the gesture.
+   */
+  pressToBegin(pointerType?: string): boolean {
+    if (pointerType === 'mouse' || !this.options.isPlayable() || !this.options.tapToBegin?.()) return false;
+    this.options.surface.pointer.down();
     this.pressed = true;
     return true;
   }
