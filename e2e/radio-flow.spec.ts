@@ -632,6 +632,58 @@ test.describe('on a phone', () => {
   });
 });
 
+/** The LCD's mean brightness (0–255) on the page at the radio, at this file's 1440 × 900 viewport. */
+async function lcdBrightness(page: Page): Promise<number> {
+  const shot = await page.screenshot({ clip: { x: 560, y: 560, width: 85, height: 20 } });
+  return page.evaluate(async (png) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${png}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return 0;
+    context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) sum += ((data[i] ?? 0) + (data[i + 1] ?? 0) + (data[i + 2] ?? 0)) / 3;
+    return sum / (data.length / 4);
+  }, shot.toString('base64'));
+}
+
+/** Lit, "no dISC" reads about 136 here; the panel behind it, unlit, about 21, and a blank picture of it about 14. */
+const LCD_LIT = 100;
+
+test('the LCD lights again after the GPU process restarts (a laptop waking, a display change)', async ({
+  playwright,
+}) => {
+  // Its own browser: a crashed GPU process counts against the worker's, which blocks WebGL after a few.
+  const browser = await playwright.chromium.launch({ args: [...GPU_LAUNCH_ARGS] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.addInitScript(() => {
+      const record = window as unknown as { __restored: boolean };
+      record.__restored = false;
+      addEventListener('webglcontextrestored', () => (record.__restored = true), true);
+    });
+    await open(page);
+    await lookAround(page);
+    await goToRadio(page);
+    await expect.poll(() => lcdBrightness(page)).toBeGreaterThan(LCD_LIT);
+    await page.keyboard.press('Escape');
+    await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+    await settled(page);
+    // A GPU reset wipes every canvas: the LCD's comes back blank, and the restored WebGL context uploads it as it is.
+    await (await browser.newBrowserCDPSession()).send('Browser.crashGpuProcess');
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __restored: boolean }).__restored)).toBe(true);
+    await goToRadio(page);
+    await expect.poll(() => lcdBrightness(page)).toBeGreaterThan(LCD_LIT);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('the flat television never loads the radio', async ({ page }) => {
   const lazy: string[] = [];
   page.on('request', (request) => {
