@@ -14,7 +14,7 @@ import { parseHex } from './color';
  * same-size copies, with transparent source pixels left out; alpha,
  * scaling and clipping are ignored.
  */
-export class RasterCanvas {
+export class RasterCanvas extends EventTarget {
   width = 0;
   height = 0;
   #context: RasterContext | null = null;

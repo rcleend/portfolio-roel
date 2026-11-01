@@ -1,3 +1,4 @@
+import { onCanvasRestored } from '@/engine/gfx/canvas';
 import blissUrl from './bliss.webp';
 
 /**
@@ -57,6 +58,7 @@ let cached: HTMLCanvasElement | null = null;
 let cpuCanvas = false;
 let photo: HTMLImageElement | null = null;
 let loading: Promise<void> | null = null;
+const restoredListeners = new Set<() => void>();
 
 /**
  * The shared wallpaper canvas, at least close to `requiredWidth` px wide.
@@ -68,7 +70,14 @@ export function wallpaperCanvas(requiredWidth: number, aspect: number, cpu = fal
   const wanted = wallpaperSize(requiredWidth, aspect, deviceMemory());
   if (cached && !needsRepaint(cached.width, wanted)) return cached;
   const canvas = cached ?? document.createElement('canvas');
-  if (!cached) cpuCanvas = cpu;
+  if (!cached) {
+    cpuCanvas = cpu;
+    // A GPU reset gives the canvas back blank: the live desktop shows it, and the glass is composed from it.
+    onCanvasRestored(canvas, () => {
+      paint(canvas);
+      for (const listener of restoredListeners) listener();
+    });
+  }
   canvas.width = wanted.width;
   canvas.height = wanted.height;
   cached = canvas;
@@ -98,6 +107,15 @@ export function loadWallpaper(): Promise<void> {
       );
   });
   return loading;
+}
+
+/**
+ * Calls `listener` each time the wallpaper has been painted again after a GPU reset wiped it: the glass wants a
+ * repaint. Returns a function that stops listening.
+ */
+export function onWallpaperRestored(listener: () => void): () => void {
+  restoredListeners.add(listener);
+  return () => restoredListeners.delete(listener);
 }
 
 function paint(canvas: HTMLCanvasElement): void {

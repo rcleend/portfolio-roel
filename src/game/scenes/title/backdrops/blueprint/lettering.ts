@@ -1,5 +1,5 @@
 import { BitmapFont, type GlyphFontData, parseGlyphSheet } from '@/engine/gfx/BitmapFont';
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { lazy } from '../../../../art/logos/lazy';
 import { shadeOf } from './inks';
 
@@ -360,11 +360,13 @@ export class LetteringAtlas {
     this.#inks = inks;
     this.#cell = Math.max(...[...chars].map((char) => font.glyph(char).width));
     this.#canvas = createCanvas(this.#cell * chars.length, LETTER_HEIGHT * inks.length);
-    const ctx = context2d(this.#canvas);
-    inks.forEach((ink, row) => {
-      ctx.fillStyle = shadeOf(ink);
-      [...chars].forEach((char, column) => {
-        for (const [px, py] of glyphPixels(char, column * this.#cell, row * LETTER_HEIGHT)) ctx.fillRect(px, py, 1, 1);
+    paintCanvas(this.#canvas, (ctx) => {
+      inks.forEach((ink, row) => {
+        ctx.fillStyle = shadeOf(ink);
+        [...chars].forEach((char, column) => {
+          for (const [px, py] of glyphPixels(char, column * this.#cell, row * LETTER_HEIGHT))
+            ctx.fillRect(px, py, 1, 1);
+        });
       });
     });
   }

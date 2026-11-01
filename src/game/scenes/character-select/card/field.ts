@@ -12,7 +12,9 @@ import { CARD_INNER } from '../layout';
 const SHADE = { top: 0, bottom: 2.6 } as const;
 
 /** The field, banded the way the paper is, on its own screen pixels so the dither lines up with the paper's. */
-const field = lazy(() => {
+const field = lazy(() => bitmapToCanvas(paintField));
+
+function paintField(): Bitmap {
   const { x, y, w, h } = CARD_INNER;
   const bitmap = new Bitmap(w, h);
   for (let row = 0; row < h; row++) {
@@ -21,8 +23,8 @@ const field = lazy(() => {
       bitmap.set(column, row, rampAt(RAMP_RGBA, bandedStep(shade, x + column, y + row)));
     }
   }
-  return bitmapToCanvas(bitmap);
-});
+  return bitmap;
+}
 
 /**
  * The deep field inside the card: the blueprint ramp's three deepest steps,

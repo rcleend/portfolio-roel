@@ -1,6 +1,6 @@
 import { type Rect, rect, union } from '../math/Rect';
 import type { BitmapFont, Glyph } from './BitmapFont';
-import { context2d, createCanvas } from './canvas';
+import { createCanvas, paintCanvas } from './canvas';
 import { bandColors, parseHex, type Rgba } from './color';
 import { alignedX, type TextAlign, wrapText } from './textLayout';
 
@@ -172,7 +172,10 @@ class StyledAtlas {
       x += width;
     }
     this.#canvas = createCanvas(Math.max(1, x), this.#rowHeight * LAYERS.length);
-    const ctx = context2d(this.#canvas);
+    paintCanvas(this.#canvas, (ctx) => this.#paint(ctx, font, style, shadow));
+  }
+
+  #paint(ctx: CanvasRenderingContext2D, font: BitmapFont, style: TextStyle, shadow: TextStyle['shadow']): void {
     const image = ctx.createImageData(this.#canvas.width, this.#canvas.height);
     const fillRows = fillRowColors(style);
     const outlineColor = style.outline ? parseHex(style.outline) : null;

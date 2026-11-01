@@ -1,6 +1,6 @@
 import { type Experience, experience } from '@/content';
 import type { BitmapFont } from '@/engine/gfx/BitmapFont';
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { Gfx } from '@/engine/gfx/Gfx';
 import { TICKER } from './layout';
 import { TAPE } from './palette';
@@ -87,13 +87,15 @@ export function paintTape(font: BitmapFont, quotes: readonly Quote[], length: nu
     length,
   );
   const canvas = createCanvas(length, font.cellHeight);
-  const gfx = new Gfx(context2d(canvas), length, font.cellHeight);
-  quotes.forEach((quote, index) => {
-    let x = starts[index] ?? 0;
-    for (const [text, ink] of quoteRuns(quote)) {
-      gfx.text(text, x, 0, { font, fill: ink });
-      x += font.measure(text);
-    }
+  paintCanvas(canvas, (ctx) => {
+    const gfx = new Gfx(ctx, length, font.cellHeight);
+    quotes.forEach((quote, index) => {
+      let x = starts[index] ?? 0;
+      for (const [text, ink] of quoteRuns(quote)) {
+        gfx.text(text, x, 0, { font, fill: ink });
+        x += font.measure(text);
+      }
+    });
   });
   return canvas;
 }

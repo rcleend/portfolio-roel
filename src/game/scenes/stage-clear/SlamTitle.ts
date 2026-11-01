@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawText, type TextStyle } from '@/engine/gfx/TextStyle';
 import { frames, segment } from '@/engine/motion/progress';
@@ -88,6 +88,6 @@ export class SlamTitle {
 function renderGlyph(char: string, style: TextStyle): HTMLCanvasElement {
   const glyph = style.font.glyph(char);
   const canvas = createCanvas(glyph.advance + PAD.left + PAD.right, style.font.cellHeight + PAD.top + PAD.bottom);
-  drawText(context2d(canvas), style, char, PAD.left, PAD.top);
+  paintCanvas(canvas, (ctx) => drawText(ctx, style, char, PAD.left, PAD.top));
   return canvas;
 }

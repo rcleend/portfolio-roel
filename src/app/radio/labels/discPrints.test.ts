@@ -40,7 +40,11 @@ function fixture(albums: readonly Album[] = SHELF): Fixture {
       return new Promise<ImageBitmap>((resolve, reject) => art.set(index, { resolve, reject }));
     },
     canvas(size) {
-      const canvas = { width: size, height: size, id: `canvas-${painted.length}` } as unknown as HTMLCanvasElement;
+      const canvas = Object.assign(new EventTarget(), {
+        width: size,
+        height: size,
+        id: `canvas-${painted.length}`,
+      }) as unknown as HTMLCanvasElement;
       const context = new Proxy(
         {},
         {
@@ -179,5 +183,59 @@ describe('DiscPrints', () => {
     expect(f.closed.sort()).toEqual(['a/disc.webp', 'b/cover.webp']);
     expect(f.painted).toEqual([]);
     expect(f.calls).toHaveLength(1);
+  });
+
+  /** Every print painted and handed to the room; returns the canvases it got. */
+  async function shelved(f: Fixture): Promise<HTMLCanvasElement[]> {
+    f.prints.start();
+    f.prints.setAllowed(true);
+    for (let i = 0; i < 3; i++) {
+      await f.arrive(i);
+      f.idle();
+    }
+    return (f.calls.at(-1) ?? []).map((disc) => disc.label as HTMLCanvasElement);
+  }
+
+  // A GPU process reset (a laptop's sleep, a display change) gives every print's canvas back blank, and the room's
+  // restored context uploads it as it is: bare discs. The art was closed once painted, so it is fetched again.
+  it('paints a print again on a new canvas, from art fetched again, when its canvas comes back blank', async () => {
+    const f = fixture();
+    const [a, b] = await shelved(f);
+    expect(f.urls).toHaveLength(3);
+    b?.dispatchEvent(new Event('contextrestored'));
+    expect(f.urls).toEqual(['a/disc.webp', 'b/cover.webp', 'c/disc.webp', 'b/cover.webp']);
+    await f.arrive(3);
+    f.idle();
+    expect(f.painted.at(-1)).toBe('b/cover.webp');
+    const delivered = f.calls.at(-1) ?? [];
+    expect(f.calls).toHaveLength(3);
+    expect(delivered.map((disc) => disc.id)).toEqual(['a', 'b', 'c']);
+    // The room takes a new canvas as a new print (and uploads it); the others it already has.
+    expect(delivered[0]?.label).toBe(a);
+    expect(delivered[1]?.label).not.toBe(b);
+    expect(f.closed.filter((name) => name === 'b/cover.webp')).toHaveLength(2);
+    // The old canvas is done with: it is not listened to any more.
+    b?.dispatchEvent(new Event('contextrestored'));
+    expect(f.urls).toHaveLength(4);
+  });
+
+  it('waits until painting is allowed to paint a restored print', async () => {
+    const f = fixture();
+    const [a] = await shelved(f);
+    f.prints.setAllowed(false);
+    a?.dispatchEvent(new Event('contextrestored'));
+    await f.arrive(3);
+    expect(f.idle()).toBe(false);
+    f.prints.setAllowed(true);
+    expect(f.idle()).toBe(true);
+    expect(f.calls).toHaveLength(3);
+  });
+
+  it('stops listening once disposed', async () => {
+    const f = fixture();
+    const [a] = await shelved(f);
+    f.prints.dispose();
+    a?.dispatchEvent(new Event('contextrestored'));
+    expect(f.urls).toHaveLength(3);
   });
 });

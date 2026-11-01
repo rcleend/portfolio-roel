@@ -1,5 +1,5 @@
 import type { PixelImage } from './canvas';
-import { context2d, createCanvas } from './canvas';
+import { createCanvas, paintCanvas } from './canvas';
 import { bandColors } from './color';
 import { type DitherPattern, ditherOn } from './dither';
 import type { SpriteDrawOptions, SpriteSheet } from './SpriteSheet';
@@ -258,35 +258,36 @@ function renderBandedGradient(w: number, h: number, gradient: BandedGradient): H
   const bands = Math.max(1, Math.min(gradient.bands, length));
   const colors = bandColors(gradient.stops, bands);
   const canvas = createCanvas(w, h);
-  const ctx = context2d(canvas);
-  const edge = (i: number): number => Math.round((i * length) / bands);
+  paintCanvas(canvas, (ctx) => {
+    const edge = (i: number): number => Math.round((i * length) / bands);
 
-  colors.forEach((color, i) => {
-    const start = edge(i);
-    const size = edge(i + 1) - start;
-    ctx.fillStyle = color;
-    if (vertical) ctx.fillRect(0, start, w, size);
-    else ctx.fillRect(start, 0, size, h);
-  });
+    colors.forEach((color, i) => {
+      const start = edge(i);
+      const size = edge(i + 1) - start;
+      ctx.fillStyle = color;
+      if (vertical) ctx.fillRect(0, start, w, size);
+      else ctx.fillRect(start, 0, size, h);
+    });
 
-  if (gradient.dither) {
-    const pattern = gradient.dither;
-    // Each band edge gets a short dithered ramp of the next band's colour leaking into the current one.
-    const rampRows = pattern === 'bayer2' ? [0.5] : [0.25, 0.5, 0.75];
-    for (let i = 0; i < bands - 1; i++) {
-      const boundary = edge(i + 1);
-      const bandSize = boundary - edge(i);
-      const rows = rampRows.slice(-Math.max(0, Math.min(rampRows.length, bandSize - 1)));
-      ctx.fillStyle = colors[i + 1] as string;
-      rows.forEach((coverage, r) => {
-        const along = boundary - rows.length + r;
-        const across = vertical ? w : h;
-        for (let a = 0; a < across; a++) {
-          const [px, py] = vertical ? [a, along] : [along, a];
-          if (ditherOn(pattern, px, py, coverage)) ctx.fillRect(px, py, 1, 1);
-        }
-      });
+    if (gradient.dither) {
+      const pattern = gradient.dither;
+      // Each band edge gets a short dithered ramp of the next band's colour leaking into the current one.
+      const rampRows = pattern === 'bayer2' ? [0.5] : [0.25, 0.5, 0.75];
+      for (let i = 0; i < bands - 1; i++) {
+        const boundary = edge(i + 1);
+        const bandSize = boundary - edge(i);
+        const rows = rampRows.slice(-Math.max(0, Math.min(rampRows.length, bandSize - 1)));
+        ctx.fillStyle = colors[i + 1] as string;
+        rows.forEach((coverage, r) => {
+          const along = boundary - rows.length + r;
+          const across = vertical ? w : h;
+          for (let a = 0; a < across; a++) {
+            const [px, py] = vertical ? [a, along] : [along, a];
+            if (ditherOn(pattern, px, py, coverage)) ctx.fillRect(px, py, 1, 1);
+          }
+        });
+      }
     }
-  }
+  });
   return canvas;
 }

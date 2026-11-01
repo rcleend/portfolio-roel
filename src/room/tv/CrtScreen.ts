@@ -9,10 +9,11 @@ import {
   Vector2,
 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
+import { onCanvasRestored } from '../stage/canvasRestore';
 import { FramePacer, GAME_FRAME_INTERVAL_MS } from '../stage/FramePacer';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { CRT_FRAGMENT_SHADER, CRT_VERTEX_SHADER, type CrtUniforms, createCrtUniforms } from './crtShader';
-import { createPauseOsd } from './osd';
+import { createPauseOsd, paintPauseOsd } from './osd';
 import { type CrtPowerFrame, crtPowerFrame, type PowerState, powerDurationMs } from './powerTimeline';
 import { fitContentRect, type UvRect } from './screenMapping';
 import { TV_PICTURE_INSET, TV_SCREEN_APERTURE, type TvModel } from './tvModel';
@@ -45,6 +46,7 @@ export class CrtScreen {
   private stopPowerAnimation: (() => void) | null = null;
   private settlePower: (() => void) | null = null;
   private pendingPower: Promise<void> | null = null;
+  private readonly stopOsdRestore: () => void;
 
   constructor(private readonly options: CrtScreenOptions) {
     const { tv, surface, loop } = options;
@@ -63,12 +65,19 @@ export class CrtScreen {
     this.picture.minFilter = LinearMipmapLinearFilter;
     this.picture.generateMipmaps = true;
 
-    this.osd = new CanvasTexture(createPauseOsd(surface.width, surface.height));
+    const osd = createPauseOsd(surface.width, surface.height);
+    this.osd = new CanvasTexture(osd);
     this.osd.colorSpace = SRGBColorSpace;
     this.osd.flipY = false;
     this.osd.magFilter = NearestFilter;
     this.osd.minFilter = NearestFilter;
     this.osd.generateMipmaps = false;
+    // Painted once: a GPU reset gives the canvas back blank, and a paused game's TV lost its PAUSE for good.
+    this.stopOsdRestore = onCanvasRestored(osd, () => {
+      paintPauseOsd(osd);
+      this.osd.needsUpdate = true;
+      loop.invalidate();
+    });
 
     this.uniforms = createCrtUniforms(this.contentRect, new Vector2(surface.width, surface.height));
     this.uniforms.uPicture.value = this.picture;
@@ -131,6 +140,7 @@ export class CrtScreen {
     this.stopPowerAnimation?.();
     this.settlePower?.();
     this.unsubscribeFrame();
+    this.stopOsdRestore();
     this.pacer.dispose();
     this.options.tv.screen.material = this.originalMaterial;
     this.options.tv.screen.onBeforeRender = () => {};

@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from './canvas';
+import { createCanvas, paintCanvas } from './canvas';
 import { isHexColor, parseHex } from './color';
 
 /**
@@ -117,31 +117,33 @@ export function compilePixelArt<A extends string>(sheet: PixelArtSheet<A>, name:
   const entries = Object.entries(sheet.animations) as [A, PixelArtAnimation][];
   const columns = Math.max(...entries.map(([, animation]) => animation.frames.length));
   const atlas = createCanvas(columns * w, entries.length * h);
-  const ctx = context2d(atlas);
-  const image = ctx.createImageData(atlas.width, atlas.height);
-  const colors = new Map(Object.entries(sheet.palette).map(([key, hex]) => [key, parseHex(hex)]));
-
   const animations = {} as Record<A, CompiledAnimation>;
   entries.forEach(([animationName, animation], rowIndex) => {
-    const frames = animation.frames.map((frame, frameIndex) => {
-      const originX = frameIndex * w;
-      const originY = rowIndex * h;
-      frame.forEach((row, y) => {
-        [...row].forEach((char, x) => {
-          const color = colors.get(char);
-          if (!color) return;
-          const offset = ((originY + y) * atlas.width + originX + x) * 4;
-          image.data[offset] = color.r;
-          image.data[offset + 1] = color.g;
-          image.data[offset + 2] = color.b;
-          image.data[offset + 3] = color.a;
-        });
-      });
-      return { x: originX, y: originY };
-    });
+    const frames = animation.frames.map((_, frameIndex) => ({ x: frameIndex * w, y: rowIndex * h }));
     animations[animationName] = { fps: animation.fps, loop: animation.loop, frames };
   });
-  ctx.putImageData(image, 0, 0);
+  paintCanvas(atlas, (ctx) => {
+    const image = ctx.createImageData(atlas.width, atlas.height);
+    const colors = new Map(Object.entries(sheet.palette).map(([key, hex]) => [key, parseHex(hex)]));
+    entries.forEach(([, animation], rowIndex) => {
+      animation.frames.forEach((frame, frameIndex) => {
+        const originX = frameIndex * w;
+        const originY = rowIndex * h;
+        frame.forEach((row, y) => {
+          [...row].forEach((char, x) => {
+            const color = colors.get(char);
+            if (!color) return;
+            const offset = ((originY + y) * atlas.width + originX + x) * 4;
+            image.data[offset] = color.r;
+            image.data[offset + 1] = color.g;
+            image.data[offset + 2] = color.b;
+            image.data[offset + 3] = color.a;
+          });
+        });
+      });
+    });
+    ctx.putImageData(image, 0, 0);
+  });
 
   return {
     name,

@@ -30,8 +30,8 @@ export const classicBackdrop: TitleBackdrop<'classic'> = {
 
 /** About 50 ms on a laptop, nearly all of it the crater's wobble frames. */
 function paintClassicBackdrop(): BackdropArt {
-  const card = bitmapToCanvas(paintCard(CARD.width, CARD.height));
-  const craterFrames = Array.from({ length: CRATER_FRAMES }, (_, frame) => bitmapToCanvas(paintCrater(frame)));
+  const card = bitmapToCanvas(() => paintCard(CARD.width, CARD.height));
+  const craterFrames = Array.from({ length: CRATER_FRAMES }, (_, frame) => bitmapToCanvas(() => paintCrater(frame)));
   return {
     drawBehind(gfx: Gfx, frame: TitleFrame): void {
       const { time, impact, screen } = frame;

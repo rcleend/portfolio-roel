@@ -7,7 +7,9 @@ import { BAR_STATES, barStates, barX, buildTrace } from './series';
 
 // The default lockup paints into canvases; without a DOM these take the pixels and keep none.
 beforeAll(() => {
-  vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => nullContext() }) });
+  vi.stubGlobal('document', {
+    createElement: () => ({ width: 0, height: 0, getContext: () => nullContext(), addEventListener: () => {} }),
+  });
 });
 
 afterAll(() => {

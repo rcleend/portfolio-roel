@@ -1,5 +1,4 @@
 import type { BitmapFont } from '@/engine/gfx/BitmapFont';
-import { context2d } from '@/engine/gfx/canvas';
 import { Gfx } from '@/engine/gfx/Gfx';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { bitmapToCanvas } from '../../../../art/logos/raster/toCanvas';
@@ -44,14 +43,18 @@ export function paintScreen(
   width: number,
   height: number,
 ): Screen {
-  const glass = new Map(boosts.map((boost) => [boost, bitmapToCanvas(paintGlass(levels, width, height, boost))]));
-  const frame = bitmapToCanvas(paintFrame(width, height));
-  const gfx = new Gfx(context2d(frame), width, height);
-  const label: TextStyle = { font, fill: LABEL };
-  gfx.text('LEENDERS CORP · Q4 1996', READOUT.x, READOUT.y, label);
-  gfx.text('0%', CHART.left - 4, tickRow(0) - 3, label, { align: 'right' });
-  gfx.text('LIVE', 11, TICKER.textY, { font, fill: TAPE.figure });
-  gfx.fillRect(TICKER.tagWidth - 3, TICKER.top + 1, 1, height - TICKER.top - 1, AXIS);
+  const glass = new Map(boosts.map((boost) => [boost, bitmapToCanvas(() => paintGlass(levels, width, height, boost))]));
+  const frame = bitmapToCanvas(
+    () => paintFrame(width, height),
+    (ctx) => {
+      const gfx = new Gfx(ctx, width, height);
+      const label: TextStyle = { font, fill: LABEL };
+      gfx.text('LEENDERS CORP · Q4 1996', READOUT.x, READOUT.y, label);
+      gfx.text('0%', CHART.left - 4, tickRow(0) - 3, label, { align: 'right' });
+      gfx.text('LIVE', 11, TICKER.textY, { font, fill: TAPE.figure });
+      gfx.fillRect(TICKER.tagWidth - 3, TICKER.top + 1, 1, height - TICKER.top - 1, AXIS);
+    },
+  );
   return { glass, frame, font };
 }
 
