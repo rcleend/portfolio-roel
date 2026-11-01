@@ -147,9 +147,10 @@ export class LevelScene implements GameScene<LevelParams> {
     this.#device = controlDevice(this.#device, input.lastDevice, this.#services.settings.touchControls);
 
     const phase = this.#phase;
+    // The strip's keys answer the mouse only in play; out of it they still let go and follow the real keys.
+    const strip = this.#hints.update(input, this.#device, phase.kind === 'play' && this.#time >= HINTS.from);
     switch (phase.kind) {
       case 'play': {
-        const strip = this.#hints.update(input, this.#device, this.#time >= HINTS.from);
         if (input.wasPressed('pause') || strip.pressed.has('pause')) {
           this.#pause();
           return;

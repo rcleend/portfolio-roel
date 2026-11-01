@@ -84,7 +84,7 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
           className="tv__screen"
           role="application"
           aria-roledescription="arcade game"
-          aria-label="Roel Leenders' portfolio as an arcade game. Use the arrow keys to move, Z or Space to jump and confirm, X to attack. The same content is in the résumé after this game."
+          aria-label="Roel Leenders' portfolio as an arcade game. Use the arrow keys to move, Z or Space to jump and confirm, X to attack; with a mouse, click to attack and double-click the floor to walk there. The same content is in the résumé after this game."
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the screen is the game's keyboard focus target.
           tabIndex={0}
           onFocus={() => surface.setInputEnabled(true)}
@@ -133,7 +133,8 @@ export function FlatHost({ surface, powered, insets, events }: HostProps) {
         </div>
       </div>
       <p className="flat-host__hint">
-        Click the screen to play · Arrows move · Z / Space jump · X attack · Enter start
+        Click the screen to play · Arrows move · Z / Space jump · X attack · Enter start · Or click to attack and
+        double-click the floor to walk
       </p>
     </section>
   );

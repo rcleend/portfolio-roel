@@ -14,6 +14,8 @@ export const DOUBLE_CLICK_SECONDS = 0.3;
 const DOUBLE_CLICK_SLOP = 6;
 /** How long a click's attack waits for the hero to be able to strike (a cooldown, a knock), seconds. */
 const ATTACK_PATIENCE = 0.5;
+/** A click on a floor whose window ran out this long ago (the level was out of play: a card) is forgotten, seconds. */
+const STALE = 0.1;
 /** Closer than this to the hero, a point is neither left nor right of them: the way they face decides, px. */
 const DEAD_CENTRE = 3;
 
@@ -75,11 +77,13 @@ export class MousePlay {
     const worldX = pointer.x + view.x;
     const worldY = pointer.y + view.y;
     const last = this.#last;
-    // A click on a floor that no second click followed was a single click after all.
+    // A click on a floor that no second click followed was a single click after all: an attack, unless it waited
+    // out a card, which would make it a surprise.
     if (last?.waiting && time - last.at > DOUBLE_CLICK_SECONDS) {
       this.#last = null;
-      this.#attack(world, last.worldX, time);
-      if (this.#press === 'waiting') this.#press = 'attack';
+      const fresh = time - last.at <= DOUBLE_CLICK_SECONDS + STALE;
+      if (fresh) this.#attack(world, last.worldX, time);
+      if (this.#press === 'waiting') this.#press = fresh ? 'attack' : 'spent';
     }
     if (over && pointer.pressed) this.#click(world, { x: pointer.x, y: pointer.y, worldX, worldY, at: time });
     if (!pointer.down) this.#press = null;
