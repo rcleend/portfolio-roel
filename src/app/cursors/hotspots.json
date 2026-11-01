@@ -15,28 +15,16 @@
     "x": 2,
     "y": 2
   },
-  "walk-right": {
-    "x": 16,
-    "y": 22
-  },
-  "walk-left": {
+  "walk": {
     "x": 14,
-    "y": 22
+    "y": 11
   },
-  "jump-right": {
-    "x": 16,
-    "y": 30
-  },
-  "jump-left": {
+  "jump": {
     "x": 14,
-    "y": 30
+    "y": 21
   },
-  "attack-right": {
-    "x": 30,
-    "y": 12
-  },
-  "attack-left": {
-    "x": 0,
-    "y": 12
+  "attack": {
+    "x": 15,
+    "y": 15
   }
 }

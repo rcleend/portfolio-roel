@@ -8,11 +8,11 @@ describe('the game cursor on the flat host', () => {
     showGameCursor(screen, 'hand');
     expect(screen.dataset.cursor).toBe('play');
     expect(screen.style.cursor).toBe('var(--room-cursor-play, pointer)');
-    showGameCursor(screen, 'jump-left');
-    expect(screen.dataset.cursor).toBe('jump-left');
-    expect(screen.style.cursor).toBe('var(--room-cursor-jump-left, pointer)');
-    showGameCursor(screen, 'attack-right');
-    expect(screen.style.cursor).toBe('var(--room-cursor-attack-right, crosshair)');
+    showGameCursor(screen, 'jump');
+    expect(screen.dataset.cursor).toBe('jump');
+    expect(screen.style.cursor).toBe('var(--room-cursor-jump, pointer)');
+    showGameCursor(screen, 'attack');
+    expect(screen.style.cursor).toBe('var(--room-cursor-attack, crosshair)');
   });
 
   it('tells a finger and a pen from a mouse', () => {

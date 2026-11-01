@@ -3,69 +3,77 @@ import { pixels } from '@/engine/gfx/PixelArt';
 /**
  * The cursors over a level's play (docs/ART-DIRECTION.md › The room's UI › Cursors), drawn in the glove hand's hand
  * (`cursor.ts`): its palette (`HAND_PALETTE`: black outline, white, light-grey shading, grey details) at its pixel
- * scale. Each faces right; scripts/build-cursors.ts mirrors it for the left. Only the page draws them, as the
- * `cursor` property (`walk-right.png`, …); the game never loads them.
+ * scale. Only the page draws them, as the `cursor` property (`walk.png`, …, scripts/build-cursors.ts); the game never
+ * loads them.
  */
 export interface PlayCursorArt {
   readonly rows: readonly string[];
-  /** The point that clicks, in sprite pixels: the top-left corner of this pixel. */
+  /** The point that clicks, in sprite pixels from the top-left corner: a half lands in the middle of a pixel. */
   readonly hotspot: { readonly x: number; readonly y: number };
 }
 
-/** A white high-top sneaker stepping the hero's way, the point at the middle of its sole: a double click walks there. */
+/**
+ * A pair of footprints walking up and to the right, a sole and a heel each: a double click walks there. The point is
+ * the middle of the pair.
+ */
 const WALK = pixels(`
-  ...oooo.........
-  ..owwwwo........
-  ..owsswo........
-  ..owwwwooo......
-  ..owwwdwdwoo....
-  ..owwwwdwdwwo...
-  .oowwwwwwwwwwoo.
-  .owwwwwwwwwwwwwo
-  .oswwwwwwwwwwwwo
-  .owssssssssssswo
-  .odddddddddddddo
-  ..ooooooooooooo.
+  .....oo.......
+  ....owwo......
+  ...owwwo......
+  ...owwso...oo.
+  .oo.oso...owwo
+  owwo.o...owwwo
+  owso.....owwso
+  .oo....oo.oso.
+  ......owwo.o..
+  ......owso....
+  .......oo.....
 `);
 
-/** The sneaker with an arrow up over its toe: a double click gets there, jumping on the way. */
+/** The same footprints under a chunky arrow up: a double click gets there, jumping on the way. */
 const JUMP = pixels(`
-  ............o...
-  ...........owo..
-  ..........owwwo.
-  .........owwwwwo
-  ...oooo..ooowooo
-  ..owwwwo...owo..
-  ..owsswo...owo..
-  ..owwwwooo.ooo..
-  ..owwwdwdwoo....
-  ..owwwwdwdwwo...
-  .oowwwwwwwwwwoo.
-  .owwwwwwwwwwwwwo
-  .oswwwwwwwwwwwwo
-  .owssssssssssswo
-  .odddddddddddddo
-  ..ooooooooooooo.
+  ...........o...
+  ..........owo..
+  .........owwwo.
+  ........owwwwwo
+  ........ooowooo
+  .....oo...owo..
+  ....owwo..ooo..
+  ...owwwo.......
+  ...owwso...oo..
+  .oo.oso...owwo.
+  owwo.o...owwwo.
+  owso.....owwso.
+  .oo....oo.oso..
+  ......owwo.o...
+  ......owso.....
+  .......oo......
 `);
 
-/** The glove made a fist, punching with three speed lines behind it, the point on its knuckles: a click attacks. */
+/**
+ * A target's reticle: a ring, four ticks pointing in and a dot in the middle, the point exactly there; symmetric, so it
+ * needs no side. A click attacks, the hero turning towards it.
+ */
 const ATTACK = pixels(`
-  ......ooooooo...
-  .....owwwwwwwo..
-  ....owwwwwwwwwo.
-  ....owwwwoooooo.
-  oo.owwwwwwwwwwwo
-  ...osowwwwwdddwo
-  ooooswwwwwwwwwwo
-  ...osowwwwwdddwo
-  oo.oswwwwwwwwwso
-  ...oossswwwdddso
-  ....oosssssssso.
-  ......ooooooooo.
+  .....ooooo.....
+  ...oowwwwwoo...
+  ..owwoowoowwo..
+  .owo..owo..owo.
+  .owo...o...owo.
+  owo.........owo
+  owoo...o...oowo
+  owwwo.owo.owwwo
+  owoo...o...oowo
+  owo.........owo
+  .owo...o...owo.
+  .owo..owo..owo.
+  ..owwoowoowwo..
+  ...oowwwwwoo...
+  .....ooooo.....
 `);
 
 export const PLAY_CURSORS = {
-  walk: { rows: WALK, hotspot: { x: 8, y: 11 } },
-  jump: { rows: JUMP, hotspot: { x: 8, y: 15 } },
-  attack: { rows: ATTACK, hotspot: { x: 15, y: 6 } },
+  walk: { rows: WALK, hotspot: { x: 7, y: 5.5 } },
+  jump: { rows: JUMP, hotspot: { x: 7, y: 10.5 } },
+  attack: { rows: ATTACK, hotspot: { x: 7.5, y: 7.5 } },
 } as const satisfies Readonly<Record<string, PlayCursorArt>>;

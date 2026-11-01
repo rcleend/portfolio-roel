@@ -72,7 +72,7 @@ async function waitForMousePlay(page: Page): Promise<void> {
       await hover(page, 300, SKY);
       return (await probe(page)).cursor;
     })
-    .toMatch(/^attack-/);
+    .toBe('attack');
 }
 
 /** Steps until `done` holds of the level (at most `frames`). */
@@ -154,7 +154,7 @@ test('a double click walks there, jumping by itself onto the cable car, off it a
   const fired = level.fired;
   // The cable car's roof (columns 72–77 at home, its walkable top at y 157): a jump to board it.
   await hover(page, 1200 - level.view.x, 160);
-  expect((await probe(page)).cursor).toBe('jump-right');
+  expect((await probe(page)).cursor).toBe('jump');
   await doubleClick(page, 1200 - level.view.x, 160);
   let airborne = false;
   level = await stepUntil(page, (now) => {
@@ -174,7 +174,7 @@ test('a double click walks there, jumping by itself onto the cable car, off it a
   // The girder over the next street (columns 100–104, its top at y 152): a jump from under it.
   level = await walkUntilInView(page, 1680);
   await hover(page, 1640 - level.view.x, 155);
-  expect((await probe(page)).cursor).toBe('jump-right');
+  expect((await probe(page)).cursor).toBe('jump');
   await doubleClick(page, 1640 - level.view.x, 155);
   level = await stepUntil(page, (now) => !now.walking, 600);
   expect(level.player.feet).toBe(152);
@@ -194,7 +194,7 @@ test('a double click on a "?" block goes and head-butts it', async ({ page }) =>
   if (!block) throw new Error('no block at column 103');
   const highlights = level.highlights;
   await hover(page, block.x - level.view.x, block.y);
-  expect((await probe(page)).cursor).toBe('jump-right');
+  expect((await probe(page)).cursor).toBe('jump');
   await doubleClick(page, block.x - level.view.x, block.y);
   level = await stepUntil(page, (now) => now.highlights > highlights, 600);
   expect(level.highlights).toBe(highlights + 1);
@@ -247,7 +247,7 @@ test("the strip's keys are buttons: pointing lights one, pressing it presses its
   expect(errors).toEqual([]);
 });
 
-test('the cursor says what a click would do there: walk, jump or attack, and which way', async ({ page }) => {
+test('the cursor says what a click would do there: walk, jump or attack', async ({ page }) => {
   await openLevel(page, { levelId: 'luna', startAt: 0 });
   await waitForMousePlay(page);
   const screen = page.locator('.tv__screen');
@@ -256,11 +256,11 @@ test('the cursor says what a click would do there: walk, jump or attack, and whi
   const level = await probe(page);
   const hero = heroOnScreen(level);
   const expectations: [number, number, keyof typeof hotspots][] = [
-    [hero + 40, GROUND, 'walk-right'],
-    [hero - 40, GROUND, 'walk-left'],
-    [1200 - level.view.x, 160, 'jump-right'],
-    [hero + 80, SKY, 'attack-right'],
-    [hero - 50, SKY, 'attack-left'],
+    [hero + 40, GROUND, 'walk'],
+    [hero - 40, GROUND, 'walk'],
+    [1200 - level.view.x, 160, 'jump'],
+    [hero + 80, SKY, 'attack'],
+    [hero - 50, SKY, 'attack'],
   ];
   for (const [x, y, name] of expectations) {
     await hover(page, x, y);
@@ -292,17 +292,17 @@ test("in the room, the stage wears the game's cursors over the TV's picture in a
     await page.mouse.move(px - 2, py - 2);
     await page.mouse.move(px, py);
   };
-  // The hero stands at x 56 of San Francisco's first street: the sky right of it is an attack that way.
+  // The hero stands at x 56 of San Francisco's first street: the sky is an attack, the street a walk.
   await expect
     .poll(async () => {
       await at(200, SKY);
       return canvas.getAttribute('data-cursor');
     })
-    .toBe('attack-right');
+    .toBe('attack');
   await at(150, GROUND);
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('walk-right');
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('walk');
   await at(20, SKY);
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('attack-left');
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('attack');
   await at(160, 232);
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
 });
@@ -373,11 +373,12 @@ async function nextGoal(page: Page, level: LevelProbe): Promise<{ x: number; y: 
     await hover(page, x, block.y - view.y);
     if ((await probe(page)).cursor.startsWith('jump')) return { x, y: block.y - view.y };
   }
-  for (let x = 312; x > 8; x -= 10) {
+  const hero = level.player.x - view.x;
+  for (let x = 312; x > hero + 4; x -= 10) {
     for (const y of [GROUND, 156, 180]) {
       await hover(page, x, y);
       const now = await probe(page);
-      if (/^(walk|jump)-right$/.test(now.cursor)) return { x, y };
+      if (now.cursor === 'walk' || now.cursor === 'jump') return { x, y };
     }
   }
   return null;

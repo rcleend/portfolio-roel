@@ -56,7 +56,7 @@ export class MousePlay {
     this.#nav = new Nav(kit);
   }
 
-  /** The cursor over the play, as of the last step: where a double click would walk or jump to, else the attack's way. */
+  /** The cursor over the play, as of the last step: where a double click would walk or jump to, else an attack. */
   get cursor(): GameCursor {
     return this.#cursor;
   }
@@ -173,8 +173,6 @@ export class MousePlay {
 
   #cursorAt(world: World, worldX: number, worldY: number): GameCursor {
     const target = walkTargetAt(this.#nav, world, worldX, worldY);
-    const way = (x: number): 'left' | 'right' => (this.#side(world, x) < 0 ? 'left' : 'right');
-    if (!target) return `attack-${way(worldX)}`;
-    return target.route.jumps ? `jump-${way(target.x)}` : `walk-${way(target.x)}`;
+    return target ? (target.route.jumps ? 'jump' : 'walk') : 'attack';
   }
 }

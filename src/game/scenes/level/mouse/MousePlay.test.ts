@@ -158,7 +158,7 @@ describe('MousePlay', () => {
     expect(play.cursor).toBe('hand');
   });
 
-  it('names the cursor for what a click or double click would do, and which way', () => {
+  it('names the cursor for what a click or double click would do there', () => {
     const { world, play, mouse, step, screenX } = setup();
     const hero = screenX(world.player.centerX);
     const at = (x: number, y: number) => {
@@ -166,15 +166,15 @@ describe('MousePlay', () => {
       step(1);
       return play.cursor;
     };
-    expect(at(hero + 80, SKY_Y)).toBe('attack-right');
-    expect(at(hero - 30, SKY_Y)).toBe('attack-left');
-    expect(at(hero + 80, FLOOR_Y)).toBe('walk-right');
-    expect(at(hero - 30, FLOOR_Y)).toBe('walk-left');
+    expect(at(hero + 80, SKY_Y)).toBe('attack');
+    expect(at(hero - 30, SKY_Y)).toBe('attack');
+    expect(at(hero + 80, FLOOR_Y)).toBe('walk');
+    expect(at(hero - 30, FLOOR_Y)).toBe('walk');
     // Luna's first "?" block: a jump to head-butt it.
     const block = world.blocks[0];
     if (!block) throw new Error('no block');
     world.player.respawn(block.rect.x - 100, GROUND_Y, world.time);
     step(30);
-    expect(at(screenX(block.rect.x + 8), block.rect.y + 8)).toBe('jump-right');
+    expect(at(screenX(block.rect.x + 8), block.rect.y + 8)).toBe('jump');
   });
 });

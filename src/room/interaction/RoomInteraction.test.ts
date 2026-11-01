@@ -384,7 +384,7 @@ describe('room target picking', () => {
     const material = new MeshBasicMaterial();
     const tv = new Mesh(geometry, material);
     tv.updateMatrixWorld();
-    let game: 'play' | 'walk-right' | 'attack-left' = 'play';
+    let game: 'play' | 'walk' | 'attack' = 'play';
     interaction.register({
       id: 'tv',
       object: tv,
@@ -401,16 +401,16 @@ describe('room target picking', () => {
     canvas.dispatchEvent(new PointerEvent('pointermove', at));
     expect(canvas.dataset.cursor).toBe('play');
     const hovers = onHover.mock.calls.length;
-    game = 'walk-right';
+    game = 'walk';
     interaction.redrawCursor();
-    expect(canvas.dataset.cursor).toBe('walk-right');
+    expect(canvas.dataset.cursor).toBe('walk');
     // Drawn as the page's own, else a pointer; an attack's stock cursor is a crosshair.
-    expect(canvas.style.cursor).toBe('var(--room-cursor-walk-right, pointer)');
+    expect(canvas.style.cursor).toBe('var(--room-cursor-walk, pointer)');
     vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
     canvas.dispatchEvent(new PointerEvent('pointerdown', at));
-    game = 'attack-left';
+    game = 'attack';
     interaction.redrawCursor();
-    expect(canvas.style.cursor).toBe('var(--room-cursor-attack-left, crosshair)');
+    expect(canvas.style.cursor).toBe('var(--room-cursor-attack, crosshair)');
     // A redraw is not a new hover: the spotlight hears nothing of it.
     expect(onHover.mock.calls.length).toBe(hovers);
     interaction.dispose();

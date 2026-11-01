@@ -6,8 +6,7 @@ import type { GameCursor } from '@/engine/core/GameSurface';
  * `--room-cursor-<name>` when the page defines it, else as the stock cursor beside it: `idle` (default, nothing to do
  * or using the thing itself), `enter` (zoom-in, a prop to fly to), `leave` (zoom-out, back to the room), `press`
  * (pointer, a part to press), `play` (default, the game's picture under a playing TV) and, over a level's play, the
- * game's own: `walk-left`/`-right` and `jump-left`/`-right` (pointer, where a double click walks or jumps to) and
- * `attack-left`/`-right` (crosshair, the way a click attacks).
+ * game's own: `walk` and `jump` (pointer, where a double click walks or jumps to) and `attack` (crosshair).
  */
 export type RoomCursor = 'idle' | 'enter' | 'leave' | 'press' | 'play' | Exclude<GameCursor, 'hand'>;
 

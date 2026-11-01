@@ -124,12 +124,12 @@ describe('Director', () => {
   it("shows the active scene's cursor, and the game's hand mid-transition when nothing can be clicked", () => {
     const pointing = new RecordingScene<void>('pointing', []);
     const director = new Director<{ a: void; b: void }>({
-      a: () => Object.assign(new RecordingScene<void>('a', []), { cursor: () => 'attack-right' as const }),
+      a: () => Object.assign(new RecordingScene<void>('a', []), { cursor: () => 'attack' as const }),
       b: () => pointing,
     });
     expect(director.cursor()).toBe('hand');
     director.goTo('a');
-    expect(director.cursor()).toBe('attack-right');
+    expect(director.cursor()).toBe('attack');
     director.goTo('b', undefined, frames(2, 2));
     expect(director.cursor()).toBe('hand');
     for (let i = 0; i < 4; i++) director.update(stepWith());

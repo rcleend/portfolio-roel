@@ -122,13 +122,13 @@ describe('Game', () => {
     game.onCursorChange((next) => heard.push(next));
     game.step();
     expect(game.cursor).toBe('hand');
-    cursor = 'walk-right';
+    cursor = 'walk';
     expect(game.cursor).toBe('hand');
     game.step();
     game.step();
-    expect(game.cursor).toBe('walk-right');
-    cursor = 'attack-left';
+    expect(game.cursor).toBe('walk');
+    cursor = 'attack';
     game.step();
-    expect(heard).toEqual(['walk-right', 'attack-left']);
+    expect(heard).toEqual(['walk', 'attack']);
   });
 });

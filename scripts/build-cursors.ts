@@ -1,7 +1,7 @@
 /**
  * The room's cursors (docs/ART-DIRECTION.md › The room's UI): rasterises the drawn ones
  * (src/app/cursors/source/*.svg), the game's pixel hand (src/game/ui/cursor.ts) and its play
- * cursors (src/game/ui/playCursors.ts, each facing right and mirrored for the left) to the
+ * cursors (src/game/ui/playCursors.ts) to the
  * PNGs the `cursor` property points at, 1x and 2x, and writes every hotspot, in 1x CSS px,
  * to src/app/cursors/hotspots.json.
  *
@@ -58,7 +58,7 @@ async function drawn(name: string): Promise<Cursor> {
 
 /**
  * A cursor drawn in the game's pixels in the hand's palette, scaled nearest-neighbour by whole numbers so it stays
- * crisp, its hotspot the top-left corner of the pixel `tip` names. The pointer over the game is the classic pixel
+ * crisp, its hotspot at `tip` in sprite pixels (the top-left corner of a pixel, or its middle for a half). The pointer over the game is the classic pixel
  * hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the left as a pointer does, its hotspot on the
  * fingertip, the point of the finger; over a level's play, the play cursors.
  */
@@ -88,16 +88,9 @@ async function pixelCursor(
   return { name, png: { '1x': one, '2x': two }, hotspot };
 }
 
-/** Each play cursor facing right as drawn, and mirrored for the left, its hotspot mirrored with it. */
+/** The play cursors, one each: the footprints, the footprints with their arrow, the reticle. */
 function playCursors(): Promise<Cursor>[] {
-  return Object.entries(PLAY_CURSORS).flatMap(([kind, { rows, hotspot }]) => {
-    const width = Math.max(...rows.map((row) => [...row].length));
-    const mirrored = rows.map((row) => [...row.padEnd(width, '.')].reverse().join(''));
-    return [
-      pixelCursor(`${kind}-right`, rows, hotspot),
-      pixelCursor(`${kind}-left`, mirrored, { x: width - 1 - hotspot.x, y: hotspot.y }),
-    ];
-  });
+  return Object.entries(PLAY_CURSORS).map(([kind, { rows, hotspot }]) => pixelCursor(kind, rows, hotspot));
 }
 
 async function main(): Promise<void> {
