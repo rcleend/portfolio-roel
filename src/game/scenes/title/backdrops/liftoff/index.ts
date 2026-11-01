@@ -1,5 +1,6 @@
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { lazy } from '../../../../art/logos/lazy';
+import type { Bitmap } from '../../../../art/logos/raster/Bitmap';
 import { bitmapToCanvas } from '../../../../art/logos/raster/toCanvas';
 import type { BackdropArt, TitleBackdrop, TitleFrame } from '../TitleBackdrop';
 import { drawBeacons } from './beacons';
@@ -64,15 +65,21 @@ function paintLiftoffBackdrop(): BackdropArt {
   const stars = layoutStars(clouds);
   const billow = layoutBillow();
   const plumePuffs = layoutPlume();
-  const backdrops = paintBackdrops(clouds).map((bitmap, level) => {
-    if (level <= STARS_UNTIL_LIGHT) paintFarStars(bitmap, stars);
-    return bitmapToCanvas(bitmap);
-  });
-  const skyline = bitmapToCanvas(paintSkyline());
-  const pad = bitmapToCanvas(paintLaunchPad());
-  const rocket = bitmapToCanvas(paintRocket());
-  const rocketSilhouette = bitmapToCanvas(paintRocket(true));
-  const atlas = bitmapToCanvas(paintPuffAtlas());
+  // Painted together (the sky's surfaces are shared): a level painted again after a GPU reset paints them all again.
+  let painted: Bitmap[] | null = paintBackdrops(clouds);
+  const backdrops = painted.map((_, level) =>
+    bitmapToCanvas(() => {
+      const bitmap = painted?.[level] ?? (paintBackdrops(clouds)[level] as Bitmap);
+      if (level <= STARS_UNTIL_LIGHT) paintFarStars(bitmap, stars);
+      return bitmap;
+    }),
+  );
+  painted = null;
+  const skyline = bitmapToCanvas(() => paintSkyline());
+  const pad = bitmapToCanvas(() => paintLaunchPad());
+  const rocket = bitmapToCanvas(() => paintRocket());
+  const rocketSilhouette = bitmapToCanvas(() => paintRocket(true));
+  const atlas = bitmapToCanvas(() => paintPuffAtlas());
   // Scratch for posing and collecting smoke: every frame overwrites it, so no frame depends on another.
   const pose: PuffPose = { x: 0, y: 0, radius: 0 };
   const plume = new SmokeMass(plumePuffs.length);

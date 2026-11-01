@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { ditherOn } from '@/engine/gfx/dither';
 import type { Gfx } from '@/engine/gfx/Gfx';
 
@@ -12,11 +12,12 @@ function ditherTile(level: number, color: string): HTMLCanvasElement {
   let tile = tiles.get(key);
   if (!tile) {
     tile = createCanvas(TILE, TILE);
-    const ctx = context2d(tile);
-    ctx.fillStyle = color;
-    for (let y = 0; y < TILE; y++) {
-      for (let x = 0; x < TILE; x++) if (ditherOn('bayer4', x, y, level / LEVELS)) ctx.fillRect(x, y, 1, 1);
-    }
+    paintCanvas(tile, (ctx) => {
+      ctx.fillStyle = color;
+      for (let y = 0; y < TILE; y++) {
+        for (let x = 0; x < TILE; x++) if (ditherOn('bayer4', x, y, level / LEVELS)) ctx.fillRect(x, y, 1, 1);
+      }
+    });
     tiles.set(key, tile);
   }
   return tile;

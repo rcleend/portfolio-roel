@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { context2d, createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { drawText, type TextStyle } from '@/engine/gfx/TextStyle';
 
@@ -33,22 +33,23 @@ export class InkStamp {
     const color = typeof style.fill === 'string' ? style.fill : (style.fill[0] ?? '#e2352d');
     const text = { font: style.font, fill: color };
     const size = { w: style.font.measure(label) + PADDING * 2 + 2, h: style.font.cellHeight + PADDING * 2 };
-    const ink = createCanvas(size.w, size.h);
-    const inkCtx = context2d(ink);
-    inkCtx.fillStyle = color;
-    strokeRect(inkCtx, 0, 0, size.w, size.h);
-    strokeRect(inkCtx, 2, 2, size.w - 4, size.h - 4);
-    // Only the frame is worn: knocking pixels out of 8 px lettering would make it illegible.
-    wear(inkCtx, size.w, size.h);
-    drawText(inkCtx, text, label, PADDING + 1, PADDING, {});
-
     this.#canvas = createCanvas(size.w, size.h);
-    const ctx = context2d(this.#canvas);
-    if (options.paper) {
-      ctx.fillStyle = options.paper;
-      ctx.fillRect(1, 1, size.w - 2, size.h - 2);
-    }
-    ctx.drawImage(ink, 0, 0);
+    paintCanvas(this.#canvas, (ctx) => {
+      // The worn ink on a scratch canvas, laid over the paper.
+      const ink = createCanvas(size.w, size.h);
+      const inkCtx = context2d(ink);
+      inkCtx.fillStyle = color;
+      strokeRect(inkCtx, 0, 0, size.w, size.h);
+      strokeRect(inkCtx, 2, 2, size.w - 4, size.h - 4);
+      // Only the frame is worn: knocking pixels out of 8 px lettering would make it illegible.
+      wear(inkCtx, size.w, size.h);
+      drawText(inkCtx, text, label, PADDING + 1, PADDING, {});
+      if (options.paper) {
+        ctx.fillStyle = options.paper;
+        ctx.fillRect(1, 1, size.w - 2, size.h - 2);
+      }
+      ctx.drawImage(ink, 0, 0);
+    });
   }
 
   get width(): number {

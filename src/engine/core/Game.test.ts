@@ -20,8 +20,9 @@ function setup() {
   canvas.width = 320;
   canvas.height = 240;
   const input = new InputManager<'a'>({ a: { keys: ['KeyA'] } }, { keyboard: null });
-  const game = new Game({ canvas, input, root, context: nullContext(), scheduler, visibility: document });
-  return { game, steps, scheduler, renders: () => renders };
+  const context = nullContext();
+  const game = new Game({ canvas, input, root, context, scheduler, visibility: document });
+  return { game, steps, scheduler, canvas, context, renders: () => renders };
 }
 
 describe('Game', () => {
@@ -130,5 +131,36 @@ describe('Game', () => {
     cursor = 'attack';
     game.step();
     expect(heard).toEqual(['walk', 'attack']);
+  });
+
+  // A GPU process reset (a laptop's sleep, a display change) gives the canvas back blank: a paused game drew nothing
+  // more, and the TV showed a blank picture until it resumed.
+  it('draws its frame again, paused or not, when the canvas comes back from a lost context', () => {
+    const { game, scheduler, canvas, context, renders } = setup();
+    let notified = 0;
+    game.onFrame(() => notified++);
+    game.start();
+    game.pause();
+    scheduler.frame(0);
+    scheduler.frame(1000);
+    expect(renders()).toBe(0);
+    context.imageSmoothingEnabled = true;
+    canvas.dispatchEvent(new Event('contextrestored'));
+    scheduler.frame(1016);
+    expect(renders()).toBe(1);
+    expect(notified).toBe(1);
+    expect(context.imageSmoothingEnabled).toBe(false);
+    scheduler.frame(1032);
+    expect(renders()).toBe(1);
+  });
+
+  it('stops redrawing on lost contexts once stopped', () => {
+    const { game, scheduler, canvas, renders } = setup();
+    game.start();
+    game.stop();
+    canvas.dispatchEvent(new Event('contextrestored'));
+    game.start();
+    scheduler.frame(0);
+    expect(renders()).toBe(0);
   });
 });

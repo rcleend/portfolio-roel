@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { ditherOn } from '@/engine/gfx/dither';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { BARS } from './layout';
@@ -11,13 +11,14 @@ import { CYAN } from './palette';
  */
 export function paintBarBody(tallest: number): HTMLCanvasElement {
   const canvas = createCanvas(BARS.width, tallest);
-  const ctx = context2d(canvas);
-  for (let y = 0; y < tallest; y++) {
-    for (let x = 0; x < BARS.width; x++) {
-      ctx.fillStyle = x === 0 ? CYAN[2] : ditherOn('bayer2', x, y, 0.5) ? CYAN[1] : CYAN[0];
-      ctx.fillRect(x, y, 1, 1);
+  paintCanvas(canvas, (ctx) => {
+    for (let y = 0; y < tallest; y++) {
+      for (let x = 0; x < BARS.width; x++) {
+        ctx.fillStyle = x === 0 ? CYAN[2] : ditherOn('bayer2', x, y, 0.5) ? CYAN[1] : CYAN[0];
+        ctx.fillRect(x, y, 1, 1);
+      }
     }
-  }
+  });
   return canvas;
 }
 

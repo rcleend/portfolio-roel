@@ -33,8 +33,8 @@ export class LightTable {
 
   constructor() {
     const lines = sheetSteps(true);
-    const expose = (exposure: number) => bitmapToCanvas(exposeSheet(lines, exposure));
-    this.#unlit = bitmapToCanvas(exposeSheet(sheetSteps(false), UNLIT_EXPOSURE));
+    const expose = (exposure: number) => bitmapToCanvas(() => exposeSheet(lines, exposure));
+    this.#unlit = bitmapToCanvas(() => exposeSheet(sheetSteps(false), UNLIT_EXPOSURE));
     this.#lit = expose(0);
     const exposures = [...WARM_UP, ...SCAN_TRAIL.map(([, exposure]) => exposure)];
     this.#exposures = new Map(exposures.map((exposure) => [exposure, expose(exposure)] as const));

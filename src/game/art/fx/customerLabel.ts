@@ -1,6 +1,6 @@
 import { type CustomerLabels, customerLabels } from '@/content';
 import type { BitmapFont } from '@/engine/gfx/BitmapFont';
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import type { ImageDrawOptions } from '@/engine/gfx/Gfx';
 import { drawText, type TextStyle, textInk } from '@/engine/gfx/TextStyle';
 import type { Rect } from '@/engine/math/Rect';
@@ -87,7 +87,7 @@ function ink(font: BitmapFont, picture: LabelPicture): Rect {
 /** Letters a picture into a canvas cropped to its ink. */
 function paint(font: BitmapFont, picture: LabelPicture, box: Rect): LabelBitmap {
   const image = createCanvas(box.w, box.h);
-  drawText(context2d(image), labelStyle(font, picture), TEXT[picture], -box.x, -box.y);
+  paintCanvas(image, (ctx) => drawText(ctx, labelStyle(font, picture), TEXT[picture], -box.x, -box.y));
   return { width: box.w, height: box.h, image, draw: { source: { x: 0, y: 0, w: box.w, h: box.h } } };
 }
 

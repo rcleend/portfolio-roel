@@ -47,14 +47,23 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
 
   useEffect(() => {
     if (!display || !powered) return;
+    let stopRestored: (() => void) | null = null;
+    let gone = false;
     // Even with Save-Data: a few kB that keep the monitor from showing a dead tube.
-    return whenIdle(() => {
+    const cancel = whenIdle(() => {
       import('./still/pcStill').then((still) => {
         display.setStill(still.paintDesktop);
         // The glass shows the wallpaper's placeholder until the photograph has decoded.
         void still.wallpaperLoaded().then(() => display.invalidateStill());
+        // And a wallpaper a GPU reset wiped, until it has been painted again.
+        if (!gone) stopRestored = still.wallpaperRestored(() => display.invalidateStill());
       }, warn);
     });
+    return () => {
+      gone = true;
+      cancel();
+      stopRestored?.();
+    };
   }, [display, powered]);
 
   // Loaded, or failed for good.

@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { Viewpoint } from '../camera/cameraPath';
+import { onCanvasRestored } from '../stage/canvasRestore';
 import { type IdleTask, type IdleWork, QUIET } from '../stage/IdleWork';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { TextureUploader } from '../stage/sceneTextures';
@@ -73,11 +74,12 @@ export class Monitor {
   private light: RgbColor | null = null;
   /** The glass finish, shared with the live screen; painted in bands by `finishing`. */
   private readonly layer = document.createElement('canvas');
-  private readonly finishing = this.paintFinish();
+  private finishing = this.paintFinish();
   private readonly layerHeight: number;
   /** Drops the queued background paint, if one is queued. */
   private cancelPaint: (() => void) | null = null;
   private readonly cancelFinish: () => void;
+  private readonly stopRestore: () => void;
   private warnedSkew = false;
 
   constructor(private readonly options: MonitorOptions) {
@@ -100,6 +102,7 @@ export class Monitor {
       anisotropy: options.anisotropy,
       cpuCanvas: options.cpuCanvases,
       glassLayer: this.glassLayer,
+      restored: () => this.repaintStill(),
     });
     this.material.map = this.still.texture;
     glass.material = this.material;
@@ -118,6 +121,13 @@ export class Monitor {
     });
     // Room work that needs no app code: done while the TV is still dark, before anything plays.
     this.cancelFinish = options.background.add(this.finishAhead());
+    // A GPU reset gives the finish back blank: the live screen's overlay shows it, and the still is composed with it.
+    this.stopRestore = onCanvasRestored(this.layer, () => {
+      this.finishing = this.paintFinish();
+      this.glassLayer();
+      this.still.invalidate();
+      this.repaintStill();
+    });
   }
 
   /** Pixels of the still texture in use; 0 in standby. */
@@ -189,6 +199,7 @@ export class Monitor {
 
   dispose(): void {
     this.cancelFinish();
+    this.stopRestore();
     this.cancelPaint?.();
     const { glass } = this.options.model;
     glass.material = this.originalMaterial;
@@ -233,6 +244,15 @@ export class Monitor {
     yield QUIET;
     this.cancelPaint = null;
     if (this.still.paintIfDue(true)) this.sync();
+  }
+
+  /**
+   * After a GPU reset, composes the still again at once (a few ms, once): the glass shows it in every view, and the
+   * restored context would otherwise upload the blank canvas.
+   */
+  private repaintStill(): void {
+    if (this.still.paintIfDue(true)) this.sync();
+    this.options.loop.invalidate();
   }
 
   /** Shows what the still texture and the light override say, in one frame. */

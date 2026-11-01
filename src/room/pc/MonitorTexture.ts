@@ -6,6 +6,7 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
+import { onCanvasRestored } from '../stage/canvasRestore';
 import type { TextureUploader } from '../stage/sceneTextures';
 import { type GlassPlane, planeWidth, regionInPixels } from './glassPlane';
 import type { RgbColor, ScreenRect, StillPainter } from './PcMonitor';
@@ -27,6 +28,8 @@ export interface MonitorTextureOptions {
   readonly cpuCanvas: boolean;
   /** The glass finish, drawn over the whole texture after the still; called at the first paint. */
   readonly glassLayer: () => CanvasImageSource;
+  /** The canvas came back blank from a GPU reset: its picture is due again (see `paintIfDue`). */
+  readonly restored: () => void;
 }
 
 /**
@@ -53,6 +56,7 @@ export class MonitorTexture {
   private size: TextureSize = { width: 0, height: 0 };
   private placement: ScreenRect = NO_RECT;
   private warned = false;
+  private stopRestore: (() => void) | null = null;
 
   constructor(private readonly options: MonitorTextureOptions) {
     this.standby = solidTexture(parseHexColor(options.tubeColor));
@@ -168,6 +172,7 @@ export class MonitorTexture {
   }
 
   dispose(): void {
+    this.stopRestore?.();
     this.standby.dispose();
     this.still?.dispose();
     // Releases the backing store now rather than whenever the canvas is collected.
@@ -208,14 +213,26 @@ export class MonitorTexture {
   }
 
   private canvasOfSize(size: TextureSize): HTMLCanvasElement {
-    this.canvas ??= document.createElement('canvas');
-    const canvas = this.canvas;
+    const canvas = this.canvas ?? this.createCanvas();
     if (canvas.width !== size.width || canvas.height !== size.height) {
       canvas.width = size.width;
       canvas.height = size.height;
       // three allocates immutable texture storage: a new size needs a fresh allocation.
       this.still?.dispose();
     }
+    return canvas;
+  }
+
+  private createCanvas(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    this.canvas = canvas;
+    // A GPU reset wipes the composed picture, and the restored context uploads the blank canvas: the glass read black
+    // until the still next went stale. The picture is due again, as a painter's first is.
+    this.stopRestore = onCanvasRestored(canvas, () => {
+      if (this.paintedWith === null) return;
+      this.paintedWith = null;
+      this.options.restored();
+    });
     return canvas;
   }
 }

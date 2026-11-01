@@ -47,20 +47,34 @@ export function paintTraceArt(
   height: number,
   glassAt: (x: number, y: number) => number,
 ): TraceArt {
+  // Shared by the heats' first paints, then dropped: a heat a GPU reset wiped works its masks out again.
+  let shared: TraceMasks | null = traceMasks(trace, width, height);
+  const heats = HEATS.map((heat) =>
+    bitmapToCanvas(() => {
+      const { core, ring, bloom } = shared ?? traceMasks(trace, width, height);
+      const bitmap = new Bitmap(width, height);
+      bitmap.fill(bloom, (x, y) => (ditherOn('bayer2', x, y, 0.5) ? rampAt(BLOOM, glassAt(x, y)) : null));
+      bitmap.fill(ring, heat.ring);
+      bitmap.fill(core, heat.core);
+      return bitmap;
+    }),
+  );
+  shared = null;
+  return { trace, heats };
+}
+
+interface TraceMasks {
+  readonly core: Mask;
+  readonly ring: Mask;
+  readonly bloom: Mask;
+}
+
+function traceMasks(trace: Trace, width: number, height: number): TraceMasks {
   const bits = new Uint8Array(width * height);
   for (const { x, y } of trace.pixels) bits[y * width + x] = 1;
   const core = new Mask(width, height, bits);
   const ringed = core.dilate();
-  const ring = ringed.subtract(core);
-  const bloom = ringed.dilate().subtract(ringed);
-  const heats = HEATS.map((heat) => {
-    const bitmap = new Bitmap(width, height);
-    bitmap.fill(bloom, (x, y) => (ditherOn('bayer2', x, y, 0.5) ? rampAt(BLOOM, glassAt(x, y)) : null));
-    bitmap.fill(ring, heat.ring);
-    bitmap.fill(core, heat.core);
-    return bitmapToCanvas(bitmap);
-  });
-  return { trace, heats };
+  return { core, ring: ringed.subtract(core), bloom: ringed.dilate().subtract(ringed) };
 }
 
 /**

@@ -78,7 +78,7 @@ export function paintShelfLockup(recipe: ShelfLockupRecipe): LockupArt {
   const { bottom, trademark } = titleLogo();
   const top = raisedTitleLine(recipe.initial);
   const seat = seatName(top, BitmapFont.fromGlyphData(recipe.type), recipe.style, profile.name.toUpperCase());
-  const name = bitmapToCanvas(seat.kicker.image);
+  const name = bitmapToCanvas(() => seat.kicker.image);
   const { topLine, bottomLine } = recipe;
   const trademarkTop = bottomLine.y + bottom.height - trademark.height + 1;
 

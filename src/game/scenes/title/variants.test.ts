@@ -118,7 +118,13 @@ function callsOf(recording: Recording, draw: () => void): unknown[][] {
 beforeAll(() => {
   let created = 0;
   vi.stubGlobal('document', {
-    createElement: () => ({ id: created++, width: 0, height: 0, getContext: () => nullContext() }),
+    createElement: () => ({
+      id: created++,
+      width: 0,
+      height: 0,
+      getContext: () => nullContext(),
+      addEventListener: () => {},
+    }),
   });
 });
 

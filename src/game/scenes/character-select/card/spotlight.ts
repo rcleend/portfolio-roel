@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { ditherOn } from '@/engine/gfx/dither';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import { lerp } from '@/engine/math/scalar';
@@ -27,22 +27,23 @@ let cached: { readonly canvas: HTMLCanvasElement; readonly height: number } | nu
 function render(height: number): HTMLCanvasElement {
   const width = BOTTOM_HALF_WIDTH * 2 + FRINGE * 2;
   const canvas = createCanvas(width, height);
-  const ctx = context2d(canvas);
-  const centre = width / 2;
-  for (const band of BANDS) {
-    ctx.fillStyle = band.color;
-    for (let y = 0; y < height; y++) {
-      const half = Math.round(lerp(TOP_HALF_WIDTH, BOTTOM_HALF_WIDTH, y / (height - 1)) * band.scale);
-      ctx.fillRect(centre - half, y, half * 2, 1);
-      // The fringe thins out away from the band: 3/4, 1/2, 1/4 coverage.
-      for (let f = 1; f <= FRINGE; f++) {
-        const coverage = 1 - f / (FRINGE + 1);
-        for (const x of [centre - half - f, centre + half + f - 1]) {
-          if (ditherOn('bayer4', x, y, coverage)) ctx.fillRect(x, y, 1, 1);
+  paintCanvas(canvas, (ctx) => {
+    const centre = width / 2;
+    for (const band of BANDS) {
+      ctx.fillStyle = band.color;
+      for (let y = 0; y < height; y++) {
+        const half = Math.round(lerp(TOP_HALF_WIDTH, BOTTOM_HALF_WIDTH, y / (height - 1)) * band.scale);
+        ctx.fillRect(centre - half, y, half * 2, 1);
+        // The fringe thins out away from the band: 3/4, 1/2, 1/4 coverage.
+        for (let f = 1; f <= FRINGE; f++) {
+          const coverage = 1 - f / (FRINGE + 1);
+          for (const x of [centre - half - f, centre + half + f - 1]) {
+            if (ditherOn('bayer4', x, y, coverage)) ctx.fillRect(x, y, 1, 1);
+          }
         }
       }
     }
-  }
+  });
   return canvas;
 }
 

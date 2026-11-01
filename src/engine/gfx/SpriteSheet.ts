@@ -1,6 +1,6 @@
 import type { Vec2 } from '../math/Vec2';
 import type { PixelImage } from './canvas';
-import { context2d, createCanvas } from './canvas';
+import { createCanvas, paintCanvas } from './canvas';
 import { type AtlasFrame, compilePixelArt, type PixelArtSheet } from './PixelArt';
 import { type SpriteAnimationSpec, type SpriteSheetSpec, specImageSize } from './SpriteSheetSpec';
 
@@ -207,11 +207,12 @@ export class SpriteSheet<A extends string = string> {
     if (!atlas) {
       const source = this.#art.atlas;
       atlas = createCanvas(source.width, source.height);
-      const ctx = context2d(atlas);
-      ctx.drawImage(source, 0, 0);
-      ctx.globalCompositeOperation = 'source-in';
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, atlas.width, atlas.height);
+      paintCanvas(atlas, (ctx) => {
+        ctx.drawImage(source, 0, 0);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, source.width, source.height);
+      });
       this.#flashAtlases.set(color, atlas);
     }
     return atlas;

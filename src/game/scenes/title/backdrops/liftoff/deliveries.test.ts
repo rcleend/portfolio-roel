@@ -26,7 +26,9 @@ function pixelsOf(delivery: Delivery, logoBottom: number): { x: number; y: numbe
 
 // Lockups paint into canvases; without a DOM these take the pixels and keep none.
 beforeAll(() => {
-  vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => nullContext() }) });
+  vi.stubGlobal('document', {
+    createElement: () => ({ width: 0, height: 0, getContext: () => nullContext(), addEventListener: () => {} }),
+  });
 });
 
 afterAll(() => {

@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { parseHex } from '@/engine/gfx/color';
 import type { BandedGradient } from '@/engine/gfx/Gfx';
 import type { NineSlice } from '@/engine/gfx/NineSlice';
@@ -71,17 +71,18 @@ export function windowSlice(theme: WindowTheme): NineSlice {
     const colors: Record<string, string> = { o: theme.outline, L: theme.light, m: theme.mid, d: theme.dark };
     const size = FRAME_PATTERN.length;
     const canvas = createCanvas(size, size);
-    const ctx = context2d(canvas);
-    const image = ctx.createImageData(size, size);
-    FRAME_PATTERN.forEach((row, y) => {
-      [...row].forEach((key, x) => {
-        const hex = colors[key];
-        if (!hex) return;
-        const { r, g, b, a } = parseHex(hex);
-        image.data.set([r, g, b, a], (y * size + x) * 4);
+    paintCanvas(canvas, (ctx) => {
+      const image = ctx.createImageData(size, size);
+      FRAME_PATTERN.forEach((row, y) => {
+        [...row].forEach((key, x) => {
+          const hex = colors[key];
+          if (!hex) return;
+          const { r, g, b, a } = parseHex(hex);
+          image.data.set([r, g, b, a], (y * size + x) * 4);
+        });
       });
+      ctx.putImageData(image, 0, 0);
     });
-    ctx.putImageData(image, 0, 0);
     slice = {
       image: canvas,
       insets: { top: WINDOW_BORDER, right: WINDOW_BORDER, bottom: WINDOW_BORDER, left: WINDOW_BORDER },

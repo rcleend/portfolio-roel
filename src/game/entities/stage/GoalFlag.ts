@@ -1,4 +1,4 @@
-import { context2d, createCanvas } from '@/engine/gfx/canvas';
+import { createCanvas, paintCanvas } from '@/engine/gfx/canvas';
 import { Gfx } from '@/engine/gfx/Gfx';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import { easeOutCubic } from '@/engine/motion/easing';
@@ -62,20 +62,22 @@ export class GoalFlag {
   #clothCanvas(style: TextStyle): HTMLCanvasElement {
     if (this.#cloth) return this.#cloth;
     const canvas = createCanvas(CLOTH.w, CLOTH.h);
-    const gfx = new Gfx(context2d(canvas));
-    gfx.fillRect(0, 0, CLOTH.w, CLOTH.h, '#1a0a14');
-    gfx.fillRect(1, 1, CLOTH.w - 2, CLOTH.h - 2, { stops: ['#fff2a0', '#ffd23a', '#e8a020'], bands: 3 });
-    gfx.fillRect(1, CLOTH.h - 3, CLOTH.w - 2, 1, '#e43440');
-    gfx.fillRect(1, 2, CLOTH.w - 2, 1, '#e43440');
-    gfx.text(
-      this.#label,
-      CLOTH.w / 2,
-      6,
-      { ...style, fill: '#2a1408', outline: undefined, shadow: undefined },
-      {
-        align: 'center',
-      },
-    );
+    paintCanvas(canvas, (ctx) => {
+      const gfx = new Gfx(ctx);
+      gfx.fillRect(0, 0, CLOTH.w, CLOTH.h, '#1a0a14');
+      gfx.fillRect(1, 1, CLOTH.w - 2, CLOTH.h - 2, { stops: ['#fff2a0', '#ffd23a', '#e8a020'], bands: 3 });
+      gfx.fillRect(1, CLOTH.h - 3, CLOTH.w - 2, 1, '#e43440');
+      gfx.fillRect(1, 2, CLOTH.w - 2, 1, '#e43440');
+      gfx.text(
+        this.#label,
+        CLOTH.w / 2,
+        6,
+        { ...style, fill: '#2a1408', outline: undefined, shadow: undefined },
+        {
+          align: 'center',
+        },
+      );
+    });
     this.#cloth = canvas;
     return canvas;
   }
