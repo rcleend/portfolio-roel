@@ -10,6 +10,7 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
+import { onCanvasRestored } from '../../stage/canvasRestore';
 import type { LcdReadout } from '../RadioDeck';
 import { BLANK, type LcdFrame, lcdFrame, SEGMENT, sameFrame } from './lcdSegments';
 
@@ -70,6 +71,7 @@ export class Lcd {
   #level = 0;
   #stopFade: (() => void) | null = null;
   #lit = false;
+  readonly #stopRestore: () => void;
 
   constructor(
     parent: Object3D,
@@ -95,7 +97,12 @@ export class Lcd {
     // click that sends the camera to the radio; it stays hidden until the display lights.
     this.#shown = lcdFrame({ kind: 'no-disc' });
     this.#paint(this.#shown);
-    this.#canvas.addEventListener('contextrestored', this.#onContextRestored);
+    // A GPU process reset gives the canvas back blank, and the display read black until its readout next changed
+    // (never, at an empty radio): the readout is painted again, and the upload follows.
+    this.#stopRestore = onCanvasRestored(this.#canvas, () => {
+      this.#paint(this.#shown);
+      this.loop.invalidate();
+    });
   }
 
   /** Pixels on the GPU (with mips). */
@@ -124,7 +131,7 @@ export class Lcd {
   }
 
   dispose(): void {
-    this.#canvas.removeEventListener('contextrestored', this.#onContextRestored);
+    this.#stopRestore();
     this.#stopFade?.();
     this.mesh.removeFromParent();
     this.mesh.geometry.dispose();
@@ -132,16 +139,6 @@ export class Lcd {
     this.#texture.dispose();
     this.#canvas.width = this.#canvas.height = 0;
   }
-
-  /**
-   * A GPU process reset (a laptop's sleep, a display change) loses the canvas's context and gives it back blank, and the
-   * new WebGL context uploads that blank canvas: the display read black until its readout next changed (never, at an
-   * empty radio). The readout is painted again; the upload follows.
-   */
-  readonly #onContextRestored = (): void => {
-    this.#paint(this.#shown);
-    this.loop.invalidate();
-  };
 
   #warmUp(reducedMotion: boolean): void {
     this.#stopFade?.();

@@ -51,9 +51,15 @@ export function createPauseOsd(width: number, height: number): HTMLCanvasElement
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('2D canvas unavailable for the TV on-screen display');
+  if (!paintPauseOsd(canvas)) throw new Error('2D canvas unavailable for the TV on-screen display');
+  return canvas;
+}
 
+/** Draws the PAUSE indicator on a blank `canvas` (a new one, or one a GPU reset gave back blank); false without 2D. */
+export function paintPauseOsd(canvas: HTMLCanvasElement): boolean {
+  const context = canvas.getContext('2d');
+  if (!context) return false;
+  const { width, height } = canvas;
   const scale = Math.max(1, Math.round(height / 80));
   const { rects, width: textWidth } = layoutOsdText('| PAUSE', scale);
   const left = Math.round((width - textWidth) / 2);
@@ -64,5 +70,5 @@ export function createPauseOsd(width: number, height: number): HTMLCanvasElement
   };
   paint(OSD_SHADOW, scale, scale);
   paint(OSD_GREEN, 0, 0);
-  return canvas;
+  return true;
 }

@@ -79,11 +79,12 @@ function recordingScreen(): { readonly gfx: Gfx; take(): Draw[] } {
 beforeAll(() => {
   let created = 0;
   vi.stubGlobal('document', {
-    createElement: (): StubCanvas & { getContext(): CanvasRenderingContext2D } => ({
+    createElement: (): StubCanvas & { getContext(): CanvasRenderingContext2D; addEventListener(): void } => ({
       id: created++,
       width: 0,
       height: 0,
       getContext: () => nullContext(),
+      addEventListener: () => {},
     }),
   });
 });

@@ -45,6 +45,7 @@ function setup({ cpuCanvas = false } = {}) {
     .mockReturnValue(context as unknown as CanvasRenderingContext2D);
   const renderer = { initTexture: vi.fn() };
   const glassLayer = document.createElement('canvas');
+  const restored = vi.fn();
   const texture = new MonitorTexture({
     glass: GLASS,
     picture: PICTURE,
@@ -54,9 +55,10 @@ function setup({ cpuCanvas = false } = {}) {
     anisotropy: 4,
     cpuCanvas,
     glassLayer: () => glassLayer,
+    restored,
   });
   texture.setTarget(LARGE, PLACEMENT);
-  return { texture, renderer, context, getContext };
+  return { texture, renderer, context, getContext, restored };
 }
 
 describe('MonitorTexture', () => {
@@ -282,5 +284,33 @@ describe('MonitorTexture', () => {
     texture.setPainter(vi.fn<StillPainter>());
     texture.paintIfDue(false);
     expect(texture.texture.onUpdate).toBeNull();
+  });
+
+  // A GPU process reset (a laptop's sleep, a display change) wipes the composed canvas, and the restored WebGL context
+  // uploads it blank: the glass read black until the still next went stale.
+  it('makes its picture due again, and says so, when its canvas comes back from a lost context', () => {
+    const { texture, renderer, restored } = setup();
+    const painter = vi.fn<StillPainter>();
+    texture.setPainter(painter);
+    texture.paintIfDue(false);
+    expect(texture.due).toBe(false);
+    const canvas = (texture.texture as CanvasTexture).image as HTMLCanvasElement;
+    canvas.dispatchEvent(new Event('contextrestored'));
+    expect(restored).toHaveBeenCalledTimes(1);
+    expect(texture.due).toBe(true);
+    // Due even where an outdated picture is not (a flight elsewhere): the canvas holds none at all.
+    expect(texture.paintIfDue(false)).toBe(true);
+    expect(painter).toHaveBeenCalledTimes(2);
+    expect(renderer.initTexture).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops listening once disposed', () => {
+    const { texture, restored } = setup();
+    texture.setPainter(vi.fn<StillPainter>());
+    texture.paintIfDue(false);
+    const canvas = (texture.texture as CanvasTexture).image as HTMLCanvasElement;
+    texture.dispose();
+    canvas.dispatchEvent(new Event('contextrestored'));
+    expect(restored).not.toHaveBeenCalled();
   });
 });

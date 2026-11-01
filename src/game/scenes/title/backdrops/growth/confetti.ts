@@ -221,9 +221,13 @@ export interface ConfettiSheet {
 }
 
 export function paintConfettiSheet(): ConfettiSheet {
-  const sheet = new Bitmap(SPRITE * SHAPE_NAMES.length * SPIN_STEPS, SPRITE * FAMILY_NAMES.length * HEATS);
   const column = (shape: Shape, spin: number): number => (SHAPE_NAMES.indexOf(shape) * SPIN_STEPS + spin) * SPRITE;
   const row = (family: Family, heat: number): number => (FAMILY_NAMES.indexOf(family) * HEATS + heat) * SPRITE;
+  return { canvas: bitmapToCanvas(() => paintSheet(column, row)), column, row };
+}
+
+function paintSheet(column: ConfettiSheet['column'], row: ConfettiSheet['row']): Bitmap {
+  const sheet = new Bitmap(SPRITE * SHAPE_NAMES.length * SPIN_STEPS, SPRITE * FAMILY_NAMES.length * HEATS);
   for (const shape of SHAPE_NAMES) {
     SHAPES[shape].forEach((rows, spin) => {
       for (const family of FAMILY_NAMES) {
@@ -238,7 +242,7 @@ export function paintConfettiSheet(): ConfettiSheet {
       }
     });
   }
-  return { canvas: bitmapToCanvas(sheet), column, row };
+  return sheet;
 }
 
 /** Draws the burst `age` frames after the break. */

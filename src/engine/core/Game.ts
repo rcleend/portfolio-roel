@@ -1,4 +1,4 @@
-import { context2d } from '../gfx/canvas';
+import { context2d, onCanvasesRepainted, onCanvasRestored } from '../gfx/canvas';
 import { Gfx } from '../gfx/Gfx';
 import type { InputManager } from '../input/InputManager';
 import { FixedLoop, STEP_SECONDS } from './FixedLoop';
@@ -49,6 +49,9 @@ export class Game<A extends string> implements GameSurface {
   #lastTime: number | null = null;
   #paused = false;
   #hidden = false;
+  /** A lost context wiped the frame or the caches it is drawn from: the next animation frame renders, paused or not. */
+  #redrawDue = false;
+  #stopRestore: (() => void) | null = null;
 
   constructor(options: GameOptions<A>) {
     this.canvas = options.canvas;
@@ -87,6 +90,19 @@ export class Game<A extends string> implements GameSurface {
     this.#hidden = this.#visibility?.hidden ?? false;
     this.#lastTime = null;
     this.#handle = this.#scheduler.request(this.#tick);
+    // A GPU reset (a laptop's sleep, a display change) gives the canvas back blank with its context's state reset, and
+    // a paused game drew nothing more: the TV showed a blank picture until the game resumed.
+    const restored = onCanvasRestored(this.canvas, () => {
+      this.gfx.ctx.imageSmoothingEnabled = false;
+      this.#redrawDue = true;
+    });
+    const repainted = onCanvasesRepainted(() => {
+      this.#redrawDue = true;
+    });
+    this.#stopRestore = () => {
+      restored();
+      repainted();
+    };
   }
 
   /** Stops the loop and detaches listeners; the game can be started again. */
@@ -94,6 +110,8 @@ export class Game<A extends string> implements GameSurface {
     if (this.#handle !== null) this.#scheduler.cancel(this.#handle);
     this.#handle = null;
     this.#visibility?.removeEventListener('visibilitychange', this.#onVisibilityChange);
+    this.#stopRestore?.();
+    this.#stopRestore = null;
   }
 
   pause(): void {
@@ -136,11 +154,11 @@ export class Game<A extends string> implements GameSurface {
     this.#handle = this.#scheduler.request(this.#tick);
     const last = this.#lastTime;
     this.#lastTime = timeMs;
-    if (last === null || this.#paused || this.#hidden) return;
-    const steps = this.#loop.advance(timeMs - last);
-    if (steps === 0) return;
+    const redraw = this.#redrawDue;
+    this.#redrawDue = false;
+    const steps = last === null || this.#paused || this.#hidden ? 0 : this.#loop.advance(timeMs - last);
     for (let i = 0; i < steps; i++) this.#simulate();
-    this.render();
+    if (steps > 0 || redraw) this.render();
   };
 
   #simulate(): void {

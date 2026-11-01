@@ -33,6 +33,8 @@ export class DiscPrints {
   readonly #ids: readonly string[];
   readonly #pending: Pending[];
   readonly #painted = new Map<string, HTMLCanvasElement | null>();
+  /** Stops listening for a print's canvas coming back blank from a GPU reset, by album. */
+  readonly #stopRestore = new Map<string, () => void>();
   #allowed = false;
   #cancelIdle: (() => void) | null = null;
   #disposed = false;
@@ -54,16 +56,7 @@ export class DiscPrints {
   start(): void {
     const size = this.#deck.labelSize;
     this.#deck.setDiscs(this.#ids.map((id) => ({ id, label: null })));
-    for (const pending of this.#pending) {
-      const { album } = pending;
-      this.#host.loadArt(this.#fileUrl(album, album.disc ?? album.cover), size).then(
-        (image) => this.#arrived(pending, image),
-        (error: unknown) => {
-          console.warn(`The disc print of "${album.title}" could not load; it gets a plain one`, error);
-          this.#arrived(pending, null);
-        },
-      );
-    }
+    for (const pending of this.#pending) this.#load(pending, size);
   }
 
   /** Whether a print may be painted now; while false, painting waits. */
@@ -77,6 +70,33 @@ export class DiscPrints {
     this.#disposed = true;
     this.#unschedule();
     for (const pending of this.#pending) pending.image?.close();
+    for (const stop of this.#stopRestore.values()) stop();
+    this.#stopRestore.clear();
+  }
+
+  #load(pending: Pending, size: number): void {
+    const { album } = pending;
+    this.#host.loadArt(this.#fileUrl(album, album.disc ?? album.cover), size).then(
+      (image) => this.#arrived(pending, image),
+      (error: unknown) => {
+        console.warn(`The disc print of "${album.title}" could not load; it gets a plain one`, error);
+        this.#arrived(pending, null);
+      },
+    );
+  }
+
+  /**
+   * A GPU reset gives a print's canvas back blank, and the room's restored context uploads it as it is: a bare disc.
+   * The decoded art is closed once painted (a few MB for the shelf), so it is fetched (from the HTTP cache) and decoded
+   * again, and painted on a new canvas the room takes like any new print.
+   */
+  #restored(album: Album): void {
+    this.#stopRestore.get(album.id)?.();
+    this.#stopRestore.delete(album.id);
+    if (this.#disposed) return;
+    const pending: Pending = { album, image: undefined };
+    this.#pending.push(pending);
+    this.#load(pending, this.#deck.labelSize);
   }
 
   #arrived(pending: Pending, image: ImageBitmap | null): void {
@@ -118,6 +138,11 @@ export class DiscPrints {
     }
     image?.close();
     this.#painted.set(album.id, target?.canvas ?? null);
+    if (target) {
+      const restored = (): void => this.#restored(album);
+      target.canvas.addEventListener('contextrestored', restored);
+      this.#stopRestore.set(album.id, () => target.canvas.removeEventListener('contextrestored', restored));
+    }
     if (this.#pending.length === 0) this.#deliver();
   }
 

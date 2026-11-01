@@ -32,9 +32,9 @@ export interface TitleLogoLine extends Omit<LogoLine, 'image' | 'shine'> {
 export const titleLogo = lazy(() => {
   const { top, bottom } = buildTitleLogo(profile.headline);
   return {
-    top: uploadLine(top),
-    bottom: uploadLine(bottom),
-    trademark: bitmapToCanvas(paintTrademark(palette.cream, LOCKUP_INK)),
+    top: uploadLine(top, () => buildTitleLogo(profile.headline).top),
+    bottom: uploadLine(bottom, () => buildTitleLogo(profile.headline).bottom),
+    trademark: bitmapToCanvas(() => paintTrademark(palette.cream, LOCKUP_INK)),
   } as const;
 });
 
@@ -45,9 +45,28 @@ export const titleLogo = lazy(() => {
  * trademark from `titleLogo`.
  */
 export function raisedTitleLine(initial: InitialScale): TitleLogoLine {
-  return uploadLine(buildRaisedTopLine(profile.headline, initial));
+  return uploadLine(buildRaisedTopLine(profile.headline, initial), () => buildRaisedTopLine(profile.headline, initial));
 }
 
-function uploadLine(line: LogoLine): TitleLogoLine {
-  return { ...line, image: bitmapToCanvas(line.image), shine: bitmapToCanvas(line.shine) };
+/**
+ * The line's bitmaps uploaded to canvases. Only their first paint uses them: a canvas a GPU reset wiped is painted
+ * from the line built again (`rebuild`), so the bitmaps are not kept for it.
+ */
+function uploadLine(line: LogoLine, rebuild: () => LogoLine): TitleLogoLine {
+  const { image, shine, ...rest } = line;
+  return {
+    ...rest,
+    image: bitmapToCanvas(once(image, () => rebuild().image)),
+    shine: bitmapToCanvas(once(shine, () => rebuild().shine)),
+  };
+}
+
+/** `value` the first time, `later()` after: a first paint's bitmap, then the paint that makes it again. */
+function once<T>(value: T, later: () => T): () => T {
+  let first: T | null = value;
+  return () => {
+    const next = first ?? later();
+    first = null;
+    return next;
+  };
 }

@@ -7,7 +7,7 @@ import { printOnPaper } from '../title/backdrops/blueprint/sheet';
 export const SURVEY = { cell: 16, offset: 8 } as const;
 
 const backdrop = lazy(() =>
-  bitmapToCanvas(printOnPaper((x, y) => x % SURVEY.cell === SURVEY.offset || y % SURVEY.cell === SURVEY.offset)),
+  bitmapToCanvas(() => printOnPaper((x, y) => x % SURVEY.cell === SURVEY.offset || y % SURVEY.cell === SURVEY.offset)),
 );
 
 /**

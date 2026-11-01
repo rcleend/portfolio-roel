@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { layoutOsdText } from './osd';
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
+import { layoutOsdText, paintPauseOsd } from './osd';
 
 describe('layoutOsdText', () => {
   it('measures text in whole scaled pixels with one-pixel spacing', () => {
@@ -17,5 +18,26 @@ describe('layoutOsdText', () => {
 
   it('rejects characters the OSD font cannot draw', () => {
     expect(() => layoutOsdText('PLAY', 1)).toThrow(/no glyph/);
+  });
+});
+
+describe('paintPauseOsd', () => {
+  // What the TV paints again when a GPU reset gives its canvas back blank.
+  it('draws the indicator on the canvas it is given, shadow first', () => {
+    const fills: string[] = [];
+    const context = {
+      set fillStyle(color: string) {
+        fills.push(color);
+      },
+      fillRect: vi.fn(),
+    };
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 240;
+    vi.spyOn(canvas, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    expect(paintPauseOsd(canvas)).toBe(true);
+    expect(fills).toEqual(['#001a06', '#46ff6a']);
+    const { rects } = layoutOsdText('| PAUSE', 3);
+    expect(context.fillRect).toHaveBeenCalledTimes(rects.length * 2);
   });
 });
