@@ -8,8 +8,8 @@ export interface SoundToggleProps {
 }
 
 /**
- * The speaker in the top-right corner, in the room UI's white line style, named for what it does next: "unmute me"
- * while muted, "mute me" while the sound is on, the words written beside the speaker for mice (a touch screen shows the
+ * The speaker in the top-right corner, in the room UI's white line style, named for what it does next: "Unmute me"
+ * while muted, "Mute me" while the sound is on, the words written beside the speaker for mice (a touch screen shows the
  * speaker alone, its name for screen readers). A real button reachable with Tab; a mouse click does not take focus
  * from the game, so play continues with the keyboard right after. Turning the sound on sends the waves out again; muting swaps them for a cross; the speaker wobbles like
  * jelly either way, and the button squashes under the press and springs back, like the radio's play key.
@@ -40,7 +40,7 @@ export function SoundToggle({ muted, onToggle }: SoundToggleProps) {
         <path className="sound-toggle__cross" d="m16.4 9.8 4.4 4.4m0-4.4-4.4 4.4" />
       </svg>
       <span className="sound-toggle__label" aria-hidden="true">
-        {muted ? 'unmute me' : 'mute me'}
+        {label}
       </span>
     </button>
   );

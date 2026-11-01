@@ -287,11 +287,11 @@ test('the sound starts off on a first visit; the toggle is reachable by keyboard
   await expect(toggle).toBeFocused();
   // Named for what it does next, the words beside the speaker for a mouse.
   await expect(toggle).toHaveAccessibleName('Unmute me');
-  await expect(toggle).toHaveText('unmute me');
+  await expect(toggle).toHaveText('Unmute me');
   await expect(toggle.locator('.sound-toggle__label')).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(toggle).toHaveAccessibleName('Mute me');
-  await expect(toggle).toHaveText('mute me');
+  await expect(toggle).toHaveText('Mute me');
   const session = await page.evaluate(() => window.__arcade?.state().session);
   expect(session).toMatchObject({ muted: false });
 
