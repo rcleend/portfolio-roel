@@ -14,7 +14,7 @@ const TAKEOFF = 2.5;
 /** Slow enough to jump straight up from where the hero stands, px/s. */
 const SETTLED = 25;
 
-export type WalkStatus = 'walking' | 'arrived' | 'failed';
+export type WalkStatus = 'walking' | 'arrived' | 'failed' | 'stopped';
 
 /**
  * Plays a route with the moves a player has: it holds a direction, presses and holds jump, and lets go, one step
@@ -33,6 +33,8 @@ export class RouteWalker {
   #status: WalkStatus = 'walking';
   #replans = 0;
   #knocked = false;
+  /** Asked to stop: the jump under way, if any, lands first. */
+  #stopping = false;
   /** In the air between legs: the route is looked at again on landing. */
   #landing = false;
   #still = 0;
@@ -49,8 +51,27 @@ export class RouteWalker {
     return this.#status;
   }
 
+  /** Asked to stop, and finishing the jump under way before it does. */
+  get stopping(): boolean {
+    return this.#stopping;
+  }
+
+  /** Mid-jump on the way: stopping now would drop the hero wherever the jump is, a pit included. */
+  get inFlight(): boolean {
+    return this.#launched;
+  }
+
+  /**
+   * Stops the walk: at once on the ground, and in the air once the jump under way has landed where it was going, so
+   * a click mid-jump never leaves the hero to fall short into a pit.
+   */
+  stop(): void {
+    this.#stopping = true;
+  }
+
   /** What the hero does this step on the way to the goal; idle once there or given up. */
   intent(world: World, dt: number): PlayerIntent {
+    if (this.#status === 'walking' && this.#stopping && !this.#launched) this.#status = 'stopped';
     if (this.#status !== 'walking') return this.#idle;
     const { player } = world;
     if (player.isLocked(world.time)) {
@@ -80,10 +101,13 @@ export class RouteWalker {
         return this.#idle;
       }
       const result = this.#play(world, leg);
+      if (result !== 'next' && result !== 'replan') return result;
+      if (this.#stopping) {
+        this.#status = 'stopped';
+        return this.#idle;
+      }
       if (result === 'next') this.#next();
-      else if (result === 'replan') {
-        if (!this.#replan(world)) return this.#idle;
-      } else return result;
+      else if (!this.#replan(world)) return this.#idle;
     }
     return this.#idle;
   }

@@ -45,6 +45,8 @@ export class MousePlay {
   #last: Click | null = null;
   #press: Press | null = null;
   #walker: RouteWalker | null = null;
+  /** A walk asked for mid-jump: it sets off once the jump under way has landed. */
+  #next: WalkTarget | null = null;
   #strike: { readonly dir: -1 | 1; readonly until: number; readonly fired: number } | null = null;
   #cursor: GameCursor = 'hand';
 
@@ -57,8 +59,9 @@ export class MousePlay {
     return this.#cursor;
   }
 
+  /** A walk the visitor asked for is under way (or waits for the jump before it to land). */
   get walking(): boolean {
-    return this.#walker !== null;
+    return (this.#walker !== null && !this.#walker.stopping) || this.#next !== null;
   }
 
   /**
@@ -81,9 +84,13 @@ export class MousePlay {
     if (over && pointer.pressed) this.#click(world, { x: pointer.x, y: pointer.y, worldX, worldY, at: time });
     if (!pointer.down) this.#press = null;
 
-    const walker = this.#walker;
-    let intent = walker ? walker.intent(world, dt) : this.#nav.kit.IDLE_INTENT;
-    if (walker && walker.status !== 'walking') this.#walker = null;
+    let intent = this.#walker ? this.#walker.intent(world, dt) : this.#nav.kit.IDLE_INTENT;
+    if (this.#walker && this.#walker.status !== 'walking') {
+      this.#walker = null;
+      const next = this.#next;
+      this.#next = null;
+      if (next) this.#walker = new RouteWalker(this.#nav, next.goal, next.route);
+    }
     const strike = this.#strike;
     if (strike && (world.loadout.fired > strike.fired || time > strike.until)) this.#strike = null;
     if (this.#strike) intent = { ...intent, attackHeld: true, face: this.#strike.dir };
@@ -93,9 +100,10 @@ export class MousePlay {
     return intent;
   }
 
-  /** Stops a walk under way: a key, the touch pad or a key of the strip took over. */
+  /** Stops a walk under way, landing a jump first: a key, the touch pad or a key of the strip took over. */
   stopWalking(): void {
-    this.#walker = null;
+    this.#walker?.stop();
+    this.#next = null;
   }
 
   /** Forgets everything under way, as the level leaves play (a pause, a fall). */
@@ -103,6 +111,7 @@ export class MousePlay {
     this.#last = null;
     this.#press = null;
     this.#walker = null;
+    this.#next = null;
     this.#strike = null;
     this.#cursor = 'hand';
   }
@@ -136,13 +145,20 @@ export class MousePlay {
 
   /** Turns the hero towards `worldX` and fires one attack there, as soon as the hero can; a walk under way stops. */
   #attack(world: World, worldX: number, time: number): void {
-    this.#walker = null;
+    this.stopWalking();
     this.#strike = { dir: this.#side(world, worldX), until: time + ATTACK_PATIENCE, fired: world.loadout.fired };
   }
 
   #walk(target: WalkTarget): void {
-    this.#walker = new RouteWalker(this.#nav, target.goal, target.route);
     this.#strike = null;
+    if (this.#walker?.inFlight) {
+      // Mid-jump: land it first, then set off (the walk looks for its way again from where it lands).
+      this.#walker.stop();
+      this.#next = target;
+      return;
+    }
+    this.#walker = new RouteWalker(this.#nav, target.goal, target.route);
+    this.#next = null;
   }
 
   #side(world: World, worldX: number): -1 | 1 {

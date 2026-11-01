@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { InputManager } from '../input/InputManager';
 import { Game } from './Game';
+import type { GameCursor } from './GameSurface';
 import type { GameRoot, Step } from './Scene';
 import { ManualScheduler, nullContext } from './testing';
 
@@ -109,5 +110,25 @@ describe('Game', () => {
     game.stop();
     expect(game.running).toBe(false);
     expect(scheduler.pending).toBe(false);
+  });
+
+  it('reports the cursor the root asks for after each rendered frame, and tells listeners when it changes', () => {
+    const canvas = document.createElement('canvas');
+    let cursor: GameCursor = 'hand';
+    const root: GameRoot = { update: () => {}, render: () => {}, cursor: () => cursor };
+    const input = new InputManager<'a'>({ a: { keys: ['KeyA'] } }, { keyboard: null });
+    const game = new Game({ canvas, input, root, context: nullContext(), scheduler: new ManualScheduler() });
+    const heard: GameCursor[] = [];
+    game.onCursorChange((next) => heard.push(next));
+    game.step();
+    expect(game.cursor).toBe('hand');
+    cursor = 'walk-right';
+    expect(game.cursor).toBe('hand');
+    game.step();
+    game.step();
+    expect(game.cursor).toBe('walk-right');
+    cursor = 'attack-left';
+    game.step();
+    expect(heard).toEqual(['walk-right', 'attack-left']);
   });
 });

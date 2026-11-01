@@ -154,6 +154,18 @@ describe('InputManager', () => {
     expect(left.pointer).toMatchObject({ over: false, down: false, released: true });
   });
 
+  it('names the device behind the pointer: a mouse unless the host says a finger or a pen', () => {
+    const input = setup();
+    input.pointer.move(10, 10);
+    expect(input.poll().pointer.kind).toBe('mouse');
+    input.pointer.move(12, 10, 'touch');
+    input.pointer.down();
+    expect(input.poll().pointer).toMatchObject({ kind: 'touch', pressed: true });
+    input.pointer.up();
+    input.pointer.down('pen');
+    expect(input.poll().pointer.kind).toBe('pen');
+  });
+
   it('tells pointing from keys: the pointer on the screen until a key, a pad or a virtual button is pressed', () => {
     const input = setup();
     expect(input.poll().pointing).toBe(false);
