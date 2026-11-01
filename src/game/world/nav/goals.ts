@@ -1,6 +1,5 @@
-import { containsPoint } from '@/engine/math/Rect';
 import type { World } from '../World';
-import { HALF_BODY, ledgesOf } from './ledges';
+import type { Nav } from './Nav';
 import { type Goal, planRoute, type Route } from './route';
 
 /** How far above a floor's line a point still counts as on it, px: pointing at the floor, not at the air over it. */
@@ -23,10 +22,10 @@ export interface WalkTarget {
  * head-butt, a vehicle's roof to board, or a spot on a floor (the ground, a girder, a barrier's top), on foot or
  * with jumps. Null for the air, the pits, the customers above the floor, and anywhere out of reach.
  */
-export function walkTargetAt(world: World, x: number, y: number): WalkTarget | null {
-  const goal = goalAt(world, x, y);
+export function walkTargetAt(nav: Nav, world: World, x: number, y: number): WalkTarget | null {
+  const goal = goalAt(nav, world, x, y);
   if (!goal) return null;
-  const route = planRoute(world, goal);
+  const route = planRoute(nav, world, goal);
   if (!route) return null;
   const at =
     goal.kind === 'stand'
@@ -37,9 +36,10 @@ export function walkTargetAt(world: World, x: number, y: number): WalkTarget | n
   return { goal, route, x: at };
 }
 
-function goalAt(world: World, x: number, y: number): Goal | null {
+function goalAt(nav: Nav, world: World, x: number, y: number): Goal | null {
   for (const block of world.blocks) {
-    if (!block.used && containsPoint(block.rect, x, y)) return { kind: 'bump', block };
+    const r = block.rect;
+    if (!block.used && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return { kind: 'bump', block };
   }
   for (const mover of world.movers) {
     const roof = mover.rect;
@@ -48,12 +48,12 @@ function goalAt(world: World, x: number, y: number): Goal | null {
     if (onRoof) return world.player.standingOn === mover ? null : { kind: 'board', mover };
   }
   let best: Goal | null = null;
-  for (const ledge of ledgesOf(world)) {
+  for (const ledge of nav.ledges(world)) {
     if (ledge.kind === 'block' || x < ledge.x0 || x >= ledge.x1) continue;
     const depth = ledge.kind === 'ground' ? Number.POSITIVE_INFINITY : LEDGE_DEPTH;
     if (y < ledge.top - ABOVE_FLOOR || y >= ledge.top + depth) continue;
     if (best?.kind === 'stand' && best.ledge.top <= ledge.top) continue;
-    const at = Math.min(Math.max(x, ledge.x0 + HALF_BODY), ledge.x1 - HALF_BODY);
+    const at = Math.min(Math.max(x, ledge.x0 + nav.halfBody), ledge.x1 - nav.halfBody);
     best = { kind: 'stand', ledge, x: at };
   }
   return best;

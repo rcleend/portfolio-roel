@@ -5,9 +5,13 @@ import { IDLE_INTENT } from '../../entities/player/Player';
 import { STAGES } from '../../scenes/level/stages';
 import { TEST_PROPS } from '../testing';
 import { World } from '../World';
-import { type Ledge, ledgesOf } from './ledges';
+import { navKit } from './kit';
+import type { Ledge } from './ledges';
+import { Nav } from './Nav';
 import { RouteWalker, type WalkStatus } from './RouteWalker';
 import { type Goal, planRoute } from './route';
+
+const nav = new Nav(navKit);
 
 const DT = 1 / 60;
 
@@ -30,9 +34,9 @@ function quietWorld(levelId: LevelId): World {
 
 /** Walks to `goal` and reports how it ended; respawns like the level does after a fall. */
 function walk(world: World, goal: Goal, seconds = 30): WalkStatus | 'unplanned' | 'fell' {
-  const route = planRoute(world, goal);
+  const route = planRoute(nav, world, goal);
   if (!route) return 'unplanned';
-  const walker = new RouteWalker(goal, route);
+  const walker = new RouteWalker(nav, goal, route);
   for (let frame = 0; frame < seconds * 60 && walker.status === 'walking'; frame++) {
     world.step(walker.intent(world, DT), DT);
     if (world.drainEvents().some((event) => event.kind === 'playerDown')) return 'fell';
@@ -50,7 +54,8 @@ describe.each(['luna', 'scripe'] as const)('walking %s', (levelId) => {
   it('reaches every ledge before the arena from the one before it, left to right', () => {
     const world = quietWorld(levelId);
     settle(world);
-    const ledges = ledgesOf(world)
+    const ledges = nav
+      .ledges(world)
       .filter((ledge) => ledge.kind !== 'block' && ledge.x1 <= world.arenaX)
       .toSorted((a, b) => middle(a) - middle(b));
     const results = ledges.map((ledge) => {

@@ -1,8 +1,10 @@
 import type { GameCursor } from '@/engine/core/GameSurface';
 import type { InputSnapshot } from '@/engine/input/InputSnapshot';
-import { IDLE_INTENT, type PlayerIntent } from '../../../entities/player/Player';
+import type { PlayerIntent } from '../../../entities/player/Player';
 import type { Action } from '../../../input/bindings';
 import { type WalkTarget, walkTargetAt } from '../../../world/nav/goals';
+import type { NavKit } from '../../../world/nav/kit';
+import { Nav } from '../../../world/nav/Nav';
 import { RouteWalker } from '../../../world/nav/RouteWalker';
 import type { World } from '../../../world/World';
 
@@ -36,13 +38,19 @@ type Press = 'attack' | 'waiting' | 'spent';
  * or board it. Clicks on a floor wait out the double click's window before they attack, so a double click never
  * fires; elsewhere they attack at once and a second click adds nothing. A new click stops a walk, a double click
  * sends it somewhere else, and the scene stops it for any key. Only a mouse plays: the touch pad is a finger's.
+ * It comes as its own chunk (`load.ts`), handed the game's movement as a kit (`world/nav/kit.ts`).
  */
 export class MousePlay {
+  readonly #nav: Nav;
   #last: Click | null = null;
   #press: Press | null = null;
   #walker: RouteWalker | null = null;
   #strike: { readonly dir: -1 | 1; readonly until: number; readonly fired: number } | null = null;
   #cursor: GameCursor = 'hand';
+
+  constructor(kit: NavKit) {
+    this.#nav = new Nav(kit);
+  }
 
   /** The cursor over the play, as of the last step: where a double click would walk or jump to, else the attack's way. */
   get cursor(): GameCursor {
@@ -74,7 +82,7 @@ export class MousePlay {
     if (!pointer.down) this.#press = null;
 
     const walker = this.#walker;
-    let intent = walker ? walker.intent(world, dt) : IDLE_INTENT;
+    let intent = walker ? walker.intent(world, dt) : this.#nav.kit.IDLE_INTENT;
     if (walker && walker.status !== 'walking') this.#walker = null;
     const strike = this.#strike;
     if (strike && (world.loadout.fired > strike.fired || time > strike.until)) this.#strike = null;
@@ -110,13 +118,13 @@ export class MousePlay {
       this.#last = null;
       this.#press = 'spent';
       const target =
-        walkTargetAt(world, click.worldX, click.worldY) ??
-        (last.waiting ? walkTargetAt(world, last.worldX, last.worldY) : null);
+        walkTargetAt(this.#nav, world, click.worldX, click.worldY) ??
+        (last.waiting ? walkTargetAt(this.#nav, world, last.worldX, last.worldY) : null);
       if (target) this.#walk(target);
       return;
     }
     if (last?.waiting) this.#attack(world, last.worldX, click.at);
-    const waiting = walkTargetAt(world, click.worldX, click.worldY) !== null;
+    const waiting = walkTargetAt(this.#nav, world, click.worldX, click.worldY) !== null;
     this.#last = { ...click, waiting };
     if (waiting) {
       this.#press = 'waiting';
@@ -133,7 +141,7 @@ export class MousePlay {
   }
 
   #walk(target: WalkTarget): void {
-    this.#walker = new RouteWalker(target.goal, target.route);
+    this.#walker = new RouteWalker(this.#nav, target.goal, target.route);
     this.#strike = null;
   }
 
@@ -144,7 +152,7 @@ export class MousePlay {
   }
 
   #cursorAt(world: World, worldX: number, worldY: number): GameCursor {
-    const target = walkTargetAt(world, worldX, worldY);
+    const target = walkTargetAt(this.#nav, world, worldX, worldY);
     const way = (x: number): 'left' | 'right' => (this.#side(world, x) < 0 ? 'left' : 'right');
     if (!target) return `attack-${way(worldX)}`;
     return target.route.jumps ? `jump-${way(target.x)}` : `walk-${way(target.x)}`;

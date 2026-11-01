@@ -214,6 +214,8 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     keepsFocus: () => overlay.live,
     onHover: (interactable) => options.onHover((interactable && HOVER_TARGETS[interactable.id]) ?? null),
   });
+  // The game's play moves under a resting mouse: what a click there would do changes without the pointer moving.
+  const stopCursor = surface.onCursorChange(() => interaction.redrawCursor());
   const unregister = [
     interaction.register(tvInput),
     interaction.register(new PcInteractable('pc', pcModel.root, views)),
@@ -315,6 +317,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       stopUploads();
       stopResize();
       stopRender();
+      stopCursor();
       for (const stop of unregister) stop();
       interaction.dispose();
       lava.dispose();

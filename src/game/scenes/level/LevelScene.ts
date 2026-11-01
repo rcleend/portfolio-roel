@@ -16,13 +16,15 @@ import { type ControlDevice, controlDevice } from '../../ui/hud/keyLabels';
 import { createLevelTextStyles, type LevelTextStyles } from '../../ui/hud/styles';
 import { Autopilot } from '../../world/autopilot';
 import type { WorldEvent } from '../../world/events';
+import { navKit } from '../../world/nav/kit';
 import { World } from '../../world/World';
 import type { GameScene, GameStep, LevelParams } from '../params';
 import { type LevelDevOptions, readDevOptions } from './devOptions';
 import { Finale } from './finale';
 import { HudTracker } from './HudTracker';
 import { combineIntents, intentFromInput, isIdle, walkTowards } from './intent';
-import { MousePlay } from './mouse/MousePlay';
+import { mousePlayModule, preloadMousePlay } from './mouse/load';
+import type { MousePlay } from './mouse/MousePlay';
 import { drawEscalationBanner, drawSlamBanner } from './overlays/banners';
 import { ControlHints, controlHintsTop, HINTS, type HintPresses } from './overlays/controlHints';
 import { HighlightCard } from './overlays/HighlightCard';
@@ -79,7 +81,8 @@ export class LevelScene implements GameScene<LevelParams> {
   readonly #hud = new HudTracker();
   readonly #stage = new StageRenderer();
   readonly #hints: ControlHints;
-  readonly #mouse = new MousePlay();
+  /** Mouse play, once its chunk has arrived (`mouse/load.ts`). */
+  #mouse: MousePlay | null = null;
   /** Seconds the strip's JUMP still holds jump for. */
   #stripJump = 0;
   /** Where the HUD along the bottom begins, refilled every frame so drawing the stage allocates nothing for it. */
@@ -116,6 +119,7 @@ export class LevelScene implements GameScene<LevelParams> {
     this.#device = controlDevice(null, null, this.#services.settings.touchControls);
     if (this.#dev.skipIntro) this.#time = SKIPPED_INTRO;
     if (this.#dev.autopilot) this.#autopilot = new Autopilot();
+    preloadMousePlay();
     this.#world = world;
     services.audio.playMusic(stage.theme.music);
   }
@@ -140,11 +144,12 @@ export class LevelScene implements GameScene<LevelParams> {
           return;
         }
         const keys = intentFromInput(input);
+        const mouse = this.#mousePlay();
         // A key, the touch pad or a key of the strip takes over from a walk the mouse asked for.
-        if (!isIdle(keys) || strip.pressed.size > 0) this.#mouse.stopWalking();
+        if (!isIdle(keys) || strip.pressed.size > 0) mouse?.stopWalking();
         const inPlay = !this.#hints.covers(input.pointer.y, this.#time);
-        const mouse = this.#mouse.update(input, world, this.#time, dt, inPlay);
-        world.step(this.#autopilot?.intent(world) ?? combineIntents(keys, this.#stripIntent(strip, dt), mouse), dt);
+        const aim = mouse?.update(input, world, this.#time, dt, inPlay) ?? IDLE_INTENT;
+        world.step(this.#autopilot?.intent(world) ?? combineIntents(keys, this.#stripIntent(strip, dt), aim), dt);
         this.#handle(world.drainEvents());
         break;
       }
@@ -182,7 +187,7 @@ export class LevelScene implements GameScene<LevelParams> {
 
   /** Over the play, what a click would do there (docs/ROOM.md › Cursors); anywhere else, and in menus, the hand. */
   cursor(): GameCursor {
-    return this.#phase.kind === 'play' ? this.#mouse.cursor : 'hand';
+    return this.#phase.kind === 'play' ? (this.#mouse?.cursor ?? 'hand') : 'hand';
   }
 
   render(gfx: Gfx): void {
@@ -224,7 +229,7 @@ export class LevelScene implements GameScene<LevelParams> {
           break;
         case 'playerDown':
           this.#phase = { kind: 'down', since: this.#time, heal: event.reason === 'hearts' };
-          this.#mouse.reset();
+          this.#mouse?.reset();
           break;
         case 'arenaEntered':
           this.#arenaAt = this.#time;
@@ -235,7 +240,7 @@ export class LevelScene implements GameScene<LevelParams> {
           break;
         case 'bossRetained':
           this.#phase = { kind: 'retained', since: this.#time };
-          this.#mouse.reset();
+          this.#mouse?.reset();
           audio.stopMusic({ fadeOutMs: 400 });
           audio.playSfx('flash');
           break;
@@ -268,7 +273,7 @@ export class LevelScene implements GameScene<LevelParams> {
     if (!params) return;
     const { audio, text, looks } = this.#services;
     audio.playSfx('pause');
-    this.#mouse.reset();
+    this.#mouse?.reset();
     const menu = new PauseMenu(
       { text, levelText: this.#levelText, looks, cursor: this.#cursor, device: this.#device },
       params.characterId,
@@ -369,6 +374,15 @@ export class LevelScene implements GameScene<LevelParams> {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /** Mouse play, made the first step its chunk is in. */
+  #mousePlay(): MousePlay | null {
+    if (!this.#mouse) {
+      const module = mousePlayModule();
+      if (module) this.#mouse = new module.MousePlay(navKit);
+    }
+    return this.#mouse;
+  }
 
   /** The strip's keys as the hero's intent: held for as long as the mouse holds them, JUMP for a full jump. */
   #stripIntent(strip: HintPresses, dt: number): PlayerIntent {

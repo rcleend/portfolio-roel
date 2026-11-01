@@ -1,12 +1,15 @@
 import type { Object3D, Raycaster, Vector2, Vector3 } from 'three';
+import type { GameCursor } from '@/engine/core/GameSurface';
 
 /**
  * What a click would do where the pointer is, as the stage's cursor. The stage draws each as the CSS custom property
  * `--room-cursor-<name>` when the page defines it, else as the stock cursor beside it: `idle` (default, nothing to do
  * or using the thing itself), `enter` (zoom-in, a prop to fly to), `leave` (zoom-out, back to the room), `press`
- * (pointer, a part to press) and `play` (default, the game's picture under a playing TV).
+ * (pointer, a part to press), `play` (default, the game's picture under a playing TV) and, over a level's play, the
+ * game's own: `walk-left`/`-right` and `jump-left`/`-right` (pointer, where a double click walks or jumps to) and
+ * `attack-left`/`-right` (crosshair, the way a click attacks).
  */
-export type RoomCursor = 'idle' | 'enter' | 'leave' | 'press' | 'play';
+export type RoomCursor = 'idle' | 'enter' | 'leave' | 'press' | 'play' | Exclude<GameCursor, 'hand'>;
 
 /** Where a pointer ray met an interactable. */
 export interface InteractionHit {
@@ -46,7 +49,7 @@ export interface Interactable {
    */
   pointerDown?(hit: InteractionHit, pointerType: string): boolean;
   /** Pointer moved over it, or (while it owns a gesture) anywhere; `null` when off-surface. */
-  pointerMove?(hit: InteractionHit | null): void;
+  pointerMove?(hit: InteractionHit | null, pointerType?: string): void;
   /** The gesture it owns ended: released, or `cancelled` by the browser (nothing is done for a cancelled one). */
   pointerUp?(cancelled: boolean): void;
   pointerLeave?(): void;

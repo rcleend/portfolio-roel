@@ -47,13 +47,17 @@ interface Registered {
 }
 
 /** The stock cursor for each of the stage's, where the page draws none of its own. */
-const STOCK_CURSORS: Readonly<Record<RoomCursor, string>> = {
+const STOCK_CURSORS: Readonly<Record<string, string>> = {
   idle: 'default',
   enter: 'zoom-in',
   leave: 'zoom-out',
   press: 'pointer',
   play: 'default',
 };
+
+/** The game's: a walk or a jump points where a double click goes, an attack aims. */
+const stockCursor = (cursor: RoomCursor): string =>
+  STOCK_CURSORS[cursor] ?? (cursor.startsWith('attack') ? 'crosshair' : 'pointer');
 
 /** Further than this (CSS px) between press and release, and it was a drag, not a click. */
 const CLICK_SLOP = 6;
@@ -115,6 +119,22 @@ export class RoomInteraction {
     };
   }
 
+  /**
+   * Redraws the cursor where a mouse rests, without touching the hover: what a click would do there changed under it
+   * (the game's play moving beneath a still pointer). A gesture's owner keeps drawing it.
+   */
+  redrawCursor(): void {
+    if (!this.over) return;
+    const owner = this.gesture?.owner;
+    const hit = owner ? this.hitOn(owner) : null;
+    if (owner) {
+      if (hit) this.setCursor(owner.cursor(hit));
+      return;
+    }
+    const found = this.pick();
+    this.setCursor(found ? found.interactable.cursor(found.hit) : this.options.idleCursor());
+  }
+
   /** Re-evaluates the hover and the cursor, e.g. after the view changed under a resting pointer. */
   refreshCursor(): void {
     const found = this.over ? this.pick() : null;
@@ -138,13 +158,13 @@ export class RoomInteraction {
     this.options.onPointer?.(event.pointerType === 'mouse' ? this.ndc.clone() : null);
     const owner = this.gesture?.pointerId === event.pointerId ? this.gesture.owner : null;
     if (owner) {
-      owner.pointerMove?.(this.hitOn(owner));
+      owner.pointerMove?.(this.hitOn(owner), event.pointerType);
       return;
     }
     const found = this.pick();
     this.setHovered(found?.interactable ?? null);
     if (found) {
-      found.interactable.pointerMove?.(found.hit);
+      found.interactable.pointerMove?.(found.hit, event.pointerType);
       this.setCursor(found.interactable.cursor(found.hit));
     } else {
       this.setCursor(this.options.idleCursor());
@@ -200,7 +220,7 @@ export class RoomInteraction {
     const { canvas } = this.options;
     if (canvas.dataset.cursor === cursor) return;
     canvas.dataset.cursor = cursor;
-    canvas.style.cursor = `var(--room-cursor-${cursor}, ${STOCK_CURSORS[cursor]})`;
+    canvas.style.cursor = `var(--room-cursor-${cursor}, ${stockCursor(cursor)})`;
   }
 
   /** `again`: say it even when it is the prop already hovered, for a listener that may have let go of it. */

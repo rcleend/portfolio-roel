@@ -1,10 +1,10 @@
-import { type MoveScale, NORMAL_SCALE } from '../../entities/player/movement';
-import { PLAYER_SIZE } from '../../entities/player/size';
+import type { MoveScale } from '../../entities/player/movement';
 import type { HighlightBlock } from '../../entities/stage/HighlightBlock';
 import type { MovingPlatform } from '../../entities/stage/MovingPlatform';
 import type { World } from '../World';
-import { dropReach, headReach, maxRise, reach } from './jumps';
-import { HALF_BODY, type Ledge, ledgesOf, ledgeUnder } from './ledges';
+import { dockOf } from './dock';
+import type { Ledge } from './ledges';
+import type { Nav } from './Nav';
 
 /** Where a walk ends: standing on a ledge, aboard a vehicle, or having head-butted a "?" block. */
 export type Goal =
@@ -59,10 +59,10 @@ interface Node {
  * walking, full jumps, walking off an edge, and riding a vehicle from its home across to the far end of its track.
  * Null when there is none (or the hero is in the air). Closed rate-limit gates are not in the way: a walk waits.
  */
-export function planRoute(world: World, goal: Goal): Route | null {
-  const start = startOf(world);
+export function planRoute(nav: Nav, world: World, goal: Goal): Route | null {
+  const start = startOf(nav, world);
   if (!start) return null;
-  const ledges = ledgesOf(world);
+  const ledges = nav.ledges(world);
   const open: Node[] = [{ ...start, cost: 0, legs: [], done: false }];
   const seen = new Set<string>();
   for (let expansions = 0; open.length > 0 && expansions < MAX_EXPANSIONS; expansions++) {
@@ -72,7 +72,7 @@ export function planRoute(world: World, goal: Goal): Route | null {
     const key = `${ledges.indexOf(node.place as Ledge)}:${world.movers.indexOf(node.place as MovingPlatform)}:${Math.round(node.x / 8)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    open.push(...successors(world, ledges, node, goal));
+    open.push(...successors(nav, world, ledges, node, goal));
   }
   return null;
 }
@@ -89,26 +89,26 @@ export function sameLedge(a: Ledge, b: Ledge): boolean {
 }
 
 function isMover(place: Place): place is MovingPlatform {
-  return 'docked' in place;
+  return 'track' in place;
 }
 
 /** The hero's place: the vehicle or ledge underfoot, or in the air the one below that the feet will come down on. */
-function startOf(world: World): { readonly place: Place; readonly x: number } | null {
+function startOf(nav: Nav, world: World): { readonly place: Place; readonly x: number } | null {
   const { player } = world;
   const x = player.centerX;
   const airborne = !player.grounded;
-  const ledge = ledgeUnder(ledgesOf(world), x, player.feet, airborne);
+  const ledge = nav.ledgeUnder(world, x, player.feet, airborne);
   const mover = world.movers.find((candidate) => {
     if (!airborne) return candidate === player.standingOn;
     const roof = candidate.rect;
-    const over = x > roof.x - HALF_BODY && x < roof.x + roof.w + HALF_BODY;
+    const over = x > roof.x - nav.halfBody && x < roof.x + roof.w + nav.halfBody;
     return over && roof.y >= player.feet - 1 && (!ledge || roof.y < ledge.top);
   });
   if (mover) return { place: mover, x };
   return ledge ? { place: ledge, x } : null;
 }
 
-function* successors(world: World, ledges: readonly Ledge[], node: Node, goal: Goal): Generator<Node> {
+function* successors(nav: Nav, world: World, ledges: readonly Ledge[], node: Node, goal: Goal): Generator<Node> {
   const { place, x, cost, legs } = node;
   const step = (to: Place, at: number, more: number, ...added: Leg[]): Node => ({
     place: to,
@@ -120,27 +120,27 @@ function* successors(world: World, ledges: readonly Ledge[], node: Node, goal: G
   const finish = (more: number, ...added: Leg[]): Node => ({ ...step(place, x, more, ...added), done: true });
 
   if (isMover(place)) {
-    yield* aboard(world, ledges, place, x, goal, step, finish);
+    yield* aboard(nav, world, ledges, place, x, goal, step, finish);
     return;
   }
   if (goal.kind === 'stand' && sameLedge(goal.ledge, place)) {
-    const at = Math.min(Math.max(goal.x, place.x0 + HALF_BODY), place.x1 - HALF_BODY);
+    const at = Math.min(Math.max(goal.x, place.x0 + nav.halfBody), place.x1 - nav.halfBody);
     yield finish(Math.abs(at - x), { kind: 'walk', x: at });
   }
   if (goal.kind === 'bump') {
-    const at = bumpFrom(place, goal.block);
+    const at = bumpFrom(nav, place, goal.block);
     if (at !== null) yield finish(Math.abs(at - x) + COST.jump, { kind: 'bump', block: goal.block, x: at });
   }
   for (const to of ledges) {
     if (to === place || to.kind === 'block') continue;
-    for (const hop of hops(world, place, x, to)) yield step(to, hop.land, hop.cost, hop.leg);
+    for (const hop of hops(nav, world, place, x, to)) yield step(to, hop.land, hop.cost, hop.leg);
   }
   for (const mover of world.movers) {
-    const roof = mover.roofAt('home');
+    const roof = dockOf(mover).home;
     const at = roof.x + roof.w / 2;
     const rise = place.top - roof.y;
     const under = at > place.x0 + 2 && at < place.x1 - 2;
-    if (under && rise > 0 && rise <= maxRise(scaleAt(world, at, place.top))) {
+    if (under && rise > 0 && rise <= nav.jumps.maxRise(scaleAt(nav, world, at, place.top))) {
       yield step(mover, at, Math.abs(at - x) + COST.board, { kind: 'board', mover, at });
     }
   }
@@ -151,6 +151,7 @@ type Finish = (more: number, ...added: Leg[]) => Node;
 
 /** Aboard a vehicle the hero rides it to the far end of its track (head-butting a block on the way), then steps off. */
 function* aboard(
+  nav: Nav,
   world: World,
   ledges: readonly Ledge[],
   mover: MovingPlatform,
@@ -160,8 +161,9 @@ function* aboard(
   finish: Finish,
 ): Generator<Node> {
   const aboardNow = world.player.standingOn === mover || !world.player.grounded;
-  const now = aboardNow && mover.docked !== 'home' ? mover.rect : mover.roofAt('home');
-  const away = mover.roofAt('away');
+  const dock = dockOf(mover);
+  const now = aboardNow && dock.at !== 'home' ? mover.rect : dock.home;
+  const { away } = dock;
   const travel = away.x - now.x;
   if (goal.kind === 'board' && goal.mover === mover) yield finish(0);
   if (goal.kind === 'bump') {
@@ -169,16 +171,16 @@ function* aboard(
     const centre = bx + w / 2;
     const passes = centre >= x - 2 && centre <= x + travel + 2;
     const rise = away.y - (y + h);
-    if (passes && rise > 0 && rise <= headReach(PLAYER_SIZE.h)) {
+    if (passes && rise > 0 && rise <= nav.jumps.headReach(nav.kit.PLAYER_SIZE.h)) {
       yield finish(travel + COST.jump, { kind: 'ride', mover, bump: goal.block });
     }
   }
   for (const dir of [-1, 1] as const) {
     const edge = dir > 0 ? away.x + away.w : away.x;
-    const land = edge + dir * (HALF_BODY + LANDING);
+    const land = edge + dir * (nav.halfBody + LANDING);
     for (const to of ledges) {
       if (to.kind === 'block' || to.top <= away.y || land <= to.x0 + 2 || land >= to.x1 - 2) continue;
-      if (LANDING > dropReach(to.top - away.y)) continue;
+      if (LANDING > nav.jumps.dropReach(to.top - away.y)) continue;
       yield step(
         to,
         land,
@@ -200,22 +202,23 @@ interface Hop {
  * The moves from ledge `from`, standing at `x`, onto ledge `to`: a jump from under it (the raised ledges are all
  * one-way) or from beside it, walking off an edge onto it, or a jump across a gap to it.
  */
-function* hops(world: World, from: Ledge, x: number, to: Ledge): Generator<Hop> {
+function* hops(nav: Nav, world: World, from: Ledge, x: number, to: Ledge): Generator<Hop> {
+  const { jumps, halfBody } = nav;
   const rise = from.top - to.top;
   const standing = (at: number): boolean => at >= from.x0 + 2 && at <= from.x1 - 2;
   if (rise > 0) {
     const lo = Math.max(from.x0, to.x0) + LANDING;
     const hi = Math.min(from.x1, to.x1) - LANDING;
-    const under = lo <= hi ? clearTakeoff(world, from, to, Math.min(Math.max(x, lo), hi), lo, hi) : null;
-    const besides = [to.x0 - LANDING, to.x1 + LANDING, from.x0 + 2, from.x1 - 2, ...zoneEdges(world, from, to)];
+    const under = lo <= hi ? clearTakeoff(nav, world, from, to, Math.min(Math.max(x, lo), hi), lo, hi) : null;
+    const besides = [to.x0 - LANDING, to.x1 + LANDING, from.x0 + 2, from.x1 - 2, ...zoneEdges(nav, world, from, to)];
     for (const takeoff of under === null ? besides : [under, ...besides]) {
       if (!standing(takeoff)) continue;
-      const scale = scaleAt(world, takeoff, from.top);
-      if (rise > maxRise(scale)) continue;
+      const scale = scaleAt(nav, world, takeoff, from.top);
+      if (rise > jumps.maxRise(scale)) continue;
       const land = Math.min(Math.max(takeoff, to.x0 + LANDING), to.x1 - LANDING);
       // Coming down on the near end: the body overlaps it a few pixels before its centre is over it.
-      const nearest = Math.min(Math.max(takeoff, to.x0 + 2 - HALF_BODY), to.x1 - 2 + HALF_BODY);
-      if (Math.abs(nearest - takeoff) > reach(rise, scale)) continue;
+      const nearest = Math.min(Math.max(takeoff, to.x0 + 2 - halfBody), to.x1 - 2 + halfBody);
+      if (Math.abs(nearest - takeoff) > jumps.reach(rise, scale)) continue;
       const leg: Leg = { kind: 'jump', from: takeoff, to, land };
       yield { leg, land, cost: Math.abs(x - takeoff) + COST.jump + Math.abs(land - takeoff) };
     }
@@ -226,18 +229,18 @@ function* hops(world: World, from: Ledge, x: number, to: Ledge): Generator<Hop> 
     if (dir > 0 ? to.x1 <= edge + LANDING : to.x0 >= edge - LANDING) continue;
     const land =
       dir > 0
-        ? Math.max(to.x0 + LANDING, edge + HALF_BODY + LANDING)
-        : Math.min(to.x1 - LANDING, edge - HALF_BODY - LANDING);
+        ? Math.max(to.x0 + LANDING, edge + halfBody + LANDING)
+        : Math.min(to.x1 - LANDING, edge - halfBody - LANDING);
     if (land <= to.x0 + 2 || land >= to.x1 - 2) continue;
     const drop = -rise;
-    if (drop > 0 && Math.abs(land - edge) <= HALF_BODY + dropReach(drop) - 4) {
+    if (drop > 0 && Math.abs(land - edge) <= halfBody + jumps.dropReach(drop) - 4) {
       yield { leg: { kind: 'drop', edge, dir, to, land }, land, cost: Math.abs(x - edge) + COST.drop };
       continue;
     }
     const takeoff = edge - dir * 2;
-    const nearest = dir > 0 ? to.x0 + 2 - HALF_BODY : to.x1 - 2 + HALF_BODY;
+    const nearest = dir > 0 ? to.x0 + 2 - halfBody : to.x1 - 2 + halfBody;
     const span = Math.max(0, (nearest - takeoff) * dir);
-    if (span > reach(rise, scaleAt(world, takeoff, from.top))) continue;
+    if (span > jumps.reach(rise, scaleAt(nav, world, takeoff, from.top))) continue;
     yield {
       leg: { kind: 'jump', from: takeoff, to, land },
       land,
@@ -250,12 +253,21 @@ function* hops(world: World, from: Ledge, x: number, to: Ledge): Generator<Hop> 
  * A take-off under `to` with nothing solid overhead that would stop the jump short, as near `x` as there is one in
  * `lo`..`hi`.
  */
-function clearTakeoff(world: World, from: Ledge, to: Ledge, x: number, lo: number, hi: number): number | null {
+function clearTakeoff(
+  nav: Nav,
+  world: World,
+  from: Ledge,
+  to: Ledge,
+  x: number,
+  lo: number,
+  hi: number,
+): number | null {
   const { grid } = world;
-  const top = grid.rowAt(to.top - PLAYER_SIZE.h - 3);
-  const bottom = grid.rowAt(from.top - PLAYER_SIZE.h - 1);
+  const height = nav.kit.PLAYER_SIZE.h;
+  const top = grid.rowAt(to.top - height - 3);
+  const bottom = grid.rowAt(from.top - height - 1);
   const clear = (at: number): boolean => {
-    for (let col = grid.colAt(at - HALF_BODY + 0.01); col <= grid.colAt(at + HALF_BODY - 0.01); col++) {
+    for (let col = grid.colAt(at - nav.halfBody + 0.01); col <= grid.colAt(at + nav.halfBody - 0.01); col++) {
       for (let row = top; row <= bottom; row++) if (grid.kindAt(col, row) === 'solid') return false;
     }
     return true;
@@ -271,9 +283,9 @@ function clearTakeoff(world: World, from: Ledge, to: Ledge, x: number, lo: numbe
  * Take-offs just clear of the slow zones beside `to`, where a jump has its full height: far enough out that a walker
  * jumping a little short of one is still clear of the zone.
  */
-function zoneEdges(world: World, from: Ledge, to: Ledge): number[] {
+function zoneEdges(nav: Nav, world: World, from: Ledge, to: Ledge): number[] {
   const edges: number[] = [];
-  const clear = HALF_BODY + 5;
+  const clear = nav.halfBody + 5;
   for (const zone of world.slowZones) {
     const { x, w, y } = zone.rect;
     if (y > from.top || x > to.x1 + 80 || x + w < to.x0 - 80) continue;
@@ -283,17 +295,18 @@ function zoneEdges(world: World, from: Ledge, to: Ledge): number[] {
 }
 
 /** The slow zone's pull on a body standing with its centre at `x` and its feet at `feet`, if it stands in one. */
-function scaleAt(world: World, x: number, feet: number): MoveScale {
-  const body = { x: x - HALF_BODY, y: feet - PLAYER_SIZE.h, w: PLAYER_SIZE.w, h: PLAYER_SIZE.h };
-  return world.slowZones.find((zone) => zone.contains(body))?.scale ?? NORMAL_SCALE;
+function scaleAt(nav: Nav, world: World, x: number, feet: number): MoveScale {
+  const { w, h } = nav.kit.PLAYER_SIZE;
+  const body = { x: x - nav.halfBody, y: feet - h, w, h };
+  return world.slowZones.find((zone) => zone.contains(body))?.scale ?? nav.kit.NORMAL_SCALE;
 }
 
 /** Where on `ledge` the hero can head-butt `block` from, or null when it is not overhead within a jump. */
-function bumpFrom(ledge: Ledge, block: HighlightBlock): number | null {
+function bumpFrom(nav: Nav, ledge: Ledge, block: HighlightBlock): number | null {
   if (block.used) return null;
   const { x, y, w, h } = block.rect;
   const centre = x + w / 2;
   const rise = ledge.top - (y + h);
   if (centre <= ledge.x0 || centre >= ledge.x1 || rise <= 0) return null;
-  return rise <= headReach(PLAYER_SIZE.h) ? centre : null;
+  return rise <= nav.jumps.headReach(nav.kit.PLAYER_SIZE.h) ? centre : null;
 }

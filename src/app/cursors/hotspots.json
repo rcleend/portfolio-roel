@@ -14,5 +14,29 @@
   "game-hand": {
     "x": 2,
     "y": 2
+  },
+  "walk-right": {
+    "x": 16,
+    "y": 22
+  },
+  "walk-left": {
+    "x": 14,
+    "y": 22
+  },
+  "jump-right": {
+    "x": 16,
+    "y": 30
+  },
+  "jump-left": {
+    "x": 14,
+    "y": 30
+  },
+  "attack-right": {
+    "x": 30,
+    "y": 12
+  },
+  "attack-left": {
+    "x": 0,
+    "y": 12
   }
 }

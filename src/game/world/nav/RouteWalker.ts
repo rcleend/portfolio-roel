@@ -1,7 +1,8 @@
-import { MOVEMENT } from '../../entities/player/movement';
-import { IDLE_INTENT, type PlayerIntent } from '../../entities/player/Player';
+import type { PlayerIntent } from '../../entities/player/Player';
 import type { World } from '../World';
-import { type Ledge, ledgesOf, ledgeUnder } from './ledges';
+import { dockOf } from './dock';
+import type { Ledge } from './ledges';
+import type { Nav } from './Nav';
 import { type Goal, type Leg, planRoute, type Route, sameLedge } from './route';
 
 /** Seconds without getting anywhere before a walk gives up; a closed rate-limit gate opens well within it. */
@@ -22,6 +23,8 @@ export type WalkStatus = 'walking' | 'arrived' | 'failed';
  */
 export class RouteWalker {
   readonly goal: Goal;
+  readonly #nav: Nav;
+  readonly #idle: PlayerIntent;
   #legs: readonly Leg[];
   #leg = 0;
   /** The current leg has pressed jump, or walked off its edge: the hero is on the way down to where it ends. */
@@ -35,7 +38,9 @@ export class RouteWalker {
   #still = 0;
   #lastX = Number.NaN;
 
-  constructor(goal: Goal, route: Route) {
+  constructor(nav: Nav, goal: Goal, route: Route) {
+    this.#nav = nav;
+    this.#idle = nav.kit.IDLE_INTENT;
     this.goal = goal;
     this.#legs = route.legs;
   }
@@ -46,25 +51,25 @@ export class RouteWalker {
 
   /** What the hero does this step on the way to the goal; idle once there or given up. */
   intent(world: World, dt: number): PlayerIntent {
-    if (this.#status !== 'walking') return IDLE_INTENT;
+    if (this.#status !== 'walking') return this.#idle;
     const { player } = world;
     if (player.isLocked(world.time)) {
       this.#knocked = true;
-      return IDLE_INTENT;
+      return this.#idle;
     }
     if (this.#knocked) {
-      if (!player.grounded) return IDLE_INTENT;
+      if (!player.grounded) return this.#idle;
       this.#knocked = false;
-      if (!this.#replan(world)) return IDLE_INTENT;
+      if (!this.#replan(world)) return this.#idle;
     }
     // Set off in the air (a walk asked for mid-jump, a landing after a head-butt): look again from where it lands.
     if (!player.grounded && !this.#launched && this.#legs[this.#leg]?.kind !== 'ride') {
       this.#landing = true;
-      return IDLE_INTENT;
+      return this.#idle;
     }
     if (this.#landing) {
       this.#landing = false;
-      if (!this.#replan(world, false)) return IDLE_INTENT;
+      if (!this.#replan(world, false)) return this.#idle;
     }
     if (this.#stuck(world, dt)) return this.#fail();
     // A leg can end the moment it starts (a walk already there): play on into the next.
@@ -72,15 +77,15 @@ export class RouteWalker {
       const leg = this.#legs[this.#leg];
       if (!leg) {
         this.#status = 'arrived';
-        return IDLE_INTENT;
+        return this.#idle;
       }
       const result = this.#play(world, leg);
       if (result === 'next') this.#next();
       else if (result === 'replan') {
-        if (!this.#replan(world)) return IDLE_INTENT;
+        if (!this.#replan(world)) return this.#idle;
       } else return result;
     }
-    return IDLE_INTENT;
+    return this.#idle;
   }
 
   #play(world: World, leg: Leg): PlayerIntent | 'next' | 'replan' {
@@ -92,7 +97,7 @@ export class RouteWalker {
         if (!player.grounded) return 'replan';
         const dx = leg.x - cx;
         if (Math.abs(dx) <= 1.5 && Math.abs(vx) < 20) return 'next';
-        return move(steer(dx, vx));
+        return this.#move(steer(dx, vx, this.#decel));
       }
       case 'jump': {
         if (this.#launched) return this.#fly(world, leg.to, leg.land);
@@ -101,7 +106,7 @@ export class RouteWalker {
         const there = Math.abs(leg.from - cx) <= TAKEOFF;
         const ready = dir === 0 ? Math.abs(vx) < SETTLED : vx * dir > -SETTLED;
         if (there && ready) return this.#launch(dir);
-        return move(there ? 0 : steer(leg.from - cx, vx));
+        return this.#move(there ? 0 : steer(leg.from - cx, vx, this.#decel));
       }
       case 'drop':
       case 'alight':
@@ -110,7 +115,7 @@ export class RouteWalker {
           return this.#fly(world, leg.to, leg.land);
         }
         if (leg.kind === 'alight' && player.standingOn !== leg.mover) return 'replan';
-        return move(leg.dir);
+        return this.#move(leg.dir);
       case 'board': {
         if (player.standingOn === leg.mover) return 'next';
         const roof = leg.mover.rect;
@@ -121,17 +126,17 @@ export class RouteWalker {
         }
         if (!player.grounded) return 'replan';
         const under = cx > roof.x + 8 && cx < roof.x + roof.w - 8;
-        if (leg.mover.docked === 'home' && under && Math.abs(vx) < SETTLED) return this.#launch(0);
+        if (dockOf(leg.mover).at === 'home' && under && Math.abs(vx) < SETTLED) return this.#launch(0);
         this.#still = 0;
-        return move(steer(leg.at - cx, vx));
+        return this.#move(steer(leg.at - cx, vx, this.#decel));
       }
       case 'ride': {
         this.#still = 0;
         const aboard = player.standingOn === leg.mover;
         const { bump } = leg;
         if (!bump) {
-          if (!aboard) return player.grounded ? 'replan' : IDLE_INTENT;
-          return leg.mover.docked === 'away' ? 'next' : IDLE_INTENT;
+          if (!aboard) return player.grounded ? 'replan' : this.#idle;
+          return dockOf(leg.mover).at === 'away' ? 'next' : this.#idle;
         }
         if (bump.used) return 'next';
         if (this.#launched) {
@@ -141,11 +146,11 @@ export class RouteWalker {
           }
           return this.#rise(0);
         }
-        if (!aboard) return player.grounded ? 'replan' : IDLE_INTENT;
+        if (!aboard) return player.grounded ? 'replan' : this.#idle;
         const centre = bump.rect.x + bump.rect.w / 2;
         if (Math.abs(centre - cx) <= TAKEOFF) return this.#launch(0);
         // Carried past it without a jump: the block cannot be reached this ride.
-        return cx > centre + 8 ? this.#fail() : IDLE_INTENT;
+        return cx > centre + 8 ? this.#fail() : this.#idle;
       }
       case 'bump': {
         if (leg.block.used) return 'next';
@@ -156,34 +161,42 @@ export class RouteWalker {
         if (!player.grounded) return 'replan';
         const dx = leg.x - cx;
         if (Math.abs(dx) <= TAKEOFF && Math.abs(vx) < SETTLED) return this.#launch(0);
-        return move(Math.abs(dx) <= TAKEOFF ? 0 : steer(dx, vx));
+        return this.#move(Math.abs(dx) <= TAKEOFF ? 0 : steer(dx, vx, this.#decel));
       }
     }
+  }
+
+  get #decel(): number {
+    return this.#nav.kit.MOVEMENT.groundDecel;
+  }
+
+  #move(x: -1 | 0 | 1): PlayerIntent {
+    return x === 0 ? this.#idle : { ...this.#idle, x };
   }
 
   /** Presses jump, heading `dir`. */
   #launch(dir: number): PlayerIntent {
     this.#launched = true;
     this.#airFrames = 0;
-    return { ...IDLE_INTENT, x: sign(dir), jumpPressed: true, jumpHeld: true };
+    return { ...this.#idle, x: sign(dir), jumpPressed: true, jumpHeld: true };
   }
 
   /** Holds jump while rising, for the full height, and steers `x`. */
   #rise(x: -1 | 0 | 1): PlayerIntent {
     this.#airFrames++;
-    return { ...IDLE_INTENT, x, jumpHeld: true };
+    return { ...this.#idle, x, jumpHeld: true };
   }
 
   /** In the air towards `to`: the leg is played once the feet are down on it, and anywhere else a surprise. */
   #fly(world: World, to: Ledge, land: number): PlayerIntent | 'next' | 'replan' {
     const { player } = world;
     if (player.grounded && this.#airFrames > 1) {
-      const under = ledgeUnder(ledgesOf(world), player.centerX, player.feet);
+      const under = this.#nav.ledgeUnder(world, player.centerX, player.feet);
       return under && sameLedge(under, to) ? 'next' : 'replan';
     }
     this.#airFrames++;
     const x = steerAir(land - player.centerX);
-    return { ...IDLE_INTENT, x, jumpHeld: player.body.vy < 0 };
+    return { ...this.#idle, x, jumpHeld: player.body.vy < 0 };
   }
 
   #next(): void {
@@ -194,7 +207,7 @@ export class RouteWalker {
 
   /** A fresh route to the goal from here; `surprised` ones are counted, so a walk that keeps going wrong gives up. */
   #replan(world: World, surprised = true): boolean {
-    const route = this.#replans < MAX_REPLANS ? planRoute(world, this.goal) : null;
+    const route = this.#replans < MAX_REPLANS ? planRoute(this.#nav, world, this.goal) : null;
     if (surprised) this.#replans++;
     if (!route) {
       this.#fail();
@@ -209,7 +222,7 @@ export class RouteWalker {
 
   #fail(): PlayerIntent {
     this.#status = 'failed';
-    return IDLE_INTENT;
+    return this.#idle;
   }
 
   /** True once the hero has gone nowhere for `STUCK_SECONDS` (waiting for a vehicle does not count). */
@@ -229,13 +242,9 @@ function sign(value: number): -1 | 0 | 1 {
   return value > 0 ? 1 : value < 0 ? -1 : 0;
 }
 
-function move(x: -1 | 0 | 1): PlayerIntent {
-  return x === 0 ? IDLE_INTENT : { ...IDLE_INTENT, x };
-}
-
-/** Towards `dx` on the ground, letting go in time to stop on it rather than past it. */
-function steer(dx: number, vx: number): -1 | 0 | 1 {
-  const braking = (vx * vx) / (2 * MOVEMENT.groundDecel);
+/** Towards `dx` on the ground, letting go in time to stop on it rather than past it (at `decel` px/s²). */
+function steer(dx: number, vx: number, decel: number): -1 | 0 | 1 {
+  const braking = (vx * vx) / (2 * decel);
   if (Math.abs(dx) <= 1.5 || (Math.sign(vx) === Math.sign(dx) && Math.abs(dx) <= braking + 0.5)) return 0;
   return sign(dx);
 }

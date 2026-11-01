@@ -66,17 +66,6 @@ export class MovingPlatform implements Surface {
     return { from: this.#home, to: this.#away + this.#width };
   }
 
-  /** The end of the track the vehicle stands at, or null on the way. */
-  get docked(): 'home' | 'away' | null {
-    return this.#x === this.#home ? 'home' : this.#x === this.#away ? 'away' : null;
-  }
-
-  /** The walkable roof as it lies with the vehicle standing at `end`. */
-  roofAt(end: 'home' | 'away'): Rect {
-    const { x, y, w, h } = this.rect;
-    return { x: x - this.#x + (end === 'home' ? this.#home : this.#away), y, w, h };
-  }
-
   update(dt: number, ridden: boolean): void {
     this.#sinceRidden = ridden ? 0 : this.#sinceRidden + dt;
     // Hopping on the roof (say, to head-butt a block) must not send the vehicle home mid-jump.
