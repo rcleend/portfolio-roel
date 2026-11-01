@@ -18,7 +18,9 @@ export function readSelectEvents(
 
   if (input.wasPressed('left') || (pointer.pressed && hit === 'arrowLeft')) events.push({ type: 'switch', delta: -1 });
   if (input.wasPressed('right') || (pointer.pressed && hit === 'arrowRight')) events.push({ type: 'switch', delta: 1 });
-  if (input.wasPressed('confirm')) events.push({ type: 'confirm' });
+  // A mouse click on the card picks the hero on show, as Enter does; a finger there does what it always did.
+  const cardClick = pointer.pressed && pointer.kind === 'mouse' && hit === 'card';
+  if (input.wasPressed('confirm') || cardClick) events.push({ type: 'confirm' });
   if (input.wasPressed('back')) events.push({ type: 'back' });
   return events;
 }

@@ -42,6 +42,17 @@ test.describe('character select keys', () => {
   });
 });
 
+test('a mouse click on the character card picks the hero on show', async ({ page }) => {
+  const errors = trackErrors(page);
+  await open(page, 'characterSelect');
+  // The middle of the framed portrait (CARD in character-select/layout.ts).
+  await clickScreen(page, { x: 82, y: 113 });
+  await step(page, 150);
+  expect(await scene(page)).toBe('levelSelect');
+  expect(await page.evaluate(() => window.__arcade?.state().session)).toMatchObject({ characterId: 'hackerman' });
+  expect(errors).toEqual([]);
+});
+
 test.describe('mission select keys', () => {
   test('CONFIRM deploys into the focused mission', async ({ page }) => {
     const errors = trackErrors(page);

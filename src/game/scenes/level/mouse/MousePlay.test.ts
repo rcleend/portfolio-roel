@@ -3,11 +3,11 @@ import { GROUND_Y } from '../../../world/map/buildGrid';
 import { navKit } from '../../../world/nav/kit';
 import { createTestWorld } from '../../../world/testing';
 import type { World } from '../../../world/World';
-import { DOUBLE_CLICK_SECONDS, MousePlay } from './MousePlay';
+import { MousePlay } from './MousePlay';
 import { TestMouse } from './testing';
 
 const DT = 1 / 60;
-/** A row of the screen on the ground's top band: a double click there walks. */
+/** A row of the screen on the ground's top band: a click there walks. */
 const FLOOR_Y = GROUND_Y + 8;
 /** A row in the sky: a click there is an attack, never a walk. */
 const SKY_Y = 60;
@@ -35,17 +35,11 @@ function setup(levelId: 'luna' | 'scripe' = 'luna') {
     mouse.release();
     step(1);
   };
-  /** Two clicks a few frames apart, as a hand double-clicks. */
-  const doubleClick = (x: number, y: number): void => {
-    click(x, y);
-    step(4);
-    click(x, y);
-  };
   /** Steps until a walk under way ends (at most `frames`). */
   const arrive = (frames = 240): void => {
     for (let frame = 0; frame < frames && play.walking; frame++) step(1);
   };
-  return { world, play, mouse, step, screenX, click, doubleClick, arrive };
+  return { world, play, mouse, step, screenX, click, arrive };
 }
 
 const shots = (world: World) => world.shots;
@@ -75,10 +69,10 @@ describe('MousePlay', () => {
     expect(world.loadout.fired).toBeGreaterThanOrEqual(4);
   });
 
-  it('walks to a double-clicked spot on the floor without attacking', () => {
-    const { world, play, screenX, doubleClick, arrive } = setup();
+  it('walks to a clicked spot on the floor without attacking', () => {
+    const { world, play, screenX, click, arrive } = setup();
     const target = world.player.centerX + 90;
-    doubleClick(screenX(target), FLOOR_Y);
+    click(screenX(target), FLOOR_Y);
     expect(play.walking).toBe(true);
     arrive();
     expect(play.walking).toBe(false);
@@ -86,32 +80,14 @@ describe('MousePlay', () => {
     expect(world.loadout.fired).toBe(0);
   });
 
-  it('attacks for a single click on the floor once the double click has had its chance', () => {
-    const { world, play, step, screenX, click } = setup();
-    click(screenX(world.player.centerX) - 50, FLOOR_Y);
-    expect(world.loadout.fired).toBe(0);
-    step(Math.ceil(DOUBLE_CLICK_SECONDS * 60));
-    expect(world.loadout.fired).toBe(1);
-    expect(world.player.facing).toBe(-1);
-    expect(play.walking).toBe(false);
-  });
-
-  it('fires once, not twice, for a double click anywhere a walk cannot go', () => {
-    const { world, play, step, screenX, doubleClick } = setup();
-    doubleClick(screenX(world.player.centerX) + 70, SKY_Y);
-    step(40);
-    expect(world.loadout.fired).toBe(1);
-    expect(play.walking).toBe(false);
-  });
-
-  it('jumps by itself onto a double-clicked girder and across the pit before it', () => {
-    const { world, step, screenX, doubleClick } = setup();
+  it('jumps by itself onto a clicked girder and across the pit before it', () => {
+    const { world, step, screenX, click } = setup();
     // Luna's first girder (columns 36–39) stands past a two-tile pit (columns 32–33).
     world.player.respawn(470, GROUND_Y, world.time);
     step(30);
     const girderTop = 152;
     let jumped = false;
-    doubleClick(screenX(600), girderTop + 4);
+    click(screenX(600), girderTop + 4);
     for (let frame = 0; frame < 180; frame++) {
       step(1);
       if (!world.player.grounded) jumped = true;
@@ -121,10 +97,10 @@ describe('MousePlay', () => {
     expect(Math.abs(world.player.centerX - 600)).toBeLessThan(3);
   });
 
-  it('stops a walk for a new click, and sends it elsewhere for a new double click', () => {
-    const { world, play, step, screenX, click, doubleClick, arrive } = setup();
+  it('stops a walk for a click elsewhere, and sends it on for a click on another floor', () => {
+    const { world, play, step, screenX, click, arrive } = setup();
     const start = world.player.centerX;
-    doubleClick(screenX(start + 200), FLOOR_Y);
+    click(screenX(start + 200), FLOOR_Y);
     step(20);
     expect(play.walking).toBe(true);
     click(screenX(world.player.centerX) + 40, SKY_Y);
@@ -132,33 +108,33 @@ describe('MousePlay', () => {
     const stoppedAt = world.player.centerX;
     step(30);
     expect(Math.abs(world.player.centerX - stoppedAt)).toBeLessThan(6);
-    doubleClick(screenX(start - 20), FLOOR_Y);
+    click(screenX(start - 20), FLOOR_Y);
     arrive();
     expect(Math.abs(world.player.centerX - (start - 20))).toBeLessThan(3);
   });
 
-  it('head-butts a double-clicked "?" block', () => {
-    const { world, step, screenX, doubleClick } = setup();
+  it('head-butts a clicked "?" block', () => {
+    const { world, step, screenX, click } = setup();
     const block = world.blocks[0];
     if (!block) throw new Error('no block');
     world.player.respawn(block.rect.x - 60, GROUND_Y, world.time);
     step(30);
-    doubleClick(screenX(block.rect.x + 8), block.rect.y + 8);
+    click(screenX(block.rect.x + 8), block.rect.y + 8);
     step(150);
     expect(block.used).toBe(true);
   });
 
   it('leaves a finger on the picture alone: the touch pad plays a touch screen', () => {
-    const { world, play, mouse, step, screenX, doubleClick } = setup();
+    const { world, play, mouse, step, screenX, click } = setup();
     mouse.kind = 'touch';
-    doubleClick(screenX(world.player.centerX) + 90, FLOOR_Y);
+    click(screenX(world.player.centerX) + 90, FLOOR_Y);
     step(40);
     expect(play.walking).toBe(false);
     expect(world.loadout.fired).toBe(0);
     expect(play.cursor).toBe('hand');
   });
 
-  it('names the cursor for what a click or double click would do there', () => {
+  it('names the cursor for what a click would do there', () => {
     const { world, play, mouse, step, screenX } = setup();
     const hero = screenX(world.player.centerX);
     const at = (x: number, y: number) => {

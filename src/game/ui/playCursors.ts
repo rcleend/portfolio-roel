@@ -13,7 +13,7 @@ export interface PlayCursorArt {
 }
 
 /**
- * A pair of footprints walking up and to the right, a sole and a heel each: a double click walks there. The point is
+ * A pair of footprints walking up and to the right, a sole and a heel each: a click walks there. The point is
  * the middle of the pair.
  */
 const WALK = pixels(`
@@ -30,7 +30,7 @@ const WALK = pixels(`
   .......oo.....
 `);
 
-/** The same footprints under a chunky arrow up: a double click gets there, jumping on the way. */
+/** The same footprints under a chunky arrow up: a click gets there, jumping on the way. */
 const JUMP = pixels(`
   ...........o...
   ..........owo..

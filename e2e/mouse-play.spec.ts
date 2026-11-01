@@ -4,8 +4,8 @@ import type { LevelProbe } from '../src/game/scenes/level/probe';
 import { scene, trackErrors, waitForRunning } from './helpers';
 
 /**
- * Playing a level with the mouse alone (docs/ARCHITECTURE.md › Mouse play): a click attacks the way it points, a
- * double click on a floor walks there and jumps where the way needs it, the strip's keys are buttons and the cursor
+ * Playing a level with the mouse alone (docs/ARCHITECTURE.md › Mouse play): a click on a floor walks there and jumps
+ * where the way needs it, a click anywhere else attacks the way it points, the strip's keys are buttons and the cursor
  * says which of those a click would do. Everything here goes through the page's mouse on the flat host's screen;
  * the level's probe (development builds) only says where things are, as the screen would.
  */
@@ -58,13 +58,6 @@ async function click(page: Page, x: number, y: number): Promise<void> {
   await step(page);
 }
 
-/** Two clicks on one spot a few frames apart, as a hand double-clicks. */
-async function doubleClick(page: Page, x: number, y: number): Promise<void> {
-  await click(page, x, y);
-  await step(page, 3);
-  await click(page, x, y);
-}
-
 /** Mouse play arrives as its own chunk: wait until the play under the pointer wears its cursors. */
 async function waitForMousePlay(page: Page): Promise<void> {
   await expect
@@ -87,23 +80,23 @@ async function stepUntil(page: Page, done: (level: LevelProbe) => boolean, frame
 
 const heroOnScreen = (level: LevelProbe): number => level.player.x - level.view.x;
 
-/** Rides San Francisco's cable car across the big spam folder from the first checkpoint, double-clicking as a visitor would. */
+/** Rides San Francisco's cable car across the big spam folder from the first checkpoint, clicking as a visitor would. */
 async function rideTheCableCar(page: Page): Promise<LevelProbe> {
   let level = await probe(page);
   // Its roof at home (columns 72–77, the walkable top at y 157).
-  await doubleClick(page, 1200 - level.view.x, 160);
+  await click(page, 1200 - level.view.x, 160);
   level = await stepUntil(page, (now) => now.player.feet === 157 && now.player.grounded);
-  // Riding across, the far street comes into view: a double click there steps off once the car docks.
+  // Riding across, the far street comes into view: a click there steps off once the car docks.
   level = await stepUntil(page, (now) => 1460 - now.view.x < 300, 900);
-  await doubleClick(page, 290, GROUND);
+  await click(page, 290, GROUND);
   return stepUntil(page, (now) => !now.walking, 900);
 }
 
-/** Double-clicks the floor near the right of the screen until world x `x` is in view. */
+/** Clicks the floor near the right of the screen until world x `x` is in view. */
 async function walkUntilInView(page: Page, x: number): Promise<LevelProbe> {
   let level = await probe(page);
   for (let tries = 0; tries < 6 && x - level.view.x > 290; tries++) {
-    await doubleClick(page, 290, GROUND);
+    await click(page, 290, GROUND);
     level = await stepUntil(page, (now) => !now.walking, 600);
   }
   return level;
@@ -115,9 +108,7 @@ function hotspotOf(cursor: string, name: string): string | undefined {
   return match?.[3];
 }
 
-test('a click turns the hero to it and attacks that way, and a double click in the air fires once', async ({
-  page,
-}) => {
+test('a click off the floor turns the hero to it and attacks that way', async ({ page }) => {
   const errors = trackErrors(page);
   // From the first checkpoint, the hero a little left of the middle of the screen.
   await openLevel(page, { levelId: 'luna', startAt: 0 });
@@ -135,15 +126,10 @@ test('a click turns the hero to it and attacks that way, and a double click in t
   level = await probe(page);
   expect(level.player.facing).toBe(1);
   expect(level.shots.at(-1)?.vx).toBeGreaterThan(0);
-  await step(page, 30);
-  const before = (await probe(page)).fired;
-  await doubleClick(page, hero + 60, SKY);
-  await step(page, 30);
-  expect((await probe(page)).fired).toBe(before + 1);
   expect(errors).toEqual([]);
 });
 
-test('a double click walks there, jumping by itself onto the cable car, off it across the pit and up a girder', async ({
+test('a click walks there, jumping by itself onto the cable car, off it across the pit and up a girder', async ({
   page,
 }) => {
   const errors = trackErrors(page);
@@ -155,7 +141,7 @@ test('a double click walks there, jumping by itself onto the cable car, off it a
   // The cable car's roof (columns 72–77 at home, its walkable top at y 157): a jump to board it.
   await hover(page, 1200 - level.view.x, 160);
   expect((await probe(page)).cursor).toBe('jump');
-  await doubleClick(page, 1200 - level.view.x, 160);
+  await click(page, 1200 - level.view.x, 160);
   let airborne = false;
   level = await stepUntil(page, (now) => {
     airborne ||= !now.player.grounded;
@@ -163,19 +149,19 @@ test('a double click walks there, jumping by itself onto the cable car, off it a
   });
   expect(airborne).toBe(true);
   expect(level.player.feet).toBe(157);
-  // Riding across, the far street comes into view: a double click there steps off once the car docks.
+  // Riding across, the far street comes into view: a click there steps off once the car docks.
   level = await stepUntil(page, (now) => 1460 - now.view.x < 300, 900);
-  await doubleClick(page, 290, GROUND);
+  await click(page, 290, GROUND);
   const clicked = (await probe(page)).view.x + 290;
   level = await stepUntil(page, (now) => !now.walking, 900);
   expect(level.player.feet).toBe(200);
-  // Where the second click pointed, give or take the pixels the camera rode on between the clicks.
+  // Where the click pointed, give or take the pixels the camera rode on meanwhile.
   expect(Math.abs(level.player.x - clicked)).toBeLessThan(8);
   // The girder over the next street (columns 100–104, its top at y 152): a jump from under it.
   level = await walkUntilInView(page, 1680);
   await hover(page, 1640 - level.view.x, 155);
   expect((await probe(page)).cursor).toBe('jump');
-  await doubleClick(page, 1640 - level.view.x, 155);
+  await click(page, 1640 - level.view.x, 155);
   level = await stepUntil(page, (now) => !now.walking, 600);
   expect(level.player.feet).toBe(152);
   // Walking never fired a shot.
@@ -183,7 +169,7 @@ test('a double click walks there, jumping by itself onto the cable car, off it a
   expect(errors).toEqual([]);
 });
 
-test('a double click on a "?" block goes and head-butts it', async ({ page }) => {
+test('a click on a "?" block goes and head-butts it', async ({ page }) => {
   const errors = trackErrors(page);
   await openLevel(page, { levelId: 'luna', startAt: 0 });
   await waitForMousePlay(page);
@@ -195,7 +181,7 @@ test('a double click on a "?" block goes and head-butts it', async ({ page }) =>
   const highlights = level.highlights;
   await hover(page, block.x - level.view.x, block.y);
   expect((await probe(page)).cursor).toBe('jump');
-  await doubleClick(page, block.x - level.view.x, block.y);
+  await click(page, block.x - level.view.x, block.y);
   level = await stepUntil(page, (now) => now.highlights > highlights, 600);
   expect(level.highlights).toBe(highlights + 1);
   // The career highlight's card opens over the level: any click closes it.
@@ -309,7 +295,7 @@ test("in the room, the stage wears the game's cursors over the TV's picture in a
 
 /**
  * A visitor with only a mouse, playing a whole mission: holds the button on whoever is unhappy in reach,
- * double-clicks the "?" blocks and otherwise the farthest floor ahead the cursor says it can walk to, and clicks the
+ * clicks the "?" blocks and otherwise the farthest floor ahead the cursor says it can walk to, and clicks the
  * highlight cards away.
  */
 async function playWithTheMouse(page: Page): Promise<void> {
@@ -358,13 +344,13 @@ async function playWithTheMouse(page: Page): Promise<void> {
       continue;
     }
     const goal = await nextGoal(page, level);
-    if (goal) await doubleClick(page, goal.x, goal.y);
+    if (goal) await click(page, goal.x, goal.y);
     else await step(page, 6);
   }
   if (holding > 0) await page.mouse.up();
 }
 
-/** Where to double-click next: an unopened block the cursor shows a way to, else the farthest floor it shows ahead. */
+/** Where to click next: an unopened block the cursor shows a way to, else the farthest floor it shows ahead. */
 async function nextGoal(page: Page, level: LevelProbe): Promise<{ x: number; y: number } | null> {
   const { view } = level;
   for (const block of level.blocks) {

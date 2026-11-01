@@ -17,8 +17,8 @@ const PATIENCE = 4;
 
 /**
  * Plays a level with a mouse and nothing else, like a visitor watching the screen (tests and tooling only): it holds
- * the button on whoever is unhappy in reach, double-clicks the "?" blocks it sees, and otherwise double-clicks the
- * farthest floor ahead it can walk to. It reads the world only to see what is where, as eyes would; everything it
+ * the button on whoever is unhappy in reach, clicks the "?" blocks it sees, and otherwise clicks the farthest floor
+ * ahead it can walk to. It reads the world only to see what is where, as eyes would; everything it
  * does goes through `TestMouse`.
  */
 export class MouseBot {
@@ -40,7 +40,7 @@ export class MouseBot {
     if (action) this.#do(action);
   }
 
-  /** What to do next with the mouse, if anything; a double click queues the rest of itself. */
+  /** What to do next with the mouse, if anything; a click queues the rest of itself. */
   #decide(world: World, walking: boolean): Action | null {
     const view = world.camera.view;
     const toScreen = (x: number, y: number): Action => ({ x: Math.round(x - view.x), y: Math.round(y - view.y) });
@@ -61,7 +61,7 @@ export class MouseBot {
     }
     if (walking) return null;
     const goal = this.#nextBlock(world, toScreen) ?? this.#farthestFloor(world);
-    if (goal) this.#doubleClick(goal);
+    if (goal) this.#click(goal);
     return this.#queue.shift() ?? null;
   }
 
@@ -96,7 +96,7 @@ export class MouseBot {
     return null;
   }
 
-  /** The floor farthest right on screen that a double click would walk to. */
+  /** The floor farthest right on screen that a click would walk to. */
   #farthestFloor(world: World): Action | null {
     const view = world.camera.view;
     for (let x = world.camera.width - 6; x > 8; x -= 6) {
@@ -108,21 +108,9 @@ export class MouseBot {
     return null;
   }
 
-  #doubleClick(at: Action): void {
+  #click(at: Action): void {
     const idle = { x: at.x, y: at.y };
-    this.#queue.push(
-      { ...at, button: 'press' },
-      idle,
-      idle,
-      { ...at, button: 'release' },
-      idle,
-      idle,
-      idle,
-      { ...at, button: 'press' },
-      idle,
-      idle,
-      { ...at, button: 'release' },
-    );
+    this.#queue.push({ ...at, button: 'press' }, idle, idle, { ...at, button: 'release' });
   }
 
   #do(action: Action): void {

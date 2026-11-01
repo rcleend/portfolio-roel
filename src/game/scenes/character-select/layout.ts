@@ -65,8 +65,11 @@ export const HINTS_Y = CARD.y + CARD.h + 10;
 /** CONFIRM and BACK close the legend, flush with the details column's right edge. */
 export const KEY_HINTS: KeyHintsAnchor = { right: DETAILS.x + DETAILS.w, y: HINTS_Y };
 
-/** The only parts of the screen the pointer acts on besides the CONFIRM and BACK keys: the skills are not among them. */
-export type HitTarget = 'arrowLeft' | 'arrowRight';
+/**
+ * The only parts of the screen the pointer acts on besides the CONFIRM and BACK keys: the arrows, and the card (a
+ * mouse click on it picks the hero on show). The skills are not among them.
+ */
+export type HitTarget = 'arrowLeft' | 'arrowRight' | 'card';
 
 /** The parts of the screen that follow the size of the skill icons on show. */
 export interface SelectLayout {
@@ -93,6 +96,7 @@ export function selectLayout(slotSize = SKILL_SLOT_SIZE): SelectLayout {
   const hitAreas: readonly (readonly [HitTarget, Rect])[] = [
     ['arrowLeft', ARROW_LEFT_HIT],
     ['arrowRight', ARROW_RIGHT_HIT],
+    ['card', CARD],
   ];
   return {
     slotSize,

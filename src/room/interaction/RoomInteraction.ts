@@ -55,7 +55,7 @@ const STOCK_CURSORS: Readonly<Record<string, string>> = {
   play: 'default',
 };
 
-/** The game's: a walk or a jump points where a double click goes, an attack aims. */
+/** The game's: a walk or a jump points where a click goes, an attack aims. */
 const stockCursor = (cursor: RoomCursor): string =>
   STOCK_CURSORS[cursor] ?? (cursor.startsWith('attack') ? 'crosshair' : 'pointer');
 

@@ -8,43 +8,24 @@ import { Nav } from '../../../world/nav/Nav';
 import { RouteWalker } from '../../../world/nav/RouteWalker';
 import type { World } from '../../../world/World';
 
-/** Seconds within which a second click makes a double click; a click on a floor waits this long to be an attack. */
-export const DOUBLE_CLICK_SECONDS = 0.3;
-/** How far apart the two clicks of a double click may land, native px. */
-const DOUBLE_CLICK_SLOP = 6;
 /** How long a click's attack waits for the hero to be able to strike (a cooldown, a knock), seconds. */
 const ATTACK_PATIENCE = 0.5;
-/** A click on a floor whose window ran out this long ago (the level was out of play: a card) is forgotten, seconds. */
-const STALE = 0.1;
 /** Closer than this to the hero, a point is neither left nor right of them: the way they face decides, px. */
 const DEAD_CENTRE = 3;
 
-/** A click in the play: where on the screen and in the world, when, and whether it may yet become a double click's first. */
-interface Click {
-  readonly x: number;
-  readonly y: number;
-  readonly worldX: number;
-  readonly worldY: number;
-  readonly at: number;
-  /** It landed on somewhere a double click would walk to, so its attack waits to see whether a second click follows. */
-  readonly waiting: boolean;
-}
-
-/** What the button held down in the play does: auto-fire for an attack, nothing yet or ever for a double click's. */
-type Press = 'attack' | 'waiting' | 'spent';
+/** What the button held down in the play does: auto-fire for an attack, nothing for a click that set off a walk. */
+type Press = 'attack' | 'spent';
 
 /**
- * Playing a level with the mouse alone (docs/ARCHITECTURE.md › Mouse play). A click anywhere in the play turns the
- * hero towards it and attacks, holding the button keeps firing; a double click on a floor walks there by the
+ * Playing a level with the mouse alone (docs/ARCHITECTURE.md › Mouse play). A click on a floor walks there by the
  * level's own physics, jumping wherever the way needs it, and on a "?" block or a vehicle's roof goes to head-butt
- * or board it. Clicks on a floor wait out the double click's window before they attack, so a double click never
- * fires; elsewhere they attack at once and a second click adds nothing. A new click stops a walk, a double click
- * sends it somewhere else, and the scene stops it for any key. Only a mouse plays: the touch pad is a finger's.
+ * or board it; a click anywhere else in the play turns the hero towards it and attacks, and holding the button there
+ * keeps firing. A click elsewhere stops a walk, one on somewhere to go sends it there instead, and the scene stops it
+ * for any key. Only a mouse plays: the touch pad is a finger's.
  * It comes as its own chunk (`load.ts`), handed the game's movement as a kit (`world/nav/kit.ts`).
  */
 export class MousePlay {
   readonly #nav: Nav;
-  #last: Click | null = null;
   #press: Press | null = null;
   #walker: RouteWalker | null = null;
   /** A walk asked for mid-jump: it sets off once the jump under way has landed. */
@@ -56,7 +37,7 @@ export class MousePlay {
     this.#nav = new Nav(kit);
   }
 
-  /** The cursor over the play, as of the last step: where a double click would walk or jump to, else an attack. */
+  /** The cursor over the play, as of the last step: where a click would walk or jump to, else an attack. */
   get cursor(): GameCursor {
     return this.#cursor;
   }
@@ -76,16 +57,7 @@ export class MousePlay {
     const over = pointer.kind === 'mouse' && pointer.over && inPlay;
     const worldX = pointer.x + view.x;
     const worldY = pointer.y + view.y;
-    const last = this.#last;
-    // A click on a floor that no second click followed was a single click after all: an attack, unless it waited
-    // out a card, which would make it a surprise.
-    if (last?.waiting && time - last.at > DOUBLE_CLICK_SECONDS) {
-      this.#last = null;
-      const fresh = time - last.at <= DOUBLE_CLICK_SECONDS + STALE;
-      if (fresh) this.#attack(world, last.worldX, time);
-      if (this.#press === 'waiting') this.#press = fresh ? 'attack' : 'spent';
-    }
-    if (over && pointer.pressed) this.#click(world, { x: pointer.x, y: pointer.y, worldX, worldY, at: time });
+    if (over && pointer.pressed) this.#click(world, worldX, worldY, time);
     if (!pointer.down) this.#press = null;
 
     let intent = this.#walker ? this.#walker.intent(world, dt) : this.#nav.kit.IDLE_INTENT;
@@ -112,7 +84,6 @@ export class MousePlay {
 
   /** Forgets everything under way, as the level leaves play (a pause, a fall). */
   reset(): void {
-    this.#last = null;
     this.#press = null;
     this.#walker = null;
     this.#next = null;
@@ -120,30 +91,14 @@ export class MousePlay {
     this.#cursor = 'hand';
   }
 
-  #click(world: World, click: Omit<Click, 'waiting'>): void {
-    const last = this.#last;
-    const second =
-      last !== null &&
-      click.at - last.at <= DOUBLE_CLICK_SECONDS &&
-      Math.hypot(click.x - last.x, click.y - last.y) <= DOUBLE_CLICK_SLOP;
-    if (second) {
-      // A double click: a walk if either click was on somewhere to go, and never a second attack.
-      this.#last = null;
+  #click(world: World, worldX: number, worldY: number, time: number): void {
+    const target = walkTargetAt(this.#nav, world, worldX, worldY);
+    if (target) {
+      this.#walk(target);
       this.#press = 'spent';
-      const target =
-        walkTargetAt(this.#nav, world, click.worldX, click.worldY) ??
-        (last.waiting ? walkTargetAt(this.#nav, world, last.worldX, last.worldY) : null);
-      if (target) this.#walk(target);
       return;
     }
-    if (last?.waiting) this.#attack(world, last.worldX, click.at);
-    const waiting = walkTargetAt(this.#nav, world, click.worldX, click.worldY) !== null;
-    this.#last = { ...click, waiting };
-    if (waiting) {
-      this.#press = 'waiting';
-      return;
-    }
-    this.#attack(world, click.worldX, click.at);
+    this.#attack(world, worldX, time);
     this.#press = 'attack';
   }
 

@@ -170,7 +170,7 @@ The stage's cursor says what a click would do under the pointer, as a `RoomCurso
 | `leave` | anything that leaves for the room (beside the TV, the computer or the radio, the desk while seated) | `zoom-out` |
 | `press` | a part to press (the radio's discs and keys) | `pointer` |
 | `play` | the game's picture while the TV plays (the bezel is `idle`) | `default` |
-| `walk` | over a level's play, where a double click walks the hero | `pointer` |
+| `walk` | over a level's play, where a click walks the hero | `pointer` |
 | `jump` | the same where the way there jumps somewhere: a girder, a vehicle, a "?" block, the floor past a pit | `pointer` |
 | `attack` | anywhere else in a level's play, where a click attacks | `crosshair` |
 

@@ -9,7 +9,7 @@ const LEDGE_DEPTH = 12;
 /** A vehicle's roof is a target this far above and below its line, px. */
 const ROOF_REACH = { above: 10, below: 12 } as const;
 
-/** What a double click on a point of the world would set the hero off to, and the route there. */
+/** What a click on a point of the world would set the hero off to, and the route there. */
 export interface WalkTarget {
   readonly goal: Goal;
   readonly route: Route;
@@ -18,7 +18,7 @@ export interface WalkTarget {
 }
 
 /**
- * The walk a double click at world point (x, y) asks for, if the hero can get there: an unopened "?" block to
+ * The walk a click at world point (x, y) asks for, if the hero can get there: an unopened "?" block to
  * head-butt, a vehicle's roof to board, or a spot on a floor (the ground, a girder, a barrier's top), on foot or
  * with jumps. Null for the air, the pits, the customers above the floor, and anywhere out of reach.
  */

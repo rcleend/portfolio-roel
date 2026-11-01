@@ -50,8 +50,15 @@ describe('readSelectEvents', () => {
     expect(readSelectEvents(input([], { ...right, ...press }), hitTest)).toEqual([{ type: 'switch', delta: 1 }]);
   });
 
-  it('reads nothing from a pointer hovering, pressing or tapping the skills, the heading or the card', () => {
-    for (const area of [SKILL_ROWS[0], SKILL_ROWS[1], NAME_ROW, CARD]) {
+  it('picks the hero on show for a mouse click on the card, as Enter does, and leaves a finger there alone', () => {
+    const at = { ...centre(CARD), over: true };
+    expect(readSelectEvents(input([], { ...at, down: true, pressed: true }), hitTest)).toEqual([{ type: 'confirm' }]);
+    expect(readSelectEvents(input([], at), hitTest)).toEqual([]);
+    expect(readSelectEvents(input([], { ...at, down: true, pressed: true, kind: 'touch' }), hitTest)).toEqual([]);
+  });
+
+  it('reads nothing from a pointer hovering, pressing or tapping the skills or the heading', () => {
+    for (const area of [SKILL_ROWS[0], SKILL_ROWS[1], NAME_ROW]) {
       const at = { ...centre(area), over: true };
       expect(readSelectEvents(input([], at), hitTest)).toEqual([]);
       expect(readSelectEvents(input([], { ...at, down: true, pressed: true }), hitTest)).toEqual([]);
@@ -67,8 +74,9 @@ describe('hitTest', () => {
     expect(hitTest(319, 0)).toBeNull();
   });
 
-  it('finds nothing on the card, the heading or the skills', () => {
-    for (const area of [CARD, NAME_ROW, SKILL_ROWS[0], SKILL_ROWS[1]]) {
+  it('finds the card, and nothing on the heading or the skills', () => {
+    expect(hitTest(centre(CARD).x, centre(CARD).y)).toBe('card');
+    for (const area of [NAME_ROW, SKILL_ROWS[0], SKILL_ROWS[1]]) {
       expect(hitTest(centre(area).x, centre(area).y)).toBeNull();
     }
   });

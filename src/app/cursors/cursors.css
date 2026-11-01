@@ -24,7 +24,7 @@ html[data-pointer="hidden"] * {
     --room-cursor-play: image-set(url("./game-hand.png") 1x, url("./game-hand@2x.png") 2x) 2 2, default;
     /*
      * Over a level's play, the game's play cursors in the hand's pixels (src/game/ui/playCursors.ts): a pair of
-     * footprints walking up-right where a double click walks to (at the middle of the pair), the same under an arrow up
+     * footprints walking up-right where a click walks to (at the middle of the pair), the same under an arrow up
      * where the way needs a jump, and a target's reticle where a click attacks (exactly at its centre).
      */
     --room-cursor-walk: image-set(url("./walk.png") 1x, url("./walk@2x.png") 2x) 14 11, pointer;
