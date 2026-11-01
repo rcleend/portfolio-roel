@@ -40,7 +40,7 @@ room.onViewChange((view) => showHint(view));   // 'tv' | 'room' | 'pc' | 'radio'
 room.onSettle((view) => showOverview(view));   // as it comes to rest
 room.setFramingInsets({ top: 0, right: 0, bottom: touchPadHeight, left: 0 }); // keep the TV clear of overlays
 room.onAnchorsChange((anchors) => note(anchors)); // where the TV, the computer and the radio sit in the room view
-room.setTapToBegin(true);  // while the game's title waits: a finger anywhere on the TV set presses it, as on the picture
+room.setTapToBegin(true);  // while the game's title waits: a finger on the set or anywhere below its top presses it, as on the picture
 room.spotlight.light('radio');                     // a menu item has the pointer or the keyboard: the radio glows and bounces
 room.spotlight.onChange((lit) => placeLabel(lit)); // the lit prop (the pointer's or the app's) and its label point
 // room.showRoom() / room.focusTv() / room.focusPc() / room.focusRadio() for navigation.
@@ -59,7 +59,7 @@ What the room does to the game, so the app does not have to:
 | Click/tap the radio, its cabinet or the lava lamp in the room view, or `focusRadio()` | camera flies to the CD player (§ The CD player); the game stays paused with input disabled; the lid opens and the discs rise | hidden; `radio.controls` goes live on the landing frame |
 | Click/tap outside the radio (cabinet, lamp, wall…), Escape on the stage, or `showRoom()` while at or flying to the radio | `radio.controls` hidden synchronously; the discs sink home, the lid closes, the camera pulls back; the game stays paused | hidden |
 | Pointer over the picture while settled on the TV and powered on | `pointer.move(x, y)` in native pixels, `down()` / `up()`, `leave()` when it leaves the picture | — |
-| A tap or a pen anywhere on the TV set (its bezel, its bottom panel) while settled on the TV and powered on, and `setTapToBegin(true)` (the app turns it on while the game shows its title, "PRESS TO BEGIN") | `down()` / `up()` without a move, as a press on the picture: the title begins | — |
+| A tap or a pen anywhere on the TV set (its bezel, its bottom panel) or below the set's top (the cabinet it stands on, the floor, the room beside it) while settled on the TV and powered on, and `setTapToBegin(true)` (the app turns it on while the game shows its title, "PRESS TO BEGIN"); above the set a tap still leaves | `down()` / `up()` without a move, as a press on the picture: the title begins | — |
 
 A game the app paused itself (a menu, a hidden tab) is never resumed by the room.
 At the computer, its own parts (glass border, bezel, keyboard, mouse) do nothing when clicked: the visitor is using it; at the radio, so does its body.

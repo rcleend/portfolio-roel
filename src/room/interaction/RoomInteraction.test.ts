@@ -323,4 +323,46 @@ describe('room target picking', () => {
     geometry.dispose();
     material.dispose();
   });
+
+  it('hands a press nothing took to whoever claims it, whose release is then no click', () => {
+    const canvas = stageCanvas();
+    vi.spyOn(canvas, 'setPointerCapture').mockImplementation(() => {});
+    vi.spyOn(canvas, 'hasPointerCapture').mockReturnValue(true);
+    vi.spyOn(canvas, 'releasePointerCapture').mockImplementation(() => {});
+    const camera = new PerspectiveCamera(50, 1, 0.1, 20);
+    camera.position.z = 5;
+    camera.updateMatrixWorld();
+    const onMiss = vi.fn();
+    const pointerUp = vi.fn();
+    const tv = { id: 'tv', object: new Object3D(), cursor: () => 'play' as const, activate: vi.fn(), pointerUp };
+    // Claims touches in the lower half of the canvas (NDC y below 0), as the TV does on its title.
+    const claimsPress = vi.fn((pointerType: string, ndc: { y: number }) =>
+      pointerType === 'touch' && ndc.y < 0 ? tv : null,
+    );
+    const interaction = new RoomInteraction({
+      canvas,
+      camera,
+      onMiss,
+      idleCursor: () => 'idle',
+      isEnabled: () => true,
+      claimsPress,
+    });
+    const tap = (y: number, pointerType: string) => {
+      for (const type of ['pointerdown', 'pointerup']) {
+        canvas.dispatchEvent(
+          new PointerEvent(type, { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: y, pointerType }),
+        );
+      }
+    };
+    tap(180, 'touch');
+    expect(pointerUp).toHaveBeenCalledOnce();
+    expect(canvas.setPointerCapture).toHaveBeenCalledOnce();
+    expect(onMiss).not.toHaveBeenCalled();
+    tap(20, 'touch');
+    expect(onMiss).toHaveBeenCalledOnce();
+    tap(180, 'mouse');
+    expect(onMiss).toHaveBeenCalledTimes(2);
+    expect(pointerUp).toHaveBeenCalledOnce();
+    interaction.dispose();
+  });
 });

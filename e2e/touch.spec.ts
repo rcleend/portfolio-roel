@@ -55,6 +55,34 @@ test('on the title a tap on the set itself begins too, and the way out comes at 
   await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
 });
 
+test('on the title a tap anywhere below the top of the set begins, the cabinet and the floor included', async ({
+  page,
+}) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
+  if (process.env.TAP_SHOT) await page.screenshot({ path: process.env.TAP_SHOT });
+  // Well under the set (portrait: it ends about y 580): the cabinet it stands on.
+  await page.touchscreen.tap(195, 780);
+  await expect.poll(() => scene(page), { timeout: 5_000 }).toBe('characterSelect');
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  // Past the title the same tap is a stray one again: nothing happens.
+  await page.waitForTimeout(1000);
+  await page.touchscreen.tap(20, 780);
+  await page.waitForTimeout(1300);
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
+  expect(await scene(page)).toBe('characterSelect');
+});
+
+test('on the title a tap above the set still leaves for the room, and does not begin', async ({ page }) => {
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
+  await page.touchscreen.tap(195, 90);
+  await expect(hostElement(page)).toHaveAttribute('data-view', 'room');
+  expect(await scene(page)).toBe('title');
+});
+
 test('leaves the game by a tap above the set or its way out, and hides the gamepad while looking around the room', async ({
   page,
 }) => {

@@ -197,6 +197,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     // On a touch screen a stray tap beside or below the picture (the pad's plate) is too easy while playing: there
     // only a tap above the set, or the guide's popup, leaves the game (docs/ROOM.md › Using it from the app).
     ignoresClick: (pointerType, ndc) => pointerType !== 'mouse' && views.view === 'tv' && ndc.y < tvTopNdc(),
+    // ...except on the title, where a finger anywhere below the top of the set (the cabinet, the floor, beside it)
+    // begins, as one on the picture does; above the set it still leaves.
+    claimsPress: (pointerType, ndc) =>
+      views.view === 'tv' && ndc.y < tvTopNdc() && tvInput.pressToBegin(pointerType) ? tvInput : null,
     idleCursor: () => (views.view === 'room' || views.moving ? 'idle' : 'leave'),
     onPointer: (ndc) => {
       rig.setParallaxPointer(ndc);
