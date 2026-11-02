@@ -32,8 +32,7 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
 /**
  * The opal lamp beside the TV (docs/ROOM.md › The opal lamp): its base and globe share one material, the room's unlit
  * varnish without a map, compiled for the screen and for the finish's linear target on either poster path. The
- * original bake draws it with a program the room already has. The neon sign's two tubes (docs/ROOM.md › The neon
- * sign) are the same kind of material and share these programs.
+ * original bake draws it with a program the room already has.
  */
 export const TV_LAMP_PROGRAMS = 2;
 

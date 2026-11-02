@@ -1,7 +1,6 @@
 import { type Material, Mesh, type MeshBasicMaterial, type Object3D } from 'three';
 import { SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import type { MoodFinish } from './moods';
-import { NEON_SIGN_LIGHT, type NeonSignUniforms } from './neonSign';
 import { TV_LAMP_LIGHT, type TvLampUniforms } from './tvLamp';
 
 /**
@@ -34,7 +33,6 @@ uniform float uWarmth;
 uniform float uStorm;
 ${SCREEN_LIGHT}
 ${TV_LAMP_LIGHT}
-${NEON_SIGN_LIGHT}
 
 // Broad, view-dependent reflections of the existing practicals, with no second scene render.
 float reflection(vec3 source, vec3 normal, vec3 view, float tightness) {
@@ -89,9 +87,6 @@ vec3 albedo = min(diffuseColor.rgb * 25.0, vec3(0.85));
 outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, albedo, uSheen);
 // So does the opal lamp beside it (tvLamp.ts), past the set and the cabinet that shadow it.
 outgoingLight += tvLampLight(vFinishPosition, finishNormal, albedo);
-// And the neon sign on the cabinet's other end (neonSign.ts), on everything but light itself (its tubes, the globe).
-if (max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) <= 1.0)
-  outgoingLight += neonSignLight(vFinishPosition, finishNormal, albedo);
 `;
 
 /** Extends the existing unlit program, retaining the bake and each material's identity for the prop spotlight. */
@@ -104,11 +99,10 @@ export class RoomGloss {
   private readonly storm = { value: 0 };
   private finish: MoodFinish | null = null;
 
-  /** `screen`, `lamp` and `neon`: the TV's, the opal lamp's and the neon sign's light (RoomAtmosphere owns them). */
+  /** `screen` and `lamp`: the TV's light and the opal lamp's as the finish draws them (RoomAtmosphere owns both). */
   constructor(
     private readonly screen: ScreenLightUniforms,
     private readonly lamp: TvLampUniforms,
-    private readonly neon: NeonSignUniforms,
   ) {}
 
   attach(root: Object3D): void {
@@ -125,7 +119,7 @@ export class RoomGloss {
           shader.uniforms.uSheen = { value: SHEEN[basic.name] ?? 0 };
           shader.uniforms.uWarmth = this.warmth;
           shader.uniforms.uStorm = this.storm;
-          Object.assign(shader.uniforms, this.screen, this.lamp, this.neon);
+          Object.assign(shader.uniforms, this.screen, this.lamp);
           shader.vertexShader =
             VERTEX_DECLARATIONS +
             shader.vertexShader.replace(

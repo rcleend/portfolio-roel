@@ -40,5 +40,3 @@ await run(process.execPath, ['tools/room/build-radio.mjs']);
 await run(process.execPath, ['tools/room/build-posters.mjs']);
 // The opal lamp on the TV cabinet is a supplied model, not part of the bake: add it to the new room.glb.
 await run(process.execPath, ['tools/room/tv-lamp.mjs']);
-// So is the neon R on the cabinet's other end, rebuilt from its reference's proportions.
-await run(process.execPath, ['tools/room/neon-sign.mjs']);
