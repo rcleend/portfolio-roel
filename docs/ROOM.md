@@ -180,7 +180,7 @@ Over the picture the TV takes the game's own cursor (`GameSurface.cursor`, docs/
 
 The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
 
-- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 11–32 kB of webp each (the set's the largest, the toy robot's eyes glowing at its left and the opal lamp at its right), chosen by a `<picture>` before any script.
+- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 9–29 kB of webp each (the set's the largest, the toy robot's eyes glowing at its left and the opal lamp at its right), chosen by a `<picture>` before any script.
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
 - Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
@@ -217,7 +217,7 @@ room/
     AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
     RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows; lights
                         them with the TV's picture (tv/screenLight.ts)
-    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's too); no animation
+    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the robot's eyes' too); no animation
     tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its light read from room.glb, its globe made
                         light, and the GLSL the finish lights the room with
     toyRobot.ts         the toy robot on the cabinet's other end (§ The toy robot): the same, for its two eyes
@@ -376,7 +376,7 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The toy robot adds two draw calls, about 2.4 k triangles, one 512² WebP colour map and no program (its body shares the baked room's mapped program, its eyes the lamp's; 72.3 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
+- **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The toy robot adds four draw calls (its body, its eyes and their two halos), about 2.4 k triangles, one 512² WebP colour map and no program (its body and eyes share the baked room's mapped program, the halos the halation's; 86.4 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
@@ -518,25 +518,39 @@ the source) looks almost straight at the opening camera, and its eyes glow in th
 
 - **The asset.** The source's 32 parts (15,475 vertices, three 1K PNGs, 2.7 MB) become one body mesh and one eye
   mesh, simplified with meshoptimizer (`simplifyWithAttributes`, permissive across the source's hard edges and UV
-  seams, pruning slivers: about 2,500 vertices and 2,400 triangles); only the colour map ships, at 512² WebP (31 kB),
-  as the room is unlit. The robot adds 72.3 kB to `room.glb`. The body is `_BAKED_UNLIT` with its true colours dimmed
+  seams, pruning slivers: about 2,500 vertices and 2,400 triangles); only the colour map ships, at 512² WebP (43 kB),
+  as the room is unlit. The robot adds 86.4 kB to `room.glb`. The body is `_BAKED_UNLIT` with its true colours dimmed
   to the room's night (× 0.04), so the finish's albedo (25 × the colour) is the robot's own and the room's lights
   light it. Its node (`01_TV` › `TV toy robot`, `userData.supplied_asset = "toy-robot"`) carries the eyes' light: a
-  point just in front of each eye's glass, the head's facing, the lamp's colour (`tools/room/tv-lamp-light.mjs`, which
-  the lamp reads too), the eyes' `glow` (1.25: less than the globe's, as small points past white bloom into a
-  hard-edged square, as the set's power light does), and the head's and body's boxes in the body's frame.
-  `attachToyRobot` (`atmosphere/toyRobot.ts`) reads it and makes the eyes light.
-- **Diffuse.** Each eye is a small bulb behind domed glass: strongest straight ahead, two fifths as strong at right
-  angles to the face and a fifth behind it, softened to `1 / (d² + 0.0025)` and faded out from 0.9 m to 1.5 m, with the same wrap and albedo as the
-  lamp's. The set's and the cabinet's boxes shadow it (`tvLamp.ts` › `TV_SET`, `CABINET`), and so do the robot's own
-  head and body, tested in the body's frame (`uRobotFrame`), so the wall right behind it stays dark. The robot's face
-  around its eyes and its chest, the cabinet top, the set's left side, the wall beside it and the Product Engineer
-  cover lying in front of it take its light. The cover is a print baked in the same night (`room_lit_print`) but not
-  named like the bake, so `RoomGloss` extends it by name (`BAKED_PRINTS`); the covers inside the cabinet are left as
-  baked. Surfaces that are themselves light (the eyes, the globe) take none. Its intensity is
-  `TOY_ROBOT_EYE_INTENSITY` (0.05 × the lamp's colour per eye in the finish's linear light).
-- **Programs.** None added: the eyes are mapless like the lamp's base and globe and share their programs; the body and
-  the cover share the baked room's mapped ones.
+  point on each eye's bulb, 2 mm behind the glass (so neither the glass nor the face it is set in takes its own eye's
+  light), the head's facing, the beams' aim (35° below it, looking at the desk), the lamp's colour
+  (`tools/room/tv-lamp-light.mjs`, which the lamp reads too), the eyes' `glow` and the body's and legs' boxes in the
+  body's frame. `attachToyRobot` (`atmosphere/toyRobot.ts`) reads it and makes the eyes light.
+- **Ambient light, baked.** The rest of the room carries its light in its bake; the robot is not in it, so the script
+  bakes the night's ambient light into the colour map itself: texel by texel over the body's UV islands (which do not
+  overlap), the share of 48 fixed directions around the texel's face that reach 6 cm without meeting the robot or the
+  cabinet top, times a little less light from below, multiplied in linear light. The joints, the gaps under the arms
+  and the feet where they stand on the cabinet darken; the feet are also toned from the source's pale grey to a darker
+  gunmetal, so they no longer read as flat pale blocks.
+- **The eyes.** Each eye's disc in the colour map is repainted as lit glass: white in a tight core falling off round
+  to a fifth at the rim, tinted with the lamp's colour × `glow` (1.1). They are drawn as light of their own colour like
+  a display (`RoomGloss` › `EMITTERS` writes alpha 0, RoomScreens' mask): the finish's bloom spreads a small bright
+  point into a square, so it passes them by, and their glow is a small round depth-tested halo each in the lamp's
+  colour (`RoomHalation.addLamp` with a tint, `TOY_ROBOT_EYE_HALO`, 11 mm), just past the glass.
+- **Diffuse.** Each eye is a bulb behind a lens: a soft round beam along the aim, falling smoothly to a tenth off it
+  and to nothing behind the face; Lambert at the surface and the inverse square, softened only over the bulb's few
+  millimetres (`1 / (d² + 1 cm²)`), faded out from 0.9 m to 1.5 m, with the bake as albedo as for the lamp. The set's and
+  the cabinet's boxes shadow it (`tvLamp.ts` › `TV_SET`, `CABINET`), and so do the robot's own body and legs, tested in
+  the body's frame (`uRobotFrame`), each shadow softening over the first 10 cm of occluder its ray crosses. Together the
+  two eyes lay a warm pool on the cabinet top in front of the robot (the chest, a centimetre proud of the eyes, shades
+  the strip right at its feet), brightest a hand's width in front and falling off round, with the Product Engineer
+  cover in it. The cover is a print baked in the same night (`room_lit_print`) but not named like the bake, so
+  `RoomGloss` extends it by name (`BAKED_PRINTS`); the covers inside the cabinet are left as baked. Its intensity is
+  `TOY_ROBOT_EYE_INTENSITY` (0.035 × the lamp's colour per eye along the beam): along it the two together give about
+  two thirds of the lamp's light at the same distance (a lens gathers a small bulb's light into its beam), off it a
+  tenth of that; the pool stays well under the lamp's, which stands 12 cm from the cabinet top against the eyes' 27.
+- **Programs.** None added: the eyes, the body and the cover share the baked room's mapped programs, the halos the
+  halation's.
 - **Original.** The unprocessed bake shows the robot's colours and its eyes but no light from them.
 
 Re-render the startup stills (§ Startup) whenever the robot or its light changes: they show it at the set's left.

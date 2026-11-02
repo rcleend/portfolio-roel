@@ -28,7 +28,13 @@ import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
-import { attachToyRobot, createToyRobotUniforms, TOY_ROBOT_EYE_INTENSITY, type ToyRobotLight } from './toyRobot';
+import {
+  attachToyRobot,
+  createToyRobotUniforms,
+  TOY_ROBOT_EYE_HALO,
+  TOY_ROBOT_EYE_INTENSITY,
+  type ToyRobotLight,
+} from './toyRobot';
 import { attachTvLamp, createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
@@ -47,6 +53,8 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
+/** The toy robot's eye halos: the lamp's colour × this, against the room lamps' warm halation tint (about 1). */
+const EYE_HALO_TINT = 0.8;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -273,7 +281,12 @@ export class RoomAtmosphere {
       this.lampColor = lamp.color;
       this.halation.addLamp(lamp.center, 0.32);
     }
-    this.robotLight ??= attachToyRobot(scene, this.robot);
+    const robot = this.robotLight ? null : attachToyRobot(scene, this.robot);
+    if (robot) {
+      this.robotLight = robot;
+      const tint = robot.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
+      for (const eye of robot.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
+    }
     this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);

@@ -2,7 +2,7 @@
   "generatedBy": "tools/room/optimize.mjs",
   "sourceRevision": 6,
   "artDirection": "After hours — crafted miniature",
-  "totalBytes": 7483227,
+  "totalBytes": 7497474,
   "lighting": "High-contrast night: dim blue ambient, narrow moonlight and local warm practicals; shared Cycles combined bake, AgX Medium High Contrast, exposure 0.85",
   "atlases": {
     "01_TV_surfaces": 2048,
@@ -23,8 +23,8 @@
     {
       "name": "room.glb",
       "source": "room-raw.glb",
-      "bytes": 4822440,
-      "sha256": "fe0a7bc06fa4cb19c1f9465dd3f139655e87d7ea8e594968421cd4752fa124cc",
+      "bytes": 4836596,
+      "sha256": "b90ccc2f7b8809b7a22d00c6872c92775b7f65d152bff125853164aec1ecb3da",
       "validationErrors": 0,
       "validationWarnings": 0
     },
@@ -63,8 +63,8 @@
     {
       "name": "CREDITS.txt",
       "source": "Retained source attribution + revision 6 modifications",
-      "bytes": 14187,
-      "sha256": "57aab8363c82dd02e8ff78fff7fada193f42dd133e6c40d1a6f35cda8a6fa41e"
+      "bytes": 14278,
+      "sha256": "fbff9b015b75dfc4e5ebdb1672bff57f4b2096ad27c4b3aec7410c8cfcdc4c14"
     }
   ],
   "lazyFiles": [

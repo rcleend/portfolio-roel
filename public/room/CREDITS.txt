@@ -87,10 +87,12 @@ Vintage Toy Robot — Tom Scudder (https://sketchfab.com/TomScudder)
 https://sketchfab.com/3d-models/vintage-toy-robot-7780d6de101b47e085fc5397f7e33701
 License: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
 Supplied vintage_toy_robot.glb. Modified: its 32 parts merged into one mesh and
-simplified (15,475 to about 2,500 vertices), the colour map reduced to 512² WebP,
-the normal and metal/roughness maps and the clear coat removed, scaled to 30 cm
-and placed on the left-hand end of the TV cabinet with unlit materials; its eyes
-glow in the opal lamp's colour and their light is drawn by the room's finish.
+simplified (15,475 to about 2,500 vertices), the colour map reduced to 512² WebP
+with ambient occlusion baked in, the feet toned darker and the eyes repainted as
+lit glass, the normal and metal/roughness maps and the clear coat removed, scaled
+to 30 cm and placed on the left-hand end of the TV cabinet with unlit materials;
+its eyes glow in the opal lamp's colour and their light is drawn by the room's
+finish.
 Recipe: tools/room/toy-robot.mjs.
 
 The revision-5 history below describes the origins of the retained assets.

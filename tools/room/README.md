@@ -238,8 +238,10 @@ The toy robot on the left-hand end of the TV cabinet is not baked either: `toy-r
 (`node tools/room/toy-robot.mjs`, the step after the lamp in `pnpm build:room`) reads the supplied
 "Vintage Toy Robot" (Tom Scudder, CC-BY-4.0, `assets/toy-robot-source.glb`), merges its 31 body parts
 into one mesh and simplifies it and the eyes with meshoptimizer, keeps only the colour map at 512²
-WebP, sizes it to 30 cm and stands it behind the Product Engineer case. The body is an unlit
-`_BAKED_UNLIT` material dimmed to the room's night and the eyes a mapless one; the eyes' light (in the
+WebP with the night's ambient light baked in (per texel: occlusion by the robot and the cabinet top,
+through a small bounding-volume tree; the feet toned darker) and the eyes' discs repainted as lit glass,
+sizes it to 30 cm and stands it behind the Product Engineer case. Body and eyes are unlit
+`_BAKED_UNLIT` materials over that map, the body dimmed to the room's night; the eyes' light (in the
 opal lamp's colour, `tv-lamp-light.mjs`) and the robot's shadow boxes are in the node's extras
 (docs/ROOM.md › The toy robot). Both publishers share `publish-tv-prop.mjs`, which replaces the prop
 under `01_TV`, checks that no other geometry or UV changed and re-verifies the room assets before writing.

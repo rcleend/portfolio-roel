@@ -42,11 +42,19 @@ export class RoomHalation {
   private readonly lamps = [this.lamp([0.49, 1.28, -1.92], 0.75), this.lamp([-2.05, 1.03, -1.78], 0.62)];
   private finish: MoodFinish | null = null;
 
-  private lamp(position: readonly [number, number, number], radius: number): Mesh<PlaneGeometry, ShaderMaterial> {
+  private lamp(
+    position: readonly [number, number, number],
+    radius: number,
+    tint?: readonly [number, number, number],
+  ): Mesh<PlaneGeometry, ShaderMaterial> {
     const material = new ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
-      uniforms: { uTint: this.tint, uStrength: this.strength, uRadius: { value: radius } },
+      uniforms: {
+        uTint: tint ? { value: new Vector3().fromArray(tint) } : this.tint,
+        uStrength: this.strength,
+        uRadius: { value: radius },
+      },
       transparent: true,
       blending: CustomBlending,
       blendSrc: SrcAlphaFactor,
@@ -63,9 +71,12 @@ export class RoomHalation {
     return lamp;
   }
 
-  /** Another practical: the opal lamp beside the TV (tvLamp.ts), smaller than the room's own lamps. Before attach. */
-  addLamp(position: readonly [number, number, number], radius: number): void {
-    const lamp = this.lamp(position, radius);
+  /**
+   * Another practical, before attach: the opal lamp beside the TV (tvLamp.ts), smaller than the room's own lamps, or
+   * one of the toy robot's eyes (toyRobot.ts), a small round glow of its own `tint` rather than the finish's warm one.
+   */
+  addLamp(position: readonly [number, number, number], radius: number, tint?: readonly [number, number, number]): void {
+    const lamp = this.lamp(position, radius, tint);
     lamp.visible = this.finish !== null;
     this.lamps.push(lamp);
   }

@@ -149,7 +149,10 @@ export async function verifyRoomAssets(directory, manifest) {
   assert.deepEqual(robotTexture?.getSize(), [512, 512], 'Toy robot ships one 512² colour map');
   assert.equal(robotTexture.getMimeType(), 'image/webp', 'Toy robot colour map must be WebP');
   const eyes = robot.getExtras().light;
-  assert.ok(eyes?.eyes?.length === 2 && eyes.glow > 1 && eyes.head && eyes.body, 'Toy robot has no eye light');
+  assert.ok(
+    eyes?.eyes?.length === 2 && eyes.glow > 0 && eyes.aim && eyes.body && eyes.legs,
+    'Toy robot has no eye light',
+  );
   assert.deepEqual(eyes.color, light.color, "The robot's eyes glow in the opal lamp's colour");
   const cover = room.listNodes().find((node) => node.getName() === 'PS2 printed cover Product Engineer');
   assert.ok(cover, 'Missing generated Product Engineer cover');

@@ -8,16 +8,17 @@ const LIGHT = {
     [2.547, 0.7517, -0.8473],
   ],
   facing: [-0.9817, 0, 0.1904],
+  aim: [-0.8041, -0.5736, 0.156],
   color: [1, 0.72, 0.46],
-  glow: 1.25,
+  glow: 1.1,
   frame: { origin: [2.58, 0.486, -0.87], yaw: Math.PI / 6 },
-  head: [
-    [-0.03, 0.22, -0.04],
-    [0.03, 0.29, 0.04],
-  ],
   body: [
     [-0.04, 0.1, -0.06],
     [0.04, 0.22, 0.06],
+  ],
+  legs: [
+    [-0.03, 0.004, -0.04],
+    [0.03, 0.1, 0.04],
   ],
 };
 
@@ -34,14 +35,15 @@ function room(): { root: Group; body: MeshBasicMaterial; eyes: MeshBasicMaterial
 }
 
 describe('attachToyRobot', () => {
-  it("reads the eyes, the head's facing and the shadow boxes into the uniforms", () => {
+  it("reads the eyes, the head's facing, the beams' aim and the shadow boxes into the uniforms", () => {
     const uniforms = createToyRobotUniforms();
-    expect(attachToyRobot(room().root, uniforms)?.glow).toBe(1.25);
+    expect(attachToyRobot(room().root, uniforms)?.glow).toBe(1.1);
     expect(uniforms.uRobotEyeLeft.value.toArray()).toEqual(LIGHT.eyes[0]);
     expect(uniforms.uRobotEyeRight.value.toArray()).toEqual(LIGHT.eyes[1]);
     expect(uniforms.uRobotFacing.value.toArray()).toEqual(LIGHT.facing);
-    expect(uniforms.uRobotHeadHigh.value.toArray()).toEqual(LIGHT.head[1]);
+    expect(uniforms.uRobotAim.value.toArray()).toEqual(LIGHT.aim);
     expect(uniforms.uRobotBodyLow.value.toArray()).toEqual(LIGHT.body[0]);
+    expect(uniforms.uRobotLegsHigh.value.toArray()).toEqual(LIGHT.legs[1]);
     // The light stays off until the finish turns it on.
     expect(uniforms.uRobotEyeColor.value.toArray()).toEqual([0, 0, 0]);
   });
@@ -56,10 +58,10 @@ describe('attachToyRobot', () => {
     expect(facing.z).toBeCloseTo(0, 6);
   });
 
-  it("turns the eyes into light of the lamp's colour past white and leaves the body as built", () => {
+  it("turns the eyes into light of the lamp's colour and leaves the body as built", () => {
     const { root, body, eyes } = room();
     attachToyRobot(root, createToyRobotUniforms());
-    expect(eyes.color.toArray().map((value) => +value.toFixed(4))).toEqual([1.25, 0.9, 0.575]);
+    expect(eyes.color.toArray().map((value) => +value.toFixed(4))).toEqual([1.1, 0.792, 0.506]);
     expect(body.color.getHex()).toBe(0x0a0a0a);
   });
 
@@ -71,8 +73,9 @@ describe('attachToyRobot', () => {
 });
 
 describe('TOY_ROBOT_LIGHT', () => {
-  it("shadows each eye with the lamp's boxes for the set and the cabinet and the robot's own, and stays off without it", () => {
+  it("shadows each eye with the lamp's boxes for the set and the cabinet and the robot's body and legs, and stays off without it", () => {
     expect(TOY_ROBOT_LIGHT.match(/tvLampChord\(/g)).toHaveLength(4);
+    expect(TOY_ROBOT_LIGHT).toMatch(/uRobotLegsLow, ?uRobotLegsHigh/);
     expect(TOY_ROBOT_LIGHT.match(/robotEye\(position/g)).toHaveLength(2);
     expect(TOY_ROBOT_LIGHT).toContain('uRobotEyeColor.r <= 0.0');
   });

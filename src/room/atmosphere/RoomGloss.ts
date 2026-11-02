@@ -11,6 +11,13 @@ import { TV_LAMP_LIGHT, type TvLampUniforms } from './tvLamp';
  */
 const SHEEN: Readonly<Record<string, number>> = { device_tv_front_BAKED_UNLIT: 1 };
 
+/**
+ * Small lights drawn as light of their own colour, like a display (alpha 0 in the frame, RoomScreens): the finish's
+ * bloom passes them by and they glare only at their brightest pixels. The robot's eyes: the room's bloom spreads a small
+ * bright point into a square, so their glow is the halation's small round halo instead (toyRobot.ts).
+ */
+const EMITTERS: Readonly<Record<string, number>> = { '01_TV_robot_eyes_BAKED_UNLIT': 1 };
+
 /** Only varnished hard surfaces catch reflections. Cloth, paper, the screens and walls stay matte. */
 const VARNISH: Readonly<Record<string, number>> = {
   '03_Room_floor_BAKED_UNLIT': 1,
@@ -37,6 +44,7 @@ varying vec3 vFinishPosition;
 varying vec3 vFinishNormal;
 uniform float uVarnish;
 uniform float uSheen;
+uniform float uEmitter;
 uniform float uWarmth;
 uniform float uStorm;
 ${SCREEN_LIGHT}
@@ -130,6 +138,7 @@ export class RoomGloss {
           original.compile.call(basic, shader, renderer);
           shader.uniforms.uVarnish = varnish;
           shader.uniforms.uSheen = { value: SHEEN[basic.name] ?? 0 };
+          shader.uniforms.uEmitter = { value: EMITTERS[basic.name] ?? 0 };
           shader.uniforms.uWarmth = this.warmth;
           shader.uniforms.uStorm = this.storm;
           Object.assign(shader.uniforms, this.screen, this.lamp, this.robot);
@@ -143,7 +152,10 @@ export class RoomGloss {
             );
           shader.fragmentShader =
             FRAGMENT_DECLARATIONS +
-            shader.fragmentShader.replace('#include <opaque_fragment>', `${FINISH}\n#include <opaque_fragment>`);
+            shader.fragmentShader.replace(
+              '#include <opaque_fragment>',
+              `${FINISH}\n#include <opaque_fragment>\ngl_FragColor.a *= 1.0 - uEmitter;`,
+            );
         };
         basic.customProgramCacheKey = () => 'room-varnish-v1';
         basic.needsUpdate = true;
