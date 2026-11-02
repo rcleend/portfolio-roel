@@ -234,6 +234,16 @@ and adds it to `room.glb` under `01_TV`, checking that no other geometry or UV c
 draws its light at runtime (docs/ROOM.md › The opal lamp). Re-running it replaces the lamp in place
 and gives a byte-identical `room.glb`.
 
+The toy robot on the left-hand end of the TV cabinet is not baked either: `toy-robot.mjs`
+(`node tools/room/toy-robot.mjs`, the step after the lamp in `pnpm build:room`) reads the supplied
+"Vintage Toy Robot" (Tom Scudder, CC-BY-4.0, `assets/toy-robot-source.glb`), merges its 31 body parts
+into one mesh and simplifies it and the eyes with meshoptimizer, keeps only the colour map at 512²
+WebP, sizes it to 30 cm and stands it behind the Product Engineer case. The body is an unlit
+`_BAKED_UNLIT` material dimmed to the room's night and the eyes a mapless one; the eyes' light (in the
+opal lamp's colour, `tv-lamp-light.mjs`) and the robot's shadow boxes are in the node's extras
+(docs/ROOM.md › The toy robot). Both publishers share `publish-tv-prop.mjs`, which replaces the prop
+under `01_TV`, checks that no other geometry or UV changed and re-verifies the room assets before writing.
+
 An already-built export can also be imported with
 `ROOM_SOURCE=/path/to/optimized pnpm sync:room`. The importer requires a valid revision-6
 manifest, checks hashes and asset contracts first, and does not erase the target folder.
@@ -244,7 +254,9 @@ It intentionally rejects the old machine-specific revision-5 export.
 `pnpm verify:room` checks all five runtime GLBs, file sizes and hashes, zero glTF
 errors/warnings, static unlit materials, texture/geometry/transfer budgets, room groups,
 the square rotated rug, the plant's grounding/size/position/triangle budget, the opal lamp's
-grounding, place past the plant and its two shipped parts, the
+grounding, place past the plant and its two shipped parts, the toy robot's grounding, place
+behind the case and left of the set, its body and eyes, triangle budget, 512² WebP map and eye light
+in the lamp's colour, the
 Product Engineer cover's camera-facing bottom, room-lit game inserts, desktop node names and geometry budget, seven animated wax
 meshes and the 48-second clip. It also checks
 both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z

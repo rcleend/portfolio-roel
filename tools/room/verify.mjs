@@ -122,6 +122,35 @@ export async function verifyRoomAssets(directory, manifest) {
   );
   const light = lamp.getExtras().light;
   assert.ok(light?.center?.length === 3 && light.radius > 0 && light.glow > 1, 'Lamp has no light for the finish');
+  // The toy robot on the cabinet's left-hand end (tools/room/toy-robot.mjs): one textured body and two glowing eyes.
+  const robots = room.listNodes().filter((node) => node.getExtras().supplied_asset === 'toy-robot');
+  assert.equal(robots.length, 1, 'Expected one toy robot');
+  const robot = robots[0];
+  const robotBounds = getBounds(robot);
+  assert.equal(robot.getParentNode().getName(), '01_TV', 'Toy robot left the opening-view group');
+  assert.ok(Math.abs(robotBounds.min[1] - 0.486) < 0.002, 'Toy robot must stand on the cabinet top');
+  assert.ok(
+    robotBounds.min[0] > 2.42 && robotBounds.max[0] < 2.795,
+    'Toy robot must stand behind the case, on the cabinet',
+  );
+  assert.ok(
+    robotBounds.min[2] > -1.12 && robotBounds.max[2] < -0.62,
+    'Toy robot must stand left of the set, on the cabinet',
+  );
+  const robotParts = robot.listChildren().flatMap((part) => part.getMesh()?.listPrimitives() ?? []);
+  assert.deepEqual(
+    robotParts.map((primitive) => primitive.getMaterial().getName()),
+    ['01_TV_robot_BAKED_UNLIT', '01_TV_robot_eyes_BAKED_UNLIT'],
+    'The toy robot ships one body and its eyes',
+  );
+  const robotTriangles = robotParts.reduce((sum, primitive) => sum + primitive.getIndices().getCount() / 3, 0);
+  assert.ok(robotTriangles <= 3000, `Toy robot has ${robotTriangles} triangles`);
+  const robotTexture = robotParts[0].getMaterial().getBaseColorTexture();
+  assert.deepEqual(robotTexture?.getSize(), [512, 512], 'Toy robot ships one 512² colour map');
+  assert.equal(robotTexture.getMimeType(), 'image/webp', 'Toy robot colour map must be WebP');
+  const eyes = robot.getExtras().light;
+  assert.ok(eyes?.eyes?.length === 2 && eyes.glow > 1 && eyes.head && eyes.body, 'Toy robot has no eye light');
+  assert.deepEqual(eyes.color, light.color, "The robot's eyes glow in the opal lamp's colour");
   const cover = room.listNodes().find((node) => node.getName() === 'PS2 printed cover Product Engineer');
   assert.ok(cover, 'Missing generated Product Engineer cover');
   const gamePrints = room.listNodes().filter((node) => node.getName().startsWith('PS2 printed cover'));

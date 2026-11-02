@@ -54,7 +54,7 @@ export function attachTvLamp(root: Object3D, uniforms: TvLampUniforms): TvLampLi
 
 /**
  * The set (docs/ROOM.md › Original TV geometry contract) and the cabinet under it, 5 mm in from their faces, as
- * `tvLampChord` arguments: the boxes that shadow the lights beside the set (this lamp, the neon sign).
+ * `tvLampChord` arguments: the boxes that shadow the lights beside the set (this lamp, the toy robot's eyes).
  */
 export const TV_SET = 'vec3(2.158, 0.491, -0.62), vec3(2.652, 1.071, -0.02)';
 export const CABINET = 'vec3(2.125, 0.0, -1.12), vec3(2.795, 0.481, 0.67)';

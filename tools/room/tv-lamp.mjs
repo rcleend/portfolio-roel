@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { Document } from '@gltf-transform/core';
 import { KHRMaterialsUnlit } from '@gltf-transform/extensions';
 import { io, publishTvProp, root } from './publish-tv-prop.mjs';
+import { TV_LAMP_LIGHT } from './tv-lamp-light.mjs';
 
 const NAME = 'TV desk lamp';
 
@@ -22,10 +23,7 @@ const PLACE = [2.33, 0.486, 0.46];
 /** The source's own bounds of the parts that ship (metres, Y up): the base's foot is at y 0.020. */
 const FOOT = 0.02;
 /** The globe's light; its centre and radius are measured from the globe's own vertices below. */
-const LIGHT = {
-  color: [1, 0.72, 0.46], // warm opal: a 2700 K bulb behind white glass, matching the room's tungsten practicals
-  glow: 2.8, // the globe's unlit colour × this, so it reads as light and blooms in the finish
-};
+const LIGHT = TV_LAMP_LIGHT;
 const METAL = [0.008, 0.0075, 0.0085, 1]; // brushed steel under the room's dim night light (~4 % of its albedo)
 
 const source = await io.read(join(root, 'tools/room/assets/tv-lamp-source.glb'));

@@ -1,4 +1,4 @@
-// Publishes a prop built outside the bake (the opal lamp, the neon sign) into room.glb under `01_TV`, preserving
+// Publishes a prop built outside the bake (the opal lamp, the toy robot) into room.glb under `01_TV`, preserving
 // every other asset: the prop's node replaces any earlier one of the same name, the script checks that no other
 // geometry or UV changed, re-verifies the whole set of room assets in a staging folder and only then writes
 // public/room/room.glb, its manifest and the runtime manifest. Re-running a publisher gives a byte-identical file.
@@ -39,7 +39,7 @@ export async function publishTvProp(fresh, name, staging) {
   const room = await io.read(join(target, 'room.glb'));
   const untouched = (document) => {
     const meshes = radioMeshes(document).filter((entry) => !entry.name.startsWith(name));
-    // The props built here (the lamp, the sign) carry no UVs: their geometry is checked, their UVs have none to check.
+    // Meshes without UVs (the lamp, the robot's eyes) have only their geometry to check.
     return [
       geometrySha256(meshes),
       uvSha256(meshes.filter((entry) => entry.primitive.getAttribute('TEXCOORD_0'))),

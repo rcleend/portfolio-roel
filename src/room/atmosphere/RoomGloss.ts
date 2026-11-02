@@ -1,6 +1,7 @@
 import { type Material, Mesh, type MeshBasicMaterial, type Object3D } from 'three';
 import { SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import type { MoodFinish } from './moods';
+import { TOY_ROBOT_LIGHT, type ToyRobotUniforms } from './toyRobot';
 import { TV_LAMP_LIGHT, type TvLampUniforms } from './tvLamp';
 
 /**
@@ -19,6 +20,13 @@ const VARNISH: Readonly<Record<string, number>> = {
   '04_Drawer_guitar_BAKED_UNLIT': 0.6,
 };
 
+/**
+ * Baked surfaces: the bake's own materials, and the Product Engineer cover lying on the cabinet top, a print baked in the
+ * same night light (`room_lit_print`) that the toy robot's eyes reach. (The two covers inside the cabinet stay as baked.)
+ */
+const BAKED_PRINTS = new Set(['PS2 cover Product Engineer_UNLIT']);
+const isBaked = (name: string) => name.endsWith('_BAKED_UNLIT') || BAKED_PRINTS.has(name);
+
 const VERTEX_DECLARATIONS = /* glsl */ `
 varying vec3 vFinishPosition;
 varying vec3 vFinishNormal;
@@ -33,6 +41,7 @@ uniform float uWarmth;
 uniform float uStorm;
 ${SCREEN_LIGHT}
 ${TV_LAMP_LIGHT}
+${TOY_ROBOT_LIGHT}
 
 // Broad, view-dependent reflections of the existing practicals, with no second scene render.
 float reflection(vec3 source, vec3 normal, vec3 view, float tightness) {
@@ -87,6 +96,9 @@ vec3 albedo = min(diffuseColor.rgb * 25.0, vec3(0.85));
 outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, albedo, uSheen);
 // So does the opal lamp beside it (tvLamp.ts), past the set and the cabinet that shadow it.
 outgoingLight += tvLampLight(vFinishPosition, finishNormal, albedo);
+// And the toy robot's eyes on the cabinet's other end (toyRobot.ts), on everything but light itself (its eyes, the globe).
+if (max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) <= 1.0)
+  outgoingLight += toyRobotLight(vFinishPosition, finishNormal, albedo);
 `;
 
 /** Extends the existing unlit program, retaining the bake and each material's identity for the prop spotlight. */
@@ -99,10 +111,11 @@ export class RoomGloss {
   private readonly storm = { value: 0 };
   private finish: MoodFinish | null = null;
 
-  /** `screen` and `lamp`: the TV's light and the opal lamp's as the finish draws them (RoomAtmosphere owns both). */
+  /** `screen`, `lamp` and `robot`: the TV's, the opal lamp's and the toy robot's eyes' light (RoomAtmosphere owns them). */
   constructor(
     private readonly screen: ScreenLightUniforms,
     private readonly lamp: TvLampUniforms,
+    private readonly robot: ToyRobotUniforms,
   ) {}
 
   attach(root: Object3D): void {
@@ -110,7 +123,7 @@ export class RoomGloss {
       if (!(object instanceof Mesh)) return;
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
         const basic = material as MeshBasicMaterial;
-        if (!basic.isMeshBasicMaterial || !basic.name.endsWith('_BAKED_UNLIT') || this.materials.has(basic)) continue;
+        if (!basic.isMeshBasicMaterial || !isBaked(basic.name) || this.materials.has(basic)) continue;
         const original = { compile: basic.onBeforeCompile, key: basic.customProgramCacheKey };
         const varnish = { value: (this.finish?.gloss ?? 0) * (VARNISH[basic.name] ?? 0) };
         basic.onBeforeCompile = (shader, renderer) => {
@@ -119,7 +132,7 @@ export class RoomGloss {
           shader.uniforms.uSheen = { value: SHEEN[basic.name] ?? 0 };
           shader.uniforms.uWarmth = this.warmth;
           shader.uniforms.uStorm = this.storm;
-          Object.assign(shader.uniforms, this.screen, this.lamp);
+          Object.assign(shader.uniforms, this.screen, this.lamp, this.robot);
           shader.vertexShader =
             VERTEX_DECLARATIONS +
             shader.vertexShader.replace(

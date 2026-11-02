@@ -32,7 +32,9 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
 /**
  * The opal lamp beside the TV (docs/ROOM.md › The opal lamp): its base and globe share one material, the room's unlit
  * varnish without a map, compiled for the screen and for the finish's linear target on either poster path. The
- * original bake draws it with a program the room already has.
+ * original bake draws it with a program the room already has. The toy robot's eyes (docs/ROOM.md › The toy robot)
+ * are the same kind of material and share these programs; its body and the Product Engineer cover share the baked
+ * room's own mapped programs.
  */
 export const TV_LAMP_PROGRAMS = 2;
 

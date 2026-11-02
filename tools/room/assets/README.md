@@ -40,6 +40,12 @@ bake/publication path without rebuilding unrelated room assets.
   Embedded license: **SKETCHFAB Standard**. `tv-lamp.mjs` ships only its opal globe and round metal base
   on the right-hand end of the TV cabinet.
 
+- `toy-robot-source.glb`: user-supplied **Vintage Toy Robot** by
+  [Tom Scudder](https://sketchfab.com/TomScudder), from
+  [Sketchfab](https://sketchfab.com/3d-models/vintage-toy-robot-7780d6de101b47e085fc5397f7e33701).
+  Embedded license: **CC BY 4.0**. `toy-robot.mjs` merges and simplifies it, keeps its colour map at 512² WebP and
+  stands it on the left-hand end of the TV cabinet.
+
 These are offline authoring sources. The plant uses one 1K baked atlas; the cover
 is reduced to a maximum edge of 1K and replaces the old embedded cover texture.
 

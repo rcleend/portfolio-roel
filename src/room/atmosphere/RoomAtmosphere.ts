@@ -28,6 +28,7 @@ import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
+import { attachToyRobot, createToyRobotUniforms, TOY_ROBOT_EYE_INTENSITY, type ToyRobotLight } from './toyRobot';
 import { attachTvLamp, createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
@@ -175,7 +176,10 @@ export class RoomAtmosphere {
   /** The opal lamp beside the TV (tvLamp.ts): its light on the room and in the air, while the room has one. */
   private readonly lamp = createTvLampUniforms();
   private lampColor: readonly [number, number, number] | null = null;
-  private readonly gloss = new RoomGloss(this.screenLight, this.lamp);
+  /** The toy robot on the cabinet's other end (toyRobot.ts): its eyes' light on the room, while the room has one. */
+  private readonly robot = createToyRobotUniforms();
+  private robotLight: ToyRobotLight | null = null;
+  private readonly gloss = new RoomGloss(this.screenLight, this.lamp, this.robot);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -268,8 +272,9 @@ export class RoomAtmosphere {
     if (lamp) {
       this.lampColor = lamp.color;
       this.halation.addLamp(lamp.center, 0.32);
-      this.applyLamp();
     }
+    this.robotLight ??= attachToyRobot(scene, this.robot);
+    this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);
     this.screens.attach(scene);
@@ -313,11 +318,15 @@ export class RoomAtmosphere {
     }
   }
 
-  /** The lamp lights the room only in a finish: the unprocessed bake (original) shows the room as baked. */
+  /** The lamp and the robot's eyes light the room only in a finish: the unprocessed bake (original) shows it as baked. */
   private applyLamp(): void {
     const color = this.lamp.uTvLampColor.value;
     if (this.lampColor && this.mood !== 'original') color.fromArray(this.lampColor).multiplyScalar(TV_LAMP_INTENSITY);
     else color.set(0, 0, 0);
+    const eyes = this.robot.uRobotEyeColor.value;
+    if (this.robotLight && this.mood !== 'original')
+      eyes.fromArray(this.robotLight.color).multiplyScalar(TOY_ROBOT_EYE_INTENSITY);
+    else eyes.set(0, 0, 0);
   }
 
   setAir(air: RoomAir): void {
