@@ -125,6 +125,21 @@ describe('CameraRig', () => {
     expect(arrived).toHaveBeenCalledTimes(1);
   });
 
+  it('cuts on black even when the frame after the fade starts comes late, then fades back', () => {
+    const { instance, frames, fade } = rig(true);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    const arrived = vi.fn();
+    instance.goTo('room', arrived);
+    frames.run(0);
+    // A slow frame (a first look's uploads and compiles) lands past the fade out and the fade back alike.
+    frames.run(3 * REDUCED_FADE_MS);
+    expect(fade.opacity).toBe(1);
+    expect(arrived).not.toHaveBeenCalled();
+    frames.run(3 * REDUCED_FADE_MS + REDUCED_FADE_MS + 16);
+    expect(fade.opacity).toBe(0);
+    expect(arrived).toHaveBeenCalledTimes(1);
+  });
+
   it('never holds a cut black longer than its limit', () => {
     const { instance, frames, fade } = rig(true);
     instance.resize({ width: 1440, height: 900, pixelRatio: 2 });

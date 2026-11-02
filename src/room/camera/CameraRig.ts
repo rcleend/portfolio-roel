@@ -217,6 +217,8 @@ export class CameraRig {
       const elapsed = now - start;
       if (!cut && elapsed >= REDUCED_FADE_MS) {
         cut = true;
+        // The fade back starts at the cut, so the frame that cuts is black even when it comes late (a slow frame).
+        fadeInFrom = elapsed;
         this.current = cloneViewpoint(this.pose(view));
         this.apply();
       }
