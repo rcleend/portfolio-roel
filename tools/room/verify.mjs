@@ -103,6 +103,25 @@ export async function verifyRoomAssets(directory, manifest) {
       .reduce((sum, primitive) => sum + primitive.getIndices().getCount() / 3, 0) <= 16_000,
     'Plant scan exceeds its small-prop geometry budget',
   );
+  // The opal lamp on the cabinet's right-hand end (tools/room/tv-lamp.mjs): the globe and its base only.
+  const lamps = room.listNodes().filter((node) => node.getExtras().supplied_asset === 'tv-lamp');
+  assert.equal(lamps.length, 1, 'Expected one supplied TV desk lamp');
+  const lamp = lamps[0];
+  const lampBounds = getBounds(lamp);
+  assert.equal(lamp.getParentNode().getName(), '01_TV', 'Lamp left the opening-view group');
+  assert.ok(Math.abs(lampBounds.min[1] - 0.486) < 0.002, 'Lamp must rest on the cabinet top');
+  assert.ok(lampBounds.min[0] > 2.12 && lampBounds.max[0] < 2.69, 'Lamp overhangs the cabinet');
+  assert.ok(lampBounds.min[2] > plantBounds.max[2] && lampBounds.max[2] < 0.675, 'Lamp must stand past the plant');
+  assert.deepEqual(
+    lamp
+      .listChildren()
+      .flatMap((part) => part.getMesh()?.listPrimitives() ?? [])
+      .map((primitive) => primitive.getMaterial().getName()),
+    ['01_TV_lamp_metal_BAKED_UNLIT', '01_TV_lamp_opaline_BAKED_UNLIT'],
+    'The lamp ships its metal base and opal globe only: no cord, backdrop or plexi box',
+  );
+  const light = lamp.getExtras().light;
+  assert.ok(light?.center?.length === 3 && light.radius > 0 && light.glow > 1, 'Lamp has no light for the finish');
   const cover = room.listNodes().find((node) => node.getName() === 'PS2 printed cover Product Engineer');
   assert.ok(cover, 'Missing generated Product Engineer cover');
   const gamePrints = room.listNodes().filter((node) => node.getName().startsWith('PS2 printed cover'));

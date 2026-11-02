@@ -1,6 +1,7 @@
 import { type Material, Mesh, type MeshBasicMaterial, type Object3D } from 'three';
 import { SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import type { MoodFinish } from './moods';
+import { TV_LAMP_LIGHT, type TvLampUniforms } from './tvLamp';
 
 /**
  * Satin surfaces that mirror the TV's picture, on top of the diffuse light every surface takes from it: the set's own
@@ -31,6 +32,7 @@ uniform float uSheen;
 uniform float uWarmth;
 uniform float uStorm;
 ${SCREEN_LIGHT}
+${TV_LAMP_LIGHT}
 
 // Broad, view-dependent reflections of the existing practicals, with no second scene render.
 float reflection(vec3 source, vec3 normal, vec3 view, float tightness) {
@@ -72,15 +74,19 @@ if (uStorm > 0.001) {
 float amber = reflection(vec3(0.49, 1.28, -1.97), finishNormal, finishView, 24.0);
 float desk = reflection(vec3(-2.05, 1.03, -1.88), finishNormal, finishView, 32.0);
 float window = reflection(vec3(-1.3, 2.1, -2.55), finishNormal, finishView, 42.0);
+float opal = uTvLampColor.r > 0.0 ? reflection(uTvLamp, finishNormal, finishView, 32.0) : 0.0;
 // Grain and baked shadow modulate the polish: no shiny rug, no mirror-white floor.
 float bakedLight = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 float grain = smoothstep(0.005, 0.19, bakedLight);
 float fresnel = 0.35 + 0.65 * pow(1.0 - max(dot(finishNormal, finishView), 0.0), 3.0);
-outgoingLight += uVarnish * grain * fresnel * (vec3(0.8, 0.29, 0.055) * (amber + desk * 0.65)
+outgoingLight += uVarnish * grain * fresnel * (vec3(0.8, 0.29, 0.055) * (amber + desk * 0.65 + opal * 0.5)
   + vec3(0.24, 0.32, 0.52) * window * 0.38);
 // The TV's picture lights what faces it. The bake stands in for each surface's albedo: it is that colour under the
 // room's dim night light, about 4 % of full light where the TV stands.
-outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, min(diffuseColor.rgb * 25.0, vec3(0.85)), uSheen);
+vec3 albedo = min(diffuseColor.rgb * 25.0, vec3(0.85));
+outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, albedo, uSheen);
+// So does the opal lamp beside it (tvLamp.ts), past the set and the cabinet that shadow it.
+outgoingLight += tvLampLight(vFinishPosition, finishNormal, albedo);
 `;
 
 /** Extends the existing unlit program, retaining the bake and each material's identity for the prop spotlight. */
@@ -93,8 +99,11 @@ export class RoomGloss {
   private readonly storm = { value: 0 };
   private finish: MoodFinish | null = null;
 
-  /** `screen`: the TV's light as the finish draws it (RoomAtmosphere owns and updates it). */
-  constructor(private readonly screen: ScreenLightUniforms) {}
+  /** `screen` and `lamp`: the TV's light and the opal lamp's as the finish draws them (RoomAtmosphere owns both). */
+  constructor(
+    private readonly screen: ScreenLightUniforms,
+    private readonly lamp: TvLampUniforms,
+  ) {}
 
   attach(root: Object3D): void {
     root.traverse((object) => {
@@ -110,7 +119,7 @@ export class RoomGloss {
           shader.uniforms.uSheen = { value: SHEEN[basic.name] ?? 0 };
           shader.uniforms.uWarmth = this.warmth;
           shader.uniforms.uStorm = this.storm;
-          Object.assign(shader.uniforms, this.screen);
+          Object.assign(shader.uniforms, this.screen, this.lamp);
           shader.vertexShader =
             VERTEX_DECLARATIONS +
             shader.vertexShader.replace(

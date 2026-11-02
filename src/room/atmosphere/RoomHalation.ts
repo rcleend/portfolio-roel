@@ -40,6 +40,7 @@ export class RoomHalation {
   private readonly tint = { value: new Vector3(1, 0.24, 0.055) };
   private readonly strength = { value: 0 };
   private readonly lamps = [this.lamp([0.49, 1.28, -1.92], 0.75), this.lamp([-2.05, 1.03, -1.78], 0.62)];
+  private finish: MoodFinish | null = null;
 
   private lamp(position: readonly [number, number, number], radius: number): Mesh<PlaneGeometry, ShaderMaterial> {
     const material = new ShaderMaterial({
@@ -62,11 +63,19 @@ export class RoomHalation {
     return lamp;
   }
 
+  /** Another practical: the opal lamp beside the TV (tvLamp.ts), smaller than the room's own lamps. Before attach. */
+  addLamp(position: readonly [number, number, number], radius: number): void {
+    const lamp = this.lamp(position, radius);
+    lamp.visible = this.finish !== null;
+    this.lamps.push(lamp);
+  }
+
   attach(scene: Scene): void {
     for (const lamp of this.lamps) if (!lamp.parent) scene.add(lamp);
   }
 
   setFinish(finish: MoodFinish | null): void {
+    this.finish = finish;
     this.strength.value = finish ? 0.115 * finish.warmth : 0;
     if (finish) this.tint.value.set(1, 0.24 * finish.bloomTint[1], 0.12 * finish.bloomTint[2]);
     for (const lamp of this.lamps) lamp.visible = finish !== null;

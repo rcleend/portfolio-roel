@@ -34,6 +34,12 @@ bake/publication path without rebuilding unrelated room assets.
   blue/amber art direction. The front insert replaces Battlefront II; the entire
   case turns 180° so the artwork's bottom points at the opening camera.
 
+- `tv-lamp-source.glb`: user-supplied **PlexiAndOpaline Desk Lamp** by
+  [MooseMannequin](https://sketchfab.com/MooseMannequin), from
+  [Sketchfab](https://sketchfab.com/3d-models/plexiandopaline-desk-lamp-8469b807d9d24abfb52fbc91bddd1468).
+  Embedded license: **SKETCHFAB Standard**. `tv-lamp.mjs` ships only its opal globe and round metal base
+  on the right-hand end of the TV cabinet.
+
 These are offline authoring sources. The plant uses one 1K baked atlas; the cover
 is reduced to a maximum edge of 1K and replaces the old embedded cover texture.
 

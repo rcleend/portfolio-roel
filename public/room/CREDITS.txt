@@ -70,6 +70,17 @@ using the site's blue/amber title screen as the visual reference. Replaces the
 Battlefront II print; the case and spine are rotated 180 degrees towards the viewer.
 Authoring sources and generation prompt: tools/room/assets/README.md.
 
+TV DESK LAMP — OPAL GLOBE
+
+PlexiAndOpaline Desk Lamp — MooseMannequin (https://sketchfab.com/MooseMannequin)
+https://sketchfab.com/3d-models/plexiandopaline-desk-lamp-8469b807d9d24abfb52fbc91bddd1468
+Embedded license: SKETCHFAB Standard (https://sketchfab.com/licenses)
+Supplied plexiandopaline_desk_lamp.glb. Modified: only the opal globe and the round
+metal base ship; the cord, the backdrop plane, the translucent plexi box, its corner
+rails and the box's four feet are removed. Placed on the right-hand end of the TV
+cabinet with unlit materials; the globe's light is drawn by the room's finish.
+Recipe: tools/room/tv-lamp.mjs.
+
 The revision-5 history below describes the origins of the retained assets.
 
 IMPORTED / RECOVERED DEVICE MESHES

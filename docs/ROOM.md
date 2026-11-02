@@ -180,7 +180,7 @@ Over the picture the TV takes the game's own cursor (`GameSurface.cursor`, docs/
 
 The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
 
-- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 6–17 kB of webp each, chosen by a `<picture>` before any script.
+- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 7–24 kB of webp each (the set's the largest, the opal lamp glowing at its right), chosen by a `<picture>` before any script.
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
 - Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
@@ -217,7 +217,9 @@ room/
     AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
     RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows; lights
                         them with the TV's picture (tv/screenLight.ts)
-    RoomHalation.ts     depth-tested warm halos at the two practical lamps; no animation
+    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's too); no animation
+    tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its light read from room.glb, its globe made
+                        light, and the GLSL the finish lights the room with
     RoomScreens.ts      display mask in the frame's alpha; keeps content clear and hides the monitor's bezel quad
     LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
   camera/
@@ -373,7 +375,7 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
 - **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** The five revision-6 runtime GLBs contain 351,791 triangles and, with credits, total 7.40 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
+- **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
@@ -392,7 +394,8 @@ first frame already has the intended finish. There are no mood controls or produ
 
 The bake remains the source of light and occlusion. Hard surfaces receive a shared shader extension for restrained,
 view-dependent lamp/window reflections; fabric, posters and screens stay matte. All baked room surfaces keep their
-occlusion while their light near the lamps warms up. The existing lamps carry soft, depth-tested halos.
+occlusion while their light near the lamps warms up. The lamps carry soft, depth-tested halos; the opal lamp beside
+the TV is light the finish adds (§ The opal lamp).
 The scene draws once into a multisampled half-float target (8-bit fallback without float colour
 buffers), then two full-screen triangles extract highlights at quarter resolution and composite their mip-based glow
 with a linear split-tone grade and vignette. No second tone mapping is applied to the baked display transform.
@@ -478,6 +481,32 @@ The finish adds six shader programs plus two linear-output material variants to 
 subsequent switches reuse them. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse, idle frames,
 reduced motion, the fixed production finish, dust visibility and scheduling, device navigation, TV contrast and exclusion of
 dust/haze from its picture, live-PC tint and hand-over, resize and WebGL context restoration.
+
+### The opal lamp
+
+A small opal globe lamp stands on the right-hand end of the TV cabinet (`tools/room/tv-lamp.mjs`, the supplied
+PlexiAndOpaline Desk Lamp with its plexi box, cord and backdrop left out), so the opening TV view is not lost in the
+dark around the set. It is not in the bake: the finish lights the room with it, like the TV's picture.
+
+- **The asset.** Its node in `room.glb` (`01_TV` › `TV desk lamp`, `userData.supplied_asset = "tv-lamp"`) carries the
+  light: the globe's centre and radius, its colour and `glow`. `attachTvLamp` (`atmosphere/tvLamp.ts`) reads it when
+  the finish attaches and multiplies the globe's unlit colour by `glow` (2.8), so the globe is light past white that the
+  finish's highlights bloom around, with a halo (`RoomHalation`) and a little warm air in the composite.
+- **Diffuse.** Every baked surface `RoomGloss` extends takes the globe as a sphere light: Lambert with a slight wrap
+  (a surface just past its horizon still sees the globe's top), softened to `1 / (d² + 0.04)` (no hot spot under it)
+  and faded out from 1.4 m to 2 m. The bake stands in for albedo exactly as for the TV's light (25 × the baked colour,
+  at most 0.85). The set and the cabinet cast its shadows: each is a box (the set's measured bounds, the cabinet's),
+  and the light fades over the first 7 cm of either box the ray to the globe runs through, a soft edge like a 16 cm
+  globe's penumbra. The wall beside the set, the plant, the set's right side and the cabinet top take its light; the
+  floor in front of the cabinet takes it only past the cabinet's front edge; the set's front, behind which it stands,
+  never does. Its intensity is `TV_LAMP_INTENSITY` (0.14 × its colour in the finish's linear light).
+- **Varnish.** The varnished surfaces reflect it like the other practicals.
+- **The base.** Its metal base is a dark steel `_BAKED_UNLIT` material, so the globe above it lights it like any
+  surface. The base and the globe share one material (mapless unlit with the finish): two programs under a finish, its
+  screen and linear-target variants (`e2e/programs.ts` › `TV_LAMP_PROGRAMS`), none in the original bake.
+- **Original.** The unprocessed bake (`original`) shows the globe but no light from it, as it has no live TV light.
+
+Re-render the startup stills (§ Startup) whenever the lamp or its light changes: they show it at the set's right.
 
 ### Rain audio
 
