@@ -10,21 +10,11 @@
 // bake (`_BAKED_UNLIT`) so the finish extends them with the room's own program: the base is a dark steel that the
 // globe's light warms like any other surface, and the two add one shader program between them, not two.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { Document, NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS, KHRMaterialsUnlit } from '@gltf-transform/extensions';
-import { copyToDocument, meshopt, prune, unpartition, weld } from '@gltf-transform/functions';
-import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
-import { geometrySha256, radioMeshes, uvSha256 } from './radio-geometry.mjs';
-import { writeRuntimeManifest } from './runtime-manifest.mjs';
-import { verifyRoomAssets } from './verify.mjs';
+import { join } from 'node:path';
+import { Document } from '@gltf-transform/core';
+import { KHRMaterialsUnlit } from '@gltf-transform/extensions';
+import { io, publishTvProp, root } from './publish-tv-prop.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const target = join(root, 'public/room');
-const staging = join(root, '.context/tv-lamp');
 const NAME = 'TV desk lamp';
 
 /** On the cabinet top (y 0.486, x 2.12–2.69, z to 0.675): near its right-hand end and front, whole in the TV view. */
@@ -37,13 +27,6 @@ const LIGHT = {
   glow: 2.8, // the globe's unlit colour × this, so it reads as light and blooms in the finish
 };
 const METAL = [0.008, 0.0075, 0.0085, 1]; // brushed steel under the room's dim night light (~4 % of its albedo)
-
-await mkdir(staging, { recursive: true });
-await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
-const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
-  'meshopt.encoder': MeshoptEncoder,
-  'meshopt.decoder': MeshoptDecoder,
-});
 
 const source = await io.read(join(root, 'tools/room/assets/tv-lamp-source.glb'));
 const sourceInfo = source.getRoot().getAsset().extras;
@@ -213,58 +196,5 @@ const node = fresh
     light: { center, radius, color: LIGHT.color, glow: LIGHT.glow },
   });
 fresh.createScene().addChild(node);
-await fresh.transform(
-  weld(),
-  meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizeTexcoord: 16, quantizePosition: 16 }),
-);
-
-const room = await io.read(join(target, 'room.glb'));
-const untouched = (document) => {
-  const meshes = radioMeshes(document).filter((entry) => !entry.name.startsWith(NAME));
-  return [geometrySha256(meshes), uvSha256(meshes)].join();
-};
-const before = untouched(room);
-const group = room
-  .getRoot()
-  .listNodes()
-  .find((entry) => entry.getName() === '01_TV');
-assert.ok(group, 'Missing the opening-view group');
-for (const old of room
-  .getRoot()
-  .listNodes()
-  .filter((entry) => entry.getName() === NAME)) {
-  old.getParentNode()?.removeChild(old);
-  old.dispose();
-}
-const freshNode = fresh
-  .getRoot()
-  .listNodes()
-  .find((entry) => entry.getName() === NAME);
-group.addChild(copyToDocument(room, fresh, [freshNode]).get(freshNode));
-await room.transform(prune({ keepAttributes: true }), unpartition());
-await io.write(join(staging, 'room.glb'), room);
-assert.equal(untouched(await io.read(join(staging, 'room.glb'))), before, 'Unrelated room geometry or UVs changed');
-
-await cp(join(target, 'CREDITS.txt'), join(staging, 'CREDITS.txt'));
-for (const file of ['tv-high.glb', 'pc-base.glb', 'radio-base.glb', 'ps2-base.glb', ...(await lazyNames())])
-  await cp(join(target, file), join(staging, file));
-const manifest = JSON.parse(await readFile(join(target, 'manifest.json'), 'utf8'));
-for (const name of ['room.glb', 'CREDITS.txt']) {
-  const bytes = await readFile(join(staging, name));
-  const entry = manifest.files.find((file) => file.name === name);
-  entry.bytes = bytes.length;
-  entry.sha256 = createHash('sha256').update(bytes).digest('hex');
-}
-manifest.totalBytes = manifest.files.reduce((sum, file) => sum + file.bytes, 0);
-console.log('Room contracts:', await verifyRoomAssets(staging, manifest));
-await cp(join(staging, 'room.glb'), join(target, 'room.glb'));
-await writeFile(join(target, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-await writeRuntimeManifest(root, manifest);
-console.log(
-  `Published the TV desk lamp (light at ${center.join(', ')}, r ${radius}): ${manifest.totalBytes} bytes total.`,
-);
-
-async function lazyNames() {
-  const manifest = JSON.parse(await readFile(join(target, 'manifest.json'), 'utf8'));
-  return (manifest.lazyFiles ?? []).map((file) => file.name);
-}
+const totalBytes = await publishTvProp(fresh, NAME, 'tv-lamp');
+console.log(`Published the TV desk lamp (light at ${center.join(', ')}, r ${radius}): ${totalBytes} bytes total.`);

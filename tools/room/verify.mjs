@@ -122,6 +122,32 @@ export async function verifyRoomAssets(directory, manifest) {
   );
   const light = lamp.getExtras().light;
   assert.ok(light?.center?.length === 3 && light.radius > 0 && light.glow > 1, 'Lamp has no light for the finish');
+  // The neon R on the cabinet's left-hand end (tools/room/neon-sign.mjs): two tubes, leaning on the wall, clear of the set.
+  const signs = room.listNodes().filter((node) => node.getExtras().supplied_asset === 'neon-sign');
+  assert.equal(signs.length, 1, 'Expected one neon sign');
+  const sign = signs[0];
+  const signBounds = getBounds(sign);
+  assert.equal(sign.getParentNode().getName(), '01_TV', 'Neon sign left the opening-view group');
+  assert.ok(Math.abs(signBounds.min[1] - 0.486) < 0.002, 'Neon sign must stand on the cabinet top');
+  assert.ok(signBounds.max[0] <= 2.8 && signBounds.max[0] > 2.795, 'Neon sign must lean against the wall');
+  assert.ok(signBounds.min[0] > 2.12, 'Neon sign overhangs the cabinet front');
+  assert.ok(
+    signBounds.min[2] > -1.12 && signBounds.max[2] < -0.62,
+    'Neon sign must stand left of the set, on the cabinet',
+  );
+  assert.deepEqual(
+    sign
+      .listChildren()
+      .flatMap((part) => part.getMesh()?.listPrimitives() ?? [])
+      .map((primitive) => primitive.getMaterial().getName()),
+    ['01_TV_neon_blue_BAKED_UNLIT', '01_TV_neon_red_BAKED_UNLIT'],
+    'The neon sign ships its blue border and red R only',
+  );
+  const neon = sign.getExtras().light;
+  assert.ok(
+    neon?.center?.length === 3 && neon.letter?.glow > 1 && neon.border?.glow > 1,
+    'Neon sign has no light for the finish',
+  );
   const cover = room.listNodes().find((node) => node.getName() === 'PS2 printed cover Product Engineer');
   assert.ok(cover, 'Missing generated Product Engineer cover');
   const gamePrints = room.listNodes().filter((node) => node.getName().startsWith('PS2 printed cover'));

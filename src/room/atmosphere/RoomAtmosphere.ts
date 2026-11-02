@@ -24,6 +24,7 @@ import type { RenderLoop } from '../stage/RenderLoop';
 import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import { AirMotion } from './AirMotion';
 import { ROOM_MOODS, type RoomAir, type RoomMood, SCREEN_FINISH_STRENGTH } from './moods';
+import { attachNeonSign, createNeonSignUniforms, NEON_SIGN_INTENSITY, type NeonSignLight } from './neonSign';
 import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
@@ -175,7 +176,10 @@ export class RoomAtmosphere {
   /** The opal lamp beside the TV (tvLamp.ts): its light on the room and in the air, while the room has one. */
   private readonly lamp = createTvLampUniforms();
   private lampColor: readonly [number, number, number] | null = null;
-  private readonly gloss = new RoomGloss(this.screenLight, this.lamp);
+  /** The neon sign on the cabinet's other end (neonSign.ts): its light on the room, while the room has one. */
+  private readonly neon = createNeonSignUniforms();
+  private neonLight: NeonSignLight | null = null;
+  private readonly gloss = new RoomGloss(this.screenLight, this.lamp, this.neon);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -268,8 +272,9 @@ export class RoomAtmosphere {
     if (lamp) {
       this.lampColor = lamp.color;
       this.halation.addLamp(lamp.center, 0.32);
-      this.applyLamp();
     }
+    this.neonLight ??= attachNeonSign(scene, this.neon);
+    this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);
     this.screens.attach(scene);
@@ -313,11 +318,14 @@ export class RoomAtmosphere {
     }
   }
 
-  /** The lamp lights the room only in a finish: the unprocessed bake (original) shows the room as baked. */
+  /** The lamp and the neon sign light the room only in a finish: the unprocessed bake (original) shows the room as baked. */
   private applyLamp(): void {
     const color = this.lamp.uTvLampColor.value;
     if (this.lampColor && this.mood !== 'original') color.fromArray(this.lampColor).multiplyScalar(TV_LAMP_INTENSITY);
     else color.set(0, 0, 0);
+    const on = this.neonLight && this.mood !== 'original' ? NEON_SIGN_INTENSITY : 0;
+    this.neon.uNeonRed.value.fromArray(this.neonLight?.letter.color ?? [0, 0, 0]).multiplyScalar(on);
+    this.neon.uNeonBlue.value.fromArray(this.neonLight?.border.color ?? [0, 0, 0]).multiplyScalar(on);
   }
 
   setAir(air: RoomAir): void {

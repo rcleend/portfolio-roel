@@ -81,6 +81,18 @@ rails and the box's four feet are removed. Placed on the right-hand end of the T
 cabinet with unlit materials; the globe's light is drawn by the room's finish.
 Recipe: tools/room/tv-lamp.mjs.
 
+TV CABINET NEON SIGN — "R"
+
+Based on: Neon Open Sign — Logan S. (https://sketchfab.com/Logan_S)
+https://sketchfab.com/3d-models/neon-open-sign-2efad97b50f34220b2df92fe99c8a2ad
+License: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+Supplied neon_open_sign.glb, used as the reference. Modified: rebuilt procedurally at
+the reference's proportions (its blue rounded-rectangle border with the gap near its
+top-left corner, the tube's thickness relative to the letters, no backing), with the
+red "Open" replaced by a single "R" bent from one continuous tube. Standing on the
+left-hand end of the TV cabinet, leaning back against the wall, with unlit materials;
+its light is drawn by the room's finish. Recipe: tools/room/neon-sign.mjs.
+
 The revision-5 history below describes the origins of the retained assets.
 
 IMPORTED / RECOVERED DEVICE MESHES
