@@ -1,3 +1,4 @@
+import { inject } from '@vercel/analytics';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createGame } from '@/game/createGame';
@@ -20,6 +21,7 @@ import './cursors/cursors.css';
 function main(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root element');
+  inject();
   hidePointerUntilMoved();
   watchInputModality();
   // The loading screen's faces download with the first chunk rather than when it first paints them.
