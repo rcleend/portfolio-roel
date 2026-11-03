@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import { useEffect, useReducer, useState } from 'react';
 import type { CreatedGame } from '@/game/createGame';
 import { Arcade } from './Arcade';
@@ -53,6 +54,7 @@ export function App({ loading, host, config }: AppProps) {
       {created ? <Arcade created={created} host={host} config={config} startup={startup} dispatch={dispatch} /> : null}
       <TvStill shown={(still && startup.still) || failed} failed={failed} />
       <Resume />
+      <Analytics />
     </>
   );
 }
