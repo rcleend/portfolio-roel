@@ -111,10 +111,10 @@ export class Director<M extends SceneMap<M>, A extends string = string> implemen
     }
   }
 
-  /** The active scene's cursor; mid-transition, when nothing can be clicked, the game's hand. */
-  cursor(): GameCursor {
-    if (this.#transition) return 'hand';
-    return this.#current?.scene.cursor?.() ?? 'hand';
+  /** The active scene's own cursor, if it names one; none mid-transition, when nothing can be clicked. */
+  cursor(): GameCursor | undefined {
+    if (this.#transition) return undefined;
+    return this.#current?.scene.cursor?.();
   }
 
   render(gfx: Gfx): void {

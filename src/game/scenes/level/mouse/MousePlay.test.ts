@@ -131,7 +131,7 @@ describe('MousePlay', () => {
     step(40);
     expect(play.walking).toBe(false);
     expect(world.loadout.fired).toBe(0);
-    expect(play.cursor).toBe('hand');
+    expect(play.cursor).toBeNull();
   });
 
   it('names the cursor for what a click would do there', () => {

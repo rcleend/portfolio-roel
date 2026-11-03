@@ -169,12 +169,13 @@ The stage's cursor says what a click would do under the pointer, as a `RoomCurso
 | `enter` | a prop the click flies to (the room view) | `zoom-in` |
 | `leave` | anything that leaves for the room (beside the TV, the computer or the radio, the desk while seated) | `zoom-out` |
 | `press` | a part to press (the radio's discs and keys) | `pointer` |
-| `play` | the game's picture while the TV plays (the bezel is `idle`) | `default` |
+| `play-arrow` | the game's picture while the TV plays, where a click acts on nothing (the bezel is `idle`) | `default` |
+| `play` | the same over anything a click acts on in the game (a button, a key of a legend, a card, a mission) | `pointer` |
 | `walk` | over a level's play, where a click walks the hero | `pointer` |
 | `jump` | the same where the way there jumps somewhere: a girder, a vehicle, a "?" block, the floor past a pit | `pointer` |
 | `attack` | anywhere else in a level's play, where a click attacks | `crosshair` |
 
-Over the picture the TV takes the game's own cursor (`GameSurface.cursor`, docs/ARCHITECTURE.md › Mouse play), `play` standing for its hand, and the stage redraws it when the game changes it under a resting mouse (`RoomInteraction.redrawCursor`), a press held on the picture included, without telling anyone of a new hover. The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-DIRECTION.md › The room's UI › Cursors).
+Over the picture the TV takes the game's own cursor (`GameSurface.cursor`, docs/ARCHITECTURE.md › GameSurface and › Mouse play), `play-arrow` standing for its arrow and `play` for its hand (`roomCursorOf`), and the stage redraws it when the game changes it under a resting mouse (`RoomInteraction.redrawCursor`), a press held on the picture included, without telling anyone of a new hover. The app draws them in the room UI's style (`app/cursors/cursors.css`, docs/ART-DIRECTION.md › The room's UI › Cursors).
 
 ## Startup
 

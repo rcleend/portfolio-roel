@@ -16,12 +16,12 @@ import { createTextStyles } from '../../fonts';
 import type { Action } from '../../input/bindings';
 import type { LevelArtLibrary } from '../../levels/art/LevelArt';
 import type { GameServices } from '../../services';
-import { SessionStore } from '../../session';
+import { SESSION_STORAGE_KEY, type SessionStorage, SessionStore } from '../../session';
 import { KeyHints } from '../../ui/KeyHints';
 import type { GameSceneMap } from '../params';
 import { CharacterSelectScene } from './CharacterSelectScene';
 import { LEAVE_AT } from './choreography';
-import { KEY_HINTS, selectLayout } from './layout';
+import { ARROW_LEFT_HIT, ARROW_RIGHT_HIT, CARD, KEY_HINTS, NAME_ROW, selectLayout } from './layout';
 
 const PRESSED: ActionState = { down: true, pressed: true, released: false };
 
@@ -30,10 +30,9 @@ const PRESSED: ActionState = { down: true, pressed: true, released: false };
  * with test doubles for everything that needs a canvas. Only `update` runs
  * here; how it looks is checked with screenshots.
  */
-function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) {
+function setup(savedCharacter: (typeof characters)[number]['id'] | null = null, session = new SessionStore(null)) {
   const audio = new NullAudio<MusicId, SfxId>();
-  const session = new SessionStore(null);
-  session.update((state) => ({ ...state, characterId: savedCharacter }));
+  if (savedCharacter) session.update((state) => ({ ...state, characterId: savedCharacter }));
   const log: string[] = [];
   let services: GameServices | null = null;
   function record<K extends keyof GameSceneMap>(id: K): () => RecordingScene<GameSceneMap[K], Action> {
@@ -73,13 +72,15 @@ function setup(savedCharacter: (typeof characters)[number]['id'] | null = null) 
   director.goTo('characterSelect');
 
   let frame = 0;
-  const step = (pressed: readonly Action[] = [], pointer: Partial<PointerSnapshot> = {}): void => {
+  /** One step; returns its input, which the scene marks while the pointer is over something clickable. */
+  const step = (pressed: readonly Action[] = [], pointer: Partial<PointerSnapshot> = {}): InputSnapshot<Action> => {
     const input = new InputSnapshot<Action>(
       new Map(pressed.map((action) => [action, PRESSED])),
       { ...IDLE_POINTER, ...pointer },
       null,
     );
     director.update({ dt: 1 / 60, frame: frame++, input });
+    return input;
   };
   const idle = (count: number): void => {
     for (let i = 0; i < count; i++) step();
@@ -96,7 +97,22 @@ const centre = (r: Rect): Partial<PointerSnapshot> => ({
 });
 
 describe('CharacterSelectScene', () => {
-  it('starts on the last chosen character and plays the select music', () => {
+  it('starts every visit on ENGINEER, whatever an earlier visit picked', () => {
+    const storage = new Map<string, string>([
+      [SESSION_STORAGE_KEY, JSON.stringify({ version: 1, characterId: 'strategy', bootSeen: true })],
+    ]);
+    const stored: SessionStorage = {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => void storage.set(key, value),
+      removeItem: (key) => void storage.delete(key),
+    };
+    expect(characters[0]?.className).toBe('ENGINEER');
+    const { step, session } = setup(null, new SessionStore(stored));
+    step(['confirm']);
+    expect(session.state.characterId).toBe('hackerman');
+  });
+
+  it('comes back, within a visit, to the character chosen on it, and plays the select music', () => {
     const { audio, step, session } = setup('strategy');
     expect(audio.currentMusic).toBe('select');
     // Strategy is last in the roster, so one step right wraps to the first character.
@@ -179,5 +195,28 @@ describe('CharacterSelectScene', () => {
     expect(audio.playedSfx).toEqual([]);
     step(['confirm']);
     expect(session.state.characterId).toBe('artsy');
+  });
+
+  it("marks the arrows, the card (to a mouse) and the legend's keys clickable, and nothing else", () => {
+    const { step, keys } = setup();
+    const layout = selectLayout();
+    const over = (target: Partial<PointerSnapshot>) => step([], target).overClickable;
+    expect(over(centre(ARROW_LEFT_HIT))).toBe(true);
+    expect(over(centre(ARROW_RIGHT_HIT))).toBe(true);
+    expect(over(centre(CARD))).toBe(true);
+    expect(over({ ...centre(CARD), kind: 'touch' })).toBe(false);
+    expect(over(centre(keys.area('confirm')))).toBe(true);
+    expect(over(centre(keys.area('back')))).toBe(true);
+    expect(over(centre(NAME_ROW))).toBe(false);
+    for (const row of layout.skillRows) expect(over(centre(row))).toBe(false);
+    // Off the picture nothing is under the pointer.
+    expect(over({ ...centre(CARD), over: false })).toBe(false);
+  });
+
+  it('stops marking the arrows and the card once a character is chosen', () => {
+    const { step } = setup();
+    step(['confirm']);
+    expect(step([], centre(ARROW_LEFT_HIT)).overClickable).toBe(false);
+    expect(step([], centre(CARD)).overClickable).toBe(false);
   });
 });

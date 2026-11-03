@@ -153,6 +153,7 @@ export class KeyHints {
     const { pointer } = input;
     this.#device = controlDevice(this.#device, input.lastDevice, this.#touch);
     this.#hover = pointer.over ? this.hitTest(pointer.x, pointer.y) : null;
+    input.clickable(this.#hover !== null);
     this.#held = new Set(ORDER.filter((key) => input.isDown(key)));
     if (pointer.pressed) this.#armed = this.#hover;
     const clicked = pointer.released && this.#armed === this.#hover ? this.#armed : null;

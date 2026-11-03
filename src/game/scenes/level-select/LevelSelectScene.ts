@@ -153,6 +153,7 @@ export class LevelSelectScene implements GameScene<LevelSelectParams> {
     const hovered = pointer.over
       ? this.#slots.findIndex((_, i) => containsPoint(hitRect(i), pointer.x, pointer.y))
       : -1;
+    step.input.clickable(hovered >= 0);
     if (pointer.pressed && hovered >= 0) this.#press = { index: hovered, wasFocused: hovered === this.#index };
 
     const moved = this.#lastPointer?.x !== pointer.x || this.#lastPointer?.y !== pointer.y;

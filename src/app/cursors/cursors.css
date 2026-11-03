@@ -20,8 +20,12 @@ html[data-pointer="hidden"] * {
     --room-cursor-enter: var(--ui-cursor-hand);
     --room-cursor-press: var(--ui-cursor-hand);
     --room-cursor-leave: image-set(url("./leave.png") 1x, url("./leave@2x.png") 2x) 4 3, zoom-out;
-    /* Over the game's picture, the game's own menu hand (src/game/ui/cursor.ts), at the fingertip. */
-    --room-cursor-play: image-set(url("./game-hand.png") 1x, url("./game-hand@2x.png") 2x) 2 2, default;
+    /*
+     * Over the game's picture, the game's own pixel arrow (src/game/ui/cursor.ts) at its point, and its menu hand at the
+     * fingertip over anything a click acts on there (docs/ARCHITECTURE.md › GameSurface).
+     */
+    --room-cursor-play-arrow: image-set(url("./game-arrow.png") 1x, url("./game-arrow@2x.png") 2x) 0 0, default;
+    --room-cursor-play: image-set(url("./game-hand.png") 1x, url("./game-hand@2x.png") 2x) 2 2, pointer;
     /*
      * Over a level's play, the game's play cursors in the hand's pixels (src/game/ui/playCursors.ts): a pair of
      * footprints walking up-right where a click walks to (at the middle of the pair), the same under an arrow up

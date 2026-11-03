@@ -31,14 +31,17 @@ export class MousePlay {
   /** A walk asked for mid-jump: it sets off once the jump under way has landed. */
   #next: WalkTarget | null = null;
   #strike: { readonly dir: -1 | 1; readonly until: number; readonly fired: number } | null = null;
-  #cursor: GameCursor = 'hand';
+  #cursor: GameCursor | null = null;
 
   constructor(kit: NavKit) {
     this.#nav = new Nav(kit);
   }
 
-  /** The cursor over the play, as of the last step: where a click would walk or jump to, else an attack. */
-  get cursor(): GameCursor {
+  /**
+   * The cursor over the play, as of the last step: where a click would walk or jump to, else an attack; null off the
+   * play (over the strip, or off the picture).
+   */
+  get cursor(): GameCursor | null {
     return this.#cursor;
   }
 
@@ -72,7 +75,7 @@ export class MousePlay {
     if (this.#strike) intent = { ...intent, attackHeld: true, face: this.#strike.dir };
     else if (this.#press === 'attack') intent = { ...intent, attackHeld: true, face: this.#side(world, worldX) };
 
-    this.#cursor = over ? this.#cursorAt(world, worldX, worldY) : 'hand';
+    this.#cursor = over ? this.#cursorAt(world, worldX, worldY) : null;
     return intent;
   }
 

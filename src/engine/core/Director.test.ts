@@ -121,20 +121,20 @@ describe('Director', () => {
     expect(cut()).toMatchObject({ outFrames: 0, inFrames: 0 });
   });
 
-  it("shows the active scene's cursor, and the game's hand mid-transition when nothing can be clicked", () => {
+  it("names the active scene's own cursor, and none mid-transition when nothing can be clicked", () => {
     const pointing = new RecordingScene<void>('pointing', []);
     const director = new Director<{ a: void; b: void }>({
       a: () => Object.assign(new RecordingScene<void>('a', []), { cursor: () => 'attack' as const }),
       b: () => pointing,
     });
-    expect(director.cursor()).toBe('hand');
+    expect(director.cursor()).toBeUndefined();
     director.goTo('a');
     expect(director.cursor()).toBe('attack');
     director.goTo('b', undefined, frames(2, 2));
-    expect(director.cursor()).toBe('hand');
+    expect(director.cursor()).toBeUndefined();
     for (let i = 0; i < 4; i++) director.update(stepWith());
     expect(director.transition).toBeNull();
-    // A scene without a cursor of its own shows the hand.
-    expect(director.cursor()).toBe('hand');
+    // A scene without a cursor of its own leaves it to the game (the hand over what is clickable, else the arrow).
+    expect(director.cursor()).toBeUndefined();
   });
 });

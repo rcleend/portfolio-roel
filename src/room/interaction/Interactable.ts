@@ -5,10 +5,23 @@ import type { GameCursor } from '@/engine/core/GameSurface';
  * What a click would do where the pointer is, as the stage's cursor. The stage draws each as the CSS custom property
  * `--room-cursor-<name>` when the page defines it, else as the stock cursor beside it: `idle` (default, nothing to do
  * or using the thing itself), `enter` (zoom-in, a prop to fly to), `leave` (zoom-out, back to the room), `press`
- * (pointer, a part to press), `play` (default, the game's picture under a playing TV) and, over a level's play, the
- * game's own: `walk` and `jump` (pointer, where a click walks or jumps to) and `attack` (crosshair).
+ * (pointer, a part to press), and over the game's picture under a playing TV the game's own: `play-arrow` (default,
+ * its arrow, where a click acts on nothing), `play` (default, its hand, over what a click acts on) and, over a level's
+ * play, `walk` and `jump` (pointer, where a click walks or jumps to) and `attack` (crosshair).
  */
-export type RoomCursor = 'idle' | 'enter' | 'leave' | 'press' | 'play' | Exclude<GameCursor, 'hand'>;
+export type RoomCursor =
+  | 'idle'
+  | 'enter'
+  | 'leave'
+  | 'press'
+  | 'play'
+  | 'play-arrow'
+  | Exclude<GameCursor, 'hand' | 'arrow'>;
+
+/** The stage's name for the game's cursor over its picture: `play` for its hand, `play-arrow` for its arrow. */
+export function roomCursorOf(cursor: GameCursor): RoomCursor {
+  return cursor === 'hand' ? 'play' : cursor === 'arrow' ? 'play-arrow' : cursor;
+}
 
 /** Where a pointer ray met an interactable. */
 export interface InteractionHit {

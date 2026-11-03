@@ -1,12 +1,9 @@
 import { type Character, characters } from '@/content';
 import { fade, iris } from '@/engine/core/transitions';
 import type { Gfx } from '@/engine/gfx/Gfx';
-import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
-import { blink } from '@/engine/motion/oscillators';
 import { frames } from '@/engine/motion/progress';
 import { figureHeight, skillIcons } from '../../art/looks/Looks';
 import type { GameServices } from '../../services';
-import { handCursorSheet } from '../../ui/cursor';
 import { iconSlotSize } from '../../ui/iconSlot';
 import { KeyHints } from '../../ui/KeyHints';
 import type { GameScene, GameStep } from '../params';
@@ -20,7 +17,6 @@ import { readSelectEvents } from './intents';
 import {
   CARD,
   CARD_INNER,
-  CURSOR_ANCHOR,
   HINTS_Y,
   type HitTarget,
   KEY_HINTS,
@@ -29,7 +25,6 @@ import {
   STAGE,
   selectLayout,
 } from './layout';
-import { lazy } from './lazy';
 import { drawReadyStamp } from './readyStamp';
 import { initialSelectState, reduceSelectAll, type SelectEffect, type SelectState } from './selectMachine';
 
@@ -57,15 +52,12 @@ export class CharacterSelectScene implements GameScene {
   readonly #card: CardView;
   readonly #details: DetailsPanel;
   readonly #keys: KeyHints;
-  readonly #cursor = lazy(() => SpriteSheet.compile(handCursorSheet, 'ui/hand-cursor'));
   #state: SelectState;
   #time = 0;
   #switch: SwitchBeat | null = null;
   #arrowPressedAt: { left: number | null; right: number | null } = { left: null, right: null };
   #chosenAt: number | null = null;
   #departed = false;
-  /** The visitor plays with the pointer: the hand that shows where the keys are stays away. */
-  #pointing = false;
   #hover: HitTarget | null = null;
 
   constructor(services: GameServices) {
@@ -98,8 +90,10 @@ export class CharacterSelectScene implements GameScene {
     this.#state = result.state;
     for (const effect of result.effects) this.#apply(effect);
 
-    this.#pointing = input.pointing;
     this.#hover = input.pointer.over ? hitTest(input.pointer.x, input.pointer.y) : null;
+    // The arrows and the card act on a click while the visitor browses; the card answers a mouse only.
+    const live = this.#hover === 'card' ? input.pointer.kind === 'mouse' : this.#hover !== null;
+    input.clickable(live && this.#state.phase === 'browsing');
 
     if (this.#chosenAt !== null && !this.#departed && this.#time - this.#chosenAt >= LEAVE_AT) this.#depart();
   }
@@ -132,7 +126,6 @@ export class CharacterSelectScene implements GameScene {
     drawHints(gfx, CARD.x, HINTS_Y, text.label);
     this.#keys.render(gfx);
 
-    this.#renderCursor(gfx);
     if (chosenFor !== null) {
       const opening = stampOpening(chosenFor);
       if (opening !== null) drawReadyStamp(gfx, opening, text.prompt);
@@ -204,14 +197,5 @@ export class CharacterSelectScene implements GameScene {
       { pressedAgo: ago(this.#arrowPressedAt.left), hovered: this.#hover === 'arrowLeft' },
       { pressedAgo: ago(this.#arrowPressedAt.right), hovered: this.#hover === 'arrowRight' },
     );
-  }
-
-  #renderCursor(gfx: Gfx): void {
-    // The hand shows where the keys are: while the visitor plays with the pointer it stays away.
-    if (this.#pointing) return;
-    const chosen = this.#chosenAt !== null;
-    // The classic on/off blink beside the class heading, held solid once a character is chosen.
-    if (!chosen && !blink(this.#time, frames(30), frames(10))) return;
-    gfx.sprite(this.#cursor(), 'point', chosen ? 0 : this.#time, CURSOR_ANCHOR.x, CURSOR_ANCHOR.y);
   }
 }

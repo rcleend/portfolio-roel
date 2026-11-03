@@ -222,6 +222,7 @@ export class StageClearScene implements GameScene<StageClearParams> {
     const hovered = pointer.over
       ? this.#rows.findIndex((_, index) => containsPoint(career.rowRect(index), pointer.x, pointer.y))
       : -1;
+    step.input.clickable(hovered >= 0);
     const moved = this.#lastPointer?.x !== pointer.x || this.#lastPointer?.y !== pointer.y;
     this.#lastPointer = pointer.over ? { x: pointer.x, y: pointer.y } : null;
     if (hovered >= 0 && moved) this.#setFocus({ area: 'rows', index: hovered });

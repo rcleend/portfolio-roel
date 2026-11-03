@@ -1,13 +1,13 @@
 /**
  * The room's cursors (docs/ART-DIRECTION.md › The room's UI): rasterises the drawn ones
- * (src/app/cursors/source/*.svg), the game's pixel hand (src/game/ui/cursor.ts) and its play
+ * (src/app/cursors/source/*.svg), the game's pixel hand and arrow (src/game/ui/cursor.ts) and its play
  * cursors (src/game/ui/playCursors.ts) to the
  * PNGs the `cursor` property points at, 1x and 2x, and writes every hotspot, in 1x CSS px,
  * to src/app/cursors/hotspots.json.
  *
  *   pnpm build:cursors
  *
- * The 2x is drawn from the SVG at twice the density, never upscaled; the game's hand is
+ * The 2x is drawn from the SVG at twice the density, never upscaled; the game's hand and arrow are
  * scaled nearest-neighbour by whole numbers, so it stays as crisp as it is on the TV. The
  * results are committed; run this again after changing a drawing or the game's hand.
  */
@@ -16,7 +16,7 @@ import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { parseHex } from '@/engine/gfx/color';
 import { TRANSPARENT_KEY } from '@/engine/gfx/PixelArt';
-import { HAND_PALETTE, POINTER_HAND, POINTER_TIP } from '@/game/ui/cursor';
+import { HAND_PALETTE, POINTER_ARROW, POINTER_ARROW_TIP, POINTER_HAND, POINTER_TIP } from '@/game/ui/cursor';
 import { PLAY_CURSORS } from '@/game/ui/playCursors';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -60,7 +60,8 @@ async function drawn(name: string): Promise<Cursor> {
  * A cursor drawn in the game's pixels in the hand's palette, scaled nearest-neighbour by whole numbers so it stays
  * crisp, its hotspot at `tip` in sprite pixels (the top-left corner of a pixel, or its middle for a half). The pointer over the game is the classic pixel
  * hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the left as a pointer does, its hotspot on the
- * fingertip, the point of the finger; over a level's play, the play cursors.
+ * fingertip, the point of the finger; wherever a click acts on nothing, its arrow, the hotspot on its point; over a
+ * level's play, the play cursors.
  */
 async function pixelCursor(
   name: string,
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
   const cursors = await Promise.all([
     ...DRAWN.map(drawn),
     pixelCursor('game-hand', POINTER_HAND, POINTER_TIP),
+    pixelCursor('game-arrow', POINTER_ARROW, POINTER_ARROW_TIP),
     ...playCursors(),
   ]);
   const problems: string[] = [];
