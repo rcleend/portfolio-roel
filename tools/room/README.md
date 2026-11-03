@@ -224,6 +224,28 @@ The live CRT glow keeps the bezel and floor patches. The cabinet's redundant
 additive strip is removed: it lit surfaces behind the screen, overriding the
 occlusion and adding a bright cutout along the edge. This saves one draw call.
 
+The opal desk lamp on the right-hand end of the TV cabinet is not baked: `tv-lamp.mjs`
+(`node tools/room/tv-lamp.mjs`, also the last step of `pnpm build:room`) takes the supplied
+`assets/tv-lamp-source.glb`, keeps only its opal globe and the round metal base under it (the cord,
+the Sketchfab backdrop plane, the translucent plexi box, its corner rails and the box's four feet
+are left out of the asset), drops the base onto the cabinet top, writes both parts as unlit
+`_BAKED_UNLIT` materials with the globe's light (centre, colour, glow) in the lamp node's extras,
+and adds it to `room.glb` under `01_TV`, checking that no other geometry or UV changed. The finish
+draws its light at runtime (docs/ROOM.md › The opal lamp). Re-running it replaces the lamp in place
+and gives a byte-identical `room.glb`.
+
+The toy robot on the left-hand end of the TV cabinet is not baked either: `toy-robot.mjs`
+(`node tools/room/toy-robot.mjs`, the step after the lamp in `pnpm build:room`) reads the supplied
+"Vintage Toy Robot" (Tom Scudder, CC-BY-4.0, `assets/toy-robot-source.glb`), merges its 31 body parts
+into one mesh and simplifies it and the eyes with meshoptimizer, keeps only the colour map at 512²
+WebP with the night's ambient light baked in (per texel: occlusion by the robot and the cabinet top,
+through a small bounding-volume tree; the feet toned darker) and the eyes' discs repainted as lit glass,
+sizes it to 30 cm and stands it behind the Product Engineer case. Body and eyes are unlit
+`_BAKED_UNLIT` materials over that map, the body dimmed to the room's night; the eyes' light (in the
+opal lamp's colour, `tv-lamp-light.mjs`) and the robot's shadow boxes are in the node's extras
+(docs/ROOM.md › The toy robot). Both publishers share `publish-tv-prop.mjs`, which replaces the prop
+under `01_TV`, checks that no other geometry or UV changed and re-verifies the room assets before writing.
+
 An already-built export can also be imported with
 `ROOM_SOURCE=/path/to/optimized pnpm sync:room`. The importer requires a valid revision-6
 manifest, checks hashes and asset contracts first, and does not erase the target folder.
@@ -233,7 +255,10 @@ It intentionally rejects the old machine-specific revision-5 export.
 
 `pnpm verify:room` checks all five runtime GLBs, file sizes and hashes, zero glTF
 errors/warnings, static unlit materials, texture/geometry/transfer budgets, room groups,
-the square rotated rug, the plant's grounding/size/position/triangle budget, the
+the square rotated rug, the plant's grounding/size/position/triangle budget, the opal lamp's
+grounding, place past the plant and its two shipped parts, the toy robot's grounding, place
+behind the case and left of the set, its body and eyes, triangle budget, 512² WebP map and eye light
+in the lamp's colour, the
 Product Engineer cover's camera-facing bottom, room-lit game inserts, desktop node names and geometry budget, seven animated wax
 meshes and the 48-second clip. It also checks
 both replaceable screens, the TV buttons, screen UV coverage, that the PC screen faces +Z

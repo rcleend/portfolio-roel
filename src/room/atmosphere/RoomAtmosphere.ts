@@ -28,6 +28,14 @@ import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
+import {
+  attachToyRobot,
+  createToyRobotUniforms,
+  TOY_ROBOT_EYE_HALO,
+  TOY_ROBOT_EYE_INTENSITY,
+  type ToyRobotLight,
+} from './toyRobot';
+import { attachTvLamp, createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
 const VERTEX = /* glsl */ `
@@ -45,6 +53,8 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
+/** The toy robot's eye halos: the lamp's colour × this, against the room lamps' warm halation tint (about 1). */
+const EYE_HALO_TINT = 0.8;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -83,6 +93,8 @@ uniform float uSaturation;
 uniform float uBloom;
 uniform float uDiffusion;
 uniform float uVignette;
+uniform vec3 uTvLamp;
+uniform vec3 uTvLampColor;
 varying vec2 vUv;
 ${WINDOW_RAIN}
 ${SCREEN_LIGHT}
@@ -140,8 +152,11 @@ void main() {
   float deskAir = density(eye, ray, reach, vec3(-2.05, 1.0, -1.65), vec3(0.72, 0.78, 0.95), 0.0);
   float lampAir = density(eye, ray, reach, vec3(0.49, 1.22, -1.65), vec3(0.7, 1.0, 0.85), 0.0);
   float windowAir = density(eye, ray, reach, vec3(-1.15, 1.25, -0.95), vec3(0.95, 0.55, 1.7), 0.42);
+  // The opal lamp beside the TV (tvLamp.ts) warms a small volume of air around its globe.
+  float opalAir = uTvLampColor.r > 0.0
+    ? density(eye, ray, reach, uTvLamp + vec3(0.0, 0.06, 0.0), vec3(0.4, 0.45, 0.4), 0.0) : 0.0;
   color += uWindowTint * windowAir * uLightning * 0.24;
-  color += (uAirTint * (deskAir + lampAir * 0.8) + uWindowTint * windowAir * 0.42) * uHaze;
+  color += (uAirTint * (deskAir + lampAir * 0.8 + opalAir * 0.6) + uWindowTint * windowAir * 0.42) * uHaze;
   // The TV lights the air in front of it in its picture's colour: a cone, brightest along its axis, never a halo.
   color += screenAir(eye, ray, reach) * uHaze * ${SCREEN_AIR};
   gl_FragColor = vec4(mix(display, color, scene.a), 1.0);
@@ -166,7 +181,13 @@ export class RoomAtmosphere {
     ...createScreenLightUniforms(),
     uScreenGain: { value: 0 },
   };
-  private readonly gloss = new RoomGloss(this.screenLight);
+  /** The opal lamp beside the TV (tvLamp.ts): its light on the room and in the air, while the room has one. */
+  private readonly lamp = createTvLampUniforms();
+  private lampColor: readonly [number, number, number] | null = null;
+  /** The toy robot on the cabinet's other end (toyRobot.ts): its eyes' light on the room, while the room has one. */
+  private readonly robot = createToyRobotUniforms();
+  private robotLight: ToyRobotLight | null = null;
+  private readonly gloss = new RoomGloss(this.screenLight, this.lamp, this.robot);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -230,6 +251,7 @@ export class RoomAtmosphere {
         uDiffusion: { value: 0 },
         uVignette: { value: 0 },
         ...this.screenLight,
+        ...this.lamp,
       },
       depthTest: false,
       depthWrite: false,
@@ -254,6 +276,18 @@ export class RoomAtmosphere {
       )
         this.composite.uniforms.uExterior.value = object.material.map;
     });
+    const lamp = this.lampColor ? null : attachTvLamp(scene, this.lamp);
+    if (lamp) {
+      this.lampColor = lamp.color;
+      this.halation.addLamp(lamp.center, 0.32);
+    }
+    const robot = this.robotLight ? null : attachToyRobot(scene, this.robot);
+    if (robot) {
+      this.robotLight = robot;
+      const tint = robot.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
+      for (const eye of robot.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
+    }
+    this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);
     this.screens.attach(scene);
@@ -274,6 +308,7 @@ export class RoomAtmosphere {
     this.halation.setFinish(finish);
     this.screens.setActive(finish !== null);
     this.screenLight.uScreenGain.value = finish ? SCREEN_LIGHT_GAIN : 0;
+    this.applyLamp();
     this.motion.setSpeed(finish ? 1 : 0);
     if (!finish) return;
     this.dust.setFinish(finish, this.air.dust);
@@ -294,6 +329,17 @@ export class RoomAtmosphere {
       const uniform = u[key];
       if (uniform) uniform.value = value;
     }
+  }
+
+  /** The lamp and the robot's eyes light the room only in a finish: the unprocessed bake (original) shows it as baked. */
+  private applyLamp(): void {
+    const color = this.lamp.uTvLampColor.value;
+    if (this.lampColor && this.mood !== 'original') color.fromArray(this.lampColor).multiplyScalar(TV_LAMP_INTENSITY);
+    else color.set(0, 0, 0);
+    const eyes = this.robot.uRobotEyeColor.value;
+    if (this.robotLight && this.mood !== 'original')
+      eyes.fromArray(this.robotLight.color).multiplyScalar(TOY_ROBOT_EYE_INTENSITY);
+    else eyes.set(0, 0, 0);
   }
 
   setAir(air: RoomAir): void {

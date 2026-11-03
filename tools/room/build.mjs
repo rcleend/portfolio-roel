@@ -38,3 +38,7 @@ await run(process.execPath, ['tools/room/optimize.mjs', '--work', work]);
 await run(process.execPath, ['tools/room/build-radio.mjs']);
 // The posters are baked in the same scene and published beside the radio's lazy files (docs/ROOM.md › Posters).
 await run(process.execPath, ['tools/room/build-posters.mjs']);
+// The opal lamp on the TV cabinet is a supplied model, not part of the bake: add it to the new room.glb.
+await run(process.execPath, ['tools/room/tv-lamp.mjs']);
+// So is the toy robot on the cabinet's other end, whose eyes glow in the lamp's colour.
+await run(process.execPath, ['tools/room/toy-robot.mjs']);

@@ -30,10 +30,19 @@ export const SPOTLIGHT_PROGRAMS = 2;
 export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRAMS;
 
 /**
+ * The opal lamp beside the TV (docs/ROOM.md › The opal lamp): its base and globe share one material, the room's unlit
+ * varnish without a map, compiled for the screen and for the finish's linear target on either poster path. The
+ * original bake draws it with a program the room already has. The toy robot (docs/ROOM.md › The toy robot) adds
+ * none: its body, its eyes and the Product Engineer cover share the baked room's own mapped programs, its eyes' halos
+ * the halation's.
+ */
+export const TV_LAMP_PROGRAMS = 2;
+
+/**
  * Night finishes: varnish, lamp halation, highlight extraction, composition, dust and the monitor's display mask,
  * plus linear-output versions also precompiled for the screen by the full poster path. None are allocated by original.
  */
-export const ATMOSPHERE_PROGRAMS = POSTERS_PATH === 'lite' ? 6 : 8;
+export const ATMOSPHERE_PROGRAMS = (POSTERS_PATH === 'lite' ? 6 : 8) + TV_LAMP_PROGRAMS;
 
 /** Production uses Velvet dusk; the lab retains the original bake for isolated device tests. */
 export const FINISHED_ROOM_PROGRAMS = ROOM_PROGRAMS + ATMOSPHERE_PROGRAMS;

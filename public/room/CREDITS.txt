@@ -70,6 +70,31 @@ using the site's blue/amber title screen as the visual reference. Replaces the
 Battlefront II print; the case and spine are rotated 180 degrees towards the viewer.
 Authoring sources and generation prompt: tools/room/assets/README.md.
 
+TV DESK LAMP — OPAL GLOBE
+
+PlexiAndOpaline Desk Lamp — MooseMannequin (https://sketchfab.com/MooseMannequin)
+https://sketchfab.com/3d-models/plexiandopaline-desk-lamp-8469b807d9d24abfb52fbc91bddd1468
+Embedded license: SKETCHFAB Standard (https://sketchfab.com/licenses)
+Supplied plexiandopaline_desk_lamp.glb. Modified: only the opal globe and the round
+metal base ship; the cord, the backdrop plane, the translucent plexi box, its corner
+rails and the box's four feet are removed. Placed on the right-hand end of the TV
+cabinet with unlit materials; the globe's light is drawn by the room's finish.
+Recipe: tools/room/tv-lamp.mjs.
+
+TV CABINET TOY ROBOT
+
+Vintage Toy Robot — Tom Scudder (https://sketchfab.com/TomScudder)
+https://sketchfab.com/3d-models/vintage-toy-robot-7780d6de101b47e085fc5397f7e33701
+License: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+Supplied vintage_toy_robot.glb. Modified: its 32 parts merged into one mesh and
+simplified (15,475 to about 2,500 vertices), the colour map reduced to 512² WebP
+with ambient occlusion baked in, the feet toned darker and the eyes repainted as
+lit glass, the normal and metal/roughness maps and the clear coat removed, scaled
+to 30 cm and placed on the left-hand end of the TV cabinet with unlit materials;
+its eyes glow in the opal lamp's colour and their light is drawn by the room's
+finish.
+Recipe: tools/room/toy-robot.mjs.
+
 The revision-5 history below describes the origins of the retained assets.
 
 IMPORTED / RECOVERED DEVICE MESHES
