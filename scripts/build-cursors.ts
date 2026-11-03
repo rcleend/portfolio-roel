@@ -2,7 +2,7 @@
  * The room's cursors (docs/ART-DIRECTION.md › The room's UI): rasterises the drawn ones
  * (src/app/cursors/source/*.svg), the game's pixel hand and arrow (src/game/ui/cursor.ts) and its play
  * cursors (src/game/ui/playCursors.ts) to the
- * PNGs the `cursor` property points at, 1x and 2x, and writes every hotspot, in 1x CSS px,
+ * PNGs the `cursor` property points at, 1x and 2x (and 3x for the game's arrow, so it stays whole-pixel on a 3x screen), and writes every hotspot, in 1x CSS px,
  * to src/app/cursors/hotspots.json.
  *
  *   pnpm build:cursors
@@ -25,7 +25,7 @@ const CURSORS = join(ROOT, 'src/app/cursors');
 const BUDGET_BYTES = 1500;
 /** The drawn cursors, each a 32-unit square that is 32 CSS px. */
 const DRAWN = ['arrow', 'hand', 'leave'] as const;
-/** CSS px per sprite px for the game's hand at 1x: 32 × 30, a full-size cursor; 2x doubles it. */
+/** CSS px per sprite px for the game's hand and play cursors at 1x: the hand 32 × 30, a full-size cursor; 2x doubles it. */
 const GAME_HAND_SCALE = 2;
 
 interface Hotspot {
@@ -35,7 +35,8 @@ interface Hotspot {
 
 interface Cursor {
   readonly name: string;
-  readonly png: { readonly '1x': Buffer; readonly '2x': Buffer };
+  /** By density: 1x and 2x, and 3x where a cursor has one. */
+  readonly png: Readonly<Record<string, Buffer>>;
   readonly hotspot: Hotspot;
 }
 
@@ -58,7 +59,7 @@ async function drawn(name: string): Promise<Cursor> {
 
 /**
  * A cursor drawn in the game's pixels in the hand's palette, scaled nearest-neighbour by whole numbers so it stays
- * crisp, its hotspot at `tip` in sprite pixels (the top-left corner of a pixel, or its middle for a half). The pointer over the game is the classic pixel
+ * crisp (`scale` CSS px per sprite px, rendered at each of `densities`), its hotspot at `tip` in sprite pixels (the top-left corner of a pixel, or its middle for a half). The pointer over the game is the classic pixel
  * hand (src/game/ui/cursor.ts, `POINTER_HAND`), pointing up and to the left as a pointer does, its hotspot on the
  * fingertip, the point of the finger; wherever a click acts on nothing, its arrow, the hotspot on its point; over a
  * level's play, the play cursors.
@@ -67,26 +68,31 @@ async function pixelCursor(
   name: string,
   rows: readonly string[],
   tip: { readonly x: number; readonly y: number },
+  scale = GAME_HAND_SCALE,
+  densities: readonly number[] = [1, 2],
 ): Promise<Cursor> {
   const height = rows.length;
   const width = Math.max(...rows.map((row) => [...row].length));
-  const hotspot = { x: tip.x * GAME_HAND_SCALE, y: tip.y * GAME_HAND_SCALE };
-  const raster = (scale: number): Promise<Buffer> => {
-    const data = Buffer.alloc(width * scale * height * scale * 4);
-    for (let y = 0; y < height * scale; y++) {
-      for (let x = 0; x < width * scale; x++) {
-        const key = [...(rows[Math.floor(y / scale)] ?? '')][Math.floor(x / scale)] ?? TRANSPARENT_KEY;
+  const hotspot = { x: tip.x * scale, y: tip.y * scale };
+  const raster = (pixel: number): Promise<Buffer> => {
+    const data = Buffer.alloc(width * pixel * height * pixel * 4);
+    for (let y = 0; y < height * pixel; y++) {
+      for (let x = 0; x < width * pixel; x++) {
+        const key = [...(rows[Math.floor(y / pixel)] ?? '')][Math.floor(x / pixel)] ?? TRANSPARENT_KEY;
         const colour = (HAND_PALETTE as Readonly<Record<string, string>>)[key];
         if (key === TRANSPARENT_KEY || !colour) continue;
         const { r, g, b, a } = parseHex(colour);
-        data.set([r, g, b, a], (y * width * scale + x) * 4);
+        data.set([r, g, b, a], (y * width * pixel + x) * 4);
       }
     }
-    return encode(sharp(data, { raw: { width: width * scale, height: height * scale, channels: 4 } }));
+    return encode(sharp(data, { raw: { width: width * pixel, height: height * pixel, channels: 4 } }));
   };
-  const [one, two] = await Promise.all([raster(GAME_HAND_SCALE), raster(GAME_HAND_SCALE * 2)]);
-  if (!one || !two) throw new Error(`${name} did not render`);
-  return { name, png: { '1x': one, '2x': two }, hotspot };
+  const images = await Promise.all(densities.map((density) => raster(scale * density)));
+  return {
+    name,
+    png: Object.fromEntries(densities.map((density, at) => [`${density}x`, images[at] as Buffer])),
+    hotspot,
+  };
 }
 
 /** The play cursors, one each: the footprints, the footprints with their arrow, the reticle. */
@@ -98,14 +104,14 @@ async function main(): Promise<void> {
   const cursors = await Promise.all([
     ...DRAWN.map(drawn),
     pixelCursor('game-hand', POINTER_HAND, POINTER_TIP),
-    pixelCursor('game-arrow', POINTER_ARROW, POINTER_ARROW_TIP),
+    pixelCursor('game-arrow', POINTER_ARROW, POINTER_ARROW_TIP, GAME_HAND_SCALE, [1, 2, 3]),
     ...playCursors(),
   ]);
   const problems: string[] = [];
   const hotspots: Record<string, Hotspot> = {};
   for (const { name, png, hotspot } of cursors) {
     for (const [density, buffer] of Object.entries(png)) {
-      const file = `${name}${density === '2x' ? '@2x' : ''}.png`;
+      const file = `${name}${density === '1x' ? '' : `@${density}`}.png`;
       await writeFile(join(CURSORS, file), buffer);
       const { width, height } = await sharp(buffer).metadata();
       console.log(`${file.padEnd(18)} ${`${width}×${height}`.padEnd(7)} ${String(buffer.length).padStart(5)} B`);

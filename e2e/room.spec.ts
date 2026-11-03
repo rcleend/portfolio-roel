@@ -445,7 +445,7 @@ function resolvedHotspot(cursor: string, name: string): string | undefined {
   }
   entries.push(cursor.slice(start));
   // The leading slash keeps "hand" off "game-hand"; the suffixes allow the 2x image and a hashed build name.
-  const draws = new RegExp(`/${name}(@2x)?(-[\\w]+)?\\.png`);
+  const draws = new RegExp(`/${name}(@[23]x)?(-[\\w]+)?\\.png`);
   const entry = entries.find((candidate) => draws.test(candidate));
   return entry?.slice(entry.lastIndexOf(')') + 1).trim();
 }
