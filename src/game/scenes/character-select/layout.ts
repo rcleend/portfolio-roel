@@ -55,10 +55,8 @@ export const SKILL_NAME_HEIGHT = 8;
 const SKILL_ROWS_Y = SKILLS_Y + 14;
 const SKILL_ROW_GAP = 4;
 
-/** The class heading's row: the heading stands for the character, and the hand cursor points at it. */
+/** The class heading's row: the heading stands for the character on show. */
 export const NAME_ROW: Rect = { x: DETAILS.x, y: NAME_Y - 2, w: DETAILS.w, h: 16 };
-/** The point the hand cursor's fingertip touches, just left of the class heading. */
-export const CURSOR_ANCHOR = { x: NAME_ROW.x - 3, y: NAME_ROW.y + Math.floor(NAME_ROW.h / 2) } as const;
 
 /** Top of the control legend's row, under the card. */
 export const HINTS_Y = CARD.y + CARD.h + 10;

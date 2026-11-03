@@ -65,4 +65,15 @@ describe('Button', () => {
     subject.render(gfx);
     expect(sprites).toEqual([]);
   });
+
+  it('marks the pointer over it clickable, and only over it', () => {
+    const subject = button();
+    const at = (x: number, y: number) => {
+      const step = new InputSnapshot<Action>(new Map(), { ...IDLE_POINTER, x, y, over: true }, 'pointer', true);
+      subject.update(step, false, 1 / 60);
+      return step.overClickable;
+    };
+    expect(at(60, 48)).toBe(true);
+    expect(at(10, 48)).toBe(false);
+  });
 });

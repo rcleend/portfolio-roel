@@ -59,6 +59,20 @@ describe('ControlHints', () => {
     ]);
   });
 
+  it('marks its keys clickable under the mouse while it shows, and not the gaps between them', () => {
+    const hints = new ControlHints(text);
+    const over = (x: number, active = true) => {
+      const step = input({ x, y: ROW });
+      hints.update(step, 'keyboard', active);
+      return step.overClickable;
+    };
+    expect(over(at(hints, 'jump'))).toBe(true);
+    expect(over(at(hints, 'jump'), false)).toBe(false);
+    const gap = [...Array(320).keys()].find((x) => hints.hitTest(x, ROW, 'keyboard') === null);
+    expect(gap).toBeDefined();
+    expect(over(gap ?? 0)).toBe(false);
+  });
+
   it('presses a key under the mouse and holds it while the button is held on it', () => {
     const hints = new ControlHints(text);
     const x = at(hints, 'jump');

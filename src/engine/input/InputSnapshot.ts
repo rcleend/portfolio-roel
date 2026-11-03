@@ -1,3 +1,5 @@
+import { containsPoint, type Rect } from '../math/Rect';
+
 export type InputDevice = 'keyboard' | 'gamepad' | 'pointer' | 'touch';
 
 /** The device behind the pointer (`PointerEvent.pointerType`): a mouse hovers and has a cursor, a finger or pen taps. */
@@ -39,6 +41,11 @@ export class InputSnapshot<A extends string> {
    */
   readonly pointing: boolean;
   readonly #actions: ReadonlyMap<A, ActionState>;
+  /**
+   * Something a click acts on reported the pointer over it during this step (`clickable`, `pointsAt`). A private
+   * field, so it stays writable on the frozen snapshot: the one thing a step adds to the input it was given.
+   */
+  #overClickable = false;
 
   constructor(
     actions: ReadonlyMap<A, ActionState>,
@@ -68,6 +75,26 @@ export class InputSnapshot<A extends string> {
 
   wasReleased(action: A): boolean {
     return this.#state(action).released;
+  }
+
+  /**
+   * Whether the pointer rests on something a click acts on (a button, a key of a legend, a card, a mission), as its
+   * own hit test found it: true reports it, and over the picture the host draws the game's hand rather than its arrow
+   * (docs/ARCHITECTURE.md › GameSurface). Returns `hit`, so a hit test can pass straight through it.
+   */
+  clickable(hit: boolean): boolean {
+    if (hit && this.pointer.over) this.#overClickable = true;
+    return hit;
+  }
+
+  /** The pointer is over `area`, something a click acts on: `clickable` for a plain rectangle. */
+  pointsAt(area: Rect): boolean {
+    return this.clickable(this.pointer.over && containsPoint(area, this.pointer.x, this.pointer.y));
+  }
+
+  /** Something a click acts on was under the pointer this step (`clickable`). */
+  get overClickable(): boolean {
+    return this.#overClickable;
   }
 
   /** Any action or the pointer was pressed this step — "press any button". */

@@ -86,13 +86,17 @@ export class LevelScene implements GameScene<LevelParams> {
   #mouse: MousePlay | null = null;
   /** Seconds the strip's JUMP still holds jump for. */
   #stripJump = 0;
+  /** The last step's input, which the strip and the menus' hit tests mark clickable (for the probe's cursor). */
+  #input: GameStep['input'] | null = null;
   /** Development builds: what the level shows, for end-to-end tests that play it as a visitor would (`probe.ts`). */
   readonly probe = import.meta.env.DEV
     ? () => {
         const world = this.#world;
         if (!world) return null;
         const walking = this.#mouse?.walking ?? false;
-        const sources = { world, phase: this.#phase.kind, walking, cursor: this.cursor() };
+        // The cursor the game shows (Game.cursor): the level's own, else the hand over what is clickable, else the arrow.
+        const cursor = this.cursor() ?? (this.#input?.overClickable ? 'hand' : 'arrow');
+        const sources = { world, phase: this.#phase.kind, walking, cursor };
         return levelProbe({ ...sources, hints: this.#hints, device: this.#device });
       }
     : undefined;
@@ -143,6 +147,7 @@ export class LevelScene implements GameScene<LevelParams> {
     const world = this.#world;
     if (!world) return;
     const { dt, input } = step;
+    this.#input = input;
     this.#time += dt;
     this.#device = controlDevice(this.#device, input.lastDevice, this.#services.settings.touchControls);
 
@@ -197,9 +202,12 @@ export class LevelScene implements GameScene<LevelParams> {
     this.#hud.update(world, this.#time, dt);
   }
 
-  /** Over the play, what a click would do there (docs/ROOM.md › Cursors); anywhere else, and in menus, the hand. */
-  cursor(): GameCursor {
-    return this.#phase.kind === 'play' ? (this.#mouse?.cursor ?? 'hand') : 'hand';
+  /**
+   * Over the play, what a click would do there (docs/ROOM.md › Cursors); anywhere else, and in menus, none of its
+   * own: the game's hand over the strip's keys and the menu's buttons, its arrow elsewhere.
+   */
+  cursor(): GameCursor | undefined {
+    return this.#phase.kind === 'play' ? (this.#mouse?.cursor ?? undefined) : undefined;
   }
 
   render(gfx: Gfx): void {

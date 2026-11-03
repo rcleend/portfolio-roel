@@ -1,10 +1,11 @@
 import type { PointerKind } from '../input/InputSnapshot';
 
 /**
- * How the pointer over the picture should look, as the game names it: its own pointing hand, or, over the play of a
- * level, what a click there would do. Hosts draw each their own way (docs/ROOM.md › Cursors).
+ * How the pointer over the picture should look, as the game names it: its own pixel arrow, its pointing hand over
+ * anything a click acts on, or, over the play of a level, what a click there would do. Hosts draw each their own way
+ * (docs/ROOM.md › Cursors).
  */
-export const GAME_CURSORS = ['hand', 'walk', 'jump', 'attack'] as const;
+export const GAME_CURSORS = ['arrow', 'hand', 'walk', 'jump', 'attack'] as const;
 
 export type GameCursor = (typeof GAME_CURSORS)[number];
 

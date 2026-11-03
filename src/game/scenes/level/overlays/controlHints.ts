@@ -115,6 +115,7 @@ export class ControlHints {
     this.#keysDown = new Set(HINT_ROW.flatMap((hint) => hint.actions).filter((action) => input.isDown(action)));
     const mouse = active && pointer.kind === 'mouse' && pointer.over;
     this.#hover = mouse ? this.hitTest(pointer.x, pointer.y, device) : null;
+    input.clickable(this.#hover !== null);
     if (!pointer.down || !mouse) this.#armed = null;
     if (!mouse) return NOTHING;
     const pressed = pointer.pressed && this.#hover !== null ? this.#hover : null;

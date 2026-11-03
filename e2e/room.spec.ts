@@ -461,12 +461,13 @@ test("the pointer hides until the mouse moves, then wears the room's own cursors
   const generated = (name: keyof typeof hotspots) => `${hotspots[name].x} ${hotspots[name].y}`;
   await expect(root).toHaveAttribute('data-pointer', 'hidden');
   expect(await drawn()).toBe('none');
-  // Over the TV's picture (the middle of the 1440 × 900 TV view): the game's own menu hand, at its fingertip.
+  // Over the TV's picture (the middle of the 1440 × 900 TV view, the title, where nothing is a button): the game's
+  // own pixel arrow, at its point.
   await page.mouse.move(716, 376);
   await page.mouse.move(720, 380);
   await expect(root).not.toHaveAttribute('data-pointer');
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
-  expect(await pointsAt('game-hand')).toBe(generated('game-hand'));
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play-arrow');
+  expect(await pointsAt('game-arrow')).toBe(generated('game-arrow'));
   // Beside the TV a click leaves it: the leave cursor.
   await page.mouse.move(WALL.x, WALL.y);
   await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('leave');

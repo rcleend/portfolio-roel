@@ -1,7 +1,7 @@
 import type { Mesh, Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import type { PointerKind } from '@/engine/input/InputSnapshot';
-import type { Interactable, InteractionHit, RoomCursor } from '../interaction/Interactable';
+import { type Interactable, type InteractionHit, type RoomCursor, roomCursorOf } from '../interaction/Interactable';
 import { type NativePoint, type UvRect, uvToNativePixel } from './screenMapping';
 import type { TvModel } from './tvModel';
 
@@ -42,8 +42,7 @@ export class TvInteractable implements Interactable {
   cursor(hit: InteractionHit): RoomCursor {
     if (this.options.isInRoomView()) return 'enter';
     if (!this.options.isPlayable() || !this.pixelAt(hit, false)) return 'idle';
-    const game = this.options.surface.cursor;
-    return game === 'hand' ? 'play' : game;
+    return roomCursorOf(this.options.surface.cursor);
   }
 
   activate(): void {

@@ -130,7 +130,34 @@ describe('Game', () => {
     expect(game.cursor).toBe('walk');
     cursor = 'attack';
     game.step();
-    expect(heard).toEqual(['walk', 'attack']);
+    expect(heard).toEqual(['hand', 'walk', 'attack']);
+  });
+
+  it("shows the arrow, and the hand while the step's hit tests found something clickable under the pointer", () => {
+    const canvas = document.createElement('canvas');
+    const button = { x: 10, y: 10, w: 20, h: 10 };
+    let own: GameCursor | undefined;
+    const root: GameRoot = { update: ({ input }) => void input.pointsAt(button), render: () => {}, cursor: () => own };
+    const input = new InputManager<'a'>({ a: { keys: ['KeyA'] } }, { keyboard: null });
+    const game = new Game({ canvas, input, root, context: nullContext(), scheduler: new ManualScheduler() });
+    game.step();
+    expect(game.cursor).toBe('arrow');
+    game.pointer.move(15, 12);
+    game.step();
+    expect(game.cursor).toBe('hand');
+    game.pointer.move(40, 12);
+    game.step();
+    expect(game.cursor).toBe('arrow');
+    // Off the picture nothing is under the pointer, whatever its last position.
+    game.pointer.move(15, 12);
+    game.pointer.leave();
+    game.step();
+    expect(game.cursor).toBe('arrow');
+    // A cursor of the root's own wins over both.
+    game.pointer.move(15, 12);
+    own = 'attack';
+    game.step();
+    expect(game.cursor).toBe('attack');
   });
 
   // A GPU process reset (a laptop's sleep, a display change) gives the canvas back blank: a paused game drew nothing

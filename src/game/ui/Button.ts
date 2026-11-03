@@ -3,7 +3,7 @@ import type { Gfx } from '@/engine/gfx/Gfx';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { TextStyle } from '@/engine/gfx/TextStyle';
 import type { InputSnapshot } from '@/engine/input/InputSnapshot';
-import { containsPoint, type Rect } from '@/engine/math/Rect';
+import type { Rect } from '@/engine/math/Rect';
 import type { Action } from '../input/bindings';
 import type { WindowTheme } from './theme';
 import { drawWindow } from './Window';
@@ -49,7 +49,7 @@ export class Button {
     this.#focused = focused;
     this.#pointing = input.pointing;
     const { pointer } = input;
-    const over = pointer.over && containsPoint(this.options.bounds, pointer.x, pointer.y);
+    const over = input.pointsAt(this.options.bounds);
     if (over && pointer.pressed) this.#armed = true;
 
     let activated = false;

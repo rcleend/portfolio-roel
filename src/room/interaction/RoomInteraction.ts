@@ -52,7 +52,8 @@ const STOCK_CURSORS: Readonly<Record<string, string>> = {
   enter: 'zoom-in',
   leave: 'zoom-out',
   press: 'pointer',
-  play: 'default',
+  play: 'pointer',
+  'play-arrow': 'default',
 };
 
 /** The game's: a walk or a jump points where a click goes, an attack aims. */

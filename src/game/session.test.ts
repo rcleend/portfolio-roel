@@ -74,11 +74,22 @@ describe('migrate', () => {
 
 describe('SessionStore', () => {
   it('loads, updates and persists', () => {
-    const storage = memoryStorage(JSON.stringify({ version: 1, characterId: 'strategy' }));
+    const storage = memoryStorage(JSON.stringify({ version: 1, bootSeen: true }));
     const store = new SessionStore(storage);
-    expect(store.state.characterId).toBe('strategy');
+    expect(store.state.bootSeen).toBe(true);
     store.update((state) => ({ ...state, completed: [...state.completed, 'scripe'] }));
     expect(JSON.parse(storage.value ?? '{}').completed).toEqual(['scripe']);
+  });
+
+  it('keeps the character picked for this visit only: never stored, and never restored from an older store', () => {
+    const storage = memoryStorage(JSON.stringify({ version: 1, characterId: 'strategy', bootSeen: true }));
+    const store = new SessionStore(storage);
+    expect(store.state.characterId).toBeNull();
+    expect(store.state.bootSeen).toBe(true);
+    store.update((state) => ({ ...state, characterId: 'artsy' }));
+    expect(store.state.characterId).toBe('artsy');
+    expect(JSON.parse(storage.value ?? '{}').characterId).toBeNull();
+    expect(new SessionStore(storage).state.characterId).toBeNull();
   });
 
   it('survives corrupt JSON', () => {

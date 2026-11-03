@@ -24,14 +24,18 @@ export interface Scene<P = void, A extends string = string> {
   update(step: Step<A>): void;
   /** Draws the current state. Must not mutate state, so a frame can be re-rendered at any time. */
   render(gfx: Gfx): void;
-  /** How the pointer over the picture should look now; a scene without one shows the game's hand. */
-  cursor?(): GameCursor;
+  /**
+   * A cursor of the scene's own over the picture (a level's play cursors); undefined, or a scene without one, and the
+   * game's hand shows over whatever the step's hit tests reported clickable (`InputSnapshot.clickable`), its arrow
+   * elsewhere.
+   */
+  cursor?(): GameCursor | undefined;
 }
 
 /** Anything the game loop can drive: usually a `Director`. */
 export interface GameRoot<A extends string = string> {
   update(step: Step<A>): void;
   render(gfx: Gfx): void;
-  /** The cursor over the picture; the game's hand when left out. */
-  cursor?(): GameCursor;
+  /** The scene's own cursor over the picture, if it names one (`Scene.cursor`). */
+  cursor?(): GameCursor | undefined;
 }

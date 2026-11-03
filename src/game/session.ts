@@ -3,6 +3,10 @@ import { type CharacterId, characters, getExperience, getLevel, type LevelId, le
 /** Persisted progress. Bump `version` and extend `migrate` when the shape changes. */
 export interface SessionState {
   readonly version: 1;
+  /**
+   * The character picked on this visit: the mission select and the levels play as them, and the character select
+   * comes back to them. Never stored: every visit starts the character select on the first of the roster, ENGINEER.
+   */
   readonly characterId: CharacterId | null;
   readonly completed: readonly LevelId[];
   /** Collected highlight ids per level. */
@@ -110,7 +114,7 @@ export class SessionStore {
   #load(): SessionState {
     try {
       const stored = this.#storage?.getItem(SESSION_STORAGE_KEY);
-      return stored ? migrate(JSON.parse(stored)) : defaultSession();
+      return stored ? { ...migrate(JSON.parse(stored)), characterId: null } : defaultSession();
     } catch {
       return defaultSession();
     }
@@ -118,7 +122,7 @@ export class SessionStore {
 
   #save(): void {
     try {
-      this.#storage?.setItem(SESSION_STORAGE_KEY, JSON.stringify(this.#state));
+      this.#storage?.setItem(SESSION_STORAGE_KEY, JSON.stringify({ ...this.#state, characterId: null }));
     } catch {
       // Keep playing with the in-memory state.
     }

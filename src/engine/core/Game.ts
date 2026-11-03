@@ -45,7 +45,9 @@ export class Game<A extends string> implements GameSurface {
   readonly #visibility: Document | null;
   readonly #frameListeners = new Set<() => void>();
   readonly #cursorListeners = new Set<(cursor: GameCursor) => void>();
-  #cursor: GameCursor = 'hand';
+  #cursor: GameCursor = 'arrow';
+  /** The last step's hit tests found something clickable under the pointer (`InputSnapshot.clickable`). */
+  #overClickable = false;
   #frame = 0;
   #handle: number | null = null;
   #lastTime: number | null = null;
@@ -141,7 +143,10 @@ export class Game<A extends string> implements GameSurface {
     this.render();
   }
 
-  /** The cursor the root asks for over the picture, as of the last rendered frame. */
+  /**
+   * The cursor over the picture, as of the last rendered frame: the root's own if it names one, else the hand over
+   * anything the last step's hit tests found clickable and the arrow elsewhere.
+   */
   get cursor(): GameCursor {
     return this.#cursor;
   }
@@ -150,7 +155,7 @@ export class Game<A extends string> implements GameSurface {
   render(): void {
     this.#root.render(this.gfx);
     for (const listener of this.#frameListeners) listener();
-    const cursor = this.#root.cursor?.() ?? 'hand';
+    const cursor = this.#root.cursor?.() ?? (this.#overClickable ? 'hand' : 'arrow');
     if (cursor === this.#cursor) return;
     this.#cursor = cursor;
     for (const listener of this.#cursorListeners) listener(cursor);
@@ -180,6 +185,7 @@ export class Game<A extends string> implements GameSurface {
   #simulate(): void {
     const input = this.input.poll();
     this.#root.update({ dt: STEP_SECONDS, frame: this.#frame, input });
+    this.#overClickable = input.overClickable;
     this.#frame++;
   }
 
