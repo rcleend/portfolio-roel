@@ -34,27 +34,30 @@ export const HAND_PALETTE = { o: '#000000', w: '#ffffff', s: '#c6c6c6', d: '#7c7
 /**
  * The game's own arrow, the pointer over its picture wherever a click acts on nothing (the hand is for what it does):
  * the classic pixel arrow drawn in the hand's pixels, palette and light. A white body with the same crisp black outline,
- * light-grey shading along its lower and inner edges (down the left of the head, under its wings and down the left of
- * the tail) and one grey dot in the notch where the tail meets the head, as the glove's knuckles are. 10 × 15, the
- * hand's height and a little over half its width, as a system arrow stands beside a system hand; scripts/build-cursors.ts
- * scales it as it does the hand (2×, so 20 × 30 CSS px beside the hand's 32 × 30).
+ * light-grey shading along its lower and inner edges (down the left of the head, under its wing and down the left of
+ * the tail) and one grey dot in the notch where the tail meets the head, as the glove's knuckles are. Balanced as a
+ * system arrow is: a 45° head whose left edge stops two-thirds of the way down, its foot cut square, and the tail
+ * leaving the middle of the head's underside and running down and to the right along the head's own axis, so nothing
+ * hangs below the head on the left. 9 × 15, the hand's height and a little over half its width, as a system arrow
+ * stands beside a system hand; scripts/build-cursors.ts scales it as it does the hand (2×, so 18 × 30 CSS px beside
+ * the hand's 32 × 30).
  */
 export const POINTER_ARROW = /* @__PURE__ */ pixels(`
-  o.........
-  oo........
-  owo.......
-  owwo......
-  owwwo.....
-  owwwwo....
-  oswwwwo...
-  oswwwwwo..
-  osswwssso.
-  osswwwwooo
-  osswoswo..
-  osdooswo..
-  oso..oswo.
-  oo...oswo.
-  o.....oo..
+  o........
+  oo.......
+  owo......
+  owwo.....
+  owwwo....
+  owwwwo...
+  oswwwwo..
+  oswwwwwo.
+  osswwssso
+  osswwoooo
+  osdoswo..
+  ooo.oswo.
+  ....oswo.
+  .....oswo
+  ......oo.
 `);
 
 /** The arrow's point, in sprite pixels: the top-left corner of its tip, as a pointer's hotspot is. */
