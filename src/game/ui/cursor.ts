@@ -33,31 +33,25 @@ export const HAND_PALETTE = { o: '#000000', w: '#ffffff', s: '#c6c6c6', d: '#7c7
 
 /**
  * The game's own arrow, the pointer over its picture wherever a click acts on nothing (the hand is for what it does):
- * the classic pixel arrow drawn in the hand's pixels, palette and light. A white body with the same crisp black outline,
- * light-grey shading along its lower and inner edges (down the left of the head, under its wing and down the left of
- * the tail) and one grey dot in the notch where the tail meets the head, as the glove's knuckles are. Balanced as a
- * system arrow is: a 45° head whose left edge stops two-thirds of the way down, its foot cut square, and the tail
- * leaving the middle of the head's underside and running down and to the right along the head's own axis, so nothing
- * hangs below the head on the left. 9 × 15, the hand's height and a little over half its width, as a system arrow
- * stands beside a system hand; scripts/build-cursors.ts scales it as it does the hand (2×, so 18 × 30 CSS px beside
- * the hand's 32 × 30).
+ * a pixel arrow drawn in the hand's pixels, palette and light, pointing up and to the left and exactly mirror-symmetric
+ * about that 45° axis (every row is the matching column, `POINTER_ARROW[y][x] === POINTER_ARROW[x][y]`), so it leans
+ * neither way. A slim head whose sides step two down for one across from the point to the wing tips, a notch either
+ * side, and a tail centred on the axis running on behind the wings. The same crisp black outline and white body; as
+ * the shape is symmetric so is its light, the light grey on its back: under both wings and down both sides of the
+ * tail, its white middle on the axis. 10 × 10, scaled as the hand is (2×, so 20 × 20 CSS px beside the hand's
+ * 32 × 30; scripts/build-cursors.ts).
  */
 export const POINTER_ARROW = /* @__PURE__ */ pixels(`
-  o........
-  oo.......
-  owo......
-  owwo.....
-  owwwo....
-  owwwwo...
-  oswwwwo..
-  oswwwwwo.
-  osswwssso
-  osswwoooo
-  osdoswo..
-  ooo.oswo.
-  ....oswo.
-  .....oswo
-  ......oo.
+  oo........
+  owoo......
+  .owwoo....
+  .owwwwoo..
+  ..owwwwso.
+  ..owwwwo..
+  ...owwwso.
+  ...ososwso
+  ....o.oswo
+  .......oo.
 `);
 
 /** The arrow's point, in sprite pixels: the top-left corner of its tip, as a pointer's hotspot is. */
