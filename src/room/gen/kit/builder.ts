@@ -100,6 +100,7 @@ export class MeshBuilder {
   private readonly shade: number[] = [];
   private placement: Placement = IDENTITY;
   private occlusion: ((point: Vec3) => number) | null = null;
+  private tone: ((point: Vec3) => number) | null = null;
 
   get triangles(): number {
     return this.positions.length / 9;
@@ -151,13 +152,25 @@ export class MeshBuilder {
     this.occlusion = previous;
   }
 
+  /**
+   * Runs `build` with the albedo of every vertex it adds multiplied by `tone` at that vertex, in the coordinates the
+   * primitives are given in (before any placement): a moulding's uneven colour, changing smoothly over one surface.
+   */
+  toned(tone: (point: Vec3) => number, build: () => void): void {
+    const previous = this.tone;
+    this.tone = previous ? (point) => tone(point) * previous(point) : tone;
+    build();
+    this.tone = previous;
+  }
+
   tri(a: Vec3, b: Vec3, c: Vec3, color: Rgb, shade = 1): void {
     // A triangle without area (a lathe's pole, a ring that closes on its axis) has no normal and draws nothing.
     if (length(cross(sub(b, a), sub(c, a))) < 1e-12) return;
     for (const point of [a, b, c]) {
       const p = apply(this.placement, point);
       this.positions.push(p[0], p[1], p[2]);
-      this.albedo.push(color[0], color[1], color[2]);
+      const tone = this.tone ? this.tone(point) : 1;
+      this.albedo.push(color[0] * tone, color[1] * tone, color[2] * tone);
       this.shade.push(this.occlusion ? shade * this.occlusion(point) : shade);
     }
   }
@@ -473,13 +486,31 @@ export class MeshBuilder {
       }
     }
     const face = inset(ccw, bevel);
-    fillRows(face, grid, (p, q, r) =>
+    fillRows([face], grid, (p, q, r) =>
       this.tri(front(p[0], p[1], z1), front(q[0], q[1], z1), front(r[0], r[1], z1), color, shade),
     );
     if (back)
-      fillRows(face, Infinity, (p, q, r) =>
+      fillRows([face], Infinity, (p, q, r) =>
         this.tri(rear(p[0], p[1], z0), rear(r[0], r[1], z0), rear(q[0], q[1], z0), color, shade),
       );
+  }
+
+  /**
+   * A flat face with holes in it (a control panel's): `loops`, (x, y) outlines of any winding, the first the face's
+   * own and the rest the holes cut out of it (or islands inside those), filled in rows cut every `grid` metres at
+   * height `z`, facing +z. `relief` moves it along z point by point. Every corner of every loop is a vertex of the
+   * fill, so a wall built from a loop's own points meets it without a gap.
+   */
+  plate(
+    loops: readonly (readonly (readonly [number, number])[])[],
+    z: number,
+    color: Rgb,
+    options: { readonly grid?: number; readonly relief?: (x: number, y: number) => number } = {},
+    shade = 1,
+  ): void {
+    const { grid = Infinity, relief } = options;
+    const at = (x: number, y: number): Vec3 => [x, y, z + (relief ? relief(x, y) : 0)];
+    fillRows(loops, grid, (p, q, r) => this.tri(at(p[0], p[1]), at(q[0], q[1]), at(r[0], r[1]), color, shade));
   }
 
   /** The finished mesh, its normals smoothed across edges shallower than `creaseDegrees`. */
@@ -573,12 +604,20 @@ function unit(x: number, y: number): Point {
 }
 
 /**
- * Fills a counter-clockwise outline with triangles (counter-clockwise too), in rows between its corners' heights and
- * the lines of a `grid`: every row is a run of trapezoids, each cut at the grid's uprights, so no triangle is longer
- * than the grid and rows share their points.
+ * Fills outlines with triangles (counter-clockwise, whichever way the outlines wind), in rows between their corners'
+ * heights and the lines of a `grid`: every row is a run of trapezoids, each cut at the grid's uprights, so no triangle
+ * is longer than the grid and rows share their points. Where outlines nest, the fill alternates: an outline inside
+ * another is a hole in it.
  */
-function fillRows(outline: readonly Point[], grid: number, emit: (p: Point, q: Point, r: Point) => void): void {
-  const n = outline.length;
+function fillRows(
+  loops: readonly (readonly Point[])[],
+  grid: number,
+  emit: (p: Point, q: Point, r: Point) => void,
+): void {
+  const outline = loops.flat();
+  const edges: [Point, Point][] = [];
+  for (const loop of loops)
+    for (let i = 0; i < loop.length; i++) edges.push([loop[i] as Point, loop[(i + 1) % loop.length] as Point]);
   const heights = outline.map((p) => p[1]);
   const [low, high] = [Math.min(...heights), Math.max(...heights)];
   if (Number.isFinite(grid))
@@ -591,7 +630,13 @@ function fillRows(outline: readonly Point[], grid: number, emit: (p: Point, q: P
     if (Number.isFinite(grid)) for (let x = Math.ceil(from / grid) * grid; x < to; x += grid) xs.push(x);
     for (const p of outline) if (Math.abs(p[1] - y) <= 1e-9) xs.push(p[0]);
     xs.sort((a, b) => a - b);
-    const kept = xs.filter((x, i) => x >= from && x <= to && (i === 0 || x - (xs[i - 1] as number) > 1e-9));
+    // Held between the walls, then thinned: a corner a rounding error outside its own wall is that wall's point.
+    const kept: number[] = [];
+    for (const x of xs) {
+      if (x < from - 1e-9 || x > to + 1e-9) continue;
+      const held = Math.min(to, Math.max(from, x));
+      if (kept.length === 0 || held - (kept[kept.length - 1] as number) > 1e-9) kept.push(held);
+    }
     return kept.map((x) => [x, y]);
   };
   for (let l = 0; l + 1 < levels.length; l++) {
@@ -599,8 +644,7 @@ function fillRows(outline: readonly Point[], grid: number, emit: (p: Point, q: P
     const middle = (y0 + y1) / 2;
     // The walls crossing this row: where each stands at its foot and at its head.
     const walls: [number, number][] = [];
-    for (let i = 0; i < n; i++) {
-      const [p, q] = [outline[i] as Point, outline[(i + 1) % n] as Point];
+    for (const [p, q] of edges) {
       if (Math.min(p[1], q[1]) > middle || Math.max(p[1], q[1]) <= middle) continue;
       const at = (y: number) => p[0] + ((q[0] - p[0]) * (y - p[1])) / (q[1] - p[1]);
       walls.push([at(y0), at(y1)]);

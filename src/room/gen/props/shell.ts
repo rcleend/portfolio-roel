@@ -9,11 +9,13 @@ const ROOM = { x0: -2.8, x1: 2.8, z0: -2.405, z1: 2.4, height: 3.28, ridge: 0.95
 export const WINDOW = { x0: -2.1, x1: -0.5, y0: 1.127, y1: 2.52 };
 const DOOR = { x0: -1.4, x1: -0.2, y1: 2.26 };
 
-const WALL: Rgb = [0.115, 0.15, 0.165];
+const WALL: Rgb = [0.15, 0.195, 0.225];
 const CEILING: Rgb = [0.36, 0.31, 0.32];
 const TRIM: Rgb = [0.46, 0.41, 0.38];
 /** The window's layered ivory enamel (tools/room/restyle.py › palette). */
-const FRAME: Rgb = [0.22, 0.208, 0.19];
+const FRAME: Rgb = [0.38, 0.36, 0.345];
+/** The sill is a stained board, not painted. */
+const SILL: Rgb = [0.3, 0.14, 0.085];
 
 const wall = (density = 190): Omit<Chart, 'origin' | 'u' | 'v'> => ({
   page: PAGE.shell,
@@ -72,7 +74,7 @@ export const walls: Prop = {
     // Left wall (faces +x) and the knee wall on the right (faces -x).
     piece([x0, 0, z1], [0, 0, z0 - z1], height);
     // The knee wall stands under the slope and sees half the room's sky.
-    sink.chart({ ...wall(), shade: 0.45, origin: [x1, 0, z0], u: [0, 0, z1 - z0], v: [0, knee, 0] });
+    sink.chart({ ...wall(), origin: [x1, 0, z0], u: [0, 0, z1 - z0], v: [0, knee, 0] });
     // Front wall (faces -z), about the door.
     piece([x1, 0, z1], [DOOR.x1 - x1, 0, 0], height);
     piece([DOOR.x0, 0, z1], [x0 - DOOR.x0, 0, 0], height);
@@ -154,7 +156,7 @@ export const windowFrame: Prop = {
     b.beam([x0 - 0.012, y0, zIn], [x0 + 0.01, y1 + 0.012, zIn + 0.012], FRAME);
     b.beam([x1 - 0.01, y0, zIn], [x1 + 0.012, y1 + 0.012, zIn + 0.012], FRAME);
     b.beam([x0 + 0.01, y1 - 0.01, zIn], [x1 - 0.01, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], FRAME);
+    b.beam([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], SILL);
     // The reveal's inside faces.
     b.beam([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], FRAME);
     b.beam([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], FRAME);

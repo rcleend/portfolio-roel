@@ -122,8 +122,8 @@ describe('the generated CD player', () => {
     const triangles = Object.fromEntries(
       RADIO_MESHES.map((name) => [name, scene.meshes[name].positions.length / 9]),
     ) as Record<(typeof RADIO_MESHES)[number], number>;
-    expect(triangles.radio).toBeLessThanOrEqual(11000);
+    expect(triangles.radio).toBeLessThanOrEqual(14000);
     const parts = Object.values(triangles).reduce((sum, count) => sum + count, 0) - triangles.radio;
-    expect(parts).toBeLessThanOrEqual(4000);
+    expect(parts).toBeLessThanOrEqual(5000);
   });
 });

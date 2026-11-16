@@ -14,6 +14,8 @@ const BOX = { z0: -0.625, z1: -0.015, y0: 0.533, y1: 1.076 };
 const APERTURE = { z0: -0.5776, z1: -0.0624, y0: 0.6371, y1: 1.034 };
 const BASE_Y = 0.486;
 const AXIS: Vec3 = [2.3, 0.8, -0.32];
+/** How far the buttons and the jacks' rims stand proud of the front: to the plane the set's box ends at (TV_SPEC). */
+const PROUD = 0.0012;
 
 const ABS: Rgb = [0.012, 0.012, 0.014];
 const LIP: Rgb = [0.011, 0.011, 0.013];
@@ -80,7 +82,7 @@ export const tvSet: Prop = {
 
     // POWER, then VOLUME - +, CHANNEL - +, ACTION, TV/VIDEO, as on the shipped strip (z -0.477 to -0.348).
     const button = (z: number, radius: number) => {
-      b.cylinder([FRONT + 0.001, 0.5535, z], [FRONT - 0.0035, 0.5535, z], radius, radius * 0.9, 18, BUTTON, 1);
+      b.cylinder([FRONT + 0.001, 0.5535, z], [FRONT - PROUD, 0.5535, z], radius, radius * 0.9, 18, BUTTON, 1);
       b.cylinder(
         [FRONT + 0.0004, 0.5535, z],
         [FRONT - 0.0006, 0.5535, z],
@@ -97,11 +99,11 @@ export const tvSet: Prop = {
     b.box([FRONT - 0.0008, 0.5435, -0.334], [FRONT + 0.002, 0.5635, -0.276], RECESS, 0.7, ['+x']);
     // The front jacks: video, left, right.
     const jack = (z: number, color: Rgb) => {
-      b.cylinder([FRONT + 0.001, 0.555, z], [FRONT - 0.002, 0.555, z], 0.0072, 0.0068, 20, color, 1.6);
-      b.cylinder([FRONT - 0.0019, 0.555, z], [FRONT - 0.0022, 0.555, z], 0.0048, 0.0048, 14, [0.5, 0.42, 0.25], 1);
+      b.cylinder([FRONT + 0.001, 0.555, z], [FRONT - PROUD + 0.0004, 0.555, z], 0.0072, 0.0068, 20, color, 1.6);
+      b.cylinder([FRONT - PROUD + 0.0005, 0.555, z], [FRONT - PROUD + 0.0002, 0.555, z], 0.0048, 0.0048, 14, [0.5, 0.42, 0.25], 1);
       b.cylinder(
-        [FRONT - 0.0021, 0.555, z],
-        [FRONT - 0.0024, 0.555, z],
+        [FRONT - PROUD + 0.0003, 0.555, z],
+        [FRONT - PROUD, 0.555, z],
         0.0022,
         0.0022,
         10,

@@ -49,6 +49,11 @@ export interface RigLight {
   readonly extent?: number;
   /** Nothing nearer the emitter than this (metres) shadows it: its own housing. */
   readonly clear?: number;
+  /**
+   * A light that comes through a thin sheet (the blind's slats, lit from outside): its shadow is looked up this far
+   * (metres) towards the light, past the sheet itself, so the sheet takes the shadows of what stands behind it.
+   */
+  readonly through?: number;
 }
 
 /** The opal lamp's globe and the robot's eyes, as the shipped room places them (room.glb › userData.light). */
@@ -68,7 +73,7 @@ export const ROBOT = {
 const MOON: Vec3 = [-1.25, 2.65, -3.4];
 
 /** The colour of the room's ambient light from above and from below (bounce off the oak). */
-export const AMBIENT = { sky: [0.03, 0.034, 0.05] as Rgb, ground: [0.07, 0.06, 0.07] as Rgb };
+export const AMBIENT = { sky: [0.043, 0.05, 0.072] as Rgb, ground: [0.1, 0.072, 0.083] as Rgb };
 
 export const RIG: readonly RigLight[] = [
   // What reaches a surface from all around: the dim blue world through the window and the room's own bounce, as a dome
@@ -93,13 +98,13 @@ export const RIG: readonly RigLight[] = [
     name: 'pool',
     kind: 'spot',
     space: 'scene',
-    position: [0.4, 3.0, -0.5],
-    target: [1.1, 0, -0.1],
-    color: [5.6, 4.3, 6.0],
-    size: 0.9,
+    position: [0.9, 2.9, -1.9],
+    target: [1.3, 0, -0.5],
+    color: [8.5, 7.0, 9.8],
+    size: 0.6,
     samples: [12, 6],
-    cone: [0.3, 0.66],
-    soften: 1.5,
+    cone: [0.25, 0.5],
+    soften: 6,
     wrap: 0,
     casters: 'all',
   },
@@ -112,7 +117,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.3, 0.85, -1.7],
     target: [-1.3, 2, -1.7],
-    color: [0.75, 0.72, 0.8],
+    color: [0.85, 0.6, 0.68],
     size: 0.8,
     samples: [8, 4],
     cone: [1.1, 1.45],
@@ -128,11 +133,32 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.0, 0.05, -0.3],
     target: [0.0, 1, -0.3],
-    color: [0.28, 0.17, 0.2],
-    size: 1.0,
-    samples: [8, 4],
+    color: [0.5, 0.3, 0.34],
+    size: 1.2,
+    samples: [12, 6],
     cone: [1.2, 1.5],
     soften: 1.5,
+    reach: [2.1, 2.8],
+    wrap: 0,
+    casters: 'local',
+  },
+  // The set's own glow on the room ("TV screen reflected blue"): the bake's standing light on the tube's face, a disc
+  // that shines one way. The boards before the cabinet are the brightest in the room, nothing behind the glass's plane
+  // takes any (the knee wall, the boards past the cabinet's end), the cabinet's top edge shades the boards at its foot
+  // and the console and the cases throw their shadows away from the set. (The picture's light of the moment is the
+  // finish's, every frame.)
+  {
+    name: 'tv-glow',
+    kind: 'spot',
+    space: 'scene',
+    position: [2.14, 0.84, -0.32],
+    target: [1.14, 0.84, -0.32],
+    color: [0.3, 0.31, 0.7],
+    size: 0.2,
+    samples: [4, 2],
+    cone: [1.0, 1.3],
+    soften: 0.3,
+    reach: [3.5, 5.0],
     wrap: 0,
     casters: 'local',
   },
@@ -164,7 +190,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: MOON,
     target: [-0.6, 0.2, -0.9],
-    color: [2.9, 3.05, 3.5],
+    color: [5.8, 6.1, 7.0],
     size: 0.3,
     samples: [8, 4],
     cone: [0.45, 0.62],
@@ -199,11 +225,11 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.49, 1.21, -1.97],
     target: [0.49, 1.21, -1.97],
-    color: [0.19, 0.028, 0.009],
+    color: [0.16, 0.045, 0.008],
     size: 0.04,
-    samples: [2, 1],
+    samples: [1, 1],
     soften: 0.03,
-    reach: [0.35, 0.78],
+    reach: [0.5, 2.2],
     clear: 0.3,
     wrap: 0.1,
     casters: 'local',
@@ -215,22 +241,61 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.94, 1.03, -2.12],
     target: [-1.94, 1.03, -2.12],
-    color: [0.5, 0.17, 0.04],
-    size: 0.03,
+    color: [0.38, 0.135, 0.035],
+    size: 0.05,
     samples: [2, 1],
     soften: 0.03,
-    reach: [0.35, 1.2],
+    reach: [0.5, 2.6],
     wrap: 0,
     casters: 'local',
+    clear: 0.14,
   },
-  // The night sky on the blind ("Blue hour window fill"): the slats glow, the rest of the wall does not.
+  // The monitor's own glow ("Windows CRT screen bounce"): a small cool emitter just in front of the glass, down onto the
+  // keyboard and out at the chair. The keys stand in the monitor's shadow from every other light.
+  {
+    name: 'crt',
+    kind: 'spot',
+    space: 'scene',
+    position: [-1.34, 1.07, -1.6],
+    target: [-1.34, 0.72, -1.1],
+    color: [0.05, 0.085, 0.1],
+    size: 0.12,
+    samples: [3, 2],
+    cone: [1.0, 1.4],
+    soften: 0.05,
+    reach: [0.6, 1.6],
+    wrap: 0,
+    casters: 'local',
+    clear: 0.07,
+  },
+  // The night on the window itself ("Blue hour window fill"): the same emitter, on what stands within half a metre of
+  // the glass. The slats are thin and pale, so they glow with what falls on their backs (`wrap`), and carry the shadows
+  // of the sashes' bars behind them (`through`); the reveal and the jamb take it on their faces.
+  {
+    name: 'moon-on-blind',
+    kind: 'spot',
+    space: 'scene',
+    position: MOON,
+    target: [-1.3, 1.9, -2.36],
+    color: [0.75, 0.84, 1.0],
+    size: 0.25,
+    samples: [4, 2],
+    cone: [0.8, 1.1],
+    soften: 0,
+    reach: [1.6, 1.95],
+    wrap: 1,
+    casters: 'local',
+    through: 0.05,
+    portal: { center: [-1.3, 1.8235, -2.405], u: [0.8, 0, 0], v: [0, 0.6965, 0] },
+  },
+  // And the room's own light on the blind's face: the slats glow a little, the rest of the wall does not.
   {
     name: 'blind',
     kind: 'sun',
     space: 'scene',
     position: [-1.3, 2.1, 0.4],
     target: [-1.3, 2.12, -2.4],
-    color: [0.34, 0.33, 0.35],
+    color: [0.22, 0.21, 0.23],
     size: 0.2,
     samples: [2, 2],
     soften: 0,
@@ -248,7 +313,7 @@ export const RIG: readonly RigLight[] = [
     target: TV_LAMP.center,
     color: [1, 1, 1],
     size: 0.075,
-    samples: [4, 2],
+    samples: [3, 1],
     soften: 0.04,
     reach: [1.4, 2.0],
     wrap: 0.1,

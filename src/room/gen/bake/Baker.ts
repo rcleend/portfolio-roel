@@ -584,7 +584,7 @@ export class Baker {
       set('uPortalV', ...portal.v);
     } else set('uPortal', 0, 0, 0, 0);
     (uniform('uShadow').value as Matrix4).multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    set('uShadowTexel', 1 / this.options.shadowSize, texel, light.casters === 'none' ? 1 : 0, 0);
+    set('uShadowTexel', 1 / this.options.shadowSize, texel, light.casters === 'none' ? 1 : 0, light.through ?? 0);
     uniform('uDither').value = this.options.halfFloat ? 0 : this.next;
 
     renderer.autoClear = false;

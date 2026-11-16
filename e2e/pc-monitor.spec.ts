@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { differingPixels, expectSixtyFrames, trackErrors } from './helpers';
 import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
@@ -36,7 +36,9 @@ for (const viewport of [
   test.describe(`at ${viewport.width} × ${viewport.height}`, () => {
     test.use({ viewport });
 
-    test('lays the live screen over the picture and then renders nothing', async ({ page }) => {
+    test('lays the live screen over the picture, the room keeping its sixty frames behind it and adding no program', async ({
+      page,
+    }) => {
       const errors = trackErrors(page);
       await atComputer(page);
       const screen = page.locator('[data-pc-screen]');
@@ -49,10 +51,9 @@ for (const viewport of [
       expect(Math.abs(box.width - placement.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.height - placement.height)).toBeLessThanOrEqual(1);
 
-      const before = await stats(page);
-      await page.waitForTimeout(1000);
+      // The room goes on drawing behind the live screen, as in every view.
+      await expectSixtyFrames(page, 'at the computer');
       const after = await stats(page);
-      expect(after?.framesRendered).toBe(before?.framesRendered);
       // The computer adds no program to the room's (e2e/programs.ts).
       expect(after?.programs).toBe(ROOM_PROGRAMS);
       expect(after?.pcTexturePixels).toBeGreaterThan(0);
@@ -77,17 +78,29 @@ test.describe('at 1440 × 900', () => {
     await expect(page.locator('[data-pc-screen]')).toBeHidden();
   });
 
-  test('renders exactly one frame for a light change', async ({ page }) => {
+  test('a light change shows around the monitor, the same light changes nothing and none takes it back', async ({
+    page,
+  }) => {
     await atComputer(page);
-    const frames = async (change: () => void) => {
-      const start = (await stats(page))?.framesRendered ?? 0;
-      await page.evaluate(change);
-      await page.waitForTimeout(300);
-      return ((await stats(page))?.framesRendered ?? 0) - start;
+    // The stage without the live screen over it: the monitor's glass and what its light falls on.
+    const shot = async (change?: () => void) => {
+      if (change) await page.evaluate(change);
+      const drawn = (await stats(page))?.framesRendered ?? 0;
+      // The frame that shows it, and the one after (the shot may catch either).
+      await expect.poll(async () => (await stats(page))?.framesRendered).toBeGreaterThan(drawn + 1);
+      return page.locator('#stage canvas').screenshot();
     };
-    expect(await frames(() => window.__roomLab?.room.pc.setLight({ r: 0.8, g: 0.8, b: 0.8 }))).toBe(1);
-    expect(await frames(() => window.__roomLab?.room.pc.setLight({ r: 0.8, g: 0.8, b: 0.8 }))).toBe(0);
-    expect(await frames(() => window.__roomLab?.room.pc.setLight(null))).toBe(1);
+    const still = await shot();
+    // At rest the room's frames are one picture, so any difference below is the light's.
+    expect(await differingPixels(still, await shot())).toBe(0);
+    const white = await shot(() => window.__roomLab?.room.pc.setLight({ r: 0.8, g: 0.8, b: 0.8 }));
+    expect(await differingPixels(still, white, 3), 'pixels the white page lights').toBeGreaterThan(20_000);
+    expect(
+      await differingPixels(white, await shot(() => window.__roomLab?.room.pc.setLight({ r: 0.8, g: 0.8, b: 0.8 }))),
+    ).toBe(0);
+    const red = await shot(() => window.__roomLab?.room.pc.setLight({ r: 0.9, g: 0.1, b: 0.1 }));
+    expect(await differingPixels(white, red, 3), 'pixels that follow its colour').toBeGreaterThan(20_000);
+    expect(await differingPixels(still, await shot(() => window.__roomLab?.room.pc.setLight(null)))).toBe(0);
   });
 
   test('never shows the screen when the visitor turns back during the flight in', async ({ page }) => {

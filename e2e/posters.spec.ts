@@ -36,6 +36,17 @@ function trackPosterRequests(page: Page): string[] {
   return names;
 }
 
+/**
+ * Waits for the room's next frames. It draws sixty a second in every view (docs/ROOM.md › The generated room), so
+ * there is no idle loop to wait for: a change is on screen, and in `stats.drawCalls`, a frame or two after it.
+ */
+async function nextFrames(page: Page, count = 3): Promise<void> {
+  const drawn = (await stats(page))?.framesRendered ?? 0;
+  await page.waitForFunction((wanted) => (window.__roomLab?.room.stats.framesRendered ?? 0) >= wanted, drawn + count, {
+    timeout: 10_000,
+  });
+}
+
 /** The lab at the TV, powered on and running; `query` adds lab parameters (`&posters=0`, `&mockradio=1`). */
 async function atTv(page: Page, query = ''): Promise<void> {
   await page.goto(`/room-lab.html?clean${query}`);
@@ -44,7 +55,7 @@ async function atTv(page: Page, query = ''): Promise<void> {
   await page.waitForFunction(() => window.__roomLab?.surface.paused === false, null, { timeout: 20_000 });
 }
 
-/** Requests a view and waits until the camera has come to rest there and the room stopped rendering. */
+/** Requests a view and waits until the camera has come to rest there and the room has drawn it. */
 async function settleAt(page: Page, view: 'tv' | 'room' | 'pc' | 'radio'): Promise<void> {
   await page.evaluate(
     (target) =>
@@ -63,7 +74,7 @@ async function settleAt(page: Page, view: 'tv' | 'room' | 'pc' | 'radio'): Promi
       }),
     view,
   );
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  await nextFrames(page);
 }
 
 /** Cuts from the TV to the room view and reads the posters' state at the first frame the veil lifts. */
@@ -104,15 +115,18 @@ interface Resting {
 async function restingCalls(page: Page, decorated: boolean): Promise<Resting> {
   const calls = async (): Promise<number> => (await stats(page))?.drawCalls ?? -1;
   await atTv(page, decorated ? '&mockradio=1' : '&mockradio=1&posters=0');
-  // A paused game draws the same as a playing one, and lets a software GPU's loop come to rest at the TV too.
+  // A paused game draws the same as a playing one.
   await page.evaluate(() => window.__roomLab?.surface.pause());
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  // The rest of the room is lit behind the game (docs/ROOM.md › The generated room), a few views a unit, and each is
+  // a render of its own: the last frame's draw calls are the room's once that is done.
+  await page.waitForFunction(() => window.__roomLab?.room.stats.generated === 'ready', null, { timeout: 20_000 });
+  await nextFrames(page);
   const tvBefore = await calls();
   await settleAt(page, 'room');
   if (decorated) await postersShown(page, () => stats(page));
   // The radio prepares on the room view's idle time (the playing TV leaves it none), so both pages wait for it here.
   await page.waitForFunction(() => window.__roomLab?.room.stats.radioReady === true, null, { timeout: 20_000 });
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  await nextFrames(page);
   const room = await calls();
   const programs = (await stats(page))?.programs ?? -1;
   await settleAt(page, 'pc');
@@ -177,7 +191,7 @@ test.describe('the decorated walls', () => {
     // And it is a picture: the cluster over the radio reads as paper and ink in the night's light, not as the black
     // or the blank grey a painting lost on its way to the GPU leaves (a bitmap of GPU pixels from a worker did).
     await page.evaluate(() => window.__roomLab?.surface.pause());
-    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+    await nextFrames(page);
     const cluster = await page.screenshot({ clip: { x: 570, y: 165, width: 420, height: 270 } });
     const { channels } = await sharp(cluster).removeAlpha().stats();
     const mean = channels.reduce((sum, channel) => sum + channel.mean, 0) / channels.length;
@@ -281,9 +295,8 @@ test.describe('the decorated walls', () => {
     );
     expect(fadingWhenShown).toBe(POSTERS_PATH === 'full');
     await postersShown(page, () => stats(page));
-    // The fade rendered frames after the camera came to rest; then it ended and the room is idle again.
-    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-    expect((await stats(page))?.postersFading).toBe(false);
+    // The fade ran on after the camera came to rest; then it ended.
+    await expect.poll(async () => (await stats(page))?.postersFading, { timeout: 10_000 }).toBe(false);
     expect(errors).toEqual([]);
   });
 });
@@ -345,15 +358,14 @@ test.describe('under reduced motion', () => {
       null,
     );
     expect(fadingWhenShown).toBe(POSTERS_PATH === 'full');
-    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-    expect((await stats(page))?.postersFading).toBe(false);
+    await expect.poll(async () => (await stats(page))?.postersFading, { timeout: 10_000 }).toBe(false);
     expect(errors).toEqual([]);
   });
 
   test('a cut to the computer or the radio never waits for the walls, hidden at rest there', async ({ page }) => {
     await atTv(page, '&mockradio=1');
     await doneAtTv(page);
-    // Their black lasts as long as without the posters: no hold (the radio's own hold waits on its close-up only).
+    // Their black lasts as long as without the posters: no hold (the radio's own hold waits on its device only).
     const heldFrames = await page.evaluate(
       () =>
         new Promise<number>((resolve) => {
@@ -398,10 +410,15 @@ async function roomFrame(browser: Browser, hidden: readonly PosterPart[]): Promi
     });
   }
   await atTv(page);
-  await page.evaluate(() => window.__roomLab?.surface.pause());
+  // One frame of the test card on every page: the TV is in the room view, and a picture paused wherever it happened
+  // to be differs between the page loads this compares.
+  await page.evaluate(() => {
+    window.__roomLab?.surface.pause();
+    window.__roomLab?.surface.showFrame(40);
+  });
   await settleAt(page, 'room');
   await postersShown(page, () => stats(page));
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  await nextFrames(page);
   const png = await page.locator('canvas').first().screenshot();
   await page.close();
   return sharp(png).removeAlpha().raw().toBuffer();

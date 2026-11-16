@@ -41,12 +41,13 @@ async function phase(page: Page): Promise<string | undefined> {
 async function capture(browser: Browser, target: Target): Promise<void> {
   const context = await browser.newContext(target.context);
   const page = await context.newPage();
-  // Hold the big room model back so the game on the startup still can be photographed before the room is in.
+  // Hold the room's builder back (its worker's script: the room is generated, docs/ROOM.md › The generated room) so
+  // the game on the startup still can be photographed before the room is in.
   let release: () => void = () => {};
   const held = new Promise<void>((resolveHeld) => {
     release = resolveHeld;
   });
-  await page.route('**/room/room{,-1k}.glb', async (route) => {
+  await page.route(/\/room\/gen\/worker\.ts/, async (route) => {
     await held;
     await route.continue();
   });

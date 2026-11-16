@@ -119,11 +119,12 @@ function boundsOf(positions: Float32Array, start = 0, count = positions.length /
 describe("the room's spec (roomSpec.ts) against the generators", () => {
   it('has the TV set where its generator builds it', () => {
     const { min, max } = boundsOf(scene.meshes.tv.positions);
-    // Within 3 mm: the buttons stand 2.3 mm proud of the front the spec's box ends at.
+    // Within a millimetre, and nothing in front of the box: the buttons and the jacks end on its front plane.
     for (let axis = 0; axis < 3; axis++) {
-      expect(Math.abs((min[axis] as number) - (TV_SPEC.bounds.min[axis] as number)), `min ${axis}`).toBeLessThan(0.003);
-      expect(Math.abs((max[axis] as number) - (TV_SPEC.bounds.max[axis] as number)), `max ${axis}`).toBeLessThan(0.003);
+      expect(Math.abs((min[axis] as number) - (TV_SPEC.bounds.min[axis] as number)), `min ${axis}`).toBeLessThan(0.001);
+      expect(Math.abs((max[axis] as number) - (TV_SPEC.bounds.max[axis] as number)), `max ${axis}`).toBeLessThan(0.001);
     }
+    expect(min[0]).toBeGreaterThanOrEqual(TV_SPEC.bounds.min[0] - 1e-6);
     // The LED's lens is on the front panel, clear of the plinth and inside the set's width.
     expect(TV_SPEC.led[0]).toBeLessThan(TV_SPEC.bounds.min[0]);
     expect(TV_SPEC.led[0]).toBeGreaterThan(TV_SPEC.bounds.min[0] - 0.003);

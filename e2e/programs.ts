@@ -2,10 +2,25 @@ import { expect, type Page } from '@playwright/test';
 import type { RoomStats } from '../src/room/createRoom';
 
 /**
- * Shader programs the room compiles by its first room view, pinned at 2494ded before the computer existed; the
- * computer and the radio's first load add none.
+ * Shader programs the generated room holds from its first frame in the lab's unprocessed bake (`mood: 'original'`),
+ * before the walls are decorated or the spotlight is in. The room compiles its whole scene once, as it is made
+ * (`stage.prepare`), so the count is the same at the TV and in every view after it, and the computer adds none.
+ * By what draws with them (three.js shares a program between materials of one kind):
+ *
+ *  1. the generated room's vertex-lit meshes: the TV set, the monitor, the props, the CD player's parts;
+ *  2. its charts, a baked page each: the cabinet, the walls, the floor, the desk, the dresser;
+ *  3. plain colour: the opal lamp's globe and the robot's eyes, the TV's dark glass and the LEDs' lenses;
+ *  4. its prints (a map tinted by vertex colours, blended);
+ *  5. the view outside the window (a map on a plate without normals, so not program 2);
+ *  6. the lava lamp's wax (vertex colours, no normals; the props' pick meshes, never drawn, land on it too);
+ *  7. the lava lamp's glass, back faces, and
+ *  8. its front faces (a double-sided blended material draws in two passes, a program each);
+ *  9. the CRT;
+ * 10. the TV's light on the surfaces around it (ScreenGlow);
+ * 11. the LEDs' halo;
+ * 12. the reduced-motion cut's black veil (in the scene from the start, so compiled with it whether or not it shows).
  */
-export const BASE_PROGRAMS = 7;
+export const BASE_PROGRAMS = 12;
 
 /**
  * The path the decorated walls take on the suites' GPU (RoomStats.postersPath): the suites run on Metal ANGLE by
@@ -30,25 +45,33 @@ export const SPOTLIGHT_PROGRAMS = 2;
 export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRAMS;
 
 /**
- * The opal lamp beside the TV (docs/ROOM.md › The opal lamp): its base and globe share one material, the room's unlit
- * varnish without a map, compiled for the screen and for the finish's linear target on either poster path. The
- * original bake draws it with a program the room already has. The toy robot (docs/ROOM.md › The toy robot) adds
- * none: its body, its eyes and the Product Engineer cover share the baked room's own mapped programs, its eyes' halos
- * the halation's.
+ * What a night finish adds to the room's own (none are allocated by `original`):
+ *
+ *  - four of its own: the lamps' halation, the highlight extraction, the composition and the dust;
+ *  - the monitor's display mask (its picture drawn with alpha 0, so no longer the charts' program);
+ *  - the varnish splits two of the room's programs, since only surfaces named for the finish take it (RoomGloss):
+ *    the globe and the eyes leave the glass and the lenses (program 3), and the props' pick meshes, which share the
+ *    props' varnished material but have no normals, leave the wax (program 6). The second is a program nothing ever
+ *    draws: `renderer.compile` prepares invisible meshes too.
  */
-export const TV_LAMP_PROGRAMS = 2;
+const FINISH_PROGRAMS = 4 + 1 + 2;
 
 /**
- * Night finishes: varnish, lamp halation, highlight extraction, composition, dust and the monitor's display mask,
- * plus linear-output versions also precompiled for the screen by the full poster path. None are allocated by original.
+ * Under a finish the full poster path holds four programs, not one: the cards no longer share the charts' varnished
+ * program, and cards and skirts are both precompiled for the screen (compileAsync, before the walls show) and then
+ * drawn into the finish's linear target. The lite path's cards add their one linear program.
  */
-export const ATMOSPHERE_PROGRAMS = (POSTERS_PATH === 'lite' ? 6 : 8) + TV_LAMP_PROGRAMS;
+const FINISHED_POSTERS_PROGRAMS = POSTERS_PATH === 'lite' ? 1 : 4;
 
-/** Production uses Velvet dusk; the lab retains the original bake for isolated device tests. */
+/** Night finishes: what they add to ROOM_PROGRAMS. */
+export const ATMOSPHERE_PROGRAMS = FINISH_PROGRAMS + FINISHED_POSTERS_PROGRAMS - POSTERS_PROGRAMS;
+
+/**
+ * Production uses Velvet dusk; the lab retains the original bake for isolated device tests. Reduced motion adds none:
+ * the cut's veil is compiled with the scene (program 12).
+ */
 export const FINISHED_ROOM_PROGRAMS = ROOM_PROGRAMS + ATMOSPHERE_PROGRAMS;
-/** Reduced-motion cuts additionally draw the black veil through the linear atmosphere target. */
-export const FINISHED_REDUCED_ROOM_PROGRAMS = FINISHED_ROOM_PROGRAMS + 1;
-/** The real CD material prewarms in screen output, then draws into the finish's linear target. */
+/** The CD's one material prewarms in screen output (compileAsync), then draws into the finish's linear target. */
 export const FINISHED_RADIO_PROGRAMS = 2;
 
 /**
@@ -64,9 +87,9 @@ export async function spotlightIn(page: Page, stats: () => Promise<RoomStats | u
 }
 
 /**
- * Waits until the posters are shown, so a program count is deterministic: they go up in the first flight's frames
- * as background work and three checks compileAsync on a timer, so a paused clock must be moved on (`step`, one frame
- * at a time); without `step`, real time passes.
+ * Waits until the posters are shown and any fade is over, so a program count is deterministic: they go up in the first
+ * flight's frames as background work and three checks compileAsync on a timer, so a paused clock must be moved on
+ * (`step`, one frame at a time); without `step`, real time passes.
  */
 export async function postersShown(
   page: Page,
@@ -79,6 +102,13 @@ export async function postersShown(
     if (Date.now() > deadline) throw new Error('The posters are still loading after 15 s');
     await step();
   }
+  // Cards that arrive late fade in on the skirts' blended program and take their own opaque one in the first frame
+  // after the fade (PosterWall › setFading): the count is whole only then.
+  while ((await stats())?.postersFading) {
+    if (Date.now() > deadline) throw new Error('The posters are still fading in after 15 s');
+    await step();
+  }
+  for (let frame = 0; frame < 3; frame++) await step();
   const shown = await stats();
   expect(shown?.posters).toBe('ready');
   expect(shown?.postersPath, 'the path the walls took on this GPU').toBe(POSTERS_PATH);

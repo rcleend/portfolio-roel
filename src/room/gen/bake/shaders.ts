@@ -51,9 +51,9 @@ uniform vec3 uPortalU;
 uniform vec3 uPortalV;
 uniform mat4 uShadow;
 uniform sampler2D uShadowMap;
-// 1 / the map's size, a texel's size in metres one metre from the light (a sun: anywhere), and 1 for a light
-// nothing shadows (a fill)
-uniform vec3 uShadowTexel;
+// 1 / the map's size, a texel's size in metres one metre from the light (a sun: anywhere), 1 for a light nothing
+// shadows (a fill), and how far towards the light its shadow is looked up from (a light through a thin sheet)
+uniform vec4 uShadowTexel;
 uniform vec4 uEncode;
 // Eight-bit pages: this pass's number, from 1 (0: half-float pages, which need no dither).
 uniform float uDither;
@@ -90,7 +90,7 @@ void main() {
   if (light > 0.0 && uShadowTexel.z < 0.5) {
     // Off the surface by a shadow texel's width, so a surface never shadows itself.
     float texel = uShadowTexel.y * (uDirectional > 0.5 ? 1.0 : sqrt(distance2));
-    float seen = lit(vWorld + normal * texel * 2.0 + direction * texel);
+    float seen = lit(vWorld + normal * texel * 2.0 + direction * (texel + uShadowTexel.w));
     // Outside the map: a sun or the dome is unshadowed there, a point light's view simply does not reach it.
     light *= seen < 0.0 ? uDirectional : seen;
   }
@@ -123,8 +123,8 @@ uniform vec3 uStatic;
 // bake held AgX medium-high contrast), then the finish's static lights in the finish's own terms (RoomGloss).
 vec3 display(vec3 albedo, vec4 light, vec3 world) {
   vec3 c = albedo * light.rgb * uDecode.rgb * uExposure;
-  c = c / (c + 0.6) * 1.25;
-  c = mix(c, c * c * (3.0 - 2.0 * c), 0.35);
+  c = pow(max(c, vec3(0.0)), vec3(1.4));
+  c = 1.15 * c / (c + 0.3475);
   float lava = length(world - vec3(0.49, 1.28, -1.97));
   float desk = length(world - vec3(-2.05, 1.03, -1.88));
   float pool = exp(-lava * lava * 0.85) + exp(-desk * desk * 1.8) * 0.65;

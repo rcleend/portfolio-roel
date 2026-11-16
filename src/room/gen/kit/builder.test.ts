@@ -183,3 +183,73 @@ describe('shaded', () => {
     expect(shade).toEqual([0.4, 0.4, 0.8, 0.8, 0.8, 0.8]);
   });
 });
+
+describe('toned', () => {
+  it('multiplies the albedo of what is built inside it, vertex by vertex, and nothing after', () => {
+    const builder = new MeshBuilder();
+    builder.toned(
+      ([x]) => (x > 0.5 ? 0.5 : 1),
+      () => builder.tri([0, 0, 0], [1, 0, 0], [0, 1, 0], [0.8, 0.4, 0.2]),
+    );
+    builder.tri([0, 0, 0], [1, 0, 0], [0, 1, 0], [0.8, 0.4, 0.2]);
+    const albedo = [...builder.finish().albedo].map((value) => Math.round(value * 100) / 100);
+    expect(albedo.slice(0, 9)).toEqual([0.8, 0.4, 0.2, 0.4, 0.2, 0.1, 0.8, 0.4, 0.2]);
+    expect(albedo.slice(9)).toEqual([0.8, 0.4, 0.2, 0.8, 0.4, 0.2, 0.8, 0.4, 0.2]);
+  });
+});
+
+describe('plate', () => {
+  const square: [number, number][] = [
+    [0, 0],
+    [2, 0],
+    [2, 2],
+    [0, 2],
+  ];
+  // Wound the other way, as a hole may be given.
+  const hole: [number, number][] = [
+    [0.5, 0.5],
+    [0.5, 1.5],
+    [1.5, 1.5],
+    [1.5, 0.5],
+  ];
+  const area = (positions: Float32Array): number => {
+    let sum = 0;
+    for (let i = 0; i < positions.length; i += 9) {
+      const [ax, ay, bx, by, cx, cy] = [0, 1, 3, 4, 6, 7].map((k) => positions[i + k] as number) as number[];
+      const twice =
+        ((bx as number) - (ax as number)) * ((cy as number) - (ay as number)) -
+        ((cx as number) - (ax as number)) * ((by as number) - (ay as number));
+      // Every triangle faces +z.
+      expect(twice).toBeGreaterThan(0);
+      sum += twice / 2;
+    }
+    return sum;
+  };
+
+  it('fills a face around its holes, with every corner of every loop a vertex', () => {
+    const builder = new MeshBuilder();
+    builder.plate([square, hole], 0.25, [1, 1, 1], { grid: 0.4 });
+    const { positions } = builder.finish();
+    expect(area(positions)).toBeCloseTo(3, 6);
+    const corners = new Set<string>();
+    for (let i = 0; i < positions.length; i += 3) {
+      expect(positions[i + 2]).toBeCloseTo(0.25, 6);
+      corners.add(`${(positions[i] as number).toFixed(3)},${(positions[i + 1] as number).toFixed(3)}`);
+    }
+    for (const [x, y] of [...square, ...hole]) expect(corners.has(`${x.toFixed(3)},${y.toFixed(3)}`)).toBe(true);
+    // Nothing of it inside the hole.
+    for (let i = 0; i < positions.length; i += 9) {
+      const x = ((positions[i] as number) + (positions[i + 3] as number) + (positions[i + 6] as number)) / 3;
+      const y = ((positions[i + 1] as number) + (positions[i + 4] as number) + (positions[i + 7] as number)) / 3;
+      expect(x > 0.5 && x < 1.5 && y > 0.5 && y < 1.5).toBe(false);
+    }
+  });
+
+  it('carries a relief', () => {
+    const builder = new MeshBuilder();
+    builder.plate([square, hole], 0, [1, 1, 1], { relief: (x, y) => 0.1 * x - 0.2 * y });
+    const { positions } = builder.finish();
+    for (let i = 0; i < positions.length; i += 3)
+      expect(positions[i + 2]).toBeCloseTo(0.1 * (positions[i] as number) - 0.2 * (positions[i + 1] as number), 6);
+  });
+});

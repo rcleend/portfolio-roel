@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { expectSixtyFrames, trackErrors } from './helpers';
 
 test.use({
   launchOptions: { args: GPU_LAUNCH_ARGS },
@@ -50,11 +50,7 @@ test('the room builds in a worker and lights what the TV view shows before the r
   await expect.poll(async () => (await stats(page))?.triangles).toBeLessThan(70_000);
   // Sixty frames a second whether or not anything moves: the paused game still gets frames.
   await page.evaluate(() => window.__roomLab?.surface.pause());
-  const before = (await stats(page))?.framesRendered ?? 0;
-  await page.waitForTimeout(1000);
-  const drawn = ((await stats(page))?.framesRendered ?? 0) - before;
-  expect(drawn).toBeGreaterThan(40);
-  expect(drawn).toBeLessThan(80);
+  await expectSixtyFrames(page, 'with the game paused at the TV');
   // The set's plastic is dark; the wall behind it and the cabinet under it are not black: the bake reached them.
   const shot = sharp(await page.locator('#stage canvas').screenshot());
   const { width = 1, height = 1 } = await shot.metadata();

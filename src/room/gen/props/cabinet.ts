@@ -9,7 +9,7 @@ import { GROUP, PAGE, type Prop, type PropSink } from './types';
  * shelves on the right, on a low plinth. Cream enamel; every face is a chart, so the set's contact shadow, the lamp's
  * pool and the dark of the shelves are baked into it.
  */
-const ENAMEL: Rgb = [0.15, 0.13, 0.125];
+const ENAMEL: Rgb = [0.2, 0.17, 0.165];
 const INSIDE: Rgb = [0.34, 0.29, 0.275];
 const DENSITY = 420;
 
@@ -41,7 +41,7 @@ export const cabinet: Prop = {
     box([X.front, 0.041, Z.right - 0.03], [X.back, TOP.y0, Z.right], ['+y']);
     box([X.back - 0.02, 0.041, Z.left + 0.03], [X.back, TOP.y0, Z.right - 0.03], ['+y', '-z', '+z', '+x'], INSIDE);
     box([X.front, 0.041, Z.left + 0.03], [X.back - 0.02, 0.061, Z.right - 0.03], ['-z', '+z', '+x', '-y']);
-    box([X.front + 0.03, 0.006, Z.left + 0.02], [X.back - 0.03, 0.041, Z.right - 0.02], ['+y', '-y'], ENAMEL, 0.6, 200);
+    box([X.front + 0.03, 0, Z.left + 0.02], [X.back - 0.03, 0.041, Z.right - 0.02], ['+y', '-y'], ENAMEL, 0.6, 200);
     // The divider between the drawers and the shelves, and the middle shelf.
     box([X.front, 0.061, -0.249], [X.back - 0.02, TOP.y0, -0.221], ['+y', '-y', '+x']);
     box([X.front + 0.004, 0.211, -0.221], [X.back - 0.02, 0.237, Z.right - 0.03], ['-z', '+z', '+x'], INSIDE);
