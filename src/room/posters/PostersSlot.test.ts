@@ -89,7 +89,7 @@ describe('PostersSlot', () => {
     expect(slot.state).toBe('off');
   });
 
-  it('reports the bytes staged at the TV, then shown', async () => {
+  it('reports the atlas painted at the TV, then shown', async () => {
     const { queued, context } = recordingContext();
     const loader = eventsLoader();
     const slot = new PostersSlot(true, loader.load);
@@ -109,7 +109,7 @@ describe('PostersSlot', () => {
     expect(slot.state).toBe('ready');
   });
 
-  it('goes off when the wall fails after staging', async () => {
+  it('goes off when the wall fails after painting', async () => {
     const { queued, context } = recordingContext();
     const loader = eventsLoader();
     const slot = new PostersSlot(true, loader.load);

@@ -207,7 +207,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       loaded.monitor.prepare(from, to);
       // A first reduced-motion visit to the radio stays black until its device is ready, so it is one cut to the
       // open radio, not a closed radio that then snaps open; the first cut to the room view also waits for the
-      // posters once their bytes are in hand, so it lands on decorated walls.
+      // posters while they are painted, so it lands on decorated walls.
       const holdCut = (): boolean =>
         (to === 'radio' && radio.available && radio.prepared === null) || posters.holdsCut(to);
       loaded.rig.goTo(
@@ -235,8 +235,8 @@ export function createRoom(options: CreateRoomOptions): Room {
   });
   // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
   // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds), and
-  // so does the props' glow. The posters fetched at the TV go up between that flight's frames: their departure only
-  // queues the work.
+  // so does the props' glow. What is left of the posters painted at the TV goes up between that flight's frames: their
+  // departure only makes the work urgent.
   const stopPreload = views.onChange(() => {
     stopPreload();
     posters.depart();
@@ -293,18 +293,13 @@ export function createRoom(options: CreateRoomOptions): Room {
         loader: assets.loader,
         assetBaseUrl,
         anisotropy: scene.anisotropy,
+        // The generated room brings its own radio: the device waits for it and moves its parts.
+        ...(options.generated === true ? { generated: { ready: generated.ready, radio: () => generated.radio } } : {}),
       });
     } else {
       radio.unavailable(new Error('The room assets lack the radio'));
     }
-    posters.attach({
-      stage,
-      views,
-      background: scene.background,
-      loader: assets.loader,
-      assetBaseUrl,
-      anisotropy: scene.anisotropy,
-    });
+    posters.attach({ stage, views, background: scene.background, anisotropy: scene.anisotropy });
     const { spotlit } = scene;
     spotlight.attach(() => ({
       kit: spotlightKit,
@@ -327,6 +322,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         background,
         room: assets.room.scene,
         tv: assets.tv,
+        radio: scene?.radioModel?.root ?? null,
         anisotropy,
         tier: stage.quality.tier,
         reducedMotion,

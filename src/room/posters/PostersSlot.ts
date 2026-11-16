@@ -4,12 +4,12 @@ import type { PosterWall, PosterWallContext } from './PosterWall';
 import { posterKit } from './posterKit';
 
 /**
- * Where the posters are, for stats and tests: none this page load, on their way (again, after a context loss), decoded
- * and parsed with only the upload left (which goes between the game's frames at the TV on a hardware GPU, and waits for
+ * Where the posters are, for stats and tests: none this page load, being painted (again, after a context loss),
+ * painted with only the upload left (which goes between the game's frames at the TV on a hardware GPU, and waits for
  * the first departure on a software one), or up: drawn, or hidden at rest where no piece is in frame.
  */
 export type PostersState = 'off' | 'loading' | 'staged' | 'ready';
-/** How the walls draw once loaded: cards and skirts with a fade for late bytes, or the cards alone (PosterWall.lite). */
+/** How the walls draw once made: cards and skirts with a fade for a late arrival, or the cards alone (PosterWall.lite). */
 export type PostersPath = 'full' | 'lite';
 
 /** Imports the posters' lazy chunk; a seam for tests. */
@@ -30,9 +30,9 @@ const PREPARE_ESTIMATE_MS = 1;
 
 /**
  * The room's first-load half of the decorated walls (docs/ROOM.md › Posters): one idle unit at the TV imports the
- * lazy chunk, which decides the tier, fetches and decodes it and (on a hardware GPU) uploads it there; the first
- * departure from the TV makes whatever is left of that urgent. Everything else is PosterWall, in its own chunk, which reaches the room's code only through
- * the posterKit.
+ * lazy chunk, which decides the tier, paints the atlas and (on a hardware GPU) uploads it there; the first departure
+ * from the TV makes whatever is left of that urgent. Everything else is PosterWall, in its own chunk, which reaches
+ * the room's code only through the posterKit.
  */
 export class PostersSlot {
   #state: PostersState;
@@ -87,7 +87,7 @@ export class PostersSlot {
     this.#wall?.depart();
   }
 
-  /** A reduced-motion cut to `to` waits on the posters' last, local steps (see PosterWall.holdsCut). */
+  /** A reduced-motion cut to `to` waits while the posters are painted and uploaded (see PosterWall.holdsCut). */
   holdsCut(to: RoomView): boolean {
     return this.#wall?.holdsCut(to) ?? false;
   }
@@ -123,14 +123,14 @@ export class PostersSlot {
             this.#end(true);
           },
           onLost: () => {
-            if (this.#state === 'ready') this.#state = 'loading';
+            if (this.#state !== 'off') this.#state = 'loading';
           },
           onFailed: () => this.#end(false),
         });
         if (this.#departed) this.#wall.depart();
       },
       (error: unknown) => {
-        console.warn('The posters could not load; the walls stay bare.', error);
+        console.warn('The posters could not be made; the walls stay bare.', error);
         this.#end(false);
       },
     );

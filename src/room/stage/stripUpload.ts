@@ -74,11 +74,11 @@ function primeUnpackState(renderer: StripRenderer): void {
 /**
  * Copies `image` into `target` one strip per unit (each yielding `QUIET` before the next, so a strip waits for a
  * quiet moment or, in an urgent task, goes between frames); the mipmaps are made once, with the last strip. The
- * caller owns the image and closes it.
+ * caller owns the image (a decoded bitmap, or a canvas it painted) and closes it.
  */
 export function* uploadStrips(
   renderer: StripRenderer,
-  image: ImageBitmap,
+  image: ImageBitmap | HTMLCanvasElement,
   target: Texture,
   rows: number = STRIP_ROWS,
 ): Generator<IdleUnit, void, void> {

@@ -1,3 +1,8 @@
+// The faces the app declares (src/app/main.tsx), so the lab's posters are set in the same type.
+import '@fontsource/silkscreen/400.css';
+import '@fontsource/chewy/latin-400.css';
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-800.css';
 import { createRoom, readRoomMood } from '../index';
 import { MockGameSurface } from './MockGameSurface';
 import { MockPcScreen } from './MockPcScreen';

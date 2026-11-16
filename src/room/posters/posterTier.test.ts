@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { POSTERS_2K_MIN_FOCAL_PX, posterTier, roomFocalPx } from './posterTier';
 
-const desktop = {
-  width: 1440,
-  height: 900,
-  pixelRatio: 1,
-  deviceMemory: 8,
-  saveData: false,
-  slowLink: false,
-  softwareGpu: false,
-};
+const desktop = { width: 1440, height: 900, pixelRatio: 1, deviceMemory: 8, softwareGpu: false };
 
 describe('posterTier', () => {
   it('measures the room view focal length in drawing-buffer pixels', () => {
@@ -34,12 +26,10 @@ describe('posterTier', () => {
     expect(posterTier({ ...phone, pixelRatio: 1 })).toBe('1k');
   });
 
-  it('keeps the 1K for small memory, Save-Data, a slow link and a software GPU', () => {
+  it('keeps the 1K for small memory and a software GPU', () => {
     expect(posterTier({ ...desktop, deviceMemory: 2 })).toBe('1k');
     expect(posterTier({ ...desktop, deviceMemory: 4 })).toBe('2k');
     expect(posterTier({ ...desktop, deviceMemory: undefined })).toBe('2k');
-    expect(posterTier({ ...desktop, saveData: true })).toBe('1k');
-    expect(posterTier({ ...desktop, slowLink: true })).toBe('1k');
     expect(posterTier({ ...desktop, softwareGpu: true })).toBe('1k');
   });
 });

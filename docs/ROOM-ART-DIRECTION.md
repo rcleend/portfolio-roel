@@ -230,12 +230,11 @@ extend each island's own color to limit dark seams when textures are filtered.
 The CD player adds nothing to that first load: `radio-closeup.glb` (65 KB, 2,366 triangles,
 one 512² atlas) and `radio-skin-2k.webp` (240 KB) are lazy files fetched only when the radio
 is prepared, the skin only on screens where the radio lands wider than 900 render pixels.
-The posters add none of their art to it, only the room code that triggers them (about 1.7 kB
-gzip in the room chunk): `posters.glb`
-(30 KB, 1,535 triangles) and one atlas tier, `posters-2k.webp` (239 KB, 2048 × 1024) or
-`posters-1k.webp` (89 KB, 1024 × 512), are lazy files fetched and decoded behind the opening TV
-view and uploaded on the first departure. They add 2.1 million decoded texture pixels (0.5 million
-at 1K), one shader program and two room-view draw calls; the TV, PC and radio views draw none of
+The posters add nothing to it but the room code that triggers them, and fetch no model and no
+picture at all: their geometry is built from the layout and their atlas painted in code, in a
+worker behind the opening TV view (about 25 kB gzip of lazy code), then uploaded there. The
+artwork is original, drawn for this room. They add 2.1 million texture pixels (0.5 million at
+1K), one shader program and two room-view draw calls; the TV, PC and radio views draw none of
 them (docs/ROOM.md › Posters › Frames and budgets).
 
 Texture allocation stays below revision 5 despite the sharper front-facing atlases, because

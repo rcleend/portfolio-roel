@@ -27,10 +27,10 @@ for (const file of manifest.files) {
     throw new Error(`Unexpected room file: ${file.name}`);
   }
 }
-// The lazy files (the radio's close-up, the posters) are imported with the build they belong to.
+// The lazy files (the radio's close-up) are imported with the build they belong to; the posters are painted in code.
 const lazy = manifest.lazyFiles ?? [];
 for (const file of lazy) {
-  if (!/^(radio-closeup\.glb|radio-skin-2k\.webp|posters\.glb|posters-[12]k\.webp)$/.test(file.name)) {
+  if (!/^(radio-closeup\.glb|radio-skin-2k\.webp)$/.test(file.name)) {
     throw new Error(`Unexpected lazy room file: ${file.name}`);
   }
 }

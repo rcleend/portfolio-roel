@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -17,20 +16,16 @@ import { tvFixture } from '../tv/tvFixtures';
 import type { TvFramingModel } from '../tv/tvFraming';
 import { posterTier } from './posterTier';
 import { anyInView, decorBoxes } from './posterVisibility';
+import { ATLAS_HEIGHT, ATLAS_WIDTH, wallGeometry } from './wall/geometry';
 
 /*
- * The visibility rule against the shipped assets and the shipped framing: every resting pose the camera can take and
- * the first stretch of the TV-to-room flight, with the polygons of public/room/posters.glb clipped exactly against the
+ * The visibility rule against the walls' geometry (wall/geometry.ts) and the shipped framing: every resting pose the
+ * camera can take and the first stretch of the TV-to-room flight, with the walls' polygons clipped exactly against the
  * frustum as the oracle. The rule may keep the node drawn where nothing shows (its boxes are conservative); it must
  * never hide it where a polygon does.
  */
 
 const ROOM = join(process.cwd(), 'public/room');
-/** The decoration's layout, the stage's input (one push pin per cork piece). */
-const layout = JSON.parse(readFileSync(join(process.cwd(), 'tools/room/assets/posters/layout.json'), 'utf8')) as {
-  readonly items: readonly { readonly cork?: boolean }[];
-};
-
 /** pc-base.glb's glass and shell (room revision 6), as `locatePc` finds them. */
 const PC: PcFramingModel = {
   facing: new Vector3(0, 0, 1),
@@ -66,20 +61,17 @@ const MAX_PIXEL_RATIO = 2;
 const MAX_DRAWING_BUFFER_PIXELS = 3_000_000;
 /** The ratios screens report, from a desktop at 1 to a phone at 3. */
 const DEVICE_PIXEL_RATIOS = [1, 1.25, 1.5, 2, 2.625, 3] as const;
-/**
- * The push pins' heads are each drawn from a five-texel cell of one lit dome (posters.py PIN_CELL), about 1.6 texels
- * per centimetre; every printed piece, tape and the corkboard is at three or more.
- */
+/** Everything printed (the sheets, the tape, the cork, the pins' heads) is at 4 texels per centimetre or more. */
 const ART_MIN_TEXELS_PER_CM = 2.5;
-/** Each pin's head: an octagonal top and its eight-sided skirt (posters.py pins_mesh). */
-const PIN_TRIANGLES = 16;
+/** The corkboard frame's four edges take one flat texel of wood each: two triangles a side, with no area in the atlas. */
+const FRAME_EDGE_TRIANGLES = 8;
 /**
  * How far the camera may blow the art up, in drawing-buffer pixels per texel along a side, on any screen up to 32:9
  * with the tier its size gets. At rest in the room view the atlas carries 1.1 × the on-screen density (measured 0.95,
  * at 3:4). The flights were meant to stay within 2: the TV ↔ room flights do (1.9, at 32:9), but the flights to
  * and from the computer and the radio pass 1.25-1.6 m from the pieces over the desk and reach 5.0 (3:4, the radio
  * to the computer) for about a quarter of a second at their fastest. A 2K atlas 84 % full cannot carry 2.5 × those
- * pieces' density, so this bounds what ships; the same bound covers the computer view at 32:9, the one resting view
+ * pieces' density, so this bounds what is painted; the same bound covers the computer view at 32:9, the one resting view
  * outside the composition that shows a piece.
  */
 const MAX_MAGNIFICATION = { resting: 1, house: 2, device: 5 } as const;
@@ -98,7 +90,7 @@ interface Pose {
 }
 
 let triangles: Float32Array;
-/** The cards' triangles (the printed art; the skirts are a soft shadow at 2 px/cm) and their atlas coordinates. */
+/** The cards' triangles (the printed art; the skirts are a soft shadow) and their atlas coordinates. */
 let cardTriangles: Float32Array;
 let cardUvs: Float32Array;
 /** The 2K atlas's size in texels; the 1K tier halves it each way, under the same coordinates. */
@@ -116,38 +108,23 @@ beforeAll(async () => {
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
 
-  const posters = await readAsset(io, 'posters.glb');
-  const node = posters
-    .getRoot()
-    .listNodes()
-    .find((candidate) => candidate.getExtras().posters === 1);
-  if (!node) throw new Error('posters.glb has no posters node');
-  boxes = decorBoxes(node.getExtras());
-  atlas = node.getExtras().atlas as [number, number];
-  // Every triangle the node draws, in the room's space (the node's parent is the room's root).
+  const wall = wallGeometry();
+  boxes = decorBoxes(wall.boxes);
+  atlas = [ATLAS_WIDTH, ATLAS_HEIGHT];
+  // Every triangle the node draws, in the room's space (the node sits at the room's origin).
   const corners: number[] = [];
   const cardCorners: number[] = [];
   const cardTexels: number[] = [];
-  const world = new Matrix4().fromArray(node.getWorldMatrix());
-  const vertex = new Vector3();
-  const element: number[] = [];
-  for (const primitive of node.getMesh()?.listPrimitives() ?? []) {
-    const position = primitive.getAttribute('POSITION');
-    const uv = primitive.getAttribute('TEXCOORD_0');
-    if (!position || !uv) continue;
-    const isCards = primitive.getMaterial()?.getName() === 'posters_cards';
-    const indices = primitive.getIndices();
-    const count = indices ? indices.getCount() : position.getCount();
-    for (let i = 0; i < count; i++) {
-      const index = indices ? indices.getScalar(i) : i;
-      position.getElement(index, element);
-      vertex.fromArray(element).applyMatrix4(world);
-      corners.push(vertex.x, vertex.y, vertex.z);
+  for (const [mesh, isCards] of [
+    [wall.cards, true],
+    [wall.skirts, false],
+  ] as const) {
+    for (const index of mesh.indices) {
+      const point = mesh.positions.subarray(index * 3, index * 3 + 3);
+      corners.push(...point);
       if (!isCards) continue;
-      cardCorners.push(vertex.x, vertex.y, vertex.z);
-      // getElement denormalizes the quantized coordinates to 0…1.
-      uv.getElement(index, element);
-      cardTexels.push(element[0] ?? 0, element[1] ?? 0);
+      cardCorners.push(...point);
+      cardTexels.push(...mesh.uvs.subarray(index * 2, index * 2 + 2));
     }
   }
   triangles = Float32Array.from(corners);
@@ -275,8 +252,8 @@ function cardMagnification(camera: PerspectiveCamera, viewport: Viewport): numbe
 
 /**
  * The most buffer pixels per CSS pixel and texel any screen of `viewport` puts on the art, with the tier it gets by
- * its size: the 1K tier doubles the magnification of the 2K. (A visitor demoted to the 1K by Save-Data, little memory
- * or a software GPU gets that softer art on purpose.)
+ * its size: the 1K tier doubles the magnification of the 2K. (A visitor demoted to the 1K by little memory or a software
+ * GPU gets that softer art on purpose.)
  */
 function worstScreenScale({ width, height }: Viewport): number {
   return Math.max(
@@ -286,15 +263,7 @@ function worstScreenScale({ width, height }: Viewport): number {
         MAX_PIXEL_RATIO,
         Math.sqrt(MAX_DRAWING_BUFFER_PIXELS / (width * height)),
       );
-      const facts = {
-        width,
-        height,
-        pixelRatio,
-        deviceMemory: undefined,
-        saveData: false,
-        slowLink: false,
-        softwareGpu: false,
-      };
+      const facts = { width, height, pixelRatio, deviceMemory: undefined, softwareGpu: false };
       return pixelRatio * (posterTier(facts) === '2k' ? 1 : 2);
     }),
   );
@@ -316,7 +285,7 @@ function clipAgainst(polygon: readonly Vector4[], axis: number, sign: number): V
   return out;
 }
 
-describe('posters.glb and its boxes', () => {
+describe("the walls' geometry and its boxes", () => {
   it('keeps every vertex inside an item box, so a box that misses the frustum hides nothing', () => {
     const vertex = new Vector3();
     const tolerance = 1e-4;
@@ -397,15 +366,13 @@ describe('the TV-to-room flight', () => {
 });
 
 describe('the art in flight', () => {
-  it('tells the pins from the art by their density alone', () => {
-    let pins = 0;
+  it("carries everything printed at the art's density: only the corkboard frame's edges are flat colour", () => {
+    let flat = 0;
     for (let index = 0; index < cardTriangles.length / 9; index++) {
       const { worldArea, texelArea } = cardAreas(index);
-      if (!isArt(texelArea, worldArea)) pins++;
+      if (!isArt(texelArea, worldArea)) flat++;
     }
-    const corkPieces = layout.items.filter((item) => item.cork).length;
-    expect(corkPieces).toBeGreaterThan(0);
-    expect(pins).toBe(corkPieces * PIN_TRIANGLES);
+    expect(flat).toBe(FRAME_EDGE_TRIANGLES);
   });
 
   it('magnifies the art at most 1× at rest in the room view, 2× in the TV ↔ room flights, 5× in the others', () => {

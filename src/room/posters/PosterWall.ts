@@ -1,23 +1,21 @@
-// Types only: every runtime dependency the room's chunk also carries arrives through the PosterKit (posterKit.ts).
-import type { Box3, DataTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D } from 'three';
-import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+// Of the room's chunk, types only: every runtime dependency it also carries arrives through the PosterKit
+// (posterKit.ts). What this chunk alone carries (the layout, the geometry, the faces' addresses) it imports as usual;
+// the designs are the painter's, in its worker or, where none can be had, in a chunk of their own.
+import type { Box3, DataTexture, Group, Material, Mesh, MeshBasicMaterial } from 'three';
 import type { IdleTask, IdleTaskOptions, IdleWork } from '../stage/IdleWork';
 import type { RoomStage } from '../stage/RoomStage';
 import type { ViewController } from '../ViewController';
 import type { RoomView } from '../viewState';
+import { FACES } from './paint/faces';
+import type { PaintReply, PaintRequest } from './paint/worker';
 import type { PosterKit } from './posterKit';
 import type { PosterTier } from './posterTier';
+import { wallGeometry } from './wall/geometry';
 
-/** The posters' runtime files (tools/room/posters.mjs; public/room/manifest.json › lazyFiles). */
-export const POSTERS_FILE = 'posters.glb';
-export const POSTERS_TIER_FILES: Readonly<Record<PosterTier, string>> = {
-  '2k': 'posters-2k.webp',
-  '1k': 'posters-1k.webp',
-};
-/** The late-bytes arrival: pieces already in frame fade in over this long rather than pop. */
+/** The late arrival: pieces already in frame fade in over this long rather than pop. */
 export const POSTERS_FADE_MS = 300;
 /**
- * After an early departure, the upload's units left may follow a flight frame that left no idle period
+ * After an early departure, the units left may follow a flight frame that left no idle period
  * (IdleTaskOptions.sliceMs) while they take at most this long: measured at 6× CPU on an Apple GPU, a strip takes
  * 0.3-5 ms beside a 9.8 ms flight frame at 16:10, so frame and unit stay inside 16.7 ms.
  */
@@ -29,35 +27,43 @@ const UPLOAD_SLICE_MS = 6.5;
  * judged by what it and they then take (0.1-4 ms).
  */
 const UPLOAD_ESTIMATE_MS = 4;
-/**
- * What the glb's parse is judged by at the TV (IdleTaskOptions.estimateMs), rather than the heaviest unit the room has
- * run: measured at 6× CPU, the parse and the Meshopt decode it starts take 1.6-2.8 ms together, so it fits any idle
- * period the playing game leaves of at least this long.
- */
-const PARSE_ESTIMATE_MS = 3;
+/** What building the geometry is judged by at the TV: one unit, 1-2 ms on a laptop. */
+const BUILD_ESTIMATE_MS = 4;
+/** What a unit of the main thread's own painting is judged by until one has been timed (a sheet: 0.5-4 ms). */
+const PAINT_ESTIMATE_MS = 4;
+/** The longest the main thread's own painting waits for the site's faces before it sets its type in the fallbacks. */
+const FONT_WAIT_MS = 2500;
+
+/** The lazy painter for the main thread; a seam for tests. */
+export type AtlasLoader = () => Promise<typeof import('./paint/atlas')>;
+/** Starts the painter's worker; a seam for tests. Throws, or returns null, where there is none to be had. */
+export type PainterStarter = () => Worker | null;
+
+const loadAtlas: AtlasLoader = () => import('./paint/atlas');
+const startPainter: PainterStarter = () =>
+  typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined'
+    ? null
+    : new Worker(new URL('./paint/worker.ts', import.meta.url), { type: 'module' });
 
 export interface PosterWallContext {
   readonly stage: RoomStage;
   readonly views: ViewController;
   readonly background: IdleWork;
-  /** The room's GLTFLoader (Meshopt). */
-  readonly loader: GLTFLoader;
-  readonly assetBaseUrl: string;
   readonly anisotropy: number;
 }
 
 export interface PosterWallEvents {
-  /** The tier is decoded and the glb parsed, on the CPU: what is left is the upload, which waits for the departure. */
+  /** The atlas is painted and the geometry built, on the CPU: what is left is the upload. */
   readonly onStaged: () => void;
   /** The texture is complete, the program compiled and the node shown (or resting hidden at a pose). */
   readonly onShown: () => void;
-  /** A context loss took the atlas: the node is hidden until it is up again (onShown). */
+  /** A context loss took the atlas: the node is hidden until it is painted and up again (onShown). */
   readonly onLost: () => void;
-  /** The posters will not show this page load (a failed fetch, decode or parse). */
+  /** The posters will not show this page load (no painter and no 2D canvas, a program that would not compile). */
   readonly onFailed: (error: unknown) => void;
 }
 
-/** The loaded posters node and the two meshes of its two primitives. */
+/** The walls' node and its two meshes. */
 interface PostersNode {
   readonly root: Group;
   readonly cards: Mesh;
@@ -66,39 +72,39 @@ interface PostersNode {
 }
 
 /**
- * The decorated walls (docs/ROOM.md › Posters): one node, two primitives sharing one baked, unlit atlas. The tier is
- * decided once, at the TV, and that tier and the glb are fetched and decoded there; on a hardware GPU the upload (one
- * unit for the program and the storage, then strips) goes between the playing game's frames there too, the node
- * hidden, so the first flight has nothing left to do but draw it. What is left at the first departure (all of it on a
- * software GPU, whose GPU is the CPU drawing the game) rides that flight's first frames as urgent background work, and
- * the node is shown once complete, normally before any piece enters the flight's frame.
+ * The decorated walls (docs/ROOM.md › Posters): one node, two meshes sharing one atlas, all of it made here: the
+ * geometry from the layout (wall/) and the atlas painted with the 2D canvas (paint/), the night's light multiplied into
+ * it. No model and no picture is fetched. The tier is decided once, at the TV, and the atlas is painted there, in a
+ * worker, so the playing game never pays for it; where a worker or its OffscreenCanvas cannot be had, the main thread
+ * paints it a sheet per unit of background work. On a hardware GPU the upload (one unit for the program and the
+ * storage, then strips) follows at the TV too, the node hidden, so the first flight has nothing left to do but draw
+ * it. What is left at the first departure (all of the upload on a software GPU, whose GPU is the CPU drawing the
+ * game) rides that flight's first frames as urgent background work, and the node is shown once complete, normally
+ * before any piece enters the flight's frame.
  */
 export class PosterWall {
   readonly #context: PosterWallContext;
   readonly #kit: PosterKit;
   readonly #events: PosterWallEvents;
+  readonly #startPainter: PainterStarter;
+  readonly #loadAtlas: AtlasLoader;
   readonly #tier: PosterTier;
   /** A software GPU: no skirts (the one blended overdraw), no fade, no program of its own. */
   readonly #lite: boolean;
   #node: PostersNode | null = null;
-  /** The tier's encoded bytes, kept for a context loss. */
-  #bytes: ArrayBuffer | null = null;
-  #bitmap: ImageBitmap | null = null;
-  /** The first decode, until settled: a dispose before the parse closes its bitmap through it. */
-  #image: Promise<ImageBitmap> | null = null;
+  /** The painted atlas until it is on the GPU: the worker's bitmap, or the main thread's own canvas. */
+  #image: ImageBitmap | HTMLCanvasElement | null = null;
+  #worker: Worker | null = null;
   #target: DataTexture | null = null;
-  #fetching = false;
-  /** The tier decoded and the glb's bytes fetched: what is left needs no network. */
-  #decoded = false;
-  #fetched = false;
+  #painting = false;
   #departed = false;
-  /** The glb's parse, one unit of background work, until it runs. */
-  #parse: (() => void) | null = null;
-  #dropParse: (() => void) | null = null;
+  #dropBuild: (() => void) | null = null;
+  #dropPaint: (() => void) | null = null;
   #dropUpload: (() => void) | null = null;
+  #staged = false;
   #complete = false;
   #compiled = false;
-  /** Counts context restores: a program compiled for an earlier context says nothing of this one. */
+  /** Counts restarts (a context restore): a program compiled or an atlas painted for an earlier one says nothing. */
   #generation = 0;
   /** When a reduced-motion cut first held its black for the posters (performance.now()); null before. */
   #heldSince: number | null = null;
@@ -110,10 +116,18 @@ export class PosterWall {
   #stopFade: (() => void) | null = null;
   readonly #stops: (() => void)[] = [];
 
-  constructor(context: PosterWallContext, kit: PosterKit, events: PosterWallEvents) {
+  constructor(
+    context: PosterWallContext,
+    kit: PosterKit,
+    events: PosterWallEvents,
+    painter: PainterStarter = startPainter,
+    atlas: AtlasLoader = loadAtlas,
+  ) {
     this.#context = context;
     this.#kit = kit;
     this.#events = events;
+    this.#startPainter = painter;
+    this.#loadAtlas = atlas;
     const { stage, views } = context;
     this.#lite = stage.softwareGpu;
     this.#tier = kit.tier(stage);
@@ -125,8 +139,8 @@ export class PosterWall {
       }),
     );
     stage.canvas.addEventListener('webglcontextrestored', this.#onContextRestored);
-    // On Save-Data nothing is fetched at the TV.
-    if (!kit.saveData()) this.#fetch();
+    this.#dropBuild = context.background.add(this.#build(), { ...this.#urgency(), estimateMs: BUILD_ESTIMATE_MS });
+    this.#paint();
   }
 
   get tier(): PosterTier {
@@ -142,7 +156,7 @@ export class PosterWall {
     return this.#lite;
   }
 
-  /** Late bytes are fading in (POSTERS_FADE_MS). */
+  /** A late arrival is fading in (POSTERS_FADE_MS). */
   get fading(): boolean {
     return this.#stopFade !== null;
   }
@@ -154,29 +168,26 @@ export class PosterWall {
   }
 
   /**
-   * A reduced-motion cut to the room view holds its black from the moment what is left of the posters needs no
-   * network (the parse, the program and the upload; never while waiting on a fetch), so it lands on a decorated room.
-   * A cut to any other view never waits for them: at rest there the node is hidden. The posters hold the black for at
-   * most one cut's worth of time in all (PosterKit.cutHoldMs, from the first held frame), so a state that never
-   * resolves costs one long black, not one on every later cut.
+   * A reduced-motion cut to the room view holds its black from the moment the atlas is painted until it is up (never
+   * while the painter or its faces are still on their way), so it lands on a decorated room. A cut to any other view never waits for them:
+   * at rest there the node is hidden. The posters hold the black for at most one cut's worth of time in all
+   * (PosterKit.cutHoldMs, from the first held frame), so a state that never resolves costs one long black, not one on
+   * every later cut.
    */
   holdsCut(to: RoomView): boolean {
-    if (to !== 'room' || !this.#decoded || !this.#fetched || this.#shown || this.#failed || this.#disposed)
-      return false;
+    if (to !== 'room' || !this.#image || this.#shown || this.#failed || this.#disposed) return false;
     const now = performance.now();
     this.#heldSince ??= now;
     return now - this.#heldSince < this.#kit.cutHoldMs;
   }
 
-  /** The camera leaves the TV for the first time: what is left goes up now, between the flight's frames. */
+  /** The camera leaves the TV for the first time: what is left is urgent now, and goes between the flight's frames. */
   depart(): void {
     if (this.#departed) return;
     this.#departed = true;
     this.#measureFlight();
-    this.#fetch();
-    this.#queueParse();
     this.#queueUpload();
-    // An upload already under way at the TV is urgent from now on: its next unit need not wait out a long request.
+    // What is under way at the TV need not wait out a long request.
     this.#context.background.hurry();
   }
 
@@ -186,17 +197,12 @@ export class PosterWall {
     for (const stop of this.#stops) stop();
     this.#context.stage.canvas.removeEventListener('webglcontextrestored', this.#onContextRestored);
     this.#stopFade?.();
-    this.#dropParse?.();
+    this.#dropBuild?.();
+    this.#dropPaint?.();
     this.#dropUpload?.();
-    this.#bitmap?.close();
-    this.#bitmap = null;
-    // Decoded while the glb's parse was still queued, the bitmap is in no field yet (closing twice is harmless).
-    this.#image?.then(
-      (bitmap) => bitmap.close(),
-      () => {},
-    );
-    this.#image = null;
-    this.#bytes = null;
+    this.#worker?.terminate();
+    this.#worker = null;
+    this.#release();
     this.#target?.dispose();
     const node = this.#node;
     if (node) {
@@ -208,102 +214,153 @@ export class PosterWall {
     }
   }
 
-  /** Fetches the tier and the glb once (`priority: 'low'`), then decodes the image off the main thread. */
-  #fetch(): void {
-    if (this.#fetching || this.#disposed) return;
-    this.#fetching = true;
-    const { assetBaseUrl, loader } = this.#context;
+  /** Lets the painted atlas go, and its pixels with it. */
+  #release(): void {
+    const image = this.#image;
+    this.#image = null;
+    if (!image) return;
+    if ('close' in image) image.close();
+    else {
+      image.removeEventListener('contextrestored', this.#onCanvasRestored);
+      image.width = 0;
+      image.height = 0;
+    }
+  }
+
+  /** One unit: the cards and the skirts from the layout, hidden until their atlas is up. */
+  // biome-ignore lint/correctness/useYield: a single unit: the whole body is the unit's work.
+  *#build(): IdleTask {
+    this.#dropBuild = null;
     const kit = this.#kit;
-    const bytesOf = (name: string): Promise<ArrayBuffer> =>
-      fetch(new URL(name, assetBaseUrl), { priority: 'low' }).then((response) => {
-        if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
-        return response.arrayBuffer();
-      });
-    const image = bytesOf(POSTERS_TIER_FILES[this.#tier])
-      .then((bytes) => {
-        this.#bytes = bytes;
-        return decode(bytes);
-      })
-      .then((bitmap) => {
-        this.#decoded = true;
-        return bitmap;
-      });
-    this.#image = image;
-    // The glb's parse (Meshopt) is one unit of background work: it fits a frame. A glb without the posters' node (one
-    // from before the contract, say) fails like a parse that throws.
-    const node = bytesOf(POSTERS_FILE).then(
-      (bytes) =>
-        new Promise<PostersNode>((resolve, reject) => {
-          this.#fetched = true;
-          this.#parse = () =>
-            loader
-              .parseAsync(bytes, '')
-              .then((gltf) => postersNode(gltf.scene, kit))
-              .then(resolve, reject);
-          this.#queueParse();
-        }),
-    );
-    Promise.all([image, node]).then(
-      ([bitmap, parsed]) => {
-        this.#image = null;
-        if (this.#disposed) {
-          bitmap.close();
-          return;
-        }
-        this.#bitmap = bitmap;
-        this.#node = parsed;
-        if (this.#lite) parsed.skirts.removeFromParent();
-        this.#events.onStaged();
-        this.#queueUpload();
+    const geometry = wallGeometry();
+    const cards = kit.mesh(geometry.cards, kit.cardsMaterial());
+    const skirts = kit.mesh(geometry.skirts, kit.skirtsMaterial());
+    cards.renderOrder = kit.cardsOrder;
+    skirts.renderOrder = kit.skirtsOrder;
+    const root = kit.group();
+    root.add(cards);
+    if (!this.#lite) root.add(skirts);
+    root.visible = false;
+    this.#node = { root, cards, skirts, boxes: kit.decorBoxes(geometry.boxes) };
+    this.#stage();
+  }
+
+  /** Asks the painter's worker for the atlas; without one, or if it fails, the main thread paints it. */
+  #paint(): void {
+    if (this.#painting || this.#image || this.#failed || this.#disposed) return;
+    this.#painting = true;
+    const generation = this.#generation;
+    const onMain = (): void => {
+      this.#worker?.terminate();
+      this.#worker = null;
+      if (generation === this.#generation && !this.#disposed) this.#paintOnMain(generation);
+    };
+    let worker: Worker | null = null;
+    try {
+      worker = this.#startPainter();
+    } catch {
+      worker = null;
+    }
+    if (!worker) {
+      onMain();
+      return;
+    }
+    this.#worker = worker;
+    worker.onmessage = ({ data }: MessageEvent<PaintReply>) => {
+      if (worker !== this.#worker) return data?.close();
+      if (!data) return onMain();
+      worker.terminate();
+      this.#worker = null;
+      this.#painted(data);
+    };
+    worker.onerror = onMain;
+    const request: PaintRequest = {
+      scale: this.#scale,
+      faces: FACES.map(([family, weight, url]) => [family, weight, new URL(url, location.href).href]),
+    };
+    worker.postMessage(request);
+  }
+
+  /** Canvas pixels per texel of the 2K atlas. */
+  get #scale(): number {
+    return this.#tier === '2k' ? 1 : 0.5;
+  }
+
+  /**
+   * The main thread's own painting, where there is no worker: the designs' chunk, the site's faces (waited for at most
+   * FONT_WAIT_MS), then a sheet per unit; urgent like the upload it leads to from the first departure.
+   */
+  #paintOnMain(generation: number): void {
+    const current = (): boolean => generation === this.#generation && !this.#disposed && !this.#failed;
+    this.#loadAtlas().then(
+      (atlas) => {
+        let waiting = true;
+        const start = (): void => {
+          if (!waiting || !current()) return;
+          waiting = false;
+          this.#dropPaint = this.#context.background.add(this.#paintUnits(atlas), {
+            ...this.#urgency(),
+            estimateMs: PAINT_ESTIMATE_MS,
+          });
+        };
+        setTimeout(start, FONT_WAIT_MS);
+        Promise.all(FACES.map(([family, weight]) => document.fonts.load(`${weight} 16px ${family}`))).then(
+          start,
+          start,
+        );
       },
       (error: unknown) => {
-        // The image may have decoded while the glb failed.
-        this.#image = null;
-        image.then(
-          (bitmap) => bitmap.close(),
-          () => {},
-        );
-        this.#fail(error);
+        if (current()) this.#fail(error);
       },
     );
   }
 
-  /**
-   * The parse waits at the TV as ordinary background work (a playing game on a slow CPU may leave it no idle period
-   * there); once the visitor has left the TV it is urgent like the upload it leads to, so it is queued again as such.
-   */
-  #queueParse(): void {
-    const parse = this.#parse;
-    if (!parse || this.#disposed) return;
-    this.#dropParse?.();
-    this.#dropParse = this.#context.background.add(
-      this.#parseUnit(parse),
-      this.#departed ? this.#urgency() : { estimateMs: PARSE_ESTIMATE_MS },
-    );
+  *#paintUnits({ atlasSize, paintAtlas }: typeof import('./paint/atlas')): IdleTask {
+    const canvas = document.createElement('canvas');
+    try {
+      [canvas.width, canvas.height] = atlasSize(this.#scale);
+      yield* paintAtlas(canvas, this.#scale, true);
+    } catch (error) {
+      this.#dropPaint = null;
+      this.#fail(error);
+      return;
+    }
+    this.#dropPaint = null;
+    // A GPU process reset hands a 2D canvas back blank (docs/ROOM.md › Lost canvases): painted again from the start.
+    canvas.addEventListener('contextrestored', this.#onCanvasRestored);
+    this.#painted(canvas);
   }
 
-  // biome-ignore lint/correctness/useYield: a single unit: the whole body is the unit's work.
-  *#parseUnit(parse: () => void): IdleTask {
-    this.#parse = null;
-    this.#dropParse = null;
-    parse();
+  #painted(image: ImageBitmap | HTMLCanvasElement): void {
+    this.#painting = false;
+    this.#image = image;
+    this.#stage();
+  }
+
+  /** The atlas painted and the geometry built: what is left is the upload. */
+  #stage(): void {
+    if (!this.#image || !this.#node || this.#staged || this.#disposed) return;
+    this.#staged = true;
+    this.#events.onStaged();
+    this.#queueUpload();
   }
 
   /**
-   * Once the bitmap is in hand: on a hardware GPU at once, its strips between the playing game's frames
+   * Once the atlas is painted: on a hardware GPU at once, its strips between the playing game's frames
    * (IdleTaskOptions.smallUploads), else from the first departure; urgent from then until shown.
    */
   #queueUpload(): void {
-    if (!this.#bitmap || !this.#node || this.#dropUpload || this.#shown || this.#disposed) return;
+    const image = this.#image;
+    if (!this.#staged || !image || !this.#node || this.#dropUpload || this.#shown || this.#disposed) return;
     if (this.#lite && !this.#departed) return;
-    this.#dropUpload = this.#context.background.add(this.#upload(this.#bitmap, this.#node), {
+    this.#dropUpload = this.#context.background.add(this.#upload(image, this.#node), {
       ...this.#urgency(),
       smallUploads: true,
       estimateMs: UPLOAD_ESTIMATE_MS,
     });
   }
 
-  /** The parse's and the upload's urgency: from the first departure until shown, between the flight's frames. */
+  /** The units' urgency: from the first departure until shown, between the flight's frames. */
   #urgency(): IdleTaskOptions {
     const { views } = this.#context;
     return {
@@ -314,11 +371,11 @@ export class PosterWall {
   }
 
   /** Unit 1: the program (off the frame where the browser can) and the storage; then 8 (2K) or 4 (1K) strips. */
-  *#upload(bitmap: ImageBitmap, node: PostersNode): IdleTask {
+  *#upload(image: ImageBitmap | HTMLCanvasElement, node: PostersNode): IdleTask {
     const { stage, anisotropy } = this.#context;
     const { renderer, scene, camera } = stage;
     try {
-      const target = this.#kit.allocateStripTarget(renderer, bitmap.width, bitmap.height, anisotropy);
+      const target = this.#kit.allocateStripTarget(renderer, image.width, image.height, anisotropy);
       this.#target = target;
       for (const mesh of [node.cards, node.skirts]) (mesh.material as MeshBasicMaterial).map = target;
       if (!node.root.parent) scene.add(node.root);
@@ -338,11 +395,11 @@ export class PosterWall {
       );
       // The strips are uploads, like the rest of them (IdleWork's QUIET).
       yield this.#kit.quiet;
-      yield* this.#kit.uploadStrips(renderer, bitmap, target);
+      yield* this.#kit.uploadStrips(renderer, image, target);
       this.#complete = true;
+      // On the GPU: the painted pixels are not kept (a lost context has them painted again).
+      if (this.#image === image) this.#release();
     } finally {
-      bitmap.close();
-      if (this.#bitmap === bitmap) this.#bitmap = null;
       this.#dropUpload = null;
     }
     this.#reveal();
@@ -351,7 +408,7 @@ export class PosterWall {
   /**
    * At the first frame the texture is complete and the program compiled. At rest at the TV, PC or radio it stays
    * hidden where no piece is in frame; with no piece in frame (the normal case: before the first departure, or early
-   * in the first flight) it is simply shown; pieces already in frame (late bytes) fade in on the full path, under
+   * in the first flight) it is simply shown; pieces already in frame (a late arrival) fade in on the full path, under
    * reduced motion too (a fade is not motion, and the room's own cuts fade).
    */
   #reveal(): void {
@@ -437,92 +494,53 @@ export class PosterWall {
   }
 
   /**
-   * Nothing of the atlas survived: the kept bytes are decoded and strip-uploaded again, and the program rebuilt. Staged
-   * at the TV, the bitmap in hand is simply replaced; mid-upload, the upload starts over.
+   * Nothing of the atlas survived on the GPU, and its pixels were let go once it was up: it is painted again and
+   * strip-uploaded again, and the program rebuilt. Mid-painting or mid-upload, both start over.
    */
   readonly #onContextRestored = (): void => {
-    const node = this.#node;
-    const bytes = this.#bytes;
-    if (this.#disposed || !node || !bytes) return;
-    this.#generation++;
-    this.#stopFade?.();
-    // Dropped before its first unit, the upload never reaches its finally: what that would release is released here.
-    this.#dropUpload?.();
-    this.#dropUpload = null;
-    this.#bitmap?.close();
-    this.#bitmap = null;
+    if (this.#disposed || this.#failed) return;
     // Its GPU copy went with the old context: disposing it would ask the new one to delete a texture it never had
     // (the radio's skin keeps the same rule).
     this.#target = null;
-    node.root.visible = false;
+    this.#restart();
+  };
+
+  /** The main thread's own canvas came back blank before it was all on the GPU. */
+  readonly #onCanvasRestored = (): void => {
+    if (this.#disposed || this.#failed) return;
+    this.#target?.dispose();
+    this.#target = null;
+    this.#restart();
+  };
+
+  #restart(): void {
+    this.#generation++;
+    this.#stopFade?.();
+    // Dropped, a task ends where it is (the upload's `finally` runs); a painter at work answers no one.
+    this.#dropPaint?.();
+    this.#dropPaint = null;
+    this.#dropUpload?.();
+    this.#dropUpload = null;
+    this.#worker?.terminate();
+    this.#worker = null;
+    this.#release();
+    if (this.#node) this.#node.root.visible = false;
     this.#shown = false;
+    this.#painting = false;
+    this.#staged = false;
     this.#complete = false;
     this.#compiled = false;
     this.#events.onLost();
-    const generation = this.#generation;
-    decode(bytes).then(
-      (bitmap) => {
-        // Disposed, or a later restore decodes its own.
-        if (this.#disposed || generation !== this.#generation) return bitmap.close();
-        this.#bitmap = bitmap;
-        this.#queueUpload();
-      },
-      (error: unknown) => this.#fail(error),
-    );
-  };
+    this.#paint();
+  }
 
   #fail(error: unknown): void {
     if (this.#failed || this.#disposed) return;
     this.#failed = true;
-    console.warn('The posters could not load; the walls stay bare.', error);
+    console.warn('The posters could not be made; the walls stay bare.', error);
     this.#events.onFailed(error);
     this.dispose();
   }
-}
-
-/** Off the main thread, with the bytes as baked: no orientation, no premultiplication, no colour conversion. */
-function decode(bytes: ArrayBuffer): Promise<ImageBitmap> {
-  return createImageBitmap(new Blob([bytes], { type: 'image/webp' }), {
-    imageOrientation: 'none',
-    premultiplyAlpha: 'none',
-    colorSpaceConversion: 'none',
-  });
-}
-
-/**
- * The glb's node and its two primitives, with the room's materials (posterKit.ts); in the opaque pass the skirts draw
- * after the room and the cards after the skirts.
- */
-function postersNode(scene: Group, kit: PosterKit): PostersNode {
-  // The node carries the posters' extras (`posters: 1`, the decor boxes); the glb's scene shares its name. The scene,
-  // which holds the node and nothing else, is what the room adds and shows.
-  const marked: Object3D[] = [];
-  scene.traverse((object: Object3D) => {
-    if (object.userData.posters === 1) marked.push(object);
-  });
-  const node = marked[0];
-  if (marked.length !== 1 || !node) throw new Error('posters.glb has no single posters node');
-  const meshes = new Map<string, Mesh>();
-  node.traverse((object: Object3D) => {
-    const mesh = object as Mesh;
-    if (mesh.isMesh) meshes.set((mesh.material as Material).name, mesh);
-  });
-  const cards = meshes.get('posters_cards');
-  const skirts = meshes.get('posters_skirts');
-  if (!cards || !skirts) throw new Error('posters.glb lacks its cards or skirts primitive');
-  replaceMaterial(cards, kit.cardsMaterial());
-  replaceMaterial(skirts, kit.skirtsMaterial());
-  skirts.renderOrder = kit.skirtsOrder;
-  cards.renderOrder = kit.cardsOrder;
-  scene.visible = false;
-  return { root: scene, cards, skirts, boxes: kit.decorBoxes(node.userData) };
-}
-
-function replaceMaterial(mesh: Mesh, material: MeshBasicMaterial): void {
-  const loaded = mesh.material as Material;
-  material.name = loaded.name;
-  loaded.dispose();
-  mesh.material = material;
 }
 
 /** A fading card is transparent and premultiplied (the skirts' program); at rest it is the room's opaque one. */

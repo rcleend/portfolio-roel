@@ -69,23 +69,6 @@
   ],
   "lazyFiles": [
     {
-      "name": "posters.glb",
-      "bytes": 30168,
-      "sha256": "3218f15a7ebb68b1688ed94233d479deb24a1e4c16e05923d5ce488e3ec54020",
-      "validationErrors": 0,
-      "validationWarnings": 0
-    },
-    {
-      "name": "posters-2k.webp",
-      "bytes": 238510,
-      "sha256": "d06fcec1d8749f3ab4c3fa679c13942bca115bc4d25edd2dd9a92c1409fa0698"
-    },
-    {
-      "name": "posters-1k.webp",
-      "bytes": 89038,
-      "sha256": "96ed99b7ecf7af7e1fab538a242ff163fdcf2c9eaac607b9246548b5ff1cdca7"
-    },
-    {
       "name": "radio-closeup.glb",
       "bytes": 64796,
       "sha256": "bc550893395bc8bb6977b500c934e6e3950f266670da2c910d8e15bd2e9bd2ec",
