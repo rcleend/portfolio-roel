@@ -76,10 +76,14 @@ function WayOut({
 
 declare global {
   interface Window {
-    /** Development only: the room, so end-to-end tests can read its render stats. */
+    /** Development, or production with `?debug`: the room, so tests and measurements can read its render stats. */
     __room?: Room;
   }
 }
+
+/** `?debug` (any value) hands out `window.__room`; `?debug=perf` also shows what the room draws at, on the page. */
+const DEBUG = new URLSearchParams(window.location.search).get('debug');
+const EXPOSED = import.meta.env.DEV || DEBUG !== null;
 
 const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
   tv: "Roel Leenders' portfolio as an arcade game on a TV. Arrow keys move, Z or Space jump and confirm, X attacks; with a mouse, a click on the floor walks there and a click anywhere else attacks. The same content is in the résumé after this game.",
@@ -158,13 +162,23 @@ function AtticStage({
   useEffect(() => {
     if (!room) return;
     ready();
-    if (import.meta.env.DEV) window.__room = room;
+    if (EXPOSED) window.__room = room;
+    // `?debug=perf`: the quality the room draws at, on the page (its own chunk, fetched only then).
+    let stopReadout: (() => void) | null = null;
+    let left = false;
+    if (DEBUG === 'perf') {
+      import('./perfReadout').then(({ showPerformance }) => {
+        if (!left) stopReadout = showPerformance(room);
+      });
+    }
     const stop = room.onViewChange(viewChanged);
     const stopSettle = room.onSettle(() => setSettled(true));
     return () => {
       stop();
       stopSettle();
-      if (import.meta.env.DEV && window.__room === room) delete window.__room;
+      left = true;
+      stopReadout?.();
+      if (EXPOSED && window.__room === room) delete window.__room;
     };
   }, [room]);
 
