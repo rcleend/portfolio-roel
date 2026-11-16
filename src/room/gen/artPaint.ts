@@ -1,4 +1,5 @@
 import { ART, ART_SIZE, type ArtRect } from './art';
+import { paintDeskPrints } from './deskArt';
 import { paintRadioPrints } from './radioArt';
 
 /**
@@ -21,6 +22,7 @@ export function paintArt(canvas: HTMLCanvasElement, size: number): void {
   consoleMark(c, ART.consoleMark);
   consoleLamp(c, ART.consoleLamp);
   paintRadioPrints(c);
+  paintDeskPrints(c);
 }
 
 type Context = CanvasRenderingContext2D;

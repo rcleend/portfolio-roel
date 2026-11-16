@@ -127,9 +127,10 @@ export class MeshBuilder {
     from.positions.length = first * 9;
     from.albedo.length = first * 9;
     from.shade.length = first * 3;
-    from.positions.push(...kept.positions);
-    from.albedo.push(...kept.albedo);
-    from.shade.push(...kept.shade);
+    // One by one: a spread of this many numbers overflows a worker's stack.
+    for (const value of kept.positions) from.positions.push(value);
+    for (const value of kept.albedo) from.albedo.push(value);
+    for (const value of kept.shade) from.shade.push(value);
   }
 
   /** Runs `build` with everything it adds placed by `placement` (nested placements compose). */
@@ -173,6 +174,28 @@ export class MeshBuilder {
       this.albedo.push(color[0] * tone, color[1] * tone, color[2] * tone);
       this.shade.push(this.occlusion ? shade * this.occlusion(point) : shade);
     }
+  }
+
+  /**
+   * A triangle with its own colour (and shade) at each corner: a tone that changes across one surface (a leaf's
+   * midrib, a worn edge, cloth), which one colour a triangle would cut into facets.
+   */
+  gradient(
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+    colors: readonly [Rgb, Rgb, Rgb],
+    shades: readonly [number, number, number] = [1, 1, 1],
+  ): void {
+    if (length(cross(sub(b, a), sub(c, a))) < 1e-12) return;
+    [a, b, c].forEach((point, corner) => {
+      const p = apply(this.placement, point);
+      const color = colors[corner] as Rgb;
+      const shade = shades[corner] as number;
+      this.positions.push(p[0], p[1], p[2]);
+      this.albedo.push(color[0], color[1], color[2]);
+      this.shade.push(this.occlusion ? shade * this.occlusion(point) : shade);
+    });
   }
 
   /** a, b, c, d counter-clockwise seen from the side the quad faces. */

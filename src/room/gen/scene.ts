@@ -48,6 +48,8 @@ export interface GenRequest {
   /** Chart texels a metre, as a fraction of full quality, and the largest page side (the quality tier's). */
   readonly densityScale: number;
   readonly maxPageSize: number;
+  /** How finely the props are built, 0–1 (PropSink.detail); full where it is left out. */
+  readonly detail?: number;
 }
 
 export interface PropStats {
@@ -72,7 +74,8 @@ export interface GenScene {
   readonly buildMs: number;
 }
 
-const MESHES: readonly MeshName[] = ['tv', 'monitor', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES];
+// 'desk' is last: the bake's colours follow this order, and the meshes before it keep their places in them.
+const MESHES: readonly MeshName[] = ['tv', 'monitor', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES, 'desk'];
 
 /** Runs every prop's generator; pure, so it runs the same in a worker, on the main thread and in tests. */
 export function buildScene(request: GenRequest, now: () => number = () => performance.now()): GenScene {
@@ -81,11 +84,16 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
   const charts: Chart[] = [];
   const decals: Decal[] = [];
   const props: PropStats[] = [];
+  // A chart is two triangles, or its relief's cells; a decal is two.
+  const flat = (): number =>
+    charts.reduce((sum, chart) => sum + (chart.relief ? chart.relief.cells[0] * chart.relief.cells[1] * 2 : 2), 0) +
+    decals.length * 2;
   for (const prop of PROPS) {
     const counts = MESHES.map((name) => builders[name].triangles);
-    const before = counts.reduce((sum, count) => sum + count, 0) + (charts.length + decals.length) * 2;
+    const before = counts.reduce((sum, count) => sum + count, 0) + flat();
     const firstDecal = decals.length;
     prop.build({
+      detail: request.detail ?? 1,
       mesh: (name) => builders[name],
       chart: (...added) => void charts.push(...added),
       decal: (decal) => void decals.push(decal),
@@ -95,11 +103,11 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
     if (prop.name === 'desktop') {
       const { min, max } = PC_SPEC.shell;
       const slack = 0.004;
-      builders.monitor.take(builders.props, counts[MESHES.indexOf('props')] as number, (point) =>
+      builders.monitor.take(builders.desk, counts[MESHES.indexOf('desk')] as number, (point) =>
         point.every((value, axis) => value >= (min[axis] as number) - slack && value <= (max[axis] as number) + slack),
       );
     }
-    const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
+    const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + flat();
     const ranges: Partial<Record<MeshName, readonly [number, number]>> = {};
     MESHES.forEach((name, index) => {
       const added = builders[name].triangles - (counts[index] as number);

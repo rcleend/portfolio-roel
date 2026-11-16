@@ -335,7 +335,7 @@ export class GeneratedRoom {
   /** The geometry, from the worker; on the main thread where a worker cannot be had. */
   private build(): Promise<GenScene> {
     const tier = this.tier;
-    const request: GenRequest = { densityScale: tier.density, maxPageSize: tier.pageSize };
+    const request: GenRequest = { densityScale: tier.density, maxPageSize: tier.pageSize, detail: tier.detail };
     const onMain = async (): Promise<GenScene> => {
       this.builtIn = 'main';
       return (await import('./scene')).buildScene(request);
@@ -395,6 +395,8 @@ export class GeneratedRoom {
     const tv = vertexLit('tv', 'device_tv_front_BAKED_UNLIT');
     const monitor = vertexLit('monitor', 'device_pc_BAKED_UNLIT');
     const props = vertexLit('props', '01_TV_props_BAKED_UNLIT');
+    // The desk corner's props: their own mesh, culled by the frustum of a view that looks away from the desk.
+    const deskProps = vertexLit('desk', '02_Desk_props_BAKED_UNLIT');
     // Light itself: the globe and the eyes are drawn in the lamp's colour, pushed past white so the finish's
     // highlights bloom around them.
     const emitter = (mesh: MeshName, name: string, light: { color: readonly number[]; glow: number }): Mesh => {
@@ -426,6 +428,8 @@ export class GeneratedRoom {
       [GROUP.floor]: '03_Room_floor_BAKED_UNLIT',
       [GROUP.desk]: '02_Desk_surfaces_BAKED_UNLIT',
       [GROUP.dresser]: '04_Drawer_surfaces_BAKED_UNLIT',
+      // Wool: baked like the floor it lies on, but no varnish (RoomGloss gives a name it does not list none).
+      [GROUP.rug]: '03_Room_rug_BAKED_UNLIT',
     };
     for (const data of gen.charts.display) {
       const geometry = new k.BufferGeometry();
@@ -438,7 +442,7 @@ export class GeneratedRoom {
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated charts ${data.group}`;
       // The shell does not shadow the room's lights: they stand inside it.
-      if (data.group !== GROUP.wall && data.group !== GROUP.floor) {
+      if (data.group !== GROUP.wall && data.group !== GROUP.floor && data.group !== GROUP.rug) {
         mesh.layers.enable(CASTERS_ALL);
         mesh.layers.enable(CASTERS_LOCAL);
       }
@@ -512,11 +516,11 @@ export class GeneratedRoom {
     context.stage.scene.add(this.radioParts.group);
 
     tvSet.add(tv, printsOf(true));
-    pc.add(monitor, this.pickMesh(gen, props, PICK_PROPS.pc));
+    pc.add(monitor, this.pickMesh(gen, deskProps, PICK_PROPS.pc, 'desk'));
     const deskCharts = this.charts.get(GROUP.desk);
     if (deskCharts) desk.add(deskCharts);
-    desk.add(this.pickMesh(gen, props, PICK_PROPS.desk));
-    room.add(props, globe, eyes, printsOf(false), outside, ...this.lava.meshes);
+    desk.add(this.pickMesh(gen, deskProps, PICK_PROPS.desk, 'desk'));
+    room.add(props, deskProps, globe, eyes, printsOf(false), outside, ...this.lava.meshes);
     for (const [index, mesh] of this.charts) if (index !== GROUP.desk) room.add(mesh);
     return { tv: tvSet, pc, monitor, desk, dresser: this.charts.get(GROUP.dresser) ?? null, radio: this.radioParts };
   }
@@ -525,13 +529,13 @@ export class GeneratedRoom {
    * The named props' triangles of the merged props mesh as a mesh of their own, for pointer rays only: it shares the
    * props' vertices, holds an index and its own bounds, and is never drawn.
    */
-  private pickMesh(gen: GenScene, props: Mesh, names: readonly string[]): Mesh {
+  private pickMesh(gen: GenScene, props: Mesh, names: readonly string[], from: MeshName = 'props'): Mesh {
     const { kit: k } = this;
     const ranges = gen.props.flatMap((prop) =>
-      names.includes(prop.name) && prop.ranges.props ? [prop.ranges.props] : [],
+      names.includes(prop.name) && prop.ranges[from] ? [prop.ranges[from] as readonly [number, number]] : [],
     );
     const index = new Uint32Array(ranges.reduce((sum, [, count]) => sum + count, 0));
-    const positions = gen.meshes.props.positions;
+    const positions = gen.meshes[from].positions;
     const low = [Infinity, Infinity, Infinity];
     const high = [-Infinity, -Infinity, -Infinity];
     let at = 0;

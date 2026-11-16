@@ -349,32 +349,26 @@ export class Baker {
       this.finalPages.push(final);
     });
 
-    // The props' vertices, a texel each: a small triangle over its texel's centre, all three corners alike.
+    // The props' vertices, a texel each: a point on its texel's centre (a third of what a triangle a vertex was to
+    // build and to upload, in the bake's first unit).
     const meshes = Object.values(gen.meshes);
     this.vertexCount = meshes.reduce((sum, mesh) => sum + mesh.positions.length / 3, 0);
     this.vertexSide = Math.max(4, Math.ceil(Math.sqrt(this.vertexCount)));
     const side = this.vertexSide;
-    const positions = new Float32Array(this.vertexCount * 9);
-    const normals = new Float32Array(this.vertexCount * 9);
-    const albedo = new Float32Array(this.vertexCount * 9);
-    const shade = new Float32Array(this.vertexCount * 3);
-    const clip = new Float32Array(this.vertexCount * 6);
-    const corners = [-0.45, -0.45, 0.9, -0.45, -0.45, 0.9];
+    const positions = new Float32Array(this.vertexCount * 3);
+    const normals = new Float32Array(this.vertexCount * 3);
+    const albedo = new Float32Array(this.vertexCount * 3);
+    const shade = new Float32Array(this.vertexCount);
+    const clip = new Float32Array(this.vertexCount * 2);
     let vertex = 0;
     for (const mesh of meshes) {
+      positions.set(mesh.positions, vertex * 3);
+      normals.set(mesh.normals, vertex * 3);
+      albedo.set(mesh.albedo, vertex * 3);
+      shade.set(mesh.shade, vertex);
       for (let i = 0; i < mesh.positions.length / 3; i++, vertex++) {
-        const [cx, cy] = [(vertex % side) + 0.5, Math.floor(vertex / side) + 0.5];
-        for (let corner = 0; corner < 3; corner++) {
-          const o = (vertex * 3 + corner) * 3;
-          for (let c = 0; c < 3; c++) {
-            positions[o + c] = mesh.positions[i * 3 + c] as number;
-            normals[o + c] = mesh.normals[i * 3 + c] as number;
-            albedo[o + c] = mesh.albedo[i * 3 + c] as number;
-          }
-          shade[vertex * 3 + corner] = mesh.shade[i] as number;
-          clip[(vertex * 3 + corner) * 2] = ((cx + (corners[corner * 2] as number)) / side) * 2 - 1;
-          clip[(vertex * 3 + corner) * 2 + 1] = ((cy + (corners[corner * 2 + 1] as number)) / side) * 2 - 1;
-        }
+        clip[vertex * 2] = (((vertex % side) + 0.5) / side) * 2 - 1;
+        clip[vertex * 2 + 1] = ((Math.floor(vertex / side) + 0.5) / side) * 2 - 1;
       }
     }
     const vertices = new k.BufferGeometry();
@@ -384,7 +378,8 @@ export class Baker {
     vertices.setAttribute('shade', new k.BufferAttribute(shade, 1));
     vertices.setAttribute('clip', new k.BufferAttribute(clip, 2));
     this.geometries.push(vertices);
-    this.vertexMesh = new k.Mesh(vertices, this.lightMaterial);
+    // Drawn as points, which three's Points is; everything here only ever sets its material and draws it.
+    this.vertexMesh = new k.Points(vertices, this.lightMaterial) as unknown as Mesh;
     this.vertexMesh.frustumCulled = false;
     this.vertexLight = new k.WebGLRenderTarget(side, side, {
       type,

@@ -2,7 +2,7 @@ import { ART, artUv } from '../art';
 import { type MeshBuilder, place, type Rgb, type Ring, spline, type Vec3 } from '../kit/builder';
 import type { Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
-import { GROUP, PAGE, type Prop, type PropSink } from './types';
+import { FLOOR, GROUP, PAGE, type Prop, type PropSink } from './types';
 
 /**
  * The game console on the floor in front of the cabinet, its two pads, their cables, a memory card and a game case.
@@ -124,7 +124,7 @@ export const gameConsole: Prop = {
 
 /** Where each pad lies: its origin (between the lobes, on what it rests on) and its turn about +y. */
 const ON_DECK = { origin: [1.927, TOP + RIB, -0.101] as Vec3, yaw: 0.736 };
-const ON_FLOOR = { origin: [1.7466, 0.0004, -0.2239] as Vec3, yaw: -1.982 };
+const ON_FLOOR = { origin: [1.7466, FLOOR + 0.0004, -0.2239] as Vec3, yaw: -1.982 };
 
 /** A point of a pad's own frame in the room's. */
 const from = (pad: { origin: Vec3; yaw: number }, [x, y, z]: Vec3): Vec3 => [
@@ -299,7 +299,7 @@ export const consoleCables: Prop = {
   budget: 2200,
   build(sink) {
     const b = sink.mesh('props');
-    const floor = CABLE_RADIUS + 0.0004;
+    const floor = FLOOR + CABLE_RADIUS + 0.0004;
     // Each cable ends in a plug standing out of its port, with a sleeve where the cable leaves it.
     const plugs = PORTS.map((z): Vec3 => {
       b.roundedBox(
@@ -389,7 +389,7 @@ export const floorGame: Prop = {
 };
 
 function floorCase(sink: PropSink): void {
-  const centre: Vec3 = [1.8, 0, 0.52];
+  const centre: Vec3 = [1.8, FLOOR, 0.52];
   const yaw = 0.7;
   const [tall, wide, thick] = [0.19, 0.135, 0.0145];
   const at = { origin: centre, yaw };

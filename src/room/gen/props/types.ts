@@ -22,6 +22,9 @@ export type MeshName =
   | 'globe'
   | 'eyes'
   | 'glass'
+  // The desk corner's props: a mesh of their own, small enough about the desk that the frustum of a view looking
+  // away from it (the TV's) leaves it out.
+  | 'desk'
   // The CD player's body and the parts its deck moves or hides (props/radio.ts).
   | 'radio'
   | 'radioLid'
@@ -34,6 +37,11 @@ export type MeshName =
   | 'radioWellCover';
 
 export interface PropSink {
+  /**
+   * How finely to build, 0–1: 1 on the top quality tier, less on the lower ones (tiers.ts). A prop turns it into
+   * segments and into the small parts it leaves out; its budget is for 1.
+   */
+  readonly detail: number;
   /** The vertex-lit mesh `name`'s builder. */
   mesh(name: MeshName): MeshBuilder;
   chart(...charts: Chart[]): void;
@@ -47,7 +55,10 @@ export interface Prop {
   build(sink: PropSink): void;
 }
 
-/** The chart pages: the TV corner's surfaces; the floor and its rug; the walls and ceilings. */
+/** The chart pages: the TV corner's surfaces and the rug; the floor; the walls and ceilings; the furniture. */
 export const PAGE = { corner: 0, floor: 1, shell: 2, furniture: 3 } as const;
 /** The chart groups: each draws with its own material, named for the room's finish. */
-export const GROUP = { cabinet: 0, wall: 1, floor: 2, desk: 3, dresser: 4 } as const;
+export const GROUP = { cabinet: 0, wall: 1, floor: 2, desk: 3, dresser: 4, rug: 5 } as const;
+
+/** The boards' top: 6 mm, where the shipped floor's is and where everything that stands on it was measured to stand. */
+export const FLOOR = 0.006;

@@ -155,7 +155,7 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
     expect(ring).toBeGreaterThan(0);
   });
 
-  it('has the monitor as a mesh of its own inside its outline, the keyboard and the mouse left with the props', () => {
+  it('has the monitor as a mesh of its own inside its outline, the keyboard and the mouse left with the desk', () => {
     const monitor = scene.meshes.monitor.positions;
     expect(monitor.length).toBeGreaterThan(0);
     const { min, max } = boundsOf(monitor);
@@ -168,9 +168,9 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
     }
     const desktop = scene.props.find((prop) => prop.name === 'desktop');
     expect(desktop?.ranges.monitor).toEqual([0, monitor.length / 3]);
-    const [start, count] = desktop?.ranges.props ?? [0, 0];
+    const [start, count] = desktop?.ranges.desk ?? [0, 0];
     expect(count).toBeGreaterThan(0);
-    const rest = boundsOf(scene.meshes.props.positions, start, count);
+    const rest = boundsOf(scene.meshes.desk.positions, start, count);
     // The keyboard and the mouse: in front of the monitor's face, on the desk top.
     expect(rest.min[2]).toBeGreaterThan(PC_SPEC.shell.max[2]);
     // (The keyboard's tilted tray dips a centimetre into the desk top at its near edge.)
