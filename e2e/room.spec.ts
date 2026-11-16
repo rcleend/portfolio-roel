@@ -539,3 +539,40 @@ test.describe('on a phone', () => {
     expect(((glyphs[0]?.cx ?? 0) + (glyphs.at(-1)?.cx ?? 0)) / 2).toBeCloseTo(width / 2, 0);
   });
 });
+
+// Here, not in mouse-play.spec.ts: that suite plays on the flat host with the default software renderer, on which the
+// room's bake is the CPU's, and a few such pages at once starved each other past the test's time.
+test("in the room, the stage wears the game's cursors over the TV's picture in a level", async ({ page }) => {
+  const query = new URLSearchParams({
+    seed: '1',
+    scene: 'level',
+    params: JSON.stringify({ levelId: 'luna', characterId: 'hackerman', skipIntro: true }),
+  });
+  await page.goto(`/?${query}`);
+  await waitForRunning(page);
+  const canvas = page.locator('[data-host] canvas');
+  const picture = await page.evaluate(() => (globalThis as { __tvPicture?: () => number[] }).__tvPicture?.());
+  if (!picture) throw new Error('no TV picture');
+  const [left = 0, top = 0, right = 0, bottom = 0] = picture;
+  const at = async (x: number, y: number) => {
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('no stage');
+    const px = box.x + left + ((x + 0.5) / 320) * (right - left);
+    const py = box.y + top + ((y + 0.5) / 240) * (bottom - top);
+    await page.mouse.move(px - 2, py - 2);
+    await page.mouse.move(px, py);
+  };
+  // The hero stands at x 56 of San Francisco's first street: the sky (y 60) is an attack, the street (y 208) a walk.
+  await expect
+    .poll(async () => {
+      await at(200, 60);
+      return canvas.getAttribute('data-cursor');
+    })
+    .toBe('attack');
+  await at(150, 208);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('walk');
+  await at(20, 60);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('attack');
+  await at(160, 232);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
+});

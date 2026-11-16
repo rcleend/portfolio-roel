@@ -41,7 +41,7 @@ export const cabinet: Prop = {
     box([X.front, 0.041, Z.right - 0.03], [X.back, TOP.y0, Z.right], ['+y']);
     box([X.back - 0.02, 0.041, Z.left + 0.03], [X.back, TOP.y0, Z.right - 0.03], ['+y', '-z', '+z', '+x'], INSIDE);
     box([X.front, 0.041, Z.left + 0.03], [X.back - 0.02, 0.061, Z.right - 0.03], ['-z', '+z', '+x', '-y']);
-    box([X.front + 0.03, 0, Z.left + 0.02], [X.back - 0.03, 0.041, Z.right - 0.02], ['+y', '-y'], ENAMEL, 0.6, 200);
+    box([X.front + 0.03, 0.006, Z.left + 0.02], [X.back - 0.03, 0.041, Z.right - 0.02], ['+y', '-y'], ENAMEL, 0.6, 200);
     // The divider between the drawers and the shelves, and the middle shelf.
     box([X.front, 0.061, -0.249], [X.back - 0.02, TOP.y0, -0.221], ['+y', '-y', '+x']);
     box([X.front + 0.004, 0.211, -0.221], [X.back - 0.02, 0.237, Z.right - 0.03], ['-z', '+z', '+x'], INSIDE);
