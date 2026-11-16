@@ -1,6 +1,8 @@
 /* The game on the startup still, inside the still's element (index.html), which fades both out as one. */
 .still-picture {
   position: absolute;
+  /* Over the still's casing and its dark glass (index.html › .tv-still i). */
+  z-index: 2;
   top: var(--picture-top);
   left: var(--picture-left);
   width: var(--picture-width);

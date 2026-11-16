@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, scene, trackErrors, waitForRunning } from './helpers';
+import { differingPixels, hostElement, paused, scene, trackErrors, waitForRunning } from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -46,6 +46,17 @@ test('opens on the startup still, starts the game on it and hands over to the li
   // The room is in, its tube lit at once behind the still, which waits for the visitor.
   expect(await page.evaluate(() => window.__room?.powerState)).toBe('on');
   await expect(still).toHaveAttribute('data-shown', 'true');
+  // The game's picture is on the still's glass, not under its casing: without it that part of the page looks
+  // different nearly everywhere.
+  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
+  const picture = page.locator('.still-picture');
+  const box = await picture.boundingBox();
+  const clip = { x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 0, height: box?.height ?? 0 };
+  const shown = await page.screenshot({ clip });
+  await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
+  const hidden = await page.screenshot({ clip });
+  await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
+  expect(await differingPixels(shown, hidden, 24)).toBeGreaterThan(clip.width * clip.height * 0.5);
   await page.keyboard.press('Enter');
   await expect(still).toHaveAttribute('data-shown', 'false');
   expect(errors).toEqual([]);
