@@ -77,8 +77,9 @@ interface CreateRoomOptions {
   surface: GameSurface;
   onProgress?: (fraction: number) => void;
   assetBaseUrl?: string;            // absolute URL of the assets folder; default `${BASE_URL}room/`
-  maxPixelRatio?: number;           // default 2
-  maxDrawingBufferPixels?: number;  // default 3 000 000
+  quality?: QualityTier | 'auto';   // default 'auto': the device's own tier, governed by its frame times (§ Quality)
+  maxPixelRatio?: number;           // a further cap under the tier's own
+  maxDrawingBufferPixels?: number;  // a further cap under the tier's own
   mood?: RoomMood;                  // 'original' (default), 'honey', 'rose' or 'midnight'
 }
 
@@ -105,7 +106,7 @@ interface Room {
   readonly spotlight: PropSpotlight;       // the props' glow, bounce and label point (§ The spotlight); usable before `ready`
   readonly anchors: readonly PropAnchor[]; // the TV, the computer and the radio in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
-  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, lava, programs, pcTexturePixels,
+  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, quality (tier and scale), lava, programs, pcTexturePixels,
                                            // backgroundPending (work still waiting for idle moments), radioReady,
                                            // radioTexturePixels, radioLidDegrees, radioAmbient, spotlight (its chunk is in)
   dispose(): void;
@@ -200,8 +201,11 @@ room/
     loadProgress.ts     byte-weighted progress across files
     modelQueries.ts     mesh lookups shared by the device models
   stage/
-    RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, DPR/buffer caps, resize, context loss
-    RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame
+    RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, the quality's pixel ratio, resize, context loss
+    RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame; tells a run
+                        of frames (whose intervals measure the device) from frames that were only waited for
+    quality.ts          pure: the quality tiers, the tier a device starts on, and the governor that moves the scale
+                        and the tier with measured frame times (§ Quality)
     IdleWork.ts         work ahead of need, in small units on idle time: never in motion, never making a frame late
     softwareGpu.ts      pure: whether the GPU is software (2D canvases then paint on the CPU)
     slowDevice.ts       pure: whether the device is slow (a software GPU, or a first flight under 30 fps), for the radio and the posters
@@ -325,7 +329,8 @@ ROOM_SOURCE=/path/to/original/attic-room.blend pnpm build:room
 pnpm verify:room
 ```
 
-It produces `room.glb` (baked environment and lava animation), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6, then the radio's lazy `radio-closeup.glb` and `radio-skin-2k.webp` and the posters' `posters.glb`, `posters-2k.webp` and `posters-1k.webp` (`lazyFiles`; § The CD player, § Posters). Existing attribution remains in `CREDITS.txt`, which now also records the close-up.
+It produces `room.glb` (baked environment and lava animation; `room-1k.glb` is its half-atlas variant for the lower
+quality tiers, § Quality), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6, then the radio's lazy `radio-closeup.glb` and `radio-skin-2k.webp` and the posters' `posters.glb`, `posters-2k.webp` and `posters-1k.webp` (`lazyFiles`; § The CD player, § Posters). Existing attribution remains in `CREDITS.txt`, which now also records the close-up.
 The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
 The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and the light it casts (§ The TV's light) remain dynamic. There is no runtime studio environment capture.
 The night rig keeps blue window highlights, tungsten desk light and amber lava glow, with substantially reduced ambient/fill illumination for deep shadows and stronger local contrast. The pillow and ceiling beams are removed; the old wall posters gave way to the decorated walls (§ Posters). The folded rug is square at the original width and rotated 15° clockwise; its raised corner is nearest the TV. Desk drawer fronts share the white enamel, and the oak floor has more natural grain. Changing the baked mood requires rebuilding all atlases.
@@ -358,7 +363,7 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 ## Rendering and performance
 
 - **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
-  Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, **0** while seated at the computer (the lava lamp is out of shot; the live screen is DOM).
+  Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, and while seated at the computer **0** under reduced motion or below the top quality tier and otherwise the air's 12 (the lava lamp is out of shot; the live screen is DOM; § Quality › Reading).
   In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
   - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
@@ -375,12 +380,88 @@ Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, w
 - **The game and the TV's turn-on stay as they were** (production builds, 3-6 runs each against the build before the computer): at 20× CPU on a phone, the game's first 3 s run at 52-61 frames/s with a worst frame gap of 21-32 ms (before: 54-60, 20-32 ms) and the turn-on's worst gap is 83-92 ms (81-89 ms), with no long task in either; under SwiftShader the game's longest frame is 82-139 ms (90-205 ms) and nothing freezes it; at 6× the game's worst gap is 11-18 ms (10-17 ms).
 - **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 26 ms from pointerup to the first flight frame (26 ms before the computer existed): the still was prepared between the game's frames and only its upload is left for the click. On a phone twenty times slower than a laptop no unit fits between the game's frames, and the first leave pays the still once, about 110-125 ms after the game has paused and before the camera moves. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
 - **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
-- **Resolution.** DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52).
+- **Resolution.** On the top tier DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52); a lower
+  tier or scale draws fewer pixels (§ Quality).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
 - **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The toy robot adds four draw calls (its body, its eyes and their two halos), about 2.4 k triangles, one 512² WebP colour map and no program (its body and eyes share the baked room's mapped program, the halos the halation's; 86.4 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
 - **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
+
+## Quality
+
+How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
+rate and a laptop shows everything. Every tier keeps the room's look: the finish, the TV's and the lamps' light on the
+room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, texture size on the room's far surfaces and, on the
+lowest, multisampling and the width of the bloom's filter; nothing else.
+
+| Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Room atlases | Starts on |
+| --- | --- | --- | --- | --- | --- | --- |
+| `high` | ≤ 2 | ≤ 3.0 MP | 2 samples | 5 | 2048² | anything that is not a phone: what the room always drew |
+| `medium` | ≤ 2 | ≤ 1.6 MP | 2 samples | 5 | 1024² (the floor's 2048²) | a phone (a finger for a pointer and a screen under 600 CSS px across): the picture `high` draws there |
+| `low` | ≤ 1.5 | ≤ 0.9 MP | 1 sample | 1 | as the tier it started on | a software renderer (which then stays there); otherwise only reached by the governor |
+
+- **Atlases.** A device that starts below the top tier fetches `room-1k.glb` instead of `room.glb`
+  (`assets/roomAssets.ts`; `pnpm build:room-small`, `tools/room/build-small.mjs`, derives it from the published
+  `room.glb` without Blender, and `pnpm verify:room` holds the two in step): the same scene and geometry with the five
+  2048² atlases of walls, window, desk, drawers and TV cabinet at 1024². The floor's stays 2048² (it and its rug fill the
+  bottom of every room view, and the rug's pile goes soft at 1024²), and so do the TV's, the computer's and the
+  radio's own files, which are seen close up. That is 84 MB less texture memory once the room has been seen (249 MB →
+  165 MB of RGBA8 with mips over the five first-load files), a quarter of the upload time of each of those atlases,
+  and 0.57 MB less to fetch. The choice is made once, from the starting tier, before anything is uploaded.
+- **The scale** multiplies the tier's pixel ratio: 1, 0.85, 0.7 or 0.6. The canvas itself is drawn smaller and the
+  browser scales it to the page, so the scene, both post passes and the dust all shrink together (the composite is the
+  frame's dearest pass per pixel, so a full-size canvas over a smaller scene target would save least where it costs
+  most).
+- **The governor** (`QualityGovernor`) follows measured frame times, never the user agent. It judges only *runs* of
+  frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, and the game's, each asked
+  for within 25 ms of the one before it; the lava's and the air's 24 a second and the radio's float at 30 were only
+  waited for and say nothing), thirty at a time by their mean
+  without the two longest, and never a pause (over 250 ms: a hidden tab).
+  - Slower than 21 ms a frame: the scale steps down, far enough to reach 15 ms if a frame's time goes with its pixels
+    (33 ms goes straight to 0.6).
+  - At the floor and still slow twice: the tier drops (to scale 0.7 of the lower one) and never comes back this page
+    load. The scene's target is made again without its samples; no shader is compiled (the bloom's width is a uniform).
+  - Every frame on time (≤ 17.4 ms) and the scale under 1: one step up, after a wait every step down doubles (30 s, then
+    a minute, up to four), so a device on the edge settles instead of pumping.
+  - A step down that does not shorten the frames by 8 % undoes itself and rests the governor a minute: what was slow
+    was the main thread, not the pixels (the game's first frames at 6× CPU throttling, say).
+  - Not governed: a fixed tier (`quality: 'low'`), a software renderer (its frame times are the CPU's) and a browser
+    under automation (`navigator.webdriver`: a test's paused clock or throttled CPU says nothing about the device, so
+    end-to-end tests always draw the starting tier; `scripts/perf` unsets it to measure what a visitor gets).
+- **A change is a resize**: the stage's resize listeners run (the CRT's and the dust's pixel ratio, the monitor's pose),
+  and the next frame is drawn whole at the new size. It waits for the camera to land: a flight's frames have no room
+  for it (about 100 ms at 6× CPU).
+- **The canvas is not multisampled** under a finish: the room is drawn into the finish's own target, and only two
+  triangles and the dust onto the canvas. (The unprocessed bake, `mood: 'original'` at creation, draws straight onto
+  the canvas and keeps its antialiasing.)
+- **Reading.** Below the top tier the room's air (dust, rain) rests while the camera rests at the computer: on a phone
+  the live screen covers the room, and the dust alone kept the whole room drawing twelve frames a second behind a
+  page being read. On the top tier it drifts on beside the monitor as before.
+- **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
+  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
+  phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
+- **Measuring it.** `node scripts/perf/profile.mjs` drives a production build along the visitor's path (the game on
+  the TV, the room, the computer, the radio) with a WebGL profiler injected ahead of the page (`glProfiler.js`: GPU
+  timer queries, draw calls, the pixels of every pass, the main thread's time in each WebGL call), on a desktop or a
+  phone-sized viewport with CPU throttling, in Chromium or WebKit; `--config '{"slowGpu":60}'` overloads the GPU to
+  watch the governor work, `--shots` takes the same poses of any build. `node scripts/perf/counterfactuals.mjs`
+  switches each effect and pass off in turn. CPU throttling does not slow the GPU: a phone's GPU is reasoned about from
+  the pixels a frame shades and each pass's share.
+
+What the measurements said (Apple M4 Pro, headless Chromium on Metal, production build, each frame drawn ten times
+over so the GPU's time stands clear of its timer's noise), and so what was and was not changed:
+
+- A frame's GPU time goes with its pixels more than with anything in it: 3 MP costs 3.6 ms, a phone's 1.3 MP 1.4 ms.
+  One pixel ratio step (2 → 1.5) takes 32 % off; no single effect takes more than 17 %.
+- By effect, at the TV on a phone's 1.3 MP: the scene target's multisampling 15 %, the composite's bloom taps 13 %
+  (all of the composite's finish 17 %), half-float targets 11 %, varnish 10 %, the robot's eyes 9 %, the CRT shader
+  9 %, the canvas's own multisampling 4 %; the TV's area light, the opal lamp, the haze volumes, the rain and the dust
+  are each within the measurement's noise (± 3 %). So the lights and the air stay on every tier.
+- The main thread's dearest call at the TV is the picture's upload (`texSubImage2D` of the 320 × 240 canvas): 2 ms a
+  frame at 6× CPU in Chromium, and in WebKit 2.5–3.5 ms unthrottled, where it reads the canvas back from the GPU
+  process. Nothing tried makes it cheaper there (a CPU canvas makes it 10 ms; `getImageData` saves a third in WebKit
+  and costs Chromium 86 ms), so it stays as it is.
 
 ## Atmosphere
 
@@ -398,8 +479,8 @@ The bake remains the source of light and occlusion. Hard surfaces receive a shar
 view-dependent lamp/window reflections; fabric, posters and screens stay matte. All baked room surfaces keep their
 occlusion while their light near the lamps warms up. The lamps carry soft, depth-tested halos; the opal lamp beside
 the TV is light the finish adds (§ The opal lamp).
-The scene draws once into a multisampled half-float target (8-bit fallback without float colour
-buffers), then two full-screen triangles extract highlights at quarter resolution and composite their mip-based glow
+The scene draws once into a half-float target, multisampled on the top quality tier (§ Quality; 8-bit fallback
+without float colour buffers), then two full-screen triangles extract highlights at quarter resolution and composite their mip-based glow
 with a linear split-tone grade and vignette. No second tone mapping is applied to the baked display transform.
 The finish stays on throughout the room, TV, radio and computer views, including their camera flights. Warm pools of
 light sit against darker ambient exposure, with restrained bloom and varnish. Screens keep their contrast and sharpness:
