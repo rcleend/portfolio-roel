@@ -3,10 +3,11 @@
 // Close inspection). A prop is judged at arm's length, from several sides, before and after its generator changes.
 //
 //   node scripts/gen-closeups.mjs --label <name> [--tier high|medium|low] [--only asset,asset/angle] [--out dir]
-//                                 [--full] [--studio] [--still] [--mood rose|original]
+//                                 [--full] [--studio [--gain 8]] [--still] [--mood rose|original]
 //
 // Writes <out>/<label>/<asset>-<angle>.jpg. `--studio` lights the props with a plain key and fill instead of the room's
-// bake (their form and albedo, whatever the rig says). `--full` keeps the drawing buffer's own pixels (2176 × 1360)
+// bake (their form and albedo, whatever the rig says; `--gain` times as bright, for a black moulding such as the TV
+// set's). `--full` keeps the drawing buffer's own pixels (2176 × 1360)
 // instead of 1600 wide. `--still` asks for reduced motion, so the lava lamp's wax stands still and two runs can be
 // compared pixel by pixel. `node scripts/gen-closeups.mjs --sheet a,b,c [--only ...]` lays the pictures of labels a, b and c side by
 // side into <out>/sheets/<asset>-<angle>.jpg.
@@ -31,6 +32,8 @@ const only = option('only', '')?.split(',').filter(Boolean) ?? [];
 const full = args.includes('--full');
 /** The props under a plain key and fill instead of the room's bake: their form and albedo, whatever the rig. */
 const studio = args.includes('--studio');
+/** The studio's light, times this: a black moulding's form shows at 8 or so. */
+const gain = Number(option('gain', 1));
 /** Reduced motion: nothing moves by the clock (the lava lamp's wax). */
 const still = args.includes('--still');
 const out = resolve(option('out', '.shots/closeups'));
@@ -148,6 +151,21 @@ export const CLOSEUPS = {
     wide: { position: [0.9, 1.0, -1.5], target: [2.5, 0.75, -0.75], fov: 40 },
     top: { position: [2.11, 1.25, -0.84], target: [2.26, 0.5, -0.84], fov: 34 },
     side: { position: [2.11, 0.72, -1.72], target: [2.26, 0.62, -0.84], fov: 30 },
+  },
+  tv: {
+    front: { position: [1.05, 0.8, -0.32], target: [2.154, 0.775, -0.32], fov: 36 },
+    'three-quarter-left': { position: [1.4, 1.02, -1.12], target: [2.32, 0.76, -0.34], fov: 36 },
+    'three-quarter-right': { position: [1.42, 1.02, 0.42], target: [2.3, 0.76, -0.3], fov: 36 },
+    controls: { position: [1.93, 0.62, -0.47], target: [2.154, 0.557, -0.41], fov: 30 },
+    jacks: { position: [1.98, 0.6, -0.17], target: [2.154, 0.556, -0.235], fov: 30 },
+    chin: { position: [1.72, 0.64, -0.32], target: [2.154, 0.565, -0.32], fov: 30 },
+    bezel: { position: [1.86, 1.0, -0.26], target: [2.16, 1.03, -0.08], fov: 30 },
+    'bezel-corner': { position: [1.9, 0.72, -0.72], target: [2.16, 0.64, -0.56], fov: 30 },
+    top: { position: [1.78, 1.72, -0.32], target: [2.4, 0.98, -0.32], fov: 36 },
+    side: { position: [2.2, 0.98, -1.5], target: [2.4, 0.78, -0.62], fov: 36 },
+    back: { position: [2.76, 1.42, -1.02], target: [2.52, 0.86, -0.36], fov: 44 },
+    feet: { position: [1.88, 0.53, -0.8], target: [2.2, 0.505, -0.52], fov: 30 },
+    room: { position: [0.25, 1.25, 0.75], target: [2.35, 0.72, -0.32], fov: 34 },
   },
   plant: {
     front: { position: [1.58, 0.68, 0.117], target: [2.256, 0.6, 0.117], fov: 27 },
@@ -279,7 +297,7 @@ try {
   const stats = await page.evaluate(() => window.__roomLab.room.stats.generatedStats);
   console.log(`generated ${lit}:`, JSON.stringify(stats));
   if (studio)
-    await page.evaluate(() => {
+    await page.evaluate((gain) => {
       const room = globalThis.__generatedRoom;
       const curve = (v) => {
         const c = (v / (v + 0.6)) * 1.25;
@@ -293,11 +311,11 @@ try {
           const key = Math.max(0, nx * 0.35 + ny * 0.62 + nz * 0.7);
           const fill = Math.max(0, -nx * 0.6 + ny * 0.3 + nz * 0.4) * 0.35;
           const light = 0.22 * Math.min(1, data.shade[i / 3]) + 1.25 * key + fill + 0.08 * Math.max(0, -ny);
-          for (let c = 0; c < 3; c++) colors.array[i + c] = curve(data.albedo[i + c] * light);
+          for (let c = 0; c < 3; c++) colors.array[i + c] = curve(data.albedo[i + c] * light * gain);
         }
         colors.needsUpdate = true;
       }
-    });
+    }, gain);
   await page.evaluate(async () => {
     const { room, surface } = window.__roomLab;
     await room.powerOn();

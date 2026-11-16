@@ -14,7 +14,7 @@ import {
   type Vec3,
 } from '../kit/builder';
 import { BULB_SPEC as BULB, TV_LAMP_SPEC as TV_LAMP } from '../roomSpec';
-import { circle, lid, mottled, segments, skin, smooth, type Tone, tint, turned } from './form';
+import { circle, lid, mottled, noise3, segments, skin, smooth, type Tone, tint, turned } from './form';
 import { FLOOR, type Prop } from './types';
 
 /**
@@ -45,13 +45,17 @@ export const opalLamp: Prop = {
   },
 };
 
-/** Oiled walnut, old brass and its worn edges, the supports' nickel wire, brown bakelite, the flex's braid. */
-const WALNUT: Rgb = [0.062, 0.046, 0.032];
-const BRASS: Rgb = [0.3, 0.25, 0.1];
-const BRASS_WORN: Rgb = [0.44, 0.38, 0.17];
+/** The supports' nickel wire and the bulb's nickel cap; cast concrete, the socket's matte black powder coat. */
 const WIRE: Rgb = [0.3, 0.27, 0.22];
-const BAKELITE: Rgb = [0.05, 0.027, 0.017];
-const BRAID: Rgb = [0.2, 0.125, 0.05];
+const NICKEL: Rgb = [0.2, 0.2, 0.2];
+const CONCRETE: Rgb = [0.27, 0.262, 0.25];
+const POWDER: Rgb = [0.022, 0.022, 0.025];
+/** The flex's grey cloth, the switch's pale grey body and the dark mark on its rocker. */
+const FLEX: Rgb = [0.085, 0.085, 0.09];
+const SWITCH: Rgb = [0.27, 0.265, 0.255];
+const MARK: Rgb = [0.05, 0.05, 0.05];
+/** Where the flex leaves the base: how far from the lamp's axis, and how high over the cabinet top. */
+const EXIT: readonly [number, number] = [0.0422, 0.0085];
 
 /**
  * The glass as light added to the frame (GeneratedRoom draws the `bulb` mesh as a film, like the lava lamp's bottle):
@@ -72,10 +76,10 @@ const FLEX_RADIUS = 0.0026;
 
 /**
  * The bare-bulb lamp on the cabinet's left-hand end, dimmed, forward of the set's flank so the room's overview sees it
- * past the set: a turned walnut base, a brass lampholder with its two knurled shade rings, and a clear pear-shaped
- * bulb whose filament is a cage: a zigzag strung up and down between the hooks of two glass buttons on the stem, the
- * old carbon-lamp winding. A braided flex leaves the base's back, lies across the top through a bakelite rocker switch
- * and drops behind the cabinet.
+ * past the set: a lamp of today, a cast concrete cylinder with a smooth matte black socket (`lampBase`), and in it a
+ * clear pear-shaped bulb whose filament is a cage: a zigzag strung up and down between the hooks of two glass buttons
+ * on the stem, the old carbon-lamp winding the decorative bulbs sold now copy. A grey cloth flex leaves the base's
+ * back, lies across the top through a small inline switch and drops behind the cabinet.
  *
  * The filament is light (the `filament` mesh, drawn as an emitter where the bake puts the lamp's light); the glass,
  * its stem and buttons are a film of light (the `bulb` mesh); everything else is baked with the room.
@@ -91,162 +95,24 @@ export const bulbLamp: Prop = {
     const up: Vec3 = [0, 1, 0];
     const side: Vec3 = [1, 0, 0];
     const at = (x: number, y: number, z: number): Vec3 => [o[0] + x, o[1] + y, o[2] + z];
-    /**
-     * A brass that is brighter where a hand or a cloth reaches it: its `worn` share of the worn colour. `near` is for
-     * what looks straight up at the filament from a finger away: tarnished, or the lamp's own light burns it white.
-     */
-    const brass =
-      (worn = 0, near = 1): Tone =>
-      (point) =>
-        mottled(
-          [
-            (BRASS[0] + (BRASS_WORN[0] - BRASS[0]) * worn) * near,
-            (BRASS[1] + (BRASS_WORN[1] - BRASS[1]) * worn) * near,
-            (BRASS[2] + (BRASS_WORN[2] - BRASS[2]) * worn) * near,
-          ],
-          point,
-          0.16,
-          0.007,
-          61,
-        );
-
-    // The base: a foot band, a quirk and bead, and an ogee up to the flat the holder's collar sits on.
-    const around = segments(32, detail, 16);
+    lampBase(b, detail);
+    // The bulb's cap, a finger of it standing out of the socket: plain nickel, and the rim the glass is cemented in.
     turned(
       b,
       o,
       up,
       side,
       [
-        [0.0518, 0.0003],
-        [0.0546, 0.0022],
-        [0.0552, 0.0055],
-        [0.0552, 0.0112],
-        [0.0541, 0.013],
-        [0.0527, 0.0136],
-        [0.0527, 0.015],
-        [0.0508, 0.0171],
-        [0.0462, 0.0197],
-        [0.0396, 0.0231],
-        [0.0331, 0.0261],
-        [0.0276, 0.0281],
-        [0.0236, 0.0292],
-        [0.021, 0.0296],
-        [0.0192, 0.0296],
-      ],
-      around,
-      // Turned wood: its figure runs through the block, so it changes round the base and hardly up it.
-      (point) => tint(mottled(WALNUT, [point[0], point[1] * 0.25, point[2]], 0.22, 0.016, 62), 1),
-      0,
-      2,
-      // The quirk over the foot band keeps its dark.
-      (point) => 0.55 + 0.45 * smooth(0.0008, 0.0022, Math.abs(point[1] - o[1] - 0.0143)),
-    );
-
-    // The brass: the collar on the base, the nipple, the holder's cap, its seam, its shell and the threaded skirt
-    // with its rolled rim.
-    const round = segments(24, detail, 12);
-    turned(
-      b,
-      o,
-      up,
-      side,
-      [
-        [0.0192, 0.0296],
-        [0.0192, 0.0322],
-        [0.018, 0.0336],
-        [0.0104, 0.0342],
-        [0.0104, 0.038],
-        [0.0128, 0.0388],
-        [0.0172, 0.0406],
-        [0.0197, 0.044],
-        [0.0207, 0.049],
-        [0.0207, 0.0604],
-        [0.0214, 0.0611],
-        [0.0214, 0.063],
-        [0.0204, 0.0638],
-        [0.0204, 0.0754],
-        [0.0196, 0.0762],
-        [0.0196, 0.0962],
-        [0.0203, 0.0968],
-        [0.0203, 0.0984],
-        [0.0188, 0.099],
-        [0.0152, 0.097],
-      ],
-      round,
-      (point, ring) =>
-        brass(ring === 10 || ring === 11 ? 0.6 : 0.1, ring >= 16 || ring <= 3 ? 0.45 : 1)(point, ring, 0),
-      0,
-      2,
-      (_, ring) => (ring === 3 || ring === 4 ? 0.6 : ring >= 19 ? 0.35 : 1),
-    );
-    // The two shade rings on the skirt, knurled for the fingers between two plain edges (the upper ring's edge is what
-    // the lamp's own light draws on the base: a clean circle).
-    const ribs = fine ? 36 : segments(24, detail, 12);
-    for (const y of [0.0792, 0.0884]) {
-      const rows: readonly (readonly [number, number, boolean])[] = fine
-        ? [
-            [0.0196, y, false],
-            [0.0238, y + 0.0008, false],
-            [0.0236, y + 0.0015, true],
-            [0.0236, y + 0.0043, true],
-            [0.0238, y + 0.005, false],
-            [0.0196, y + 0.0058, false],
-          ]
-        : [
-            [0.0196, y, false],
-            [0.0238, y + 0.0008, false],
-            [0.0238, y + 0.005, false],
-            [0.0196, y + 0.0058, false],
-          ];
-      const rings = rows.map(([radius, height, knurled]) =>
-        circle(at(0, height, 0), up, side, radius, ribs).map((point, i): Vec3 => {
-          if (!knurled || i % 2 === 0) return point;
-          const [dx, dz] = [point[0] - o[0], point[2] - o[2]];
-          return [o[0] + dx * 0.955, point[1], o[2] + dz * 0.955];
-        }),
-      );
-      skin(
-        b,
-        rings,
-        (point, ring, i) =>
-          brass(
-            (rows[ring] as (typeof rows)[number])[2] && i % 2 === 1 ? 0.3 : 0.5,
-            ring >= rows.length - 2 ? 0.42 : 1,
-          )(point, ring, i),
-        {
-          facing: { from: at(0, y + 0.003, 0) },
-          shade: (_, ring, i) => ((rows[ring] as (typeof rows)[number])[2] && i % 2 === 1 ? 0.7 : 1),
-        },
-      );
-    }
-    // The bulb's cap, standing a finger out of the holder: brass, two turns of its thread and the rim the glass is
-    // cemented in.
-    turned(
-      b,
-      o,
-      up,
-      side,
-      [
-        [0.0133, 0.094],
-        [0.0133, 0.0995],
-        [0.0139, 0.1007],
-        [0.0131, 0.102],
-        [0.0139, 0.1033],
-        [0.0131, 0.1046],
-        [0.0137, 0.1058],
-        [0.0134, 0.1072],
-        [0.0126, SEAL],
+        [0.0133, 0.0975],
+        [0.0133, 0.1062],
+        [0.0128, SEAL],
         [0.0085, SEAL],
       ],
       segments(16, detail, 10),
-      (point, ring) =>
-        ring >= 8
-          ? ([0.03, 0.027, 0.024] as Rgb)
-          : brass(ring === 2 || ring === 4 || ring === 6 ? 0.9 : 0.3, 0.5)(point, ring, 0),
+      (point, ring) => (ring >= 2 ? ([0.03, 0.027, 0.024] as Rgb) : mottled(NICKEL, point, 0.1, 0.006, 61)),
       0,
       2,
-      (_, ring) => (ring === 3 || ring === 5 ? 0.6 : ring >= 8 ? 0.5 : 1),
+      (_, ring) => (ring >= 2 ? 0.5 : 1),
     );
 
     // The glass. Its ball is a sphere about a point a little over the cage's middle; the neck flares out of the cap
@@ -410,6 +276,79 @@ export const bulbLamp: Prop = {
   },
 };
 
+/**
+ * The lamp's base, of today: a cast concrete cylinder, 84 mm across and 62 high, on a cork pad, its top edge eased and
+ * its top dished a little towards a smooth matte black socket the bulb's cap sinks into, up to 103 mm over the cabinet
+ * top (the glass leaves its cap at `SEAL`). Concrete is its grain: on the top tier the drum is cut fine enough to
+ * carry it, a speck a vertex.
+ */
+function lampBase(b: MeshBuilder, detail: number): void {
+  const o = BULB.origin;
+  const up: Vec3 = [0, 1, 0];
+  const side: Vec3 = [1, 0, 0];
+  const fine = detail >= 0.8;
+  const around = segments(36, detail, 16);
+  const drum = fine ? 48 : around;
+  const courses = fine ? 11 : segments(8, detail, 4);
+  const wall = Array.from({ length: courses }, (_, i) => 0.0045 + ((0.0585 - 0.0045) * i) / (courses - 1));
+  const cast: readonly (readonly [number, number])[] = [
+    [0.039, 0.0003],
+    [0.039, 0.0018],
+    [0.0405, 0.0018],
+    [0.0418, 0.0026],
+    ...wall.map((y): [number, number] => [0.0422, y]),
+    [0.0414, 0.0607],
+    [0.0396, 0.0618],
+    [0.037, 0.062],
+    [0.0325, 0.0618],
+    [0.0282, 0.0615],
+    [0.0245, 0.0613],
+    [0.0222, 0.0613],
+  ];
+  turned(
+    b,
+    o,
+    up,
+    side,
+    cast,
+    drum,
+    (point, ring) => {
+      // The cork pad under it.
+      if (ring < 2) return [0.1, 0.066, 0.04];
+      // Blotches from the pour, the sand's grain, and here and there a pore the vibrating did not close.
+      const grain = 0.84 + 0.32 * noise3(point[0] * 420, point[1] * 420, point[2] * 420, 7);
+      const pore = fine && noise3(point[0] * 610, point[1] * 610, point[2] * 610, 9) > 0.8 ? 0.52 : 1;
+      return tint(mottled(CONCRETE, point, 0.2, 0.016, 62), grain * pore);
+    },
+    0,
+    2,
+    (_, ring) => (ring <= 2 ? 0.5 : 1),
+  );
+  // The socket: a plain sleeve out of the concrete, its rim, and the well the cap stands in.
+  const socket: readonly (readonly [number, number])[] = [
+    [0.0222, 0.0611],
+    [0.0212, 0.0624],
+    [0.0212, 0.08],
+    [0.0212, 0.1002],
+    [0.0206, 0.1022],
+    [0.0192, 0.103],
+    [0.0152, 0.103],
+    [0.0152, 0.0985],
+  ];
+  turned(
+    b,
+    o,
+    up,
+    side,
+    socket,
+    around,
+    (point) => mottled(POWDER, point, 0.1, 0.012, 62),
+    0,
+    2,
+    (_, ring) => (ring >= socket.length - 2 ? 0.35 : 1),
+  );
+}
+
 /** A round cord along `path`, each point of it in `tone` (its ring along the path, its place round it). */
 function cord(b: MeshBuilder, path: readonly Vec3[], radius: number, sides: number, tone: Tone): void {
   const n = path.length;
@@ -428,12 +367,12 @@ function cord(b: MeshBuilder, path: readonly Vec3[], radius: number, sides: numb
 }
 
 /**
- * The flex and its switch. A braided cord out of a hole in the base's foot band, back across the top on the set's side,
- * through an inline rocker switch (brown bakelite in two halves, a rocker in its well, two screws, a sleeve where the
- * cord enters each end), over the top's back edge and down behind the cabinet to the boards.
+ * The flex and its switch. A grey cloth cord out of a grommet low in the base's back, across the top on the set's
+ * side, through a small inline rocker switch (a pale grey capsule in two halves with a fine seam, a rocker in its well
+ * with a dark mark, a sleeve where the cord enters each end), over the top's back edge and down behind the cabinet to
+ * the boards.
  */
 function flexAndSwitch(b: MeshBuilder, detail: number): void {
-  const fine = detail >= 0.8;
   const o = BULB.origin;
   const lie = o[1] + FLEX_RADIUS + 0.0002;
   /** The way the cord leaves the base: backwards and towards the set. */
@@ -448,8 +387,10 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
     y,
     middle[2] + run[2] * sign * reach,
   ];
+  // A cloth flex shows its weave, faintly.
   const braid: Tone = (point, ring, index) =>
-    tint(mottled(BRAID, point, 0.1, 0.01, 63), (ring + index) % 2 === 0 ? 1.16 : 0.8);
+    tint(mottled(FLEX, point, 0.08, 0.008, 63), (ring + index) % 2 === 0 ? 1.08 : 0.93);
+  const [exit, high] = [EXIT[0], o[1] + EXIT[1]];
   const steps = segments(4, detail, 2);
   const sides = segments(6, detail, 4);
   /** The top's back edge (cabinet.ts), where the cord goes over. */
@@ -457,10 +398,10 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
   /** A lying cord rests on the top: a spline through resting points dips under them where it starts to climb. */
   const rest = (path: Vec3[]): Vec3[] =>
     path.map((point): Vec3 => (point[0] < edge + FLEX_RADIUS && point[1] < lie ? [point[0], lie, point[2]] : point));
-  // The rubber grommet in the foot band, where the cord comes out.
+  // The rubber grommet in the base's back, where the cord comes out.
   b.cylinder(
-    from(0.0535, o[1] + 0.00705),
-    from(0.0574, o[1] + 0.0069),
+    from(exit - 0.002, high),
+    from(exit + 0.0022, high - 0.0002),
     0.0043,
     0.0039,
     segments(10, detail, 6),
@@ -472,9 +413,9 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
     b,
     spline(
       [
-        from(0.05, o[1] + 0.0072),
-        from(0.062, o[1] + 0.0066),
-        from(0.078, lie),
+        from(exit - 0.005, high),
+        from(exit + 0.007, high - 0.0008),
+        from(exit + 0.023, lie),
         [o[0] + 0.078, lie, o[2] + 0.077],
         end(-1, half + sleeve + 0.012, lie),
         end(-1, half + 0.002, o[1] + 0.0085),
@@ -528,7 +469,7 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
 
   // The switch, built along +x and turned to its run.
   b.placed(place(middle, Math.atan2(-run[2], run[0])), () => {
-    const bakelite: Tone = (point) => mottled(BAKELITE, point, 0.14, 0.012, 64);
+    const shell: Tone = (point) => mottled(SWITCH, point, 0.08, 0.012, 64);
     const [width, height, seam] = [0.0128, 0.0172, 0.0086];
     const count = segments(8, detail, 4);
     /** The body's outline at a height: two half circles joined by its straight sides, drawn in by `inset`. */
@@ -557,19 +498,19 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
       [height, 0.0036],
     ];
     const body = rows.map(([y, inset]) => outline(y, inset));
-    skin(b, body, bakelite, {
+    skin(b, body, shell, {
       facing: { from: centre },
-      shade: (_, ring) => (ring === 3 || ring === 4 ? 0.35 : 1),
+      shade: (_, ring) => (ring === 3 || ring === 4 ? 0.5 : 1),
     });
-    lid(b, body[body.length - 1] as Ring, 1, bakelite, { along: [0, 1, 0] });
+    lid(b, body[body.length - 1] as Ring, 1, shell, { along: [0, 1, 0] });
     // The rocker in its well: the well's floor, and the key, one end pressed home and the other standing up.
     const [keyHalf, keyWide] = [0.0085, 0.0058];
     b.box(
       [-keyHalf - 0.0008, height, -keyWide - 0.0008],
       [keyHalf + 0.0008, height + 0.0002, keyWide + 0.0008],
-      [0.012, 0.008, 0.006],
+      tint(SWITCH, 0.35),
     );
-    const key: Rgb = [0.03, 0.022, 0.018];
+    const key: Rgb = tint(SWITCH, 1.25);
     const section = (x: number, top: number): Ring => [
       [x, height + 0.0002, -keyWide],
       [x, height + 0.0002, keyWide],
@@ -588,30 +529,17 @@ function flexAndSwitch(b: MeshBuilder, detail: number): void {
           [0, 0.0003],
         ],
         6,
-        [0.5, 0.47, 0.4],
+        MARK,
       );
-    // Two screws through the upper half, and the sleeves the cord enters by.
+    // The sleeves the cord enters by.
     for (const sign of [-1, 1]) {
-      if (detail >= 0.55)
-        b.lathe(
-          [sign * 0.0205, height - 0.0002, 0],
-          [0, 1, 0],
-          [
-            [0.0026, 0],
-            [0.0024, 0.0005],
-            [0, 0.0005],
-          ],
-          fine ? 8 : 6,
-          [0.2, 0.19, 0.17],
-          0.9,
-        );
       b.cylinder(
         [sign * (half - 0.001), 0.0085, 0],
         [sign * (half + sleeve), 0.0085 - 0.0012, 0],
         0.0048,
         0.0036,
         segments(8, detail, 5),
-        [0.03, 0.018, 0.012],
+        tint(SWITCH, 0.8),
         0.9,
         false,
       );

@@ -79,15 +79,15 @@ test("the picture lights the bezel's lip and the room in its own colours, and ve
   const width = x1 - x0;
   const height = y1 - y0;
   const across = { x: x0 + width * 0.3, width: width * 0.4 };
-  // Above the picture's middle, going up: the tube's dark border just outside it (to 5.7 % of the picture's height on
-  // the generated set, the light fading as it goes), then the bezel's inner lip, a band 1.5 % tall that faces the
-  // picture (6–7.5 %), its outer step (to 10 %), and from there the flat front of the set, which the recessed picture
-  // cannot light. The lip is looked for row by row between the border and the front, so the set's shape can be
-  // tuned without moving this test's boxes.
+  // Above the picture's middle, going up: the tube's dark border just outside it (to 4.7 % of the picture's height on
+  // the generated set, the light fading as it goes), then the bezel's lip, a steep wall 1.4 % tall that faces the
+  // picture (4.8–6.2 %, brightest at its outer edge), and from there the flat front of the set, which the recessed
+  // picture cannot light. The lip is looked for row by row between the border and the front, so the set's shape can
+  // be tuned without moving this test's boxes.
   const border = { ...across, y: y0 - height * 0.03, height: height * 0.025 };
-  const rows = Array.from({ length: 26 }, (_, row) => ({
+  const rows = Array.from({ length: 32 }, (_, row) => ({
     ...across,
-    y: y0 - height * (0.058 + row * 0.002),
+    y: y0 - height * (0.046 + row * 0.002),
     height: 2,
   }));
   const front = { ...across, y: y0 - height * 0.16, height: height * 0.04 };
