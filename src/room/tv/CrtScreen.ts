@@ -97,7 +97,8 @@ export class CrtScreen {
       this.uniforms.uOsdOpacity.value = this.power === 'on' && surface.paused ? 1 : 0;
     };
 
-    this.pacer = new FramePacer(GAME_FRAME_INTERVAL_MS, () => loop.invalidate());
+    // The game's frames come as fast as the device draws them: their intervals measure it (stage/quality.ts).
+    this.pacer = new FramePacer(GAME_FRAME_INTERVAL_MS, () => loop.invalidate(true));
     this.unsubscribeFrame = surface.onFrame(() => {
       this.picture.needsUpdate = true;
       this.pacer.frame();

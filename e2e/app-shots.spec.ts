@@ -46,7 +46,7 @@ async function capture(browser: Browser, target: Target): Promise<void> {
   const held = new Promise<void>((resolveHeld) => {
     release = resolveHeld;
   });
-  await page.route('**/room/room.glb', async (route) => {
+  await page.route('**/room/room{,-1k}.glb', async (route) => {
     await held;
     await route.continue();
   });

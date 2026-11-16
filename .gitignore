@@ -10,3 +10,4 @@ playwright-report
 *.blend1
 __pycache__/
 .vercel
+.perf

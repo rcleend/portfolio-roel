@@ -48,6 +48,7 @@ export function useRoom(
           surface,
           mood: 'rose',
           air: { haze: 0.7, dust: 0.3 },
+          quality: fixedQuality(),
         });
       } catch (error) {
         fail(error);
@@ -67,4 +68,15 @@ export function useRoom(
   }, [container, overlayContainer, surface]);
 
   return status;
+}
+
+/**
+ * `?quality=high|medium|low` (development, or production with `?debug`) fixes the room's quality tier for
+ * measurements and screenshots; otherwise the room chooses and governs it (docs/ROOM.md › Quality).
+ */
+function fixedQuality(): 'high' | 'medium' | 'low' | 'auto' {
+  const query = new URLSearchParams(window.location.search);
+  const value = query.get('quality');
+  const allowed = import.meta.env.DEV || query.has('debug');
+  return allowed && (value === 'high' || value === 'medium' || value === 'low') ? value : 'auto';
 }

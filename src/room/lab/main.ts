@@ -9,7 +9,8 @@ import { MockRadioApp } from './MockRadioApp';
  * `?view=pc` or `?view=radio` flies to the computer or the radio after power-on; `?mockpc=1` puts
  * a test card on the computer's still and live screen; `?mockradio=1` hands the radio five numbered
  * discs and a fake player that answers it like the app (and prepares the radio once the room is
- * ready); `?posters=0` keeps the walls bare. `window.__roomLab` exposes the room, surface and mock radio to
+ * ready); `?posters=0` keeps the walls bare; `?quality=high|medium|low` fixes the quality tier (docs/ROOM.md ›
+ * Quality; otherwise the device's own, governed by its frame times). `window.__roomLab` exposes the room, surface and mock radio to
  * Playwright.
  */
 const params = new URLSearchParams(window.location.search);
@@ -20,6 +21,9 @@ const screens = document.getElementById('screens');
 const status = document.getElementById('status');
 if (!container || !screens || !status) throw new Error('room-lab.html is missing #stage, #screens or #status');
 
+const readQuality = (value: string | null) =>
+  value === 'high' || value === 'medium' || value === 'low' ? value : 'auto';
+
 const surface = new MockGameSurface();
 const room = createRoom({
   container,
@@ -27,6 +31,7 @@ const room = createRoom({
   surface,
   mood: readRoomMood(params.get('mood')),
   posters: params.get('posters') !== '0',
+  quality: readQuality(params.get('quality')),
   onProgress: (fraction) => {
     status.textContent = `loading ${Math.round(fraction * 100)}%`;
   },
@@ -49,6 +54,7 @@ const showStatus = (): void => {
     `radio texture ${stats.radioTexturePixels} px`,
     `posters ${stats.posters} ${stats.postersTexturePixels} px`,
     `dpr ${stats.pixelRatio.toFixed(2)}`,
+    `${stats.quality.tier} × ${stats.quality.scale}`,
   ].join(' · ');
 };
 room.onViewChange(showStatus);

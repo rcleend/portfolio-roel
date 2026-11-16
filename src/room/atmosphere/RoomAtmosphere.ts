@@ -20,6 +20,7 @@ import {
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+import type { TierSettings } from '../stage/quality';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import { AirMotion } from './AirMotion';
@@ -93,15 +94,20 @@ uniform float uSaturation;
 uniform float uBloom;
 uniform float uDiffusion;
 uniform float uVignette;
+uniform float uWideBloom;
 uniform vec3 uTvLamp;
 uniform vec3 uTvLampColor;
 varying vec2 vUv;
 ${WINDOW_RAIN}
 ${SCREEN_LIGHT}
 
+// A level of the highlights' mip chain, smoothed over five taps; one trilinear tap on the low tier (quality.ts), whose
+// fewer pixels hide the mip's coarser steps.
 vec3 blur(float level) {
+  vec3 centre = textureLod(uHighlights, vUv, level).rgb;
+  if (uWideBloom < 0.5) return centre;
   vec2 stepSize = uBloomTexel * exp2(level) * 0.65;
-  return textureLod(uHighlights, vUv, level).rgb * 0.2
+  return centre * 0.2
     + (textureLod(uHighlights, vUv + vec2(stepSize.x, stepSize.y), level).rgb
     + textureLod(uHighlights, vUv + vec2(-stepSize.x, stepSize.y), level).rgb
     + textureLod(uHighlights, vUv + vec2(stepSize.x, -stepSize.y), level).rgb
@@ -205,9 +211,10 @@ export class RoomAtmosphere {
     private readonly renderer: WebGLRenderer,
     loop: RenderLoop,
     visible: () => boolean,
+    tier: TierSettings,
   ) {
     const type = renderer.extensions.has('EXT_color_buffer_float') ? HalfFloatType : UnsignedByteType;
-    this.frame = new WebGLRenderTarget(1, 1, { type, samples: 2 });
+    this.frame = new WebGLRenderTarget(1, 1, { type, samples: tier.samples });
     this.frame.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
     this.dust = new RoomDust(this.frame.depthTexture, this.frame.texture);
     this.motion = new AirMotion(loop, () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView));
@@ -250,6 +257,7 @@ export class RoomAtmosphere {
         uBloom: { value: 0 },
         uDiffusion: { value: 0 },
         uVignette: { value: 0 },
+        uWideBloom: { value: tier.wideBloom ? 1 : 0 },
         ...this.screenLight,
         ...this.lamp,
       },
@@ -350,6 +358,15 @@ export class RoomAtmosphere {
   setAtTv(atTv: boolean): void {
     this.atTv = atTv;
     this.motion.sync();
+  }
+
+  /** The governor changed tier (stage/quality.ts): the scene's target is made again with the tier's samples. */
+  setTier(tier: TierSettings): void {
+    if (this.composite.uniforms.uWideBloom) this.composite.uniforms.uWideBloom.value = tier.wideBloom ? 1 : 0;
+    if (this.frame.samples === tier.samples) return;
+    this.frame.samples = tier.samples;
+    // The target's storage goes with it and is made again by the next frame, as on a resize.
+    this.frame.dispose();
   }
 
   syncMotion(): void {

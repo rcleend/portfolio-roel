@@ -1,6 +1,7 @@
 import { NoToneMapping, type Object3D, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
 import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
+import { pixelRatioFor, QUALITY_TIERS, type Quality, QualityGovernor, type QualityTier, startingTier } from './quality';
 import { RenderLoop } from './RenderLoop';
 import { isSoftwareGpu } from './softwareGpu';
 
@@ -12,6 +13,8 @@ export interface StageOptions {
   readonly maxDrawingBufferPixels?: number;
   readonly mood?: RoomMood;
   readonly air?: RoomAir;
+  /** A fixed tier, or `auto` (the default): chosen from the device and governed by its frame times. */
+  readonly quality?: QualityTier | 'auto';
 }
 
 export interface ViewportSize {
@@ -20,10 +23,6 @@ export interface ViewportSize {
   readonly height: number;
   readonly pixelRatio: number;
 }
-
-const DEFAULT_MAX_PIXEL_RATIO = 2;
-// 3 MP keeps the CRT's scanlines crisp on retina laptops while bounding fill cost on 4K.
-const DEFAULT_MAX_DRAWING_BUFFER_PIXELS = 3_000_000;
 
 /**
  * Owns the WebGL renderer, scene, camera and canvas, and draws only when its RenderLoop asks.
@@ -48,9 +47,17 @@ export class RoomStage {
   private atTv = true;
   private currentMood: RoomMood = 'original';
   private air: RoomAir = { haze: 1, dust: 1 };
+  private readonly governor: QualityGovernor;
+  private reading = false;
+  /** The governor has changed the quality and the stage has yet to take it up. */
+  private qualityDue = false;
 
   constructor(private readonly options: StageOptions) {
-    this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // A finish draws the room into its own multisampled target and only two triangles and the dust onto the canvas,
+    // whose own multisampling would be a second resolve of every frame for nothing; the unprocessed bake draws
+    // straight onto it.
+    const antialias = (options.mood ?? 'original') === 'original';
+    this.renderer = new WebGLRenderer({ antialias, powerPreference: 'high-performance' });
     // Baked room surfaces already contain Blender's display transform; tone mapping them
     // again would wash them out.
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -60,6 +67,18 @@ export class RoomStage {
     // second for the CD's shader under SwiftShader, which lacks KHR_parallel_shader_compile. Development still checks.
     this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.softwareGpu = isSoftwareGpu(this.renderer.getContext());
+    const fixed = options.quality && options.quality !== 'auto' ? options.quality : null;
+    const tier =
+      fixed ??
+      startingTier({
+        software: this.softwareGpu,
+        coarse: window.matchMedia('(pointer: coarse)').matches,
+        shortSide: Math.min(window.screen.width, window.screen.height),
+      });
+    // Not governed: a software renderer, whose frame times are the CPU's, which the page's own work moves more than
+    // the pixels do; and a browser under automation, whose clock is the test's (a paused clock stepped a frame at a
+    // time, a throttled CPU) and says nothing about the device.
+    this.governor = new QualityGovernor({ tier, scale: 1 }, fixed !== null || this.softwareGpu || navigator.webdriver);
 
     this.canvas = this.renderer.domElement;
     this.canvas.style.display = 'block';
@@ -95,6 +114,11 @@ export class RoomStage {
     return this.visibleOnPage && !document.hidden;
   }
 
+  /** The tier and scale frames are drawn at now (docs/ROOM.md › Quality). */
+  get quality(): Quality {
+    return this.governor.quality;
+  }
+
   get lightning(): number {
     return this.atmosphere?.lightning ?? 0;
   }
@@ -106,7 +130,12 @@ export class RoomStage {
   setMood(mood: RoomMood): void {
     if (mood === this.currentMood) return;
     this.currentMood = mood;
-    this.atmosphere ??= new RoomAtmosphere(this.renderer, this.loop, () => this.visible && !this.contextLost);
+    this.atmosphere ??= new RoomAtmosphere(
+      this.renderer,
+      this.loop,
+      () => this.visible && !this.contextLost && !this.airRests,
+      QUALITY_TIERS[this.quality.tier],
+    );
     this.atmosphere.attach(this.scene);
     this.atmosphere.setAir(this.air);
     this.atmosphere.setMood(mood);
@@ -117,6 +146,20 @@ export class RoomStage {
   setAtTv(atTv: boolean): void {
     this.atTv = atTv;
     this.atmosphere?.setAtTv(atTv);
+  }
+
+  /**
+   * The visitor sits at the computer's live screen. Below the top tier the room's air then rests: on a phone the
+   * screen covers the room, and drawing all of it twelve times a second for the dust beside a page being read is what
+   * warms the device.
+   */
+  setReading(reading: boolean): void {
+    this.reading = reading;
+    this.atmosphere?.syncMotion();
+  }
+
+  private get airRests(): boolean {
+    return this.reading && this.quality.tier !== 'high';
   }
 
   setAir(air: RoomAir): void {
@@ -165,11 +208,10 @@ export class RoomStage {
   private resize(): void {
     const width = Math.max(1, this.options.container.clientWidth);
     const height = Math.max(1, this.options.container.clientHeight);
-    const maxPixels = this.options.maxDrawingBufferPixels ?? DEFAULT_MAX_DRAWING_BUFFER_PIXELS;
     const pixelRatio = Math.min(
-      window.devicePixelRatio || 1,
-      this.options.maxPixelRatio ?? DEFAULT_MAX_PIXEL_RATIO,
-      Math.sqrt(maxPixels / (width * height)),
+      pixelRatioFor(this.quality, width, height, window.devicePixelRatio || 1),
+      this.options.maxPixelRatio ?? Number.POSITIVE_INFINITY,
+      Math.sqrt((this.options.maxDrawingBufferPixels ?? Number.POSITIVE_INFINITY) / (width * height)),
     );
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
@@ -180,11 +222,20 @@ export class RoomStage {
     this.loop.invalidate();
   }
 
-  private readonly draw = (): void => {
+  private readonly draw = (now: number): void => {
     if (this.contextLost) return;
     if (this.atmosphere) this.atmosphere.render(this.scene, this.camera);
     else this.renderer.render(this.scene, this.camera);
     for (const listener of this.renderListeners) listener();
+    // Judged after the frame, so a change of quality is drawn by the next one whole.
+    const interval = this.loop.runInterval;
+    if (interval !== null && this.governor.sample(interval, now)) this.qualityDue = true;
+    // A change is a resize, which a flight's frames have no room for: it waits for the camera to land.
+    if (!this.qualityDue || this.loop.animating) return;
+    this.qualityDue = false;
+    this.atmosphere?.setTier(QUALITY_TIERS[this.quality.tier]);
+    this.atmosphere?.syncMotion();
+    this.resize();
   };
 
   private readonly onVisibilityChange = (): void => {

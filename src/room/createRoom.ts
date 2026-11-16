@@ -16,6 +16,7 @@ import { RainSoundSlot } from './rain/RainSoundSlot';
 import type { PropSpotlight } from './spotlight/PropSpotlight';
 import { SpotlightDoor } from './spotlight/SpotlightDoor';
 import { spotlightKit } from './spotlight/spotlightKit';
+import { QUALITY_TIERS, type Quality, type QualityTier } from './stage/quality';
 import { RoomStage } from './stage/RoomStage';
 import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
@@ -37,10 +38,15 @@ export interface CreateRoomOptions {
   readonly onProgress?: (fraction: number) => void;
   /** Absolute URL of the folder holding the room assets; defaults to `<BASE_URL>room/`. */
   readonly assetBaseUrl?: string;
-  /** Upper bound for devicePixelRatio (default 2). */
+  /** A further upper bound for devicePixelRatio, under the quality tier's own (docs/ROOM.md › Quality). */
   readonly maxPixelRatio?: number;
-  /** Upper bound for drawing-buffer pixels (default 3 000 000). */
+  /** A further upper bound for drawing-buffer pixels, under the quality tier's own. */
   readonly maxDrawingBufferPixels?: number;
+  /**
+   * How much the room draws: `auto` (the default) starts on the tier the device suggests and follows its measured
+   * frame times; a tier fixes it (the lab, screenshots, tests).
+   */
+  readonly quality?: QualityTier | 'auto';
   /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
   readonly posters?: boolean;
   /** Optional night-time finish; original keeps the unprocessed bake for comparison. */
@@ -123,6 +129,8 @@ export interface RoomStats {
   readonly drawCalls: number;
   readonly triangles: number;
   readonly pixelRatio: number;
+  /** The tier and scale frames are drawn at (docs/ROOM.md › Quality). */
+  readonly quality: Quality;
   /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
   readonly programs: number;
   /** Pixels of the monitor's texture (0 in standby before the first paint). */
@@ -230,12 +238,16 @@ export function createRoom(options: CreateRoomOptions): Room {
   views.onChange((view) => {
     rain.setView(view);
     stage.setAtTv(view === 'tv');
+    stage.setReading(false);
   });
+  views.onSettle((view) => stage.setReading(view === 'pc'));
   // Only a camera resting in the room view lights a prop.
   views.onChange(() => spotlight.setOpen(false));
   views.onSettle((view) => spotlight.setOpen(view === 'room'));
 
-  const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {})).then((assets) => {
+  // Decided with the starting tier, before anything is uploaded: a tier the governor drops to later keeps its atlases.
+  const smallAtlases = QUALITY_TIERS[stage.quality.tier].smallAtlases;
+  const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {}), { smallAtlases }).then((assets) => {
     if (disposed) return;
     scene = assembleRoom({
       stage,
@@ -378,6 +390,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         drawCalls: calls,
         triangles,
         pixelRatio: stage.size.pixelRatio,
+        quality: stage.quality,
         programs: renderer.info.programs?.length ?? 0,
         pcTexturePixels: scene?.monitor.texturePixels ?? 0,
         backgroundPending: scene?.background.pending ?? false,
