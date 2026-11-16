@@ -132,7 +132,7 @@ export const basket: Prop = {
       [-2.3, -0.75, 16],
       [-1.95, -0.6, 17],
     ] as const)
-      b.blob([x, 0.042, z], 0.042, 10, 0.22, i, paper);
+      b.blob([x, 0.05, z], 0.042, 10, 0.22, i, paper);
     // Four printed sheets lying on the boards (room.glb › 02_Desk_surfaces), a chart each so the blind's stripes cross them.
     for (const [x, z] of [
       [-2.41, -0.97],

@@ -1,7 +1,7 @@
 import { place, type Rgb, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
-import { GROUP, PAGE, type Prop } from './types';
+import { FLOOR, GROUP, PAGE, type Prop } from './types';
 
 /** The room: 5.6 m × 4.8 m, 3.28 m high on the left, sloping from x = 0.95 down to a 1.88 m knee wall on the right. */
 const ROOM = { x0: -2.8, x1: 2.8, z0: -2.405, z1: 2.4, height: 3.28, ridge: 0.95, knee: 1.88 };
@@ -32,9 +32,6 @@ const trim = (density = 160): Omit<Chart, 'origin' | 'u' | 'v'> => ({
   density,
   shade: 1,
 });
-
-/** The boards' top: 6 mm, where the shipped floor's is and where everything that stands on it was measured to stand. */
-export const FLOOR = 0.006;
 
 /** The oak floor: one chart, 5.6 m × 4.8 m, with a page to itself. Its boards are a surface function. */
 export const floor: Prop = {

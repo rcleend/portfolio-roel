@@ -2,13 +2,18 @@ import { DESK_PRINTS } from '../deskArt';
 import type { Vec3 } from '../kit/builder';
 import { face, lerp, segments, slab, type Tone, tint, turned } from './form';
 import { aged, IVORY, REAR, RECESS } from './monitor';
-import type { PropSink } from './types';
+import { FLOOR, type PropSink } from './types';
 
 /** The tower's face: the plane its bezel's front lies in, and its middle. */
 const FACE = -1.741;
 const X = -1.95;
+/**
+ * The shipped tower hung 19 mm over the boards (its feet's soles at y = 0.0246): this one stands on them, so every
+ * height measured off the shipped one comes down by that much.
+ */
+const DROP = 0.0246 - FLOOR;
 /** A point of the tower's front: across from its middle, up from the floor, and out from the bezel's face. */
-const at = (across: number, up: number, out: number): Vec3 => [X + across, up, FACE + out];
+const at = (across: number, up: number, out: number): Vec3 => [X + across, up - DROP, FACE + out];
 
 /**
  * The tower under the desk (the shipped one's measurements, room.glb › 02_Desk_surfaces): a steel case behind a
@@ -23,12 +28,12 @@ export function tower(sink: PropSink): void {
   const corner = segments(3, detail, 2);
   const fine = detail >= 0.8;
   // The case, its sides cut for the light under the desk, and the bezel standing a little proud all round.
-  slab(b, [-2.06, 0.0356, -2.19], [-1.84, 0.5857, -1.772], 2, 0.006, steel, {
+  slab(b, [-2.06, 0.0356 - DROP, -2.19], [-1.84, 0.5857 - DROP, -1.772], 2, 0.006, steel, {
     corner,
     cuts: [fine ? 3 : 2, fine ? 6 : 3, fine ? 5 : 3],
     open: 1,
   });
-  slab(b, [-2.063, 0.0306, -1.779], [-1.837, 0.5906, FACE], 2, 0.011, moulded, {
+  slab(b, [-2.063, 0.0306 - DROP, -1.779], [-1.837, 0.5906 - DROP, FACE], 2, 0.011, moulded, {
     corner: segments(4, detail, 2),
     cuts: [fine ? 4 : 2, fine ? 8 : 4, 1],
     ease: 0.007,
@@ -36,8 +41,8 @@ export function tower(sink: PropSink): void {
   for (const x of [-2.03, -1.87])
     for (const z of [-2.13, -1.83])
       b.roundedBox(
-        [x - 0.0175, 0.0246, z - 0.0225],
-        [x + 0.0175, 0.0426, z + 0.0225],
+        [x - 0.0175, FLOOR, z - 0.0225],
+        [x + 0.0175, 0.0426 - DROP, z + 0.0225],
         0.004,
         tint(RECESS, 0.5),
         0.5,
