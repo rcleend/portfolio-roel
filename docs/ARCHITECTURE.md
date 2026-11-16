@@ -337,6 +337,7 @@ interface SessionState {
 
 A vanilla three.js stage that loads the attic room exported from Blender (`public/room/`), shows a `GameSurface` on the TV through a CRT `ShaderMaterial`, owns the computer's monitor and the CD player as devices, and owns the camera rig:
 
+- `gen/` is the room generated in code, behind `createRoom({ generated: true })` (`?room=generated`; docs/ROOM.md › The generated room): prop generators that run in a worker, surface functions, a light rig as a table and a one-time GPU bake, loaded as a lazy chunk that reaches three.js only through `genKit.ts`. It replaces shipped meshes one stage at a time; the finish, the camera and every interaction are unchanged.
 - `tv` viewpoint: straight-on, framing the whole TV (bezel, controls, power button) plus a margin of lit surroundings; computed from the TV's bounding box and the viewport aspect.
 - `room` viewpoint: the whole room.
 - `pc` viewpoint: dead straight in front of the monitor (zero pitch and yaw), the glass and its bezel filling the viewport, reached on a crane path over the chair.

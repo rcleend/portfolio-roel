@@ -9,8 +9,8 @@ import { GROUP, PAGE, type Prop, type PropSink } from './types';
  * shelves on the right, on a low plinth. Cream enamel; every face is a chart, so the set's contact shadow, the lamp's
  * pool and the dark of the shelves are baked into it.
  */
-const ENAMEL: Rgb = [0.52, 0.45, 0.42];
-const INSIDE: Rgb = [0.44, 0.38, 0.35];
+const ENAMEL: Rgb = [0.4, 0.345, 0.33];
+const INSIDE: Rgb = [0.34, 0.29, 0.275];
 const DENSITY = 420;
 
 const X = { front: 2.132, back: 2.676 };

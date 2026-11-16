@@ -463,6 +463,58 @@ over so the GPU's time stands clear of its timer's noise), and so what was and w
   process. Nothing tried makes it cheaper there (a CPU canvas makes it 10 ms; `getImageData` saves a third in WebKit
   and costs Chromium 86 ms), so it stays as it is.
 
+## The generated room
+
+`?room=generated` (`createRoom({ generated: true })`; the lab takes the same query) replaces the opening view's shipped
+models and textures with ones made in the browser: the TV set, its cabinet and the three game cases, the opal lamp, the
+toy robot, the plant, the oak floor and the knee wall behind the set (`src/room/gen/`). It is a hidden flag while the
+room is converted stage by stage. Without it nothing of it is fetched: the room's chunk carries only the option, a slot
+and the kit (0.6 kB gzip, `bundle-budgets.json`). No shipped file is removed yet; the rest of the room, and the set's
+glass (its screen contract, § Original TV geometry contract), still come from the GLBs.
+
+- **Geometry** is code: each prop is a function that adds placed primitives (lofted rounded rings, bevelled boxes,
+  lathes, cylinders) to a builder (`gen/kit/builder.ts`, `gen/props/`). `gen/scene.ts` runs them all, in a worker
+  (`gen/worker.ts`; on the main thread where a worker cannot be had), and hands back flat arrays: about 20 ms for the
+  9,650 triangles of this stage. Every prop declares a triangle budget that `gen.test.ts` holds it to. Flat surfaces
+  (the cabinet's faces, the floor, the wall, the printed covers) are *charts*: rectangles packed into texture pages at
+  their own texel density (`gen/kit/charts.ts`), so nothing is unwrapped.
+- **Surfaces** are functions (`gen/materials.ts`): oak boards, enamel, painted beadboard, evaluated once per texel by
+  the bake. Their noise is integer hashes (`gen/kit/hash.ts`), exact in GLSL ES 3.0 and in JavaScript, so every GPU
+  draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the robot's chest) are
+  painted on one 2D canvas (`gen/artPaint.ts`), and painted again when a GPU reset blanks it (§ Lost canvases).
+- **Light** is a table (`gen/rig.ts`): the Blender rig's colours, places read off the room, an ambient dome that only
+  furniture shadows, and one light standing for the floor's bounce. `gen/bake/Baker.ts` renders each light once from
+  several points of its emitter (118 views on the top tiers, 60 on the lowest), each through a shadow map of the
+  room's real geometry, and adds it to the charts' light pages and to a page holding one texel per prop vertex: soft
+  shadows by accumulation, which a frame could never afford and a load can. It then composes surface × light under a
+  filmic curve into the pages the charts draw with, and reads the vertices' colours back. Without half-float render
+  targets it accumulates in eight bits.
+- **The finish's static lights are in the bake.** The opal lamp, the robot's eyes and the lamps' warm pools never
+  change, so the generated surfaces carry them, in the finish's own terms and with real shadows, and their materials
+  define `GENERATED`, which leaves those terms out of the per-frame surface shader (`RoomGloss`). What still runs every
+  frame on them is what changes: the TV's light, the storm, the varnish. The bake reads the mood once; a mood changed
+  afterwards (the lab) keeps the pools and lamp it was baked with.
+- **A frame is what it was**: unlit materials named as the shipped ones (so their varnish and sheen apply), one map or
+  vertex colours, the existing finish. The opening view draws 21 k triangles in 22 calls instead of 73 k in 30.
+- **Pacing.** A bake unit is a few views, as many as the GPU has been seen to finish in 4 ms. IdleWork decides when the
+  main thread runs one; the next is not queued until a fence says the GPU has the last one behind it, so frames always
+  go in between. A view that takes the GPU over 5 ms sends the rest of the bake to quiet moments (a paused game, the
+  room view): on such a device the shipped pieces stay until then rather than the game stutter. The bake's programs
+  and the display materials' link without blocking where the GPU allows it. Until the swap, and after a lost context
+  until the bake has run again, the shipped pieces are what is drawn; once swapped, the atlases only they used are freed.
+- **Tiers** (`gen/tiers.ts`, read once from the starting tier): `high` packs charts at full density into pages up to
+  2048² (43 MB with mips, against 57 MB of shipped atlases retired) and bakes light at half the pages' size; `medium`
+  and `low` use half the density in 1024² pages (11 MB, against 41 MB retired); `low` also halves the shadow map and the
+  samples. The bake's own targets peak at 24 MB and are freed when it ends.
+- **Sixty frames a second.** While the generated room is on screen it asks for a frame sixty times a second in every
+  view, as a run the quality governor judges (§ Quality), whether or not anything moves. The shipped room keeps
+  drawing on demand.
+- **The startup still** is drawn, not fetched: index.html swaps the `<picture>` for three CSS boxes (the casing, the
+  lip, the cabinet's top) around the same `--picture-*` lengths. It is a schematic of the set; the room fades in over it.
+- **Reading it.** `room.stats.generated` is `off`, `loading`, `ready` or `failed`; `generatedStats` has where the
+  geometry was built, the views baked, the bake's main-thread and wall time, the longest view on the GPU and whether
+  the bake was deferred. `e2e/generated-room.spec.ts` covers both sides of the flag.
+
 ## Atmosphere
 
 The production app fixes **Velvet dusk** (`rose`) at **70% haze and 30% dust**, passed to `createRoom` together so the

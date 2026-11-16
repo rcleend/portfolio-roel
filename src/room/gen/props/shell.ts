@@ -33,7 +33,7 @@ export const kneeWall: Prop = {
       page: PAGE.corner,
       group: GROUP.wall,
       material: MATERIAL.wallPaint,
-      params: [0.11, 0.135, 0.185, 0],
+      params: [0.1, 0.125, 0.175, 0],
       density: 220,
       shade: 1,
       origin: [2.8, 0, -2.4],

@@ -61,7 +61,7 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     // Beadboard: a narrow groove every 9.5 cm, a soft dark line with a lit edge beside it.
     float board = fract(metres.x / 0.095);
     float groove = smoothstep(0.0, 0.022, board) * smoothstep(0.0, 0.022, 1.0 - board);
-    cavity = mix(0.62, 1.0, groove);
+    cavity = mix(0.76, 1.0, groove);
     return params.rgb * (0.93 + 0.05 * stipple + 0.12 * slow) * (1.0 + 0.05 * smoothstep(0.022, 0.05, board) * (1.0 - smoothstep(0.05, 0.12, board)));
   }
   if (material < 3.5) {
