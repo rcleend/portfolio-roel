@@ -15,14 +15,14 @@ const BISCUIT: Rgb = [0.36, 0.2, 0.08];
 export function deskThings(sink: PropSink): void {
   const b = sink.mesh('desk');
   const { detail } = sink;
-  // The mat under the mouse: foam under blue cloth, its corners rounded.
+  // The mat under the mouse: foam under petrol cloth (the chair's blue, a step darker), its corners rounded.
   slab(
     b,
     [-1, DESK_TOP, -1.685],
     [-0.82, DESK_TOP + 0.0056, -1.465],
     1,
     0.012,
-    (p) => mottled([0.03, 0.085, 0.17], p, 0.1, 0.04, 71),
+    (p) => mottled([0.035, 0.078, 0.12], p, 0.1, 0.04, 71),
     {
       corner: segments(4, detail, 2),
       cuts: [3, 1, 3],

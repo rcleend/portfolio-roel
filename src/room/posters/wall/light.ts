@@ -15,7 +15,7 @@ export type Rgb = readonly [number, number, number];
 const FILL_RIGHT: Rgb = [0.47, 0.42, 0.39];
 const FILL_LEFT: Rgb = [0.25, 0.3, 0.4];
 /** The slope's fill at the ridge; it falls to SLOPE_FOOT of that at the knee wall. */
-const FILL_SLOPE: Rgb = [0.34, 0.29, 0.25];
+const FILL_SLOPE: Rgb = [0.31, 0.265, 0.23];
 const SLOPE_FOOT = 0.72;
 const SLOPE_LENGTH = 2.32;
 /** The lava lamp on the radio's shelf: where its glow is, how far it reaches and what it adds. */

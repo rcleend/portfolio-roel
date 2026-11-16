@@ -314,7 +314,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.4, 1.9, -1.35],
     target: [-1.38, 0.8, -1.37],
-    color: [1.1, 0.86, 0.6],
+    color: [0.95, 0.74, 0.52],
     size: 0.25,
     samples: [3, 2],
     cone: [0.2, 0.42],
