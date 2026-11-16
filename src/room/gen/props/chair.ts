@@ -22,7 +22,7 @@ const CLOTH: Rgb = [0.062, 0.15, 0.285];
 const NYLON: Rgb = [0.022, 0.024, 0.03];
 const STEEL: Rgb = [0.3, 0.31, 0.33];
 
-/** Where the seat's middle stands, and how the chair is turned (room.glb › 02_Desk_surfaces: 10.3° off the desk). */
+/** Where the seat's middle stands, and how the chair is turned (10.3° off the desk). */
 const SEAT: Vec3 = [-1.2846, 0, -1.0034];
 const YAW = -0.1798;
 /** The column's axis, behind the seat's middle; the seat's underside and top; the casters' circle. */

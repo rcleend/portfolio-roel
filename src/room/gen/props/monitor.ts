@@ -3,7 +3,7 @@ import type { Facing, MeshBuilder, Rgb, Ring, Vec3 } from '../kit/builder';
 import { eased, face, lerp, lid, mix, mottled, outline, segments, skin, srgb, type Tone, tint, turned } from './form';
 import type { PropSink } from './types';
 
-/** The desktop set's mouldings (tools/room/desktop.py › apply_desktop): aged ivory ABS, a warmer rear, a recess grey. */
+/** The desktop set's mouldings: aged ivory ABS, a warmer rear, a recess grey. */
 export const IVORY: Rgb = srgb('d0c8b4');
 export const REAR: Rgb = srgb('b6ac94');
 export const RECESS: Rgb = srgb('777265');
@@ -29,7 +29,7 @@ const GLASS = 1.071;
 const at = (across: number, up: number, back: number): Vec3 => [X + across, up, FACE - back];
 
 /**
- * The CRT monitor (the shipped one's measurements, tools/room/desktop.py › _monitor): a thick bezel plate with a
+ * The CRT monitor (the shipped one's measurements): a thick bezel plate with a
  * rounded rim and a deep eased recess down to the glass, a seam, the shell stepping in and tapering back to the tube's
  * neck, a louvred skirt under it on a tilt cradle and a swivel foot, and under the chin a shelf with six adjusters and
  * the power key. It faces +z; its glass keeps the shipped screen's contract (the aperture is 0.356 m × 0.284 m).

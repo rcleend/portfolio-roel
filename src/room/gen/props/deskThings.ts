@@ -9,7 +9,7 @@ const STONEWARE: Rgb = [0.55, 0.54, 0.5];
 const BISCUIT: Rgb = [0.36, 0.2, 0.08];
 
 /**
- * What lies on the desk (room.glb › 02_Desk_surfaces, each where the shipped room has it): the mouse's mat, a sheet
+ * What lies on the desk (each where the shipped room had it): the mouse's mat, a sheet
  * of paper, a mug of coffee with its handle, a cup of pencils behind the books, and a plate of three biscuits.
  */
 export function deskThings(sink: PropSink): void {

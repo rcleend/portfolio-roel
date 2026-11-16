@@ -1,6 +1,7 @@
 # Placeholder albums (authoring)
 
-The CD player's five placeholder albums are made here, by code, and the results are committed under `src/content/radio/albums/`.
+Placeholder albums for the CD player are made here, by code: five original albums that stood on the shelf until Roel's own songs replaced them (docs/RADIO.md › The shelf), kept so a shelf can be filled again without anyone's music.
+The script writes into `src/content/radio/albums/`; an album also needs its entry in `albums.ts`.
 Nothing in this folder runs in the site or in `pnpm build`.
 Everything is original: music composed for this site in the game's own tracker, and seeded generative art with no text, logos or marks.
 To put your own albums on the shelf instead, see docs/RADIO.md › Your own albums.
@@ -12,7 +13,7 @@ pnpm build:radio-placeholders --covers-only        # just the art
 pnpm verify:radio                                  # then check the shelf; paste any lengths it prints
 ```
 
-Needs macOS for the audio (Apple's `afconvert`, an authoring tool like Blender; no ffmpeg needed) and the repository's Playwright Chromium.
+Needs macOS for the audio (Apple's `afconvert`, an authoring-only tool; no ffmpeg needed) and the repository's Playwright Chromium.
 A full run takes about two minutes.
 
 ## Music (`songs/`)

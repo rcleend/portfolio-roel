@@ -33,7 +33,7 @@ src/game/art/looks/<lookId>/
 - Every piece is its own folder with an `index.ts`; the game finds it by its path, so adding a piece never edits a shared file. A folder with art but no `index.ts` fails the tests.
 - A look may cover only some pieces: the selection offers only what exists.
 - Generators, prompts and processing scripts live in `tools/looks/<lookId>/` (see *Making the art*); only their outputs are loaded.
-- The game loads no PNG: once a sheet's PNG is written, `pnpm build:art` turns it into `sheet.art.ts` beside it, the same pixels as a string in code, and removes the PNG (docs/ARCHITECTURE.md › Art in code). Wherever this document says `sheet.png`, the repository holds `sheet.art.ts`; `pnpm build:art --export <dir>` writes the PNGs back out to look at or edit. A generator's `--check` against committed PNG bytes has nothing to compare any more: `src/game/art/art-digests.json` holds each sheet's pixels instead.
+- The game loads no PNG: once a sheet's PNG is written, `pnpm build:art` turns it into `sheet.art.ts` beside it, the same pixels as a string in code, and removes the PNG (docs/ARCHITECTURE.md › Art in code). Wherever this document says `sheet.png`, the repository holds `sheet.art.ts`; `pnpm build:art --export <dir>` writes the PNGs back out to look at or edit. A generator's `--check` compares its JSON always and its pixels once the PNGs are exported in place (`pnpm build:art --export src/game`; tools/art/README.md › Art modules); `src/game/art/art-digests.json` holds each committed module to its pixels.
 
 ## Sheets: PNG + JSON
 
@@ -179,7 +179,7 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 ```
 
 - `?scene=specimen&params={"page":1}` shows every hero animation, `{"page":2}` the customer and the icons.
-- `tools/looks/placeholder/generate.py` writes a 64 × 64 hero and customer, a 24 × 24 icon and an attack strip in this format. They are not a look: copy them into a look folder with an `index.ts` to try a layout, and never commit that.
+- `tools/looks/placeholder/generate.py` writes a 64 × 64 hero and customer, a 24 × 24 icon and an attack strip in this format. They are not a look: copy them into a look folder with an `index.ts` and run `pnpm build:art` to try a layout, and never commit that.
 
 ## The Terraria look
 
@@ -189,7 +189,7 @@ pnpm shot --scene showcase --params '{"demo":"customer","levelId":"luna"}' --loo
 - `idle` stands still and blinks, as Terraria's player does; `run` is Terraria's 13-frame walk (its leg-sheet frames 7–19, the arm cell it pairs with each, the bob on the first three frames of each stride) at 30 fps; `jump` and `fall` are its one airborne frame, legs split, the near fist folded up behind the head and the far hand peeking out ahead of the face (falling, it sinks a pixel); `hurt` throws the arms open and the body back, then curls into that frame; `victory` raises a fist, the only pose besides the skills with one above the head, and hops, leaving the ground fast and hanging at the top.
 - Props exist only while used, in `attack` and the skill poses alone. The ENGINEER types two-handed on a keyboard and slams Enter for his skill, the keyboard winking into being under his raised fists. The DESIGNER strums a white Stratocaster held along one diagonal, outlined dark so his trousers and back leg show around it, pumping his arm the way Terraria's guitars do; his `skill` crashes a power chord (POWER CHORD), and `skill-ux-elixir` drinks a pink potion the way Terraria drinks one, the guitar put away and the potion lifted to his lips in the far hand, so nothing else is in front of his face. The STRATEGIST throws empty-handed in Terraria's swing order, arm up, over, out and down, as Terraria hides a thrown item, and raises both hands for his skills, a star glinting over the front one. An attack's first frame is the shot leaving, with its `muzzle` there; a skill's first frame is its cast, with `hand` (the prop or the hand) and `mouth` anchors on every frame.
 - The head is the same pixels in every frame of every hero: only the eye changes, to blink or to wince, and in the revision the hair's loose ends.
-- `python3 tools/looks/terraria/review.py` writes GIFs and strips of every animation, and the same held still on the head; `python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria` checks that the committed sheets are what the generator writes, crisp, standing on the feet line, with one head, each frame one figure, and no attack or skill frame held. The generator writes every hero in layers too (`pose.strokes(layer=...)`): legs rows for the moves and upper-body rows for the attack and skill poses, which its tests hold to compose back into the whole frames.
+- `python3 tools/looks/terraria/review.py` writes GIFs and strips of every animation, and the same held still on the head (it reads the sheets' PNGs, so export them first); `python3 -m unittest discover -s tools/looks/terraria -t tools/looks/terraria` checks that the sheets are what the generator writes (their JSON always; their pixels, and the pixel tests that follow, once the PNGs are exported), crisp, standing on the feet line, with one head, each frame one figure, and no attack or skill frame held. The generator writes every hero in layers too (`pose.strokes(layer=...)`): legs rows for the moves and upper-body rows for the attack and skill poses, which its tests hold to compose back into the whole frames.
 
 ### Its revision: `terraria-revised` and `terraria-hooded`
 
@@ -238,6 +238,6 @@ His phone antenna tops out 32 px over his feet, two over classic's head, so the 
 
 Any technique is fine; commit the recipe.
 
-- **Hand-placed or procedural**: commit the generator under `tools/looks/<lookId>/` (TypeScript or Python with Pillow), writing the PNG + JSON deterministically.
+- **Hand-placed or procedural**: commit the generator under `tools/looks/<lookId>/` (TypeScript or Python with Pillow), writing the PNG + JSON deterministically; `pnpm build:art` then turns the PNG into the committed art module.
 - **Image generation**: follow `tools/art/README.md` and `tools/art/prompts/*.md`. Keep raw sources out of the repository, commit the exact prompts as `tools/art/prompts/looks-<lookId>.md` and the processing script (crop → area downsample → quantise → outline → align on the feet line → pack). Generated frames always need a cleanup pass to native-pixel quality: keep the head pixel-identical across frames so the likeness never wobbles, fix stray pixels, unify palettes and register the feet.
 - The bar is hand-placed-looking pixel art at native 320 × 240: one art pixel is one screen pixel, no anti-aliasing, no semi-transparent pixels, no text baked into sprites beyond tiny deliberate glyphs.

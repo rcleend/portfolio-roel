@@ -24,6 +24,12 @@ LOOPING = {"idle", "run", "walk", "victory"}
 ONCE = {"attack", "skill", "hurt"}
 MAX_COLOURS = 52
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(LOOK.rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def load(png: Path) -> Tuple[Image.Image, dict]:
     with Image.open(png) as image:
@@ -71,6 +77,7 @@ class SheetContract(unittest.TestCase):
                     self.assertTrue(0 <= x < frame[0] and 0 <= y < frame[1], f"{name}:{a['name']}.{key} {x},{y}")
         return meta
 
+    @NEEDS_PNGS
     def test_hero_sheets(self) -> None:
         for hero in HEROES:
             meta = self.check_sheet(LOOK / "characters" / hero / "sheet.png", HERO_ANIMS, (64, 64), (32, 64))
@@ -86,12 +93,14 @@ class SheetContract(unittest.TestCase):
                 # UX ELIXIR's potion meets his lips (PHASE-B-NOTES: mouth anchor).
                 self.assertIn("mouth", by_name["skill"]["anchors"])
 
+    @NEEDS_PNGS
     def test_customer_sheet(self) -> None:
         meta = self.check_sheet(LOOK / "customer" / "sheet.png", CUSTOMER_ANIMS, (64, 64), (32, 64))
         by_name = {a["name"]: a for a in meta["animations"]}
         self.assertTrue(by_name["walk"]["loop"])
         self.assertTrue(by_name["happy"]["loop"], "happy plays while he strolls off")
 
+    @NEEDS_PNGS
     def test_attack_sheets(self) -> None:
         for hero in HEROES:
             meta = self.check_sheet(LOOK / "characters" / hero / "attack.png", [], (32, 24), (16, 12))
@@ -99,6 +108,7 @@ class SheetContract(unittest.TestCase):
             for required in ("projectile", "impact", "muzzle"):
                 self.assertIn(required, names, hero)
 
+    @NEEDS_PNGS
     def test_standing_height_and_feet(self) -> None:
         sheets = [(h, LOOK / "characters" / h / "sheet.png", "idle") for h in HEROES]
         sheets.append(("customer", LOOK / "customer" / "sheet.png", "walk"))
@@ -115,7 +125,8 @@ class SheetContract(unittest.TestCase):
 
     def test_outputs_are_current(self) -> None:
         result = subprocess.run([sys.executable, str(HERE / "build.py"), "--check"], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        # Without the PNGs the generator checks the JSON alone and says so with exit code 2.
+        self.assertEqual(result.returncode, 0 if EXPORTED else 2, result.stderr)
 
 
 class HeadKit(unittest.TestCase):

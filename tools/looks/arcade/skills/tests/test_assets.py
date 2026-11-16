@@ -16,6 +16,12 @@ from .helpers import ASSETS
 
 MAX_COLORS = 48
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(ASSETS.rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def _sheets() -> Iterator[Tuple[str, Path, dict, Image.Image]]:
     for skill_id in SKILLS:
@@ -33,7 +39,10 @@ class AssetContractTest(unittest.TestCase):
             self.assertTrue(any(name.startswith("fx-") for name in names), f"{skill_id} has no effect strips")
             for name in names:
                 self.assertTrue(name == "icon" or name.startswith("fx-"), f"{skill_id}/{name} is not icon or fx-*")
-                self.assertTrue((ASSETS / skill_id / f"{name}.png").exists(), f"{skill_id}/{name}.png is missing")
+                if EXPORTED:
+                    self.assertTrue((ASSETS / skill_id / f"{name}.png").exists(), f"{skill_id}/{name}.png is missing")
+                else:
+                    self.assertTrue((ASSETS / skill_id / f"{name}.art.ts").exists(), f"{skill_id}/{name}.art.ts is missing")
 
     def test_icons_are_24px_with_one_idle_loop(self) -> None:
         for skill_id in SKILLS:
@@ -43,6 +52,7 @@ class AssetContractTest(unittest.TestCase):
             self.assertEqual([a["name"] for a in manifest["animations"]], ["idle"], skill_id)
             self.assertTrue(manifest["animations"][0]["loop"], skill_id)
 
+    @NEEDS_PNGS
     def test_manifests_are_well_formed(self) -> None:
         for skill_id, path, manifest, _ in _sheets():
             where = f"{skill_id}/{path.name}"
@@ -60,6 +70,7 @@ class AssetContractTest(unittest.TestCase):
                     for x, y in points:
                         self.assertTrue(0 <= x < w and 0 <= y < h, f"{where}: anchor {anchor} outside the frame")
 
+    @NEEDS_PNGS
     def test_calm_twins_match_their_animation(self) -> None:
         for skill_id, path, manifest, _ in _sheets():
             animations: Dict[str, dict] = {a["name"]: a for a in manifest["animations"]}
@@ -70,6 +81,7 @@ class AssetContractTest(unittest.TestCase):
                     for key in ("fps", "loop", "frames"):
                         self.assertEqual(animation[key], original[key], f"{skill_id}/{path.name}: {name}.{key}")
 
+    @NEEDS_PNGS
     def test_pngs_follow_the_sheet_layout(self) -> None:
         for skill_id, path, manifest, image in _sheets():
             where = f"{skill_id}/{path.name}"

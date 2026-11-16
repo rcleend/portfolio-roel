@@ -1,4 +1,4 @@
-"""Validates the committed level art against the layers.json contract."""
+"""Validates the level art against the layers.json contract: the manifests always, the pixels once exported."""
 
 from __future__ import annotations
 
@@ -16,6 +16,12 @@ from drawn.tileset import GRID, TILE  # noqa: E402
 LEVELS = ("luna", "scripe")
 REQUIRED_LAYERS = ("sky", "far", "mid", "near")
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any((REPO_ROOT / "src/game/levels").rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def _manifest(level: str) -> Dict[str, Any]:
     return json.loads((REPO_ROOT / "src/game/levels" / level / "art/layers.json").read_text())
@@ -27,6 +33,7 @@ def _image(level: str, name: str) -> Image.Image:
 
 
 class LevelArtTest(unittest.TestCase):
+    @NEEDS_PNGS
     def test_manifest_matches_files(self) -> None:
         for level in LEVELS:
             m = _manifest(level)
@@ -54,6 +61,7 @@ class LevelArtTest(unittest.TestCase):
                 if layer["repeatX"]:
                     self.assertGreaterEqual(layer["width"], 480, f"{level}/{layer['id']}")
 
+    @NEEDS_PNGS
     def test_pixels_are_crisp(self) -> None:
         for level in LEVELS:
             m = _manifest(level)
@@ -65,6 +73,7 @@ class LevelArtTest(unittest.TestCase):
                 colours = {px[:3] for px in image.getdata() if px[3]}
                 self.assertLessEqual(len(colours), 64, f"{level}/{name} palette too large")
 
+    @NEEDS_PNGS
     def test_tileset_grid(self) -> None:
         for level in LEVELS:
             m = _manifest(level)
@@ -74,6 +83,7 @@ class LevelArtTest(unittest.TestCase):
             for name in ("ground_top", "ground_fill", "ground_base", "platform_mid", "block_highlight", "block_used"):
                 self.assertIn(name, tiles)
 
+    @NEEDS_PNGS
     def test_ground_tiles_join_seamlessly(self) -> None:
         """Every tile in a run family must share its silhouette on both sides,
         and the solid ground rows must have no transparent pixel at all."""

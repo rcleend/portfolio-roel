@@ -12,7 +12,7 @@ const CAST: Rgb = [0.21, 0.215, 0.235];
 const ZINC: Rgb = [0.34, 0.34, 0.35];
 const RUBBER: Rgb = [0.02, 0.02, 0.022];
 
-/** The plane the arm swings in, and the points of its linkage in that plane (x, y): room.glb › 02_Desk_surfaces. */
+/** The plane the arm swings in, and the points of its linkage in that plane (x, y). */
 const Z = -2.035;
 const FOOT: readonly [number, number] = [-2.045, DESK_TOP];
 const POST: readonly [number, number] = [-2.097, 0.819];

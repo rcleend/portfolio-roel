@@ -21,6 +21,12 @@ HERO_ANIMATIONS = ("idle", "run", "jump", "fall", "attack", "skill", "hurt", "vi
 CUSTOMER_ANIMATIONS = ("walk", "shout", "hurt", "stunned", "happy")
 LOOPING = {"idle", "run", "fall", "victory", "walk", "shout", "stunned", "happy", "projectile"}
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(ART.rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def load(directory: Path, stem: str) -> Tuple[Image.Image, Dict[str, Any]]:
     with Image.open(directory / f"{stem}.png") as image:
@@ -59,6 +65,7 @@ class SheetContract(unittest.TestCase):
             for i, frame in enumerate(frames(image, meta, anim["name"])):
                 self.assertIsNotNone(frame.getbbox(), f"{label}:{anim['name']}[{i}] is empty")
 
+    @NEEDS_PNGS
     def test_hero_sheets(self) -> None:
         for hero in HEROES:
             directory = ART / "characters" / hero
@@ -69,6 +76,7 @@ class SheetContract(unittest.TestCase):
             self.assertIn("muzzle", anims["attack"]["anchors"], hero)
             self.assertIn("hand", anims["skill"]["anchors"], hero)
 
+    @NEEDS_PNGS
     def test_heroes_stand_on_the_feet_line_at_scale(self) -> None:
         for hero in HEROES:
             image, meta = load(ART / "characters" / hero, "sheet")
@@ -79,6 +87,7 @@ class SheetContract(unittest.TestCase):
             feet = [x for x in range(64) if stand.getpixel((x, 63))[3]]
             self.assertLess(abs((min(feet) + max(feet)) / 2 - 32), 4, f"{hero}: feet centred on the origin")
 
+    @NEEDS_PNGS
     def test_attack_sheets(self) -> None:
         for hero in HEROES:
             directory = ART / "characters" / hero
@@ -86,6 +95,7 @@ class SheetContract(unittest.TestCase):
             _, meta = load(directory, "attack")
             self.assertEqual(meta["origin"], {"x": 16, "y": 16})
 
+    @NEEDS_PNGS
     def test_customer_sheet(self) -> None:
         directory = ART / "customer"
         self.assert_sheet(directory, "sheet", CUSTOMER_ANIMATIONS, (64, 64))
@@ -101,7 +111,8 @@ class SheetContract(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(TOOL / "build.py"), "--check"], capture_output=True, text=True, check=False
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # Without the PNGs the generator checks the JSON alone and says so with exit code 2.
+        self.assertEqual(result.returncode, 0 if EXPORTED else 2, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

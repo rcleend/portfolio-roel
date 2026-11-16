@@ -3,7 +3,7 @@ import { circle, lerp, segments, skin, type Tone, tint } from './form';
 import { aged, IVORY, REAR, RECESS, RUBBER } from './monitor';
 import type { PropSink } from './types';
 
-/** The mouse's middle on its mat, and the mat's top it stands on (tools/room/desktop.py › _mouse). */
+/** The mouse's middle on its mat, and the mat's top it stands on. */
 const X = -0.91;
 const Z = -1.575;
 const BASE = 0.7912;

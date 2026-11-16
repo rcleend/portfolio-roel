@@ -29,6 +29,12 @@ from customer_kit.rig import hung, pose  # noqa: E402
 HEIGHT = (28, 32)
 # Terraria's own figures use 24 to 36 colours, the heroes' sheets 33 to 46.
 COLOURS = 40
+
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(ART.parent.rglob('*.png'))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, 'the PNGs of the art are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)'
+)
 FEET_ROW = DESIGN_AT[1] + GROUND
 
 
@@ -97,8 +103,10 @@ class CommittedSheets(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(TOOL / 'generate.py'), '--check'], capture_output=True, text=True,
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        # Without the PNGs the generator checks the JSON alone and says so with exit code 2.
+        self.assertEqual(result.returncode, 0 if EXPORTED else 2, result.stderr)
 
+    @NEEDS_PNGS
     def test_hold_both_key_poses_on_the_feet_line_crisply(self) -> None:
         for concept in CONCEPTS:
             image, meta = load(concept)
@@ -112,6 +120,7 @@ class CommittedSheets(unittest.TestCase):
                 anchors = next(a for a in meta['animations'] if a['name'] == name)['anchors']
                 self.assertEqual(sorted(anchors), ['head', 'mouth'], f'{concept} {name}')
 
+    @NEEDS_PNGS
     def test_use_a_small_palette(self) -> None:
         for concept in CONCEPTS:
             image, meta = load(concept)

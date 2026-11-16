@@ -5,7 +5,7 @@ import { type Key, keyboardKeys, WELL } from './keyboardLayout';
 import { aged, DESK_TOP, IVORY, REAR, RECESS } from './monitor';
 import type { PropSink } from './types';
 
-/** The caps' two plastics (tools/room/desktop.py › _legend_material) and their legends' ink. */
+/** The caps' two plastics and their legends' ink. */
 const CAP: Rgb = srgb('d4cebd');
 const CAP_ALT: Rgb = srgb('b3aa96');
 const INK: Rgb = [0.05, 0.052, 0.045];
@@ -28,7 +28,7 @@ const at = (across: number, depth: number, up: number): Vec3 => [X + across, DES
 const LEAN = [-0.13, -0.085, -0.03, 0.03, 0.085, 0.085] as const;
 
 /**
- * The keyboard (the shipped board's size and slope, tools/room/desktop.py › _keyboard): a sloped case with eased
+ * The keyboard (the shipped board's size and slope): a sloped case with eased
  * edges and a sunk well, 104 sculpted caps at a true 19 mm pitch — tapered, bevelled at the rim, dished across, each
  * row leaning its own way — with their legends printed on them, and the three lock lamps over the number pad.
  */

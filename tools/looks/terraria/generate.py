@@ -12,7 +12,8 @@ origin)
 and attack.png + .json (its projectile, impact and muzzle strip), both as docs/LOOKS.md describes them, in
 looks/terraria/. Beside it the revision's looks (kit/revision.py), terraria-revised and terraria-hooded, get
 characters/<hero>/sheet.png + .json, the same moves in the revision's head; their attack is the look's own.
-Python 3.9+ and Pillow only; the same code writes the same bytes, which is what --check relies on.
+Python 3.9+ and Pillow only; the same code writes the same pixels and JSON, which is what --check relies on
+(the PNGs are in the checkout only while exported: tools/looks/artfiles.py).
 """
 from __future__ import annotations
 
@@ -27,8 +28,11 @@ OUT = REPO / 'src' / 'game' / 'art' / 'looks'
 # The look whose heroes and attack strips this writes; the revision's looks are named in kit/revision.py.
 LOOK = 'terraria'
 
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+for _path in (HERE, HERE.parent):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+import artfiles  # noqa: E402
 
 from kit import attacks, revision  # noqa: E402
 from kit.art import FRAME, GROUND, ORIGIN, to_frame  # noqa: E402
@@ -120,6 +124,10 @@ def outputs() -> Dict[str, bytes]:
     return files
 
 
+# Sheets in those folders that no generator writes: the revised DESIGNER's music notes were drawn by hand.
+BY_HAND = ('terraria-revised/characters/artsy/attack.png', 'terraria-revised/characters/artsy/attack.json')
+
+
 def written() -> List[Path]:
     """Every file this script owns that is already on disk, so --check also catches a stale leftover.
 
@@ -127,7 +135,9 @@ def written() -> List[Path]:
     (the customer concepts, tools/looks/terraria/customer/).
     """
     owned = [path for look in (LOOK, *revision.LOOKS) for path in (OUT / look / 'characters').glob('**/*')]
-    return sorted(path for path in owned if path.suffix in ('.png', '.json'))
+    return sorted(
+        path for path in owned if path.suffix in ('.png', '.json') and str(path.relative_to(OUT)) not in BY_HAND
+    )
 
 
 def main(argv: List[str]) -> int:
@@ -136,10 +146,20 @@ def main(argv: List[str]) -> int:
     args = parser.parse_args(argv)
     files = outputs()
     if args.check:
-        stale = [name for name, data in files.items() if not (OUT / name).exists() or (OUT / name).read_bytes() != data]
+        # The PNGs are in the checkout only while exported (artfiles.py): without them the JSON is all there is to
+        # check. A PNG is compared by its pixels, the JSON byte for byte.
+        exported = artfiles.exported(OUT / name for name in files)
+        stale = [
+            name
+            for name, data in files.items()
+            if (exported or not name.endswith('.png')) and not artfiles.same(OUT / name, data)
+        ]
         extra = [str(path.relative_to(OUT)) for path in written() if str(path.relative_to(OUT)) not in files]
         for name in stale + extra:
             print(f'stale: {(OUT / name).relative_to(REPO)}', file=sys.stderr)
+        if not exported:
+            print(artfiles.EXPORT_HINT, file=sys.stderr)
+            return 1 if stale or extra else 2
         return 1 if stale or extra else 0
     for name, data in files.items():
         (OUT / name).parent.mkdir(parents=True, exist_ok=True)

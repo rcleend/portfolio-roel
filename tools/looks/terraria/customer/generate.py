@@ -15,7 +15,8 @@ Writes:
 - src/game/art/looks/terraria/customer-concepts/<id>.png + .json: each concept in one frame of `shout` and
   `happy`, its `head` the crown. The concepts are not a look: only the development lineup shows them
   (?scene=lineup&params={"cast":"customers"}).
-Python 3.9+ and Pillow only; the same code writes the same bytes, which is what --check relies on.
+Python 3.9+ and Pillow only; the same code writes the same pixels and JSON, which is what --check relies on
+(the PNGs are in the checkout only while exported: tools/looks/artfiles.py).
 """
 from __future__ import annotations
 
@@ -31,9 +32,11 @@ LOOK = LOOKS / 'customer'
 CONCEPTS_OUT = LOOKS / 'customer-concepts'
 
 # The heroes' kit owns the sheet format (kit/sheet.py), so both write sheets byte for byte alike.
-for path in (HERE, HERE.parent):
+for path in (HERE, HERE.parent, HERE.parents[1]):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
+
+import artfiles  # noqa: E402
 
 from customer_kit import on_the_phone  # noqa: E402
 from customer_kit.art import FRAME, GROUND, ORIGIN, Point, paint, to_frame  # noqa: E402
@@ -107,10 +110,18 @@ def main(argv: List[str]) -> int:
     args = parser.parse_args(argv)
     files = outputs()
     if args.check:
-        stale = [path for path, data in files.items() if not path.exists() or path.read_bytes() != data]
+        # The PNGs are in the checkout only while exported (artfiles.py): without them the JSON is all there is to
+        # check. A PNG is compared by its pixels, the JSON byte for byte.
+        exported = artfiles.exported(files)
+        stale = [
+            path for path, data in files.items() if (exported or path.suffix != '.png') and not artfiles.same(path, data)
+        ]
         extra = [path for path in written() if path not in files]
         for path in stale + extra:
             print(f'stale: {path.relative_to(REPO)}', file=sys.stderr)
+        if not exported:
+            print(artfiles.EXPORT_HINT, file=sys.stderr)
+            return 1 if stale or extra else 2
         return 1 if stale or extra else 0
     for path, data in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)

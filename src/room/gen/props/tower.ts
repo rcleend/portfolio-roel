@@ -16,7 +16,7 @@ const DROP = 0.0246 - FLOOR;
 const at = (across: number, up: number, out: number): Vec3 => [X + across, up - DROP, FACE + out];
 
 /**
- * The tower under the desk (the shipped one's measurements, room.glb › 02_Desk_surfaces): a steel case behind a
+ * The tower under the desk (the shipped one's measurements): a steel case behind a
  * thicker moulded bezel, a disc drive and a blank bay, the floppy drive with its slot and eject key, the power key in
  * its ring, two lamps, a louvred grille and four feet. It faces +z.
  */
