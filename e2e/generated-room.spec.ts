@@ -36,7 +36,8 @@ test("the generated room builds in a worker, bakes its light and takes the shipp
   expect(built?.builtIn).toBe('worker');
   // Every light from every point of its emitter, on the top tier (rig.ts).
   expect(built?.views).toBeGreaterThan(100);
-  expect(built?.triangles).toBeLessThan(70_000);
+  // The whole room at full detail (the shipped one: 353 k); a view draws less of it (the next expectation).
+  expect(built?.triangles).toBeLessThan(110_000);
   // The opening view draws a third of the shipped set's triangles, in fewer calls.
   await page.evaluate(() => window.__roomLab?.room.powerOn());
   await expect.poll(async () => (await stats(page))?.triangles).toBeLessThan(70_000);

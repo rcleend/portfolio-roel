@@ -540,6 +540,37 @@ glass (its screen contract, § Original TV geometry contract), still come from t
 - **Reading it.** `room.stats.generated` is `off`, `loading`, `ready` or `failed`; `generatedStats` has where the
   geometry was built, the views baked, the bake's main-thread and wall time, the longest view on the GPU and whether
   the bake was deferred. `e2e/generated-room.spec.ts` covers both sides of the flag.
+- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the rug and the plant are built to be seen
+  at arm's length (`gen/props/monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
+  `deskThings.ts`, `plant.ts`, the rug in `shell.ts`), from the shipped models' measurements (the monitor, keyboard and
+  mouse from `tools/room/desktop.py`, the rest read off `room.glb`). `gen/props/form.ts` is what they share: skins and
+  patches toned a vertex at a time (`MeshBuilder.gradient`), outlines cut along their sides so the light baked at the
+  vertices can change across a face, mouldings with eased edges, turned parts, slabs. A tone finer than the mesh shows
+  as specks a vertex wide: unevenness is kept slower than the vertices. The keyboard's 104 legends, the lock lamps'
+  words and the lamps' glow are prints on the art page (`gen/deskArt.ts`, laid out by `props/keyboardLayout.ts`).
+- **Detail by tier.** A prop builds to `PropSink.detail` (`gen/tiers.ts`: 1 on `high`, 0.6 on `medium`, 0.45 on
+  `low`): `form.segments` turns it into segments, and the smallest parts go first (a spring's coils become a striped
+  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 100 k triangles at full detail, 74 k and
+  66 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
+- **Two prop meshes.** The desk corner's props are a mesh of their own (`MeshName` `desk`), small enough about the
+  desk that the TV view's frustum leaves it out: the opening view draws 46 k triangles, the computer's 71 k, the
+  room's 102 k. Anything new at the desk joins it; anything that would stretch its bounds across the room does not.
+- **Relief.** A chart may be a sheet that does not lie flat (`Chart.relief`, `gen/kit/charts.ts`): cut into cells and
+  lifted off its rectangle's plane by a height function, its texels still the flat rectangle's and its light baked on
+  the lifted surface (with `emphasis`, on steeper slopes than the real ones, so soft cloth reads). The rug is one: a
+  ridge, a crease and rucks, 75 cells a side on `high`, 50 and 25 below. Past the crease of its turned corner the chart
+  dives under the boards, and the corner itself is geometry: the cloth rolled back over the pile, jute side out. The rug
+  has its own chart group (`03_Room_rug_BAKED_UNLIT`: wool takes no varnish) on the TV corner's page, which had room
+  for it at full density; the floor's page holds the boards a quarter sharper for it, in the same memory.
+- **The boards are at 6 mm** (`FLOOR`, `gen/props/types.ts`), where the shipped floor's top is and where everything
+  that stands on it was measured to stand; a prop on the floor rests on `FLOOR`, not on 0.
+- **The bake's vertices are points**: a prop vertex is lit as one point on its texel (a third of the triangle it
+  used to be, to build and to upload), so the bake's longest main-thread unit is 17–19 ms for 100 k triangles.
+- **Close inspection.** `node scripts/gen-closeups.mjs --label <name> [--mode shipped|generated] [--tier low]
+  [--only monitor,keyboard/macro] [--studio]` shoots a prop from fixed cameras at arm's length (front, three-quarter,
+  top, low, details), the shipped model or the generated one; `--studio` lights the generated props with a plain key
+  and fill instead of the room's bake, to judge form and albedo whatever the rig; `--sheet a,b,c` lays labels side by
+  side. A prop is not done until its generated pictures stand beside the shipped ones and do not lose.
 
 ## Atmosphere
 

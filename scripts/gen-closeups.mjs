@@ -96,6 +96,15 @@ export const CLOSEUPS = {
     pulls: { position: [-0.3, 0.72, -0.8], target: [-0.73, 0.5, -1.39], fov: 40 },
     cup: { position: [-0.75, 1.05, -1.75], target: [-0.5, 0.88, -2.15], fov: 34 },
   },
+  others: {
+    dresser: { position: [0.2, 1.35, -0.75], target: [1.05, 0.85, -2.05], fov: 48 },
+    guitar: { position: [1.35, 0.95, -0.95], target: [2.02, 0.62, -1.8], fov: 42 },
+    'tv-corner': { position: [1.15, 0.95, 0.55], target: [2.4, 0.62, -0.45], fov: 44 },
+    console: { position: [1.45, 0.38, 0.45], target: [1.9, 0.05, -0.1], fov: 40 },
+    window: { position: [-1.25, 1.55, -0.95], target: [-1.3, 1.75, -2.4], fov: 52 },
+    basket: { position: [-1.95, 0.55, -0.75], target: [-2.45, 0.16, -1.45], fov: 42 },
+    door: { position: [-0.5, 1.4, 0.4], target: [-0.8, 1.1, 2.4], fov: 55 },
+  },
   rug: {
     corner: { position: [0.95, 0.5, 0.2], target: [1.4, 0.04, -0.3], fov: 40 },
     'corner-low': { position: [0.9, 0.1, -0.78], target: [1.42, 0.045, -0.33], fov: 36 },
