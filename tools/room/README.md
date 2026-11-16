@@ -279,3 +279,10 @@ the radio (also at 6× CPU, and with `ROOM_SHOTS_GL=swiftshader`). Validate the 
 
 See [the art direction study](../../docs/ROOM-ART-DIRECTION.md) for the reference findings
 and [CREDITS.txt](../../public/room/CREDITS.txt) for retained model attribution.
+
+## The small room
+
+`pnpm build:room-small` (`build-small.mjs`) derives `public/room/room-1k.glb` from the published `room.glb`: the same
+scene with its 2048 px atlases, the floor's aside, resampled to 1024 px, for devices that start below the top quality
+tier (docs/ROOM.md › Quality). It needs no Blender source. Run it after every change to `room.glb`; `pnpm verify:room`
+fails while the two are out of step.

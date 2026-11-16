@@ -21,6 +21,7 @@
     "sync:room": "node scripts/sync-room-assets.mjs",
     "shot:room": "node scripts/room-shots.mjs",
     "build:room": "node tools/room/build.mjs",
+    "build:room-small": "node tools/room/build-small.mjs",
     "build:radio": "node tools/room/build-radio.mjs",
     "build:posters": "node tools/room/build-posters.mjs",
     "build:radio-placeholders": "tsx --tsconfig tsconfig.node.json scripts/radio/render-placeholders.ts",

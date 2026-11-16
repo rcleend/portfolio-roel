@@ -97,5 +97,14 @@
       "bytes": 239956,
       "sha256": "98835d6163c0fcd375b3aef893bf176f777cb4e320ccdba3ee9dd300d1cfd33e"
     }
+  ],
+  "variants": [
+    {
+      "name": "room-1k.glb",
+      "source": "room.glb",
+      "sourceSha256": "b90ccc2f7b8809b7a22d00c6872c92775b7f65d152bff125853164aec1ecb3da",
+      "bytes": 4271124,
+      "sha256": "a0b8f8263d7217388aecbabda57bb58aae50aa53210ca2102a3ea528594edba8"
+    }
   ]
 }

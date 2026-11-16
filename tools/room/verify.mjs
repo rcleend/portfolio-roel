@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { getBounds, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import validator from 'gltf-validator';
-import { MeshoptDecoder } from 'meshoptimizer';
+import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { letteringResidue, UNBRANDED } from './debrand.mjs';
 import { layoutViolations, POSTERS_TOPICS, toBlender, triangleOnSurface } from './posters-geometry.mjs';
@@ -614,6 +614,47 @@ export async function verifyPosters(directory, manifest) {
   };
 }
 
+/**
+ * The small room's contract (tools/room/build-small.mjs, docs/ROOM.md "Quality"): room-1k.glb is the published
+ * room.glb's own derivative (its recorded source hash is room.glb's, so a rebuilt room cannot ship with a stale small
+ * one), the same geometry, with no atlas over 1024 px but the floor's.
+ */
+export async function verifySmallRoom(directory, manifest) {
+  const entry = (manifest.variants ?? []).find((file) => file.name === 'room-1k.glb');
+  assert.ok(entry, 'manifest.variants lacks room-1k.glb: run pnpm build:room-small');
+  const [room, small] = await Promise.all([
+    readFile(join(directory, 'room.glb')),
+    readFile(join(directory, 'room-1k.glb')),
+  ]);
+  const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
+  assert.equal(entry.sourceSha256, sha(room), 'room-1k.glb was built from another room.glb: run pnpm build:room-small');
+  assert.equal(entry.sha256, sha(small), 'room-1k.glb does not match its manifest entry');
+  assert.equal(entry.bytes, small.length);
+  assert.ok(small.length < room.length, 'room-1k.glb must be smaller than room.glb');
+  await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'meshopt.encoder': MeshoptEncoder,
+    'meshopt.decoder': MeshoptDecoder,
+  });
+  const triangles = (doc) =>
+    doc
+      .getRoot()
+      .listMeshes()
+      .flatMap((mesh) => mesh.listPrimitives())
+      .reduce((sum, primitive) => sum + (primitive.getIndices()?.getCount() ?? 0) / 3, 0);
+  const [full, half] = await Promise.all([io.readBinary(new Uint8Array(room)), io.readBinary(new Uint8Array(small))]);
+  assert.equal(triangles(half), triangles(full), "room-1k.glb must keep the room's geometry");
+  assert.equal(half.getRoot().listNodes().length, full.getRoot().listNodes().length);
+  const widths = {};
+  for (const texture of half.getRoot().listTextures()) {
+    const { width, height } = await sharp(texture.getImage()).metadata();
+    widths[texture.getName()] = width;
+    if (texture.getName() !== '03_Room_floor' && texture.getName() !== 'night-tree-plate')
+      assert.ok(Math.max(width, height) <= 1024, `${texture.getName()} is ${width}×${height} in room-1k.glb`);
+  }
+  return { bytes: small.length, savedBytes: room.length - small.length, widths };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const directory = resolve(process.argv[2] ?? 'public/room');
   const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8'));
@@ -624,4 +665,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   console.log(JSON.stringify(await verifyRoomAssets(directory, manifest), null, 2));
   console.log(JSON.stringify({ radio: await verifyRadioCloseup(directory, manifest) }, null, 2));
   console.log(JSON.stringify({ posters: await verifyPosters(directory, manifest) }, null, 2));
+  if (directory === resolve('public/room')) {
+    const small = JSON.parse(await readFile('src/room/assets/roomSmallSizes.json', 'utf8'));
+    const entry = (manifest.variants ?? []).find((file) => file.name === 'room-1k.glb');
+    assert.deepEqual(small, { 'room-1k.glb': entry?.bytes }, 'roomSmallSizes.json does not match room-1k.glb');
+  }
+  console.log(JSON.stringify({ smallRoom: await verifySmallRoom(directory, manifest) }, null, 2));
 }
