@@ -22,6 +22,17 @@ export interface Chart {
   readonly density: number;
   /** Occlusion the surface knows about itself, multiplied into the ambient light. */
   readonly shade: number;
+  /**
+   * A sheet that does not lie flat (a rug): cut into `cells` across u and v, each vertex lifted off the rectangle's
+   * plane along u × v by `height(s, t)` metres (s and t run 0–1 across it). Its texels stay the flat rectangle's;
+   * the light is baked on the lifted surface. A cell is two triangles, parted along its (1, 0)–(0, 1) diagonal.
+   */
+  readonly relief?: {
+    readonly cells: readonly [number, number];
+    readonly height: (s: number, t: number) => number;
+    /** The slopes its light is baked with, as a multiple of the real ones (1): soft cloth reads by its shading. */
+    readonly emphasis?: number;
+  };
 }
 
 export interface PackedChart extends Chart {
@@ -158,6 +169,79 @@ const CORNERS: readonly (readonly [number, number])[] = [
   [0, 1],
 ];
 
+/** A cell's two triangles, parted along the diagonal from (1, 0) to (0, 1). */
+const CELL: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [1, 0],
+  [0, 1],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+];
+
+interface Lists {
+  positions: number[];
+  normals: number[];
+  uvs: number[];
+}
+
+/** A chart with relief: its cells, for the frame and (grown by BLEED at the rectangle's rim) for the bake. */
+function relieved(
+  chart: PackedChart,
+  page: PackedPage,
+  normal: Vec3,
+  display: Lists,
+  bake: Lists & { local: number[]; st: number[]; material: number[]; params: number[]; shade: number[] },
+): void {
+  const relief = chart.relief;
+  if (!relief) return;
+  const [nu, nv] = relief.cells;
+  const [lu, lv] = [length(chart.u), length(chart.v)];
+  const [uHat, vHat] = [normalize(chart.u), normalize(chart.v)];
+  const clamp = (x: number): number => Math.min(1, Math.max(0, x));
+  const height = (s: number, t: number): number => relief.height(clamp(s), clamp(t));
+  const at = (s: number, t: number): Vec3 =>
+    add(add(chart.origin, add(scale(chart.u, s), scale(chart.v, t))), scale(normal, height(s, t)));
+  // The lifted surface's normal, from the height's slope across a twentieth of a cell.
+  const [es, et] = [0.05 / nu, 0.05 / nv];
+  const facing = (s: number, t: number): Vec3 => {
+    const slopeU = (height(s + es, t) - height(s - es, t)) / (2 * es * lu);
+    const slopeV = (height(s, t + et) - height(s, t - et)) / (2 * et * lv);
+    const k = relief.emphasis ?? 1;
+    return normalize(add(normal, add(scale(uHat, -slopeU * k), scale(vHat, -slopeV * k))));
+  };
+  const pageUv = (s: number, t: number): [number, number] => [
+    (chart.x + 0.5 + s * (chart.w - 1)) / page.width,
+    (chart.y + 0.5 + t * (chart.h - 1)) / page.height,
+  ];
+  const [bleedS, bleedT] = [(BLEED - 0.5) / (chart.w - 1), (BLEED - 0.5) / (chart.h - 1)];
+  // Every lattice point once: its place and its normal.
+  const lattice: { p: Vec3; n: Vec3 }[] = [];
+  for (let j = 0; j <= nv; j++)
+    for (let i = 0; i <= nu; i++) lattice.push({ p: at(i / nu, j / nv), n: facing(i / nu, j / nv) });
+  for (let j = 0; j < nv; j++)
+    for (let i = 0; i < nu; i++)
+      for (const [ci, cj] of CELL) {
+        const [s, t] = [(i + ci) / nu, (j + cj) / nv];
+        const point = lattice[(j + cj) * (nu + 1) + i + ci] as { p: Vec3; n: Vec3 };
+        display.positions.push(...point.p);
+        display.normals.push(...point.n);
+        display.uvs.push(...pageUv(s, t));
+        // The bake's rim vertices stand BLEED texels past the rectangle, on the rim's own height.
+        const rim = i + ci === 0 || i + ci === nu || j + cj === 0 || j + cj === nv;
+        const bs = i + ci === 0 ? -bleedS : i + ci === nu ? 1 + bleedS : s;
+        const bt = j + cj === 0 ? -bleedT : j + cj === nv ? 1 + bleedT : t;
+        bake.positions.push(...(rim ? at(bs, bt) : point.p));
+        bake.normals.push(...point.n);
+        bake.uvs.push(...pageUv(bs, bt));
+        bake.local.push(bs * lu, bt * lv);
+        bake.st.push(bs, bt);
+        bake.material.push(chart.material);
+        bake.params.push(...chart.params);
+        bake.shade.push(chart.shade);
+      }
+}
+
 export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
   const display = new Map<
     string,
@@ -184,6 +268,10 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
         display.set(key, d);
       }
       const [lu, lv] = [length(chart.u), length(chart.v)];
+      if (chart.relief) {
+        relieved(chart, page, normal, d, b);
+        continue;
+      }
       for (const [s, t] of CORNERS) {
         const p = add(chart.origin, add(scale(chart.u, s), scale(chart.v, t)));
         d.positions.push(...p);

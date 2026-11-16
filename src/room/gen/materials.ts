@@ -103,9 +103,23 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     float pores = vnoise(vec2(g.x * 150.0, g.y * 1200.0));
     return params.rgb * (0.94 + 0.14 * streak - 0.09 * late) * (0.965 + 0.06 * pores);
   }
-  vec2 square = floor(metres / params.x);
-  float navy = 1.0 - mod(square.x + square.y, 2.0);
-  float pile = 0.82 + 0.3 * vnoise(metres * 900.0) * vnoise(metres * 140.0 + 5.0) + 0.1 * fbm(metres * 22.0);
-  return mix(vec3(0.6, 0.6, 0.63), vec3(0.012, 0.028, 0.1), navy) * pile;
+  // The rug: flat-woven wool. A square's edge follows the knots, so it wanders a little; the pile is tufts (a knot
+  // each 3.4 mm), rows of weft where a texel can hold them, slow patches where it has been trodden, and the long
+  // strokes a brush leaves across it.
+  float texel = max(fwidth(metres.x), fwidth(metres.y));
+  vec2 knot = floor(metres / 0.0034);
+  // A square's edge wanders a few millimetres along its length, and is a texel or two of mixed yarn across.
+  vec2 wander = (vec2(fbm(metres * 9.0), fbm(metres * 9.0 + 31.0)) - 0.5) * 0.012;
+  vec2 wave = sin((metres + wander) * 3.14159265 / params.x);
+  vec2 hard = clamp(wave / (4.5 * texel / params.x), -1.0, 1.0);
+  float navy = 0.5 + 0.5 * hard.x * hard.y;
+  float tuft = hash2(ivec2(knot));
+  float weft = 0.5 + 0.5 * sin(metres.y * 6.2832 / 0.0068);
+  float rows = 1.0 - smoothstep(0.0022, 0.0034, texel);
+  float trodden = fbm(metres * 19.0);
+  float stroke = fbm(vec2(metres.x * 2.6, metres.y * 21.0) + 40.0);
+  float pile = 0.87 + 0.12 * tuft + 0.06 * rows * (weft - 0.5) + 0.3 * (trodden - 0.5) + 0.14 * (stroke - 0.5);
+  vec3 yarn = mix(vec3(0.6, 0.6, 0.63) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.012, 0.028, 0.1), navy);
+  return yarn * pile;
 }
 `;

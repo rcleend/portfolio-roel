@@ -78,16 +78,19 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
   const charts: Chart[] = [];
   const decals: Decal[] = [];
   const props: PropStats[] = [];
+  // A chart is two triangles, or its relief's cells; a decal is two.
+  const flat = (): number =>
+    charts.reduce((sum, chart) => sum + (chart.relief ? chart.relief.cells[0] * chart.relief.cells[1] * 2 : 2), 0) +
+    decals.length * 2;
   for (const prop of PROPS) {
-    const before =
-      MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
+    const before = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + flat();
     prop.build({
       detail: request.detail ?? 1,
       mesh: (name) => builders[name],
       chart: (...added) => void charts.push(...added),
       decal: (decal) => void decals.push(decal),
     });
-    const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
+    const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + flat();
     props.push({ name: prop.name, triangles: after - before, budget: prop.budget });
   }
   const pages: PackedPage[] = packCharts(charts, request.densityScale, request.maxPageSize);

@@ -299,6 +299,8 @@ export class GeneratedRoom {
       [GROUP.floor]: '03_Room_floor_BAKED_UNLIT',
       [GROUP.desk]: '02_Desk_surfaces_BAKED_UNLIT',
       [GROUP.dresser]: '04_Drawer_surfaces_BAKED_UNLIT',
+      // Wool: baked like the floor it lies on, but no varnish (RoomGloss gives a name it does not list none).
+      [GROUP.rug]: '03_Room_rug_BAKED_UNLIT',
     };
     const charts = new Map<number, Mesh>();
     for (const data of gen.charts.display) {
@@ -312,7 +314,7 @@ export class GeneratedRoom {
       material.userData.page = data.page;
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated charts ${data.group}`;
-      if (data.group !== GROUP.wall && data.group !== GROUP.floor) {
+      if (data.group !== GROUP.wall && data.group !== GROUP.floor && data.group !== GROUP.rug) {
         mesh.layers.enable(CASTERS_ALL);
         mesh.layers.enable(CASTERS_LOCAL);
       }
