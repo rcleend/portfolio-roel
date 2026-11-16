@@ -134,6 +134,9 @@ async function restingCalls(page: Page, decorated: boolean): Promise<Resting> {
   await settleAt(page, 'tv');
   const tv = await calls();
   await settleAt(page, 'radio');
+  // The lid's swing and the discs' rise run on after the landing (the discs are up 1.4 s after it), each disc a call.
+  await page.waitForTimeout(2500);
+  await nextFrames(page);
   return { tvBefore, room, tv, pc, radio: await calls(), programs };
 }
 

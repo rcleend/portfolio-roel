@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, phase, scene, trackErrors, waitForRunning } from './helpers';
+import { hostElement, paused, scene, trackErrors, waitForRunning } from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -19,16 +19,28 @@ test('opens on the startup still, starts the game on it and hands over to the li
   page,
 }) => {
   const errors = trackErrors(page);
+  // Each startup phase as #game enters it, with whether the game was exposed by then: read in the page, because the
+  // tube warms up for a third of a second, which a loaded machine's polling from here can miss whole.
+  await page.addInitScript(() => {
+    const phases: { phase: string; game: boolean }[] = [];
+    (window as unknown as { __phases: typeof phases }).__phases = phases;
+    new MutationObserver(() => {
+      const now = document.getElementById('game')?.dataset.phase;
+      if (now && now !== phases.at(-1)?.phase) phases.push({ phase: now, game: window.__arcade !== undefined });
+    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
+  });
   await page.goto('/?seed=1');
   const still = page.locator('#tv-still');
   await expect(still).toHaveAttribute('data-shown', 'true');
   await expect(hostElement(page)).toHaveAttribute('data-host', 'room');
 
-  await expect.poll(() => phase(page), { timeout: 30_000, intervals: [25] }).toBe('powering');
-  // The tube is warming up: the game has not been started (or exposed) yet.
-  expect(await page.evaluate(() => window.__arcade === undefined)).toBe(true);
-
   await waitForRunning(page);
+  // While the tube warmed up the game had not been started (or exposed) yet.
+  const phases = await page.evaluate(
+    () => (window as unknown as { __phases: { phase: string; game: boolean }[] }).__phases,
+  );
+  expect(phases.map((entry) => entry.phase).slice(-2)).toEqual(['powering', 'running']);
+  expect(phases.find((entry) => entry.phase === 'powering')?.game).toBe(false);
   expect(['boot', 'title']).toContain(await scene(page));
   expect(await paused(page)).toBe(false);
   // The room is in, its tube lit at once behind the still, which waits for the visitor.
@@ -144,9 +156,14 @@ test('the TV view keeps its way out when the room guide never loads', async ({ p
 });
 
 test('the guide takes the keyboard over from the way out it replaces', async ({ page }) => {
-  // Held back, so the keyboard is standing on the entry's way out when the guide's own hint takes its place.
+  // Held back until the keyboard is standing on the entry's way out, so the guide's own hint takes its place under
+  // it (for as long as that takes: on a loaded machine a fixed two seconds let the guide in first).
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route('**/guide/RoomGuide.tsx*', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await held;
     await route.continue();
   });
   await page.goto('/?seed=1');
@@ -155,6 +172,7 @@ test('the guide takes the keyboard over from the way out it replaces', async ({ 
   await expect(wayOut).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(wayOut).toBeFocused();
+  release();
 
   const hint = page.locator('.tv-way-out');
   await expect(hint).toBeAttached({ timeout: 10_000 });

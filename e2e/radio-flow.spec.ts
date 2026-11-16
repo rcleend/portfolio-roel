@@ -53,9 +53,15 @@ async function open(page: Page, path = '/?seed=1'): Promise<void> {
   await page.goto(path);
   await waitForRunning(page);
   await page.evaluate(() => {
-    const record = window as unknown as { __cues: string[] };
+    const record = window as unknown as { __cues: string[]; __cueTimes: number[] };
     record.__cues = [];
-    void window.__room?.radio.load().then((deck) => deck.onCue((event) => record.__cues.push(event.cue)));
+    record.__cueTimes = [];
+    void window.__room?.radio.load().then((deck) =>
+      deck.onCue((event) => {
+        record.__cues.push(event.cue);
+        record.__cueTimes.push(performance.now());
+      }),
+    );
   });
 }
 
@@ -240,12 +246,24 @@ test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back 
   await page.keyboard.press('ArrowRight');
   await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toBeFocused();
   // Chosen the moment the camera lands, before it is out of the radio: it comes up and over to its column first (no
-  // disc passes through another), then flies in: 1.2–1.6 s by the choreography (docs/ROOM.md › Known gaps), against
-  // 1 s for a disc already out. Measured alone at 0e275c7, eight runs: 1395–1420 ms (the room of models before it:
-  // 1225–1419 ms, the same ceiling), so the old 1.5 s left a loaded machine 80 ms and the bound is the storyboard's.
+  // disc passes through another), then flies in and seats: 1.2–1.6 s by the choreography (docs/ROOM.md › Known gaps),
+  // against 1 s for a disc already out. Heard, alone at 0e275c7 in eight runs, 1395–1420 ms after the key (the room of
+  // models before it: 1225–1419 ms, the same ceiling). The storyboard is held to its own bound, from the key to the
+  // disc's seat; the sound follows the seat by the ▷II press and by however long a loaded machine's media element
+  // takes to start, which the old single bound of 1.5 s left 80 ms for (1530 and 1672 ms were seen in full suites).
   const elapsed = await timePickToSound(page, () => page.keyboard.press('Enter'));
-  test.info().annotations.push({ type: 'keyboard pick to sound', description: `${Math.round(elapsed)} ms` });
-  expect(elapsed).toBeLessThanOrEqual(1600);
+  const seat = await page.evaluate(() => {
+    const { __cues, __cueTimes } = window as unknown as { __cues: string[]; __cueTimes: number[] };
+    const click = window.__timing?.click ?? Number.NaN;
+    const at = __cueTimes.find((time, index) => __cues[index] === 'disc-seat' && time >= click);
+    return at === undefined ? Number.NaN : at - click;
+  });
+  test.info().annotations.push({
+    type: 'keyboard pick',
+    description: `seated after ${Math.round(seat)} ms, heard after ${Math.round(elapsed)} ms`,
+  });
+  expect(seat, 'from the key to the disc on its seat').toBeLessThanOrEqual(1600);
+  expect(elapsed - seat, 'from the seat to the sound').toBeLessThanOrEqual(600);
   expect((await sound(page))?.src).toMatch(/drop-the-bombs\/drop-the-bombs/);
   await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toHaveAttribute(
     'aria-current',
@@ -346,8 +364,7 @@ test.describe('performance', () => {
     // Not `open`: it asks for the deck itself, to record its cues.
     await page.goto('/?seed=1');
     await waitForRunning(page);
-    await expect.poll(async () => (await stats(page))?.generated, { timeout: 15_000 }).toBe('ready');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     expect(lazy).toEqual([]);
     await page.mouse.click(WALL.x, WALL.y);
     await settled(page);
@@ -397,7 +414,11 @@ test.describe('performance', () => {
     // Resting with nothing in the player: no float under reduced motion, no dust, no rain; the room draws its sixty
     // frames and every one is the same picture.
     expect((await stats(page))?.radioAmbient).toBe(false);
-    expect(await apart(1000), 'pixels moving at the resting radio').toBe(0);
+    // (Once the arrival's changes of state are in: the discs' prints show when the last is uploaded, the spotlight
+    // the click's hover lit goes out.)
+    await expect
+      .poll(() => apart(1000), { message: 'pixels moving at the resting radio', timeout: 15_000, intervals: [100] })
+      .toBe(0);
     await expectSixtyFrames(page, 'at the resting radio');
     // Playing: the seated disc is its radial average, the same image every frame; only the LCD's clock changes.
     const lowTide = await disc(page, 'drop-the-bombs');

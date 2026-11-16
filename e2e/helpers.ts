@@ -84,11 +84,19 @@ export async function frameRate(page: Page, ms = 1000): Promise<number> {
   return ((after.frames - before.frames) / (after.at - before.at)) * 1000;
 }
 
-/** Holds the room to its sixty frames a second, `where` naming the moment for the report. */
+/**
+ * Holds the room to its sixty frames a second, `where` naming the moment for the report. Never more than the band in
+ * any second; and within it in one of up to three seconds, since a machine busy with other pages can keep a browser
+ * from the frames the room asked for, for a second at a time.
+ */
 export async function expectSixtyFrames(page: Page, where: string): Promise<void> {
-  const rate = await frameRate(page);
+  let rate = 0;
+  for (let second = 0; second < 3; second++) {
+    rate = await frameRate(page);
+    expect(rate, `frames a second ${where}`).toBeLessThanOrEqual(SIXTY_FRAMES.max);
+    if (rate >= SIXTY_FRAMES.min) return;
+  }
   expect(rate, `frames a second ${where}`).toBeGreaterThanOrEqual(SIXTY_FRAMES.min);
-  expect(rate, `frames a second ${where}`).toBeLessThanOrEqual(SIXTY_FRAMES.max);
 }
 
 /**

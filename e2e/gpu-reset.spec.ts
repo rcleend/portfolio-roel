@@ -194,14 +194,17 @@ test('the discs keep their prints after the GPU process restarts', async ({ play
 test('the room is lit again after the GPU process restarts, the startup still over it meanwhile', async ({
   playwright,
 }) => {
+  test.setTimeout(60_000);
   const { browser, page } = await launch(playwright);
   try {
-    // The whole room is baked, the visitor has pressed (the still has gone) and the game rests on one frame.
-    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
+    // The visitor has pressed (the still has gone), the game rests on one frame and the whole room is baked. In that
+    // order: behind a playing game the rest of the bake takes the GPU a few views at a time, and on a GPU that other
+    // pages keep busy (a full suite's) it is put off to a quiet moment, such as this pause (docs/ROOM.md › Pacing).
     await page.keyboard.press('Enter');
     await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
     await pauseOnCharacterSelect(page);
     await page.evaluate(() => window.__arcade?.pause());
+    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
     await page.waitForTimeout(600);
     // The wall beside the set and the cabinet's top under the robot: baked surfaces, lit by the bake alone.
     const wall: Clip = { x: 60, y: 120, width: 120, height: 120 };
