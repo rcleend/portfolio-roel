@@ -36,7 +36,8 @@ test('the room builds in a worker and lights what the TV view shows before the r
   expect(await page.evaluate(() => window.__roomLab?.room.shown)).toBe(true);
   expect(opening?.generatedStats?.builtIn).toBe('worker');
   // The TV view's own pass lit a small part of the room's flat surfaces (and every prop's vertices).
-  expect(opening?.generatedStats?.openingShare).toBeGreaterThan(0.01);
+  // (A small share of many cells: the rug's relief alone is 5,625 of them.)
+  expect(opening?.generatedStats?.openingShare).toBeGreaterThan(0.005);
   expect(opening?.generatedStats?.openingShare).toBeLessThan(0.3);
   expect(await page.evaluate(() => window.__roomLab?.room.generatedReady)).toBe(true);
   const state = await stats(page);

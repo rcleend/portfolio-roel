@@ -126,9 +126,10 @@ export class MeshBuilder {
     from.positions.length = first * 9;
     from.albedo.length = first * 9;
     from.shade.length = first * 3;
-    from.positions.push(...kept.positions);
-    from.albedo.push(...kept.albedo);
-    from.shade.push(...kept.shade);
+    // One by one: a spread of this many numbers overflows a worker's stack.
+    for (const value of kept.positions) from.positions.push(value);
+    for (const value of kept.albedo) from.albedo.push(value);
+    for (const value of kept.shade) from.shade.push(value);
   }
 
   /** Runs `build` with everything it adds placed by `placement` (nested placements compose). */
