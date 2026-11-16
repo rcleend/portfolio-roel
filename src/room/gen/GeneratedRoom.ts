@@ -10,7 +10,7 @@ import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
 import { LavaWax } from './LavaWax';
 import { GROUP, type MeshName } from './props/types';
-import { EXTERIOR_PLATE, PICK_PROPS, ROBOT_SPEC, TV_LAMP_SPEC } from './roomSpec';
+import { BULB_SPEC, EXTERIOR_PLATE, PICK_PROPS, TV_LAMP_SPEC } from './roomSpec';
 import type { GenRequest, GenScene } from './scene';
 import { GENERATED_TIERS, type GeneratedTier, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
 
@@ -397,8 +397,8 @@ export class GeneratedRoom {
     const props = vertexLit('props', '01_TV_props_BAKED_UNLIT');
     // The desk corner's props: their own mesh, culled by the frustum of a view that looks away from the desk.
     const deskProps = vertexLit('desk', '02_Desk_props_BAKED_UNLIT');
-    // Light itself: the globe and the eyes are drawn in the lamp's colour, pushed past white so the finish's
-    // highlights bloom around them.
+    // Light itself: the globe and the bulb's filament are drawn in their lamp's colour, pushed past white so the
+    // finish's highlights bloom around them.
     const emitter = (mesh: MeshName, name: string, light: { color: readonly number[]; glow: number }): Mesh => {
       const data = gen.meshes[mesh];
       const geometry = new k.BufferGeometry();
@@ -416,7 +416,28 @@ export class GeneratedRoom {
       return made;
     };
     const globe = emitter('globe', '01_TV_lamp_opaline_BAKED_UNLIT', TV_LAMP_SPEC);
-    const eyes = emitter('eyes', '01_TV_robot_eyes_BAKED_UNLIT', ROBOT_SPEC);
+    const filament = emitter('filament', '01_TV_bulb_filament_BAKED_UNLIT', BULB_SPEC);
+    // The bulb's glass: clear, so only what it reflects, added to the frame in the colours its generator gave it. The
+    // lava lamp's bottle is drawn the same way (LavaWax), on the same program.
+    const bulbData = gen.meshes.bulb;
+    const bulbGeometry = new k.BufferGeometry();
+    bulbGeometry.setAttribute('position', new k.BufferAttribute(bulbData.positions, 3));
+    bulbGeometry.setAttribute('color', new k.BufferAttribute(bulbData.albedo, 3));
+    const bulb = new k.Mesh(
+      bulbGeometry,
+      new k.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        // Its alpha (what the finish reads as a surface, not a display) is left alone.
+        blending: k.CustomBlending,
+        blendSrc: k.OneFactor,
+        blendDst: k.OneFactor,
+        blendSrcAlpha: k.ZeroFactor,
+        blendDstAlpha: k.OneFactor,
+        depthWrite: false,
+      }),
+    );
+    bulb.name = 'Generated bulb glass';
 
     const blankCanvas = document.createElement('canvas');
     blankCanvas.width = blankCanvas.height = 1;
@@ -520,7 +541,7 @@ export class GeneratedRoom {
     const deskCharts = this.charts.get(GROUP.desk);
     if (deskCharts) desk.add(deskCharts);
     desk.add(this.pickMesh(gen, deskProps, PICK_PROPS.desk, 'desk'));
-    room.add(props, deskProps, globe, eyes, printsOf(false), outside, ...this.lava.meshes);
+    room.add(props, deskProps, globe, filament, bulb, printsOf(false), outside, ...this.lava.meshes);
     for (const [index, mesh] of this.charts) if (index !== GROUP.desk) room.add(mesh);
     return { tv: tvSet, pc, monitor, desk, dresser: this.charts.get(GROUP.dresser) ?? null, radio: this.radioParts };
   }

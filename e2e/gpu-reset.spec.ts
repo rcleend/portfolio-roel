@@ -203,7 +203,7 @@ test('the room is lit again after the GPU process restarts, the startup still ov
     await pauseOnCharacterSelect(page);
     await page.evaluate(() => window.__arcade?.pause());
     await page.waitForTimeout(600);
-    // The wall beside the set and the cabinet's top under the robot: baked surfaces, lit by the bake alone.
+    // The wall beside the set and the cabinet's top by the bulb lamp: baked surfaces, lit by the bake alone.
     const wall: Clip = { x: 60, y: 120, width: 120, height: 120 };
     const cabinet: Clip = { x: 200, y: 800, width: 100, height: 40 };
     const before = { wall: await look(page, wall), cabinet: await look(page, cabinet) };

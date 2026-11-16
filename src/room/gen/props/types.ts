@@ -20,7 +20,9 @@ export type MeshName =
   | 'monitor'
   | 'props'
   | 'globe'
-  | 'eyes'
+  // The bare bulb's filament (light itself) and its glass (a film of light).
+  | 'filament'
+  | 'bulb'
   | 'glass'
   // The desk corner's props: a mesh of their own, small enough about the desk that the frustum of a view looking
   // away from it (the TV's) leaves it out.

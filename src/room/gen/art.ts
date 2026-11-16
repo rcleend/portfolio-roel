@@ -1,6 +1,6 @@
 /**
  * The printed things, as rectangles of one small canvas (the art page): the game covers, the TV's legends and
- * wordmark, the robot's chest panel. All of it is drawn in code (artPaint.ts); nothing here is an image file.
+ * wordmark, the console's. All of it is drawn in code (artPaint.ts); nothing here is an image file.
  * Rectangles are in a 1024-pixel page; lower quality tiers draw the page smaller.
  */
 export const ART_SIZE = 1024;
@@ -11,11 +11,8 @@ export const ART = {
   /** 0.30 m × 0.0375 m of the TV's chin: the button and jack legends, and the wordmark over them. */
   legends: [0, 0, 1024, 128],
   /** Game covers, portrait, 0.144 m × 0.194 m. */
-  coverEngineer: [4, 136, 272, 368],
   coverKingdom: [284, 136, 272, 368],
   coverBricks: [564, 136, 272, 368],
-  /** The robot's chest panel: two rows of gauges. */
-  chest: [844, 136, 160, 160],
   /** The game on the floor by the console: a cover as the three above, in the page's bottom corner. */
   coverPowder: [748, 652, 272, 368],
   /** The console's wordmark, 0.085 m × 0.017 m of its lid, and its standby lamp. */
