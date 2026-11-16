@@ -18,7 +18,7 @@ import {
 import type { PropSink } from './types';
 
 /** Petrol-blue wool cloth, its piping a shade deeper; the frame's black nylon, and the lift's bright steel. */
-const CLOTH: Rgb = [0.062, 0.15, 0.285];
+const CLOTH: Rgb = [0.05, 0.135, 0.205];
 const NYLON: Rgb = [0.022, 0.024, 0.03];
 const STEEL: Rgb = [0.3, 0.31, 0.33];
 

@@ -11,9 +11,9 @@ import { GROUP, PAGE, type Prop } from './types';
  * replaced (docs/gen/reference is its record).
  */
 
-const PINE: Rgb = [0.3, 0.175, 0.155];
+const PINE: Rgb = [0.34, 0.19, 0.105];
 /** The same wood where it is geometry (a chamfer, the skirt's curve): its chart's grain averages a little darker. */
-const PINE_SOLID: Rgb = [0.283, 0.165, 0.146];
+const PINE_SOLID: Rgb = [0.32, 0.18, 0.1];
 
 let seed = 0;
 /** Stained pine; `upright` turns the grain to run up the chart. */

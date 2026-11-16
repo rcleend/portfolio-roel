@@ -687,9 +687,10 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   pivot turned back by the open angle. Vertex colours rather than charted pages: the radio is curved, moulded and
   moving, a chart is a flat rectangle, and at the close-up's 3.6 device pixels a millimetre its panel alone would want
   a 2048² page (22 MB with mips) where the vertices cost 0.6 MB and nothing to upload.
-- **The night's rig** (`gen/rig.ts`). Each of the seven lights of the Blender rig has its counterpart, by the names
-  the table's comments quote: the warm attic practical (`pool`, with `bounce` and `floor` for what its pool sends
-  back up), the TV's reflected blue (`tv-glow`, and `fill` on the left wall), the blue-hour window (`moon`,
+- **The night's rig** (`gen/rig.ts`; what each light is for and what explains it: ROOM-ART-DIRECTION.md › The
+  light). Each of the seven lights of the Blender rig has its counterpart, by the names
+  the table's comments quote: the warm attic practical, which had no fitting and is now the lamps' own dim warm
+  bounce (`pool`, with `bounce` and `floor` for what its pool sends back up), the TV's reflected blue (`tv-glow`, and `fill` on the left wall), the blue-hour window (`moon`,
   `moon-through-blind`, `moon-on-blind`), the window's reflected corner fill (`blind-scatter`, and `fill`), the lava
   lamp's amber spill (`lava`, `lava-spill`), the tungsten task light (`desk`, `desk-wall`, `desk-fill`) and the computer's CRT
   bounce (`crt`). Beside them: the `ambient` dome that only furniture shadows (its light from below, the floor's bounce, only by
@@ -768,7 +769,7 @@ first frame already has the intended finish. There are no mood controls or produ
 | Mood | Direction |
 | --- | --- |
 | Honey & dust (`honey`) | Golden lamps, tobacco-brown shadows and slowly drifting amber dust; the warmest evening. |
-| Velvet dusk (`rose`) | Peach lamplight, plum shadows, softer haze and the most dust; a nostalgic summer dream. |
+| Velvet dusk (`rose`) | Amber lamplight against the blue of a rainy night, ink-blue shadows, soft haze and the most dust; the app's finish, and the room's colour script in numbers (ROOM-ART-DIRECTION.md › The colour script). |
 | Moonlit hideaway (`midnight`) | The darkest exposure, cool blue window air, copper lamps and finer silver dust. |
 
 The bake remains the source of light and occlusion. Hard surfaces receive a shared shader extension for restrained,

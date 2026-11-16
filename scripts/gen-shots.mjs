@@ -4,11 +4,13 @@
 // existed: the look the room is held to (`--compare docs/gen/reference`).
 //
 //   node scripts/gen-shots.mjs [--tier high|medium|low] [--viewport desktop|phone] [--out dir] [--only name,name]
-//                              [--compare dir] [--format jpg|png] [--mood rose|original] [--eight-bit]
+//                              [--compare dir] [--format jpg|png] [--mood rose|original] [--eight-bit] [--flights]
 //
 // Writes <out>/<viewport>-<tier>/<name>.jpg: the four views (tv, room, pc, radio) and true-zoom crops (the view's own
 // camera with a view offset, so a crop is drawn at full resolution, not enlarged) of each corner of the room.
 // `--compare dir` also writes cmp-<name>.jpg beside each picture: that set's on the left, this run's on the right.
+// `--flights` also shoots the camera on its way (flight-<from>-<to>-<percent>.jpg): the page's clock is slowed for the
+// flight, so the frames are a flight's own, at rest long enough to be read.
 // Its own vite server on a free port, without hot reload (other checkouts' edits do not reload the page mid-run);
 // headless Chromium on the GPU (ANGLE/Metal). CHROMIUM_PATH picks a browser binary.
 import { existsSync } from 'node:fs';
@@ -33,6 +35,17 @@ const mood = option('mood', 'rose');
 const compare = option('compare', '');
 /** Without float colour buffers: the bake's eight-bit accumulation, and the finish's eight-bit targets. */
 const eightBit = args.includes('--eight-bit');
+const flights = args.includes('--flights');
+/** The flights shot on their way, and how far along (the camera's 1.1 s, slowed twenty times). */
+const FLIGHTS = [
+  ['room', 'tv'],
+  ['tv', 'room'],
+  ['room', 'pc'],
+  ['room', 'radio'],
+];
+const FLIGHT_STOPS = [0.3, 0.5, 0.7];
+const FLIGHT_MS = 1100;
+const SLOW = 0.05;
 const outDir = join(resolve(option('out', '.shots/gen/final')), `${viewportName}-${tier}`);
 const compareDir = compare ? join(resolve(compare), `${viewportName}-${tier}`) : '';
 
@@ -311,6 +324,23 @@ try {
         return /color_buffer_(half_)?float/.test(name) ? null : original.call(this, name);
       };
     });
+  // A clock that can be slowed: the frames' timestamps and performance.now together (`__timeScale(0.05)`).
+  await page.addInitScript(() => {
+    const realNow = performance.now.bind(performance);
+    let scale = 1;
+    let realBase = realNow();
+    let virtualBase = realBase;
+    const virtual = (real) => virtualBase + (real - realBase) * scale;
+    window.__timeScale = (next) => {
+      const real = realNow();
+      virtualBase = virtual(real);
+      realBase = real;
+      scale = next;
+    };
+    performance.now = () => virtual(realNow());
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) => raf((time) => callback(virtual(time)));
+  });
   page.on('pageerror', (error) => console.log(`[page error] ${error.message}`));
   page.on('console', (msg) => msg.type() === 'error' && console.log(`[page error] ${msg.text()}`));
   const query = `clean&mood=${mood}&quality=${tier}&autopower=0&mockpc=1&mockradio=1`;
@@ -382,6 +412,40 @@ try {
     if (view === 'pc' || view === 'radio') {
       await go.room(page);
       await page.waitForFunction(() => window.__roomLab.room.view === 'room' && window.__roomLab.room.settled);
+    }
+  }
+  if (flights) {
+    const settle = (view) =>
+      page.waitForFunction((v) => window.__roomLab.room.view === v && window.__roomLab.room.settled, view, {
+        timeout: 60_000,
+      });
+    await page.waitForFunction(() => window.__roomLab.room.stats.radioReady, null, { timeout: 30_000 });
+    for (const [from, to] of FLIGHTS) {
+      if (only.length > 0 && !only.includes(`flight-${from}-${to}`) && !only.includes('flights')) continue;
+      await go[from](page);
+      await settle(from);
+      await sleep(from === 'radio' ? 2600 : 1200);
+      await page.evaluate((scale) => window.__timeScale(scale), SLOW);
+      await page.evaluate((view) => {
+        const room = window.__roomLab.room;
+        if (view === 'tv') room.focusTv();
+        else if (view === 'room') room.showRoom();
+        else if (view === 'pc') room.focusPc();
+        else room.focusRadio();
+      }, to);
+      const started = Date.now();
+      for (const stop of FLIGHT_STOPS) {
+        const wait = started + (FLIGHT_MS / SLOW) * stop - Date.now();
+        if (wait > 0) await sleep(wait);
+        await save(page, `flight-${from}-${to}-${Math.round(stop * 100)}`, viewport.viewWidth);
+      }
+      await page.evaluate(() => window.__timeScale(1));
+      if (to === 'pc') await page.waitForFunction(() => window.__roomLab.room.pc.live, null, { timeout: 30_000 });
+      await settle(to);
+      if (to === 'pc' || to === 'radio') {
+        await go.room(page);
+        await settle('room');
+      }
     }
   }
   await page.close();

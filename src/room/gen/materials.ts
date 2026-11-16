@@ -126,7 +126,7 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     + (0.14 * (stroke - 0.5) + 0.12 * (sweep - 0.5)) * (1.0 + 3.0 * navy);
   float pile = 0.87 + (0.12 * tuft + 0.07 * (clump - 0.5)) * (1.0 + 1.5 * navy)
     + 0.06 * rows * (weft - 0.5) * (1.0 + 2.0 * navy) + nap;
-  vec3 yarn = mix(vec3(0.6, 0.6, 0.63) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.019, 0.034, 0.108), navy);
+  vec3 yarn = mix(vec3(0.4, 0.37, 0.315) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.03, 0.045, 0.092), navy);
   return yarn * max(pile, 0.3);
 }
 `;

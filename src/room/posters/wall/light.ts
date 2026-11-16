@@ -1,25 +1,25 @@
 import type { Surface } from './layout';
 
 /*
- * The night on the walls. The walls' first atlas was a path-traced bake with the night's light on every sheet; here
- * it is a small analytic model matched to that bake by eye and by sampled values (white paper read about (0.62, 0.48, 0.58) of full
- * over the radio and (0.36, 0.28, 0.35) on the slope): a dim mauve fill that turns bluer and darker towards the
- * window's far side, the lava lamp's amber pool under the cluster, and the slope fading from the ridge down. It is
- * multiplied into each island as it is painted, so the cards keep the room's unlit program and cost nothing per frame.
- * The room's rig (gen/rig.ts) is not used: it is baked on the GPU into the room's own charts, and the posters are
- * painted in their own worker.
+ * The night on the walls: a small analytic model of the room's light, matched by eye to what the rig (gen/rig.ts) bakes
+ * onto the wall beside each sheet, so paper sits in the wall's light and no sheet is a light of its own
+ * (docs/ROOM-ART-DIRECTION.md › Posters). In the room's two families: a dim warm fill right of the window, where the
+ * lamps' bounce reaches, that turns bluer and darker towards the window's far side, the lava lamp's amber pool under
+ * the cluster, and the slope fading from the ridge down. It is multiplied into each island as it is painted, so the
+ * cards keep the room's unlit program and cost nothing per frame. The rig itself is not used: it is baked on the GPU
+ * into the room's own charts, and the posters are painted in their own worker.
  */
 export type Rgb = readonly [number, number, number];
 
 /** The fill right of the window and left of it (the desk's side, in the window's blue). */
-const FILL_RIGHT: Rgb = [0.56, 0.44, 0.54];
-const FILL_LEFT: Rgb = [0.3, 0.31, 0.43];
+const FILL_RIGHT: Rgb = [0.47, 0.42, 0.39];
+const FILL_LEFT: Rgb = [0.25, 0.3, 0.4];
 /** The slope's fill at the ridge; it falls to SLOPE_FOOT of that at the knee wall. */
-const FILL_SLOPE: Rgb = [0.38, 0.29, 0.37];
+const FILL_SLOPE: Rgb = [0.34, 0.29, 0.25];
 const SLOPE_FOOT = 0.72;
 const SLOPE_LENGTH = 2.32;
 /** The lava lamp on the radio's shelf: where its glow is, how far it reaches and what it adds. */
-const LAVA = { at: [0.95, 1.12, -2.2], reach: 0.55, color: [0.5, 0.2, 0.1] } as const;
+const LAVA = { at: [0.95, 1.12, -2.2], reach: 0.55, color: [0.5, 0.26, 0.08] } as const;
 
 const smooth = (from: number, to: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - from) / (to - from)));
