@@ -89,6 +89,13 @@ export const CLOSEUPS = {
     head: { position: [-1.72, 1.2, -1.74], target: [-1.96, 1.15, -2.03], fov: 32 },
     foot: { position: [-1.85, 0.93, -1.72], target: [-2.09, 0.83, -2.03], fov: 32 },
   },
+  desk: {
+    'top-right': { position: [-0.7, 1.7, -1.55], target: [-0.7, 0.79, -1.85], fov: 42 },
+    'top-left': { position: [-1.98, 1.45, -1.4], target: [-1.98, 0.79, -1.68], fov: 40 },
+    front: { position: [-1.3, 1.0, 0.25], target: [-1.3, 0.55, -1.6], fov: 55 },
+    pulls: { position: [-0.3, 0.72, -0.8], target: [-0.73, 0.5, -1.39], fov: 40 },
+    cup: { position: [-0.75, 1.05, -1.75], target: [-0.5, 0.88, -2.15], fov: 34 },
+  },
   rug: {
     corner: { position: [0.95, 0.5, 0.2], target: [1.4, 0.04, -0.3], fov: 40 },
     'corner-low': { position: [0.9, 0.1, -0.78], target: [1.42, 0.045, -0.33], fov: 36 },

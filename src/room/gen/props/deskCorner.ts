@@ -4,6 +4,7 @@ import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
 import { swivelChair } from './chair';
 import { deskLamp } from './deskLamp';
+import { deskThings, pull } from './deskThings';
 import { keyboard } from './keyboard';
 import { monitor } from './monitor';
 import { mouse } from './mouse';
@@ -11,7 +12,6 @@ import { tower } from './tower';
 import { GROUP, PAGE, type Prop } from './types';
 
 const WHITE: Rgb = [0.62, 0.6, 0.57];
-const STEEL: Rgb = [0.28, 0.29, 0.3];
 
 let seed = 0;
 const enamel = (color: Rgb = WHITE, density = 380): Omit<Chart, 'origin' | 'u' | 'v'> => ({
@@ -29,7 +29,7 @@ const enamel = (color: Rgb = WHITE, density = 380): Omit<Chart, 'origin' | 'u' |
  */
 export const desk: Prop = {
   name: 'desk',
-  budget: 900,
+  budget: 4200,
   build(sink) {
     seed = 0;
     const b = sink.mesh('props');
@@ -42,15 +42,15 @@ export const desk: Prop = {
       [0.639, 0.743],
     ] as const) {
       sink.chart(...boxCharts([-0.992, y0, -1.412], [-0.455, y1, -1.39], enamel(), ['-z']));
-      b.beam([-0.8, (y0 + y1) / 2 + 0.03, -1.39], [-0.65, (y0 + y1) / 2 + 0.042, -1.37], STEEL, 1, 0.05);
+      pull(sink, -0.8135, -0.6555, y1 - 0.058, -1.39);
     }
     // The apron and its drawer, and the frame leg: two posts and a foot.
     sink.chart(...boxCharts([-2.132, 0.613, -2.277], [-1.033, 0.767, -1.421], enamel(), ['+y', '+x']));
-    b.beam([-1.7, 0.69, -1.421], [-1.5, 0.702, -1.401], STEEL, 1, 0.05);
+    pull(sink, -1.6581, -1.5002, 0.6851, -1.421);
     for (const z of [-2.268, -1.465]) b.beam([-2.166, 0.03, z], [-2.126, 0.767, z + 0.04], WHITE);
     b.beam([-2.166, 0.006, -2.268], [-2.126, 0.04, -1.425], WHITE);
-    // The mouse mat and three books, lying flat.
-    b.box([-0.775, 0.785, -1.885], [-0.545, 0.788, -1.695], [0.03, 0.09, 0.16], 1, ['-y']);
+    deskThings(sink);
+    // Three books, lying flat.
     const books: Rgb[] = [
       [0.05, 0.12, 0.17],
       [0.3, 0.08, 0.06],
@@ -63,21 +63,6 @@ export const desk: Prop = {
         b.box([-0.132, 0.003, -0.168], [0.14, 0.022, 0.168], [0.5, 0.48, 0.42], 0.9, ['-x', '+y', '-y']);
       });
     });
-    // The mug by the keyboard.
-    b.lathe(
-      [-0.9, 0.785, -1.93],
-      [0, 1, 0],
-      [
-        [0, 0],
-        [0.036, 0],
-        [0.04, 0.09],
-        [0.035, 0.09],
-        [0.033, 0.01],
-        [0, 0.01],
-      ],
-      20,
-      [0.5, 0.5, 0.48],
-    );
   },
 };
 
