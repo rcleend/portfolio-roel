@@ -1,7 +1,8 @@
-import { place, type Rgb, type Ring, roundedRect, type Vec3 } from '../kit/builder';
+import { place, type Rgb, type Ring, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
+import { swivelChair } from './chair';
 import { keyboard } from './keyboard';
 import { monitor } from './monitor';
 import { mouse } from './mouse';
@@ -79,56 +80,12 @@ export const desk: Prop = {
   },
 };
 
-/** The swivel chair, facing the desk: a petrol seat and back on a gas lift over a five-armed base on castors. */
+/** The swivel chair at the desk (chair.ts). */
 export const chair: Prop = {
   name: 'chair',
-  budget: 2600,
+  budget: 8000,
   build(sink) {
-    const b = sink.mesh('props');
-    const cloth: Rgb = [0.07, 0.17, 0.24];
-    const plastic: Rgb = [0.02, 0.022, 0.026];
-    const centre: Vec3 = [-1.28, 0, -0.99];
-    b.roundedBox([-1.599, 0.481, -1.27], [-0.959, 0.568, -0.714], 0.04, cloth, 1, 1, 4);
-    // The back: a shield, narrow at the lumbar and round at the shoulders, leaning away and turned a little.
-    b.placed(place([-1.353, 0, -0.655], -0.178), () => {
-      const section = (y: number, half: number, lean: number, depth: number): Ring =>
-        roundedRect(-half, half, lean - depth / 2, lean + depth / 2, depth * 0.48, 4).map(([x, z]): Vec3 => [x, y, z]);
-      b.skin(
-        [
-          section(0.648, 0.1, -0.02, 0.05),
-          section(0.665, 0.14, -0.018, 0.075),
-          section(0.71, 0.205, -0.012, 0.09),
-          section(0.77, 0.24, -0.004, 0.095),
-          section(0.84, 0.252, 0.006, 0.095),
-          section(0.93, 0.255, 0.018, 0.09),
-          section(1.0, 0.253, 0.028, 0.085),
-          section(1.045, 0.24, 0.034, 0.075),
-          section(1.068, 0.215, 0.037, 0.055),
-          section(1.076, 0.17, 0.038, 0.03),
-        ],
-        cloth,
-      );
-    });
-    // The back's spine, the lift and the base.
-    b.beam([-1.4, 0.44, -0.72], [-1.3, 0.9, -0.66], plastic, 1, 0.12);
-    b.cylinder([centre[0], 0.15, centre[2]], [centre[0], 0.48, centre[2]], 0.03, 0.026, 12, plastic, 1);
-    b.cylinder([centre[0], 0.12, centre[2]], [centre[0], 0.2, centre[2]], 0.045, 0.04, 12, plastic, 1);
-    for (let i = 0; i < 5; i++) {
-      const angle = (i / 5) * Math.PI * 2 + 0.3;
-      const tip: Vec3 = [centre[0] + Math.cos(angle) * 0.3, 0.085, centre[2] + Math.sin(angle) * 0.3];
-      b.cylinder([centre[0], 0.13, centre[2]], tip, 0.024, 0.016, 8, plastic, 1);
-      b.cylinder(
-        [tip[0], 0.006, tip[2] - 0.022],
-        [tip[0], 0.006, tip[2] + 0.022],
-        0.0001,
-        0.0001,
-        3,
-        plastic,
-        1,
-        false,
-      );
-      b.sphere([tip[0], 0.035, tip[2]], 0.03, 10, plastic, 0.8);
-    }
+    swivelChair(sink);
   },
 };
 
