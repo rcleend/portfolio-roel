@@ -3,6 +3,7 @@ import { boxCharts, type Chart } from '../kit/charts';
 import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
 import { swivelChair } from './chair';
+import { deskLamp } from './deskLamp';
 import { keyboard } from './keyboard';
 import { monitor } from './monitor';
 import { mouse } from './mouse';
@@ -168,45 +169,13 @@ export const basket: Prop = {
   },
 };
 
-/** The tower under the desk (tower.ts) and the arm lamp on it. */
+/** The tower under the desk (tower.ts) and the arm lamp on it (deskLamp.ts). */
 export const towerAndLamp: Prop = {
   name: 'tower-and-desk-lamp',
-  budget: 4000,
+  budget: 9400,
   build(sink) {
-    const b = sink.mesh('props');
     tower(sink);
-    // The lamp: a weighted foot, two arms on spring joints and a cone shade tipped down at the desk.
-    const metal: Rgb = [0.03, 0.035, 0.05];
-    const foot: Vec3 = [-2.085, 0.785, -2.035];
-    const elbow: Vec3 = [-2.165, 1.09, -2.035];
-    const wrist: Vec3 = [-1.975, 1.235, -2.035];
-    const mouth: Vec3 = [-1.945, 1.095, -2.02];
-    b.cylinder(foot, [foot[0], 0.81, foot[2]], 0.07, 0.062, 20, metal, 1);
-    for (const dz of [-0.012, 0.012]) {
-      b.cylinder([foot[0], 0.81, foot[2] + dz], [elbow[0], elbow[1], elbow[2] + dz], 0.005, 0.005, 6, metal, 1);
-      b.cylinder([elbow[0], elbow[1], elbow[2] + dz], [wrist[0], wrist[1], wrist[2] + dz], 0.005, 0.005, 6, metal, 1);
-    }
-    b.sphere(elbow, 0.016, 10, metal);
-    b.sphere(wrist, 0.016, 10, metal);
-    // The shade: a bell of dark enamelled steel, its mouth down at the desk.
-    const down: Vec3 = [mouth[0] - wrist[0], mouth[1] - wrist[1], mouth[2] - wrist[2]];
-    b.lathe(
-      wrist,
-      down,
-      [
-        [0, 0],
-        [0.024, 0],
-        [0.05, 0.022],
-        [0.072, 0.06],
-        [0.083, 0.105],
-        [0.086, 0.144],
-      ],
-      20,
-      [0.05, 0.03, 0.035],
-    );
-    // Inside it, the lit reflector and the bulb just proud of the mouth.
-    b.cylinder([mouth[0] - 0.005, mouth[1] + 0.03, mouth[2]], mouth, 0.045, 0.082, 20, [0.9, 0.62, 0.3], 3, false);
-    b.sphere([mouth[0], mouth[1] + 0.004, mouth[2]], 0.03, 10, [1, 0.8, 0.5], 3);
+    deskLamp(sink);
   },
 };
 
