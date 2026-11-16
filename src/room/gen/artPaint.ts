@@ -14,10 +14,8 @@ export function paintArt(canvas: HTMLCanvasElement, size: number): void {
   c.setTransform(size / ART_SIZE, 0, 0, size / ART_SIZE, 0, 0);
   c.clearRect(0, 0, ART_SIZE, ART_SIZE);
   legends(c, ART.legends);
-  engineer(c, ART.coverEngineer);
   kingdom(c, ART.coverKingdom);
   bricks(c, ART.coverBricks);
-  chest(c, ART.chest);
   powder(c, ART.coverPowder);
   consoleMark(c, ART.consoleMark);
   consoleLamp(c, ART.consoleLamp);
@@ -93,61 +91,6 @@ function spine(c: Context, w: number, h: number, color: string): void {
   c.fillText('REO·LEO 2', 10, 10);
   c.fillStyle = 'rgba(0,0,0,0.35)';
   c.fillRect(0, h - 14, w, 14);
-}
-
-/** Product Engineer: a blueprint in the TV title's blue and amber. */
-function engineer(c: Context, rect: ArtRect): void {
-  within(c, rect, (w, h) => {
-    const sky = c.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#0b2a6b');
-    sky.addColorStop(1, '#061540');
-    c.fillStyle = sky;
-    c.fillRect(0, 0, w, h);
-    c.strokeStyle = 'rgba(120,170,255,0.22)';
-    c.lineWidth = 1;
-    for (let x = 0; x <= w; x += 17) {
-      c.beginPath();
-      c.moveTo(x, 20);
-      c.lineTo(x, h);
-      c.stroke();
-    }
-    for (let y = 20; y <= h; y += 17) {
-      c.beginPath();
-      c.moveTo(0, y);
-      c.lineTo(w, y);
-      c.stroke();
-    }
-    // A rising chart and a set on its stand, as drawing lines.
-    c.strokeStyle = 'rgba(170,205,255,0.75)';
-    c.lineWidth = 2;
-    c.beginPath();
-    c.moveTo(34, 300);
-    for (const [x, y] of [
-      [80, 280],
-      [120, 288],
-      [165, 246],
-      [205, 252],
-      [240, 205],
-    ] as const)
-      c.lineTo(x, y);
-    c.stroke();
-    c.strokeRect(92, 196, 92, 70);
-    c.strokeRect(102, 205, 72, 50);
-    c.beginPath();
-    c.moveTo(112, 266);
-    c.lineTo(104, 282);
-    c.moveTo(164, 266);
-    c.lineTo(172, 282);
-    c.stroke();
-    title(c, ['PRODUCT', 'ENGINEER'], w / 2 + 8, 82, 46, '#ff9a1f', '#7a1d00');
-    c.fillStyle = '#ffd25a';
-    c.fillRect(102, 205, 72, 50);
-    c.fillStyle = '#0b2a6b';
-    c.font = `800 13px ${SANS}`;
-    c.textAlign = 'center';
-    c.fillText('PRESS START', 138, 232);
-    spine(c, w, h, '#0a1a44');
-  });
 }
 
 /** A fictional adventure: a crown and a key over a night sea. */
@@ -346,53 +289,6 @@ function consoleLamp(c: Context, rect: ArtRect): void {
     glow.addColorStop(1, 'rgba(255,30,20,0)');
     c.fillStyle = glow;
     c.fillRect(0, 0, w, h);
-  });
-}
-
-/** The robot's chest: two instrument columns, each a dial, a warning mark, a row of lamps and a plate. */
-function chest(c: Context, rect: ArtRect): void {
-  within(c, rect, (w, h) => {
-    c.fillStyle = '#0b0b0c';
-    c.fillRect(0, 0, w, h);
-    for (const left of [8, w / 2 + 4]) {
-      const width = w / 2 - 12;
-      c.fillStyle = '#e8c63a';
-      c.fillRect(left, 10, width, 34);
-      c.strokeStyle = '#0b0b0c';
-      c.lineWidth = 2.5;
-      c.beginPath();
-      c.arc(left + width / 2, 46, 24, Math.PI * 1.15, Math.PI * 1.85);
-      c.stroke();
-      c.beginPath();
-      c.moveTo(left + width / 2, 44);
-      c.lineTo(left + width / 2 + 12, 22);
-      c.stroke();
-      c.fillStyle = '#e8c63a';
-      c.beginPath();
-      c.moveTo(left + width / 2, 54);
-      c.lineTo(left + width / 2 + 16, 80);
-      c.lineTo(left + width / 2 - 16, 80);
-      c.closePath();
-      c.fill();
-      c.fillStyle = '#0b0b0c';
-      c.fillRect(left + width / 2 - 2, 62, 4, 10);
-      c.fillRect(left + width / 2 - 2, 74, 4, 3);
-      c.fillStyle = '#d8d8d2';
-      for (let i = 0; i < 4; i++) {
-        c.beginPath();
-        c.arc(left + 9 + i * ((width - 18) / 3), 94, 4.5, 0, Math.PI * 2);
-        c.fill();
-      }
-      c.fillStyle = '#e8c63a';
-      for (let i = 0; i < 5; i++) c.fillRect(left + 4 + i * (width / 5), 108, width / 10, 7);
-      c.fillStyle = '#d8d8d2';
-      c.fillRect(left, 124, width, 26);
-      c.fillStyle = '#0b0b0c';
-      c.font = `800 13px ${SANS}`;
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(left < w / 2 ? '– 01 –' : '– 02 –', left + width / 2, 138);
-    }
   });
 }
 

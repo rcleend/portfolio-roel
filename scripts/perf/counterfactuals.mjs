@@ -20,7 +20,6 @@ const stub = (signature, value) => ({
 const SURFACE = {
   tvLight: off('outgoingLight \\+= screenLight\\([^;]*;'),
   lamp: off('outgoingLight \\+= tvLampLight\\([^;]*;'),
-  robot: off('outgoingLight \\+= toyRobotLight\\([^;]*;', ';'),
   varnish: off('outgoingLight \\+= uVarnish[^;]*;'),
 };
 const COMPOSITE = {
@@ -36,7 +35,6 @@ const CASES = {
   '8-bit targets': { noFloat: true },
   'no TV area light on surfaces': { shaderPatches: { tvLight: SURFACE.tvLight } },
   'no opal lamp light': { shaderPatches: { lamp: SURFACE.lamp } },
-  'no robot eye light': { shaderPatches: { robot: SURFACE.robot } },
   'no varnish reflections': { shaderPatches: { varnish: SURFACE.varnish } },
   'no surface finish at all': { shaderPatches: SURFACE },
   'no bloom taps in the composite': { shaderPatches: { bloom: COMPOSITE.bloom } },

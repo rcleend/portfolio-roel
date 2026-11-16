@@ -12,7 +12,7 @@ change to that code.
 
 | The TV as the room first shipped it (left) and as it is generated (right) |
 | --- |
-| ![Two captures of the CRT on its cabinet at night, a toy robot with glowing eyes at its left and a plant at its right; the right one carries the site's own wordmark](gen/tv-high.jpg) |
+| ![Two captures of the CRT on its cabinet at night with a plant at its right: the shipped room's, a toy robot with glowing eyes and a game case at its left, and the generated room's, a dimmed bare-bulb lamp in their place and the site's own wordmark on the set](gen/tv-high.jpg) |
 
 The pictures under `docs/room/` (`after.webp`, `pc.webp`, `radio.webp`, `desktop-detail.webp`, `basket.webp`) were
 captured from the room with shipped models (§ History). The composition, the palette and the light are what the
@@ -63,7 +63,7 @@ What the room takes from it:
 
 - **Lighting.** Night. The window's cool light comes under the half-lowered blind as a bright patch past the desk's
   end and, dimmer and unstriped, through its slats; the desk lamp's tungsten and the lava lamp's amber are small warm
-  pools; an opal globe beside the TV and the toy robot's eyes light the cabinet top so the opening view is not lost
+  pools; an opal globe beside the TV and a dimmed bare bulb on its other side light the cabinet top so the opening view is not lost
   in the dark. Broad fills are very dim, so the ceiling and the corners stay in deep shadow. A filmic curve is part of
   the bake. The finish on top of it ([ROOM.md](ROOM.md) › Atmosphere) is Velvet dusk: peach lamplight, plum shadows,
   a little haze and dust.
@@ -86,12 +86,13 @@ What the room takes from it:
   stepping in to the back plate, a plinth, a strip of round buttons under printed legends and front jacks. Its
   wordmark is the site's own. The glass is a separate mesh with the CRT shader.
 - **TV cabinet top.** At the set's right an opal globe lamp on a round metal foot and a 21 cm plant in an ivory
-  pot, broad dark leaves with a paler midrib; at its left a 30 cm tin toy robot (grey feet, red legs, a chest of
-  printed gauges, aerials) whose eyes glow in the lamp's colour, and in front of it a game case.
+  pot, broad dark leaves with a paler midrib; at its left a bare-bulb lamp turned most of the way down (a turned
+  walnut base, a brass holder, a clear bulb whose cage filament glows orange, a braided flex with a bakelite rocker
+  switch).
 - **Console.** On the floor in front of the cabinet: a slim black console of its years, a design of its own with
   the room's wordmark, two pads on their cables, a memory card and a game case beside it.
-- **Game cases.** Four, with covers made for this room: Product Engineer (matching the TV's title in blue and
-  amber), Powder Rush, Crown & Key and Brick Galaxy. The posters advertise the same three games.
+- **Game cases.** Three, with covers made for this room: Powder Rush, Crown & Key and Brick Galaxy, the games the
+  posters advertise.
 - **CD player.** A portable radio cassette CD deck of the nineties, drawn for this room: two speaker pods with
   louvred fronts either side of a silver panel (a display lens, a round transport cluster, a tuning dial, a chin of
   switches), a cassette deck and the CD lid on its sloping top, a folded handle and an aerial. It carries no brand:

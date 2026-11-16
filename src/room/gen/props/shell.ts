@@ -1,6 +1,7 @@
-import { type MeshBuilder, place, type Rgb, type Vec3 } from '../kit/builder';
+import { cross, dot, type MeshBuilder, place, type Rgb, sub, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
+import { mottled, noise3, skin, slab, type Tone, tint } from './form';
 import { FLOOR, GROUP, PAGE, type Prop } from './types';
 
 /** The room: 5.6 m × 4.8 m, 3.28 m high on the left, sloping from x = 0.95 down to a 1.88 m knee wall on the right. */
@@ -136,78 +137,179 @@ export const door: Prop = {
   },
 };
 
+/** The window's casing (how wide its boards are, where their face stands) and the height its sashes meet at. */
+const CASING = { wide: 0.13, face: -2.318 };
+const MEETING = 1.65;
 /**
- * The window in the back wall: a narrow casing, the deep sill, two sashes (the lower one's stiles and rails, the
- * meeting rail, a glazing bar) and a venetian blind hung inside the reveal and let halfway down, twenty-four slats
- * tilted nearly shut. Every bar is cut into short lengths so the lamp's pool and the blind's shadows can cross it.
+ * The blind, hung on the casing's face in front of the opening: twenty slats 50 mm deep on a 36 mm pitch, tilted open
+ * with their room-side edges low, the right end drawn up `skew` higher than the left by an uneven pull on its cords.
+ */
+const BLIND = { z: -2.279, depth: 0.05, slats: 20, top: 2.462, bottom: 1.775, skew: 0.047, head: 2.492 };
+/** The window's aged brass, the blind's clear wand, its cords and the turned wooden pull. */
+const BRASS: Rgb = [0.3, 0.22, 0.09];
+const BRASS_WORN: Rgb = [0.42, 0.32, 0.14];
+const WAND: Rgb = [0.5, 0.5, 0.48];
+const CORD: Rgb = [0.5, 0.47, 0.42];
+const PULL: Rgb = [0.105, 0.058, 0.032];
+
+/** The height of slat `i`'s middle (0 at the top), `s` of the way along it from its left end. */
+const slatHeight = (i: number, s: number): number =>
+  BLIND.top - (i * (BLIND.top - BLIND.bottom)) / (BLIND.slats - 1) + (BLIND.skew * i * s) / (BLIND.slats - 1);
+
+/**
+ * The window in the back wall (the shipped one's parts and measures): a wide casing with a bead at its inner edge and
+ * a band at its outer one under a head board and its cap, a stained sill with a rounded nose over its apron, the jamb
+ * with its stops, and two sashes, the lower in front of the upper, meeting at 1.65 m where their fasteners show under
+ * the blind. The venetian blind hangs in front of the casing, let two thirds down and drawn up crooked: a head rail and
+ * valance, twenty crowned slats tilted open on their ladder cords, a bottom rail, the tilt wand at the left and the lift
+ * cords with their wooden pull at the right. Every bar and slat is cut into short lengths so the lamp's pool and the
+ * blind's shadows can cross it.
  */
 export const windowFrame: Prop = {
   name: 'window',
-  budget: 5200,
+  budget: 9800,
   build(sink) {
     const b = sink.mesh('props');
+    const { detail } = sink;
+    const fine = detail >= 0.8;
     const { x0, x1, y0, y1 } = WINDOW;
-    const [zOut, zIn] = [-2.45, -2.36];
-    const casing = 0.075;
-    // The casing round the opening, proud of the wall, with a bead along its inner edge, and the deep sill.
-    b.beam([x0 - casing, y0 - 0.1, ROOM.z0], [x0, y1 + casing, zIn], FRAME);
-    b.beam([x1, y0 - 0.1, ROOM.z0], [x1 + casing, y1 + casing, zIn], FRAME);
-    b.beam([x0, y1, ROOM.z0], [x1, y1 + casing, zIn], FRAME);
-    b.beam([x0 - 0.012, y0, zIn], [x0 + 0.01, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x1 - 0.01, y0, zIn], [x1 + 0.012, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x0 + 0.01, y1 - 0.01, zIn], [x1 - 0.01, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], SILL);
-    // The reveal's inside faces.
-    b.beam([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], FRAME);
-    b.beam([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], FRAME);
-    b.beam([x0, y0, zOut], [x1, y0 + 0.035, ROOM.z0], FRAME);
-    b.beam([x0, y1 - 0.03, zOut], [x1, y1, ROOM.z0], FRAME);
-    // Sashes: the meeting rail at mid height and one upright bar.
-    const mid = (y0 + y1) / 2;
-    b.beam([x0 + 0.03, mid - 0.025, -2.41], [x1 - 0.03, mid + 0.025, -2.37], FRAME);
-    b.beam([(x0 + x1) / 2 - 0.016, y0 + 0.035, -2.41], [(x0 + x1) / 2 + 0.016, y1 - 0.03, -2.38], FRAME);
-    // The lower sash's own frame: two stiles and the bottom rail.
-    for (const x of [x0 + 0.03, x1 - 0.075]) b.beam([x, y0 + 0.035, -2.4], [x + 0.045, mid - 0.025, -2.37], FRAME);
-    b.beam([x0 + 0.075, y0 + 0.035, -2.4], [x1 - 0.075, y0 + 0.09, -2.37], FRAME);
-    // The blind, inside the casing: a head rail, the slats from the top down to 1.76 m, and its bottom rail.
-    const slat: Rgb = [0.6, 0.56, 0.54];
-    const slatShade: Rgb = [0.3, 0.27, 0.27];
-    const [left, right] = [x0 + 0.035, x1 - 0.035];
-    b.beam([left, y1 - 0.045, -2.365], [right, y1 - 0.005, -2.32], slat);
-    const slats = 24;
-    for (let i = 0; i < slats; i++) {
-      const y = 2.462 - (i * (2.462 - 1.775)) / (slats - 1);
-      // A slat is curved: its upper half faces the room, its lower half turns down into its own shade.
-      b.placed(place([0, y, -2.342], 0, 0.95), () => {
-        b.beam([left, -0.001, -0.026], [right, 0.001, 0.002], slat, 0.9, 0.4);
-        b.beam([left, -0.001, 0.002], [right, 0.001, 0.026], slatShade, 0.9, 0.4);
-      });
+    const [zOut, wallZ] = [-2.45, ROOM.z0];
+    const { wide, face } = CASING;
+    const paint: Tone = (point) => mottled(FRAME, point, 0.04, 0.07, 81);
+    const stain: Tone = (point) => mottled(SILL, point, 0.12, 0.012, 82);
+    /** A painted board with eased edges, cut along its length for the light. */
+    const board = (min: Vec3, max: Vec3, axis: 0 | 1 | 2, tone: Tone = paint, ease = 0.003, corner = 1): void => {
+      const cuts: [number, number, number] = [1, 1, 1];
+      cuts[axis] = Math.max(1, Math.round((max[axis] - min[axis]) / (fine ? 0.14 : 0.3)));
+      slab(b, min, max, axis, ease, tone, { corner, cuts, ease, turns: 1 });
+    };
+
+    // The casing's legs: a flat board, a bead standing at its inner edge and a band at its outer one.
+    for (const side of [-1, 1]) {
+      const inner = side < 0 ? x0 : x1;
+      const outer = inner + side * wide;
+      board([Math.min(inner, outer), y0 - 0.02, wallZ], [Math.max(inner, outer), y1 + 0.004, face], 1, paint, 0.004);
+      board(
+        [Math.min(inner - side * 0.004, inner + side * 0.016), y0 - 0.016, face - 0.006],
+        [Math.max(inner - side * 0.004, inner + side * 0.016), BLIND.head - 0.001, face + 0.008],
+        1,
+        paint,
+        0.005,
+      );
+      board(
+        [Math.min(outer - side * 0.018, outer + side * 0.008), y0 - 0.02, wallZ],
+        [Math.max(outer - side * 0.018, outer + side * 0.008), y1 + 0.064, face + 0.012],
+        1,
+        paint,
+        0.005,
+      );
     }
-    b.beam([left, 1.735, -2.355], [right, 1.755, -2.33], slat);
-    for (const x of [x0 + 0.27, x1 - 0.27])
-      b.box([x - 0.0012, 1.755, -2.3235], [x + 0.0012, y1 - 0.045, -2.3225], [0.4, 0.38, 0.36], 1);
-    windowFittings(b, sink.detail);
+    // The head: its board, the bed mould and the cap standing over them.
+    board([x0 - wide + 0.016, y1 + 0.002, wallZ], [x1 + wide - 0.016, y1 + 0.066, face + 0.004], 0, paint, 0.004);
+    board([x0 - wide - 0.014, y1 + 0.062, wallZ], [x1 + wide + 0.014, y1 + 0.078, face + 0.017], 0, paint, 0.006);
+    board([x0 - wide - 0.03, y1 + 0.076, wallZ], [x1 + wide + 0.03, y1 + 0.096, face + 0.032], 0, paint, 0.006);
+    // The sill: a stained board with a rounded nose, its horns past the casing, and the apron under it.
+    board([x0 - 0.2, y0 - 0.08, -2.43], [x1 + 0.2, y0 - 0.014, -2.19], 0, stain, 0.02, fine ? 3 : 2);
+    board([x0 - 0.105, y0 - 0.148, wallZ], [x1 + 0.105, y0 - 0.082, -2.367], 0, paint, 0.006);
+    // The jamb: its two sides, its head, and its own sill the lower sash shuts on.
+    const jamb = -2.345;
+    const [l, r] = [x0 + 0.03, x1 - 0.03];
+    board([x0, y0 - 0.016, zOut], [l, y1, jamb], 1);
+    board([r, y0 - 0.016, zOut], [x1, y1, jamb], 1);
+    board([l, y1 - 0.03, zOut], [r, y1, jamb], 0);
+    board([l, y0 - 0.016, zOut], [r, y0 + 0.035, jamb], 0);
+
+    // The sashes, the upper behind and the lower in front: stiles, rails, and a glazing bar down the middle.
+    const middle = (x0 + x1) / 2;
+    const sash = (low: number, high: number, z: number, lower: boolean): void => {
+      const [bottom, top] = lower ? [0.058, 0.036] : [0.036, 0.045];
+      board([l, low, z], [l + 0.045, high, z + 0.028], 1);
+      board([r - 0.045, low, z], [r, high, z + 0.028], 1);
+      board([l + 0.045, low, z], [r - 0.045, low + bottom, z + 0.028], 0);
+      board([l + 0.045, high - top, z], [r - 0.045, high, z + 0.028], 0);
+      board([middle - 0.016, low + bottom - 0.004, z + 0.003], [middle + 0.016, high - top + 0.004, z + 0.025], 1);
+    };
+    sash(MEETING - 0.018, y1 - 0.03, -2.425, false);
+    sash(y0 + 0.035, MEETING + 0.018, -2.395, true);
+    // The stops that keep the lower sash in its run.
+    board([l, y0 + 0.035, -2.3665], [l + 0.012, y1 - 0.03, jamb - 0.0005], 1);
+    board([r - 0.012, y0 + 0.035, -2.3665], [r, y1 - 0.03, jamb - 0.0005], 1);
+
+    // The blind's head rail on the casing's face, and the valance before it.
+    const slat: Rgb = [0.62, 0.6, 0.57];
+    const metal: Tone = (point) => mottled(slat, point, 0.03, 0.05, 83);
+    const [left, right] = [x0 + 0.005, x1 - 0.005];
+    const { z: zc, depth, slats } = BLIND;
+    board([x0 - 0.015, BLIND.head, face], [x1 + 0.015, 2.545, -2.247], 0, metal, 0.003);
+    board([x0 - 0.03, 2.4895, -2.2465], [x1 + 0.03, 2.5505, -2.235], 0, metal, 0.003);
+    // The slats: shallow arches across their depth, lit above and seen from below, no two tilted quite alike.
+    const pieces = fine ? 8 : 4;
+    const crown = 0.004;
+    const pitchOf = (i: number): number => 0.8 + 0.05 * Math.sin(i * 2.4 + 1);
+    for (let i = 0; i < slats; i++) {
+      const [cp, sp] = [Math.cos(pitchOf(i)), Math.sin(pitchOf(i))];
+      const line = (across: number, drop = 0): Vec3[] =>
+        Array.from({ length: pieces + 1 }, (_, k): Vec3 => {
+          const s = k / pieces;
+          const [up, out] = [crown * (1 - across * across) - drop, (across * depth) / 2];
+          return [left + (right - left) * s, slatHeight(i, s) + up * cp - out * sp, zc + up * sp + out * cp];
+        });
+      const edge = line(1);
+      skin(b, [line(-1), line(0), edge], () => slat, {
+        facing: { along: [0, 1, 0] },
+        closed: false,
+        shade: () => 0.9,
+        back: () => tint(slat, 0.82),
+      });
+      // The rolled edge towards the room: what catches the light along every slat.
+      const lip = line(1.04, 0.0024);
+      for (let k = 0; k < pieces; k++)
+        b.quad(lip[k] as Vec3, lip[k + 1] as Vec3, edge[k + 1] as Vec3, edge[k] as Vec3, slat, 1);
+    }
+    // The bottom rail under the last slat, hanging as crooked as it does.
+    const run = right - left;
+    const lean = Math.atan2(BLIND.skew, run);
+    b.placed(place([left, slatHeight(slats - 1, 0) - 0.034, zc], 0, 0, lean), () =>
+      board([0, -0.013, -0.022], [run / Math.cos(lean), 0.013, 0.022], 0, metal, 0.005),
+    );
+    // The ladder cords the slats lie in, before and behind them, a rung under every slat.
+    for (const x of [x0 + 0.23, x1 - 0.23]) {
+      const s = (x - left) / run;
+      const foot = slatHeight(slats - 1, s) - 0.021;
+      for (const side of [-1, 1]) {
+        const z = zc + side * 0.0178;
+        b.box([x - 0.0011, foot, z - 0.0006], [x + 0.0011, BLIND.head, z + 0.0006], CORD, 1, ['+y', '-y']);
+      }
+      if (fine)
+        for (let i = 0; i < slats; i++) {
+          const [cp, sp] = [Math.cos(pitchOf(i)), Math.sin(pitchOf(i))];
+          const y = slatHeight(i, s) - 0.0012;
+          b.cylinder(
+            [x, y + (sp * depth) / 2, zc - (cp * depth) / 2],
+            [x, y - (sp * depth) / 2, zc + (cp * depth) / 2],
+            0.0008,
+            0.0008,
+            3,
+            CORD,
+            0.9,
+            false,
+          );
+        }
+    }
+    windowFittings(b, detail);
   },
 };
 
-/** The window's brass, the blind's clear wand and its cords. */
-const BRASS: Rgb = [0.46, 0.33, 0.13];
-const BRASS_WORN: Rgb = [0.56, 0.43, 0.2];
-const WAND: Rgb = [0.5, 0.5, 0.48];
-const CORD: Rgb = [0.5, 0.47, 0.42];
-
 /**
- * What a hand touches at the window. The meeting rail stands behind the lowered blind, so the brass is on the lower
- * sash's bottom rail: two cam fasteners on its top (a plate, the cam on its pivot under the keeper's lip, a thumb
- * lever) and two hook lifts on its face. On the blind: the tilt wand, a clear hexagonal rod hooked to the head rail at
- * the left, and at the right the two lift cords out of their lock, joined in a tassel under the blind. All of it
- * stands on the room's side of the slats (z > -2.32) or on the rail, touching nothing else.
+ * What a hand touches at the window. On the lower sash's meeting rail, two cam fasteners: a plate, the keeper's lip,
+ * the cam on its pivot and a lever with a knob, turned shut. On its bottom rail's face, two hook lifts. On the blind:
+ * the tilt wand, a clear rod hooked under the head rail at the left, and at the right the two lift cords, joined in a
+ * turned wooden pull that hangs before the casing. All of it stands clear of the slats, touching nothing else.
  */
 function windowFittings(b: MeshBuilder, detail: number): void {
   const { x0, x1, y0 } = WINDOW;
-  const [left, right] = [x0 + 0.035, x1 - 0.035];
   const fine = detail >= 0.8;
-  const round = fine ? 8 : 6;
+  const round = fine ? 12 : 6;
   /** A screw's head, standing along +y of wherever it is placed. */
   const screw = (x: number, z: number, y: number): void => {
     if (detail < 0.55) return;
@@ -225,37 +327,36 @@ function windowFittings(b: MeshBuilder, detail: number): void {
     );
   };
 
-  // The fasteners, on the bottom rail's top (y0 + 0.09, 30 mm deep). Each is turned shut: its lever lies along the rail.
-  const railTop = y0 + 0.09;
+  // The fasteners, on the meeting rail's top (28 mm deep). Each is turned shut: its lever lies along the rail.
   for (const [x, turn] of [
-    [x0 + 0.43, 0.45],
-    [x1 - 0.4, 0.38],
+    [x0 + 0.41, 0.42],
+    [x1 - 0.41, 0.3],
   ] as const)
-    b.placed(place([x, railTop, -2.385]), () => {
-      b.roundedBox([-0.027, 0, -0.011], [0.027, 0.0022, 0.011], 0.004, BRASS, 1, 1, 1);
-      screw(-0.0215, 0.004, 0.0022);
-      screw(0.0215, -0.004, 0.0022);
+    b.placed(place([x, MEETING + 0.018, -2.381]), () => {
+      b.roundedBox([-0.027, 0, -0.011], [0.027, 0.0024, 0.011], 0.004, BRASS, 1, 1, 1);
+      screw(-0.0215, 0.004, 0.0024);
+      screw(0.0215, -0.004, 0.0024);
       // The keeper at the glass side: a lug and the lip the cam turns under.
-      b.box([-0.016, 0.0022, -0.011], [0.004, 0.0085, -0.0075], BRASS, 1, ['-y']);
-      b.box([-0.016, 0.0062, -0.0075], [0.004, 0.0085, -0.004], BRASS, 0.9, ['-z']);
+      b.box([-0.016, 0.0024, -0.011], [0.004, 0.0095, -0.0075], BRASS, 1, ['-y']);
+      b.box([-0.016, 0.0068, -0.0075], [0.004, 0.0095, -0.004], BRASS, 0.9, ['-z']);
       // The cam and its pivot.
-      const pivot: Vec3 = [-0.006, 0.0022, 0.002];
+      const pivot: Vec3 = [-0.006, 0.0024, 0.002];
       b.lathe(
         pivot,
         [0, 1, 0],
         [
           [0.0085, 0],
-          [0.0085, 0.003],
-          [0.0075, 0.0036],
-          [0.0034, 0.0036],
-          [0.003, 0.0052],
-          [0, 0.0056],
+          [0.0085, 0.0034],
+          [0.0075, 0.004],
+          [0.0034, 0.004],
+          [0.003, 0.0058],
+          [0, 0.0062],
         ],
         round,
         BRASS_WORN,
         0.95,
       );
-      // The lever: a flat arm from the cam, rising to a round thumb pad past the plate's end.
+      // The lever: a flat arm from the cam, rising to the knob that stands over the rail's edge.
       const [dx, dz] = [Math.cos(turn), Math.sin(turn)];
       const section = (along: number, half: number, low: number, high: number): Vec3[] => {
         const [cx, cz] = [pivot[0] + dx * along, pivot[2] + dz * along];
@@ -268,30 +369,32 @@ function windowFittings(b: MeshBuilder, detail: number): void {
       };
       b.skin(
         [
-          section(0.002, 0.0032, 0.0058, 0.0079),
-          section(0.016, 0.0027, 0.0061, 0.0081),
-          section(0.0275, 0.0023, 0.0074, 0.0092),
+          section(0.002, 0.0034, 0.0062, 0.0086),
+          section(0.016, 0.0029, 0.0066, 0.0088),
+          section(0.029, 0.0025, 0.0078, 0.0098),
         ],
         BRASS_WORN,
       );
       b.lathe(
-        [pivot[0] + dx * 0.03, 0.0071, pivot[2] + dz * 0.03],
+        [pivot[0] + dx * 0.03, 0.0086, pivot[2] + dz * 0.03],
         [0, 1, 0],
         [
-          [0, 0],
-          [0.0042, 0.0006],
-          [0.005, 0.0021],
-          [0.0042, 0.0036],
-          [0, 0.0042],
+          [0.0026, 0],
+          [0.0022, 0.003],
+          [0.0046, 0.0052],
+          [0.0056, 0.0085],
+          [0.0046, 0.0118],
+          [0.0018, 0.0136],
+          [0, 0.0138],
         ],
         round,
         BRASS_WORN,
       );
     });
 
-  // The lifts, on the bottom rail's face (z = -2.37): a plate, two screws, and a finger hook curling out and down.
-  for (const x of [x0 + 0.24, x1 - 0.24])
-    b.placed(place([x, y0 + 0.0625, -2.37]), () => {
+  // The lifts, on the bottom rail's face: a plate, two screws, and a finger hook curling out and down.
+  for (const x of [x0 + 0.26, x1 - 0.26])
+    b.placed(place([x, y0 + 0.064, -2.367]), () => {
       b.roundedBox([-0.021, -0.015, 0], [0.021, 0.015, 0.002], 0.004, BRASS, 1, 2, 1);
       // Screws stand along +y: turned to stand out of the plate.
       b.placed(place([0, 0, 0.002], 0, Math.PI / 2), () => {
@@ -309,9 +412,9 @@ function windowFittings(b: MeshBuilder, detail: number): void {
         hook.map(([y, z, half], i): Vec3[] => {
           const [py, pz] = hook[Math.max(0, i - 1)] as readonly [number, number, number];
           const [ny, nz] = hook[Math.min(hook.length - 1, i + 1)] as readonly [number, number, number];
-          const l = Math.hypot(ny - py, nz - pz);
+          const span = Math.hypot(ny - py, nz - pz);
           // Across the hook's own run: its thickness.
-          const [ty, tz] = [(-(nz - pz) / l) * half, ((ny - py) / l) * half];
+          const [ty, tz] = [(-(nz - pz) / span) * half, ((ny - py) / span) * half];
           return [
             [-0.014, y - ty, z - tz],
             [0.014, y - ty, z - tz],
@@ -323,25 +426,26 @@ function windowFittings(b: MeshBuilder, detail: number): void {
       );
     });
 
-  // The tilt wand: a stub out of the head rail's face, a wire hook, the coupler, and the rod with its grip. It hangs
-  // a hand's breadth in from the blind's left end, 8 mm clear of the slats, leaning as it was last let go.
-  const wandX = left + 0.085;
-  const hung: Vec3 = [wandX, 2.488, -2.3115];
-  b.cylinder([wandX, 2.488, -2.32], [wandX, 2.488, -2.3095], 0.0042, 0.0042, 6, WAND, 0.9);
-  b.cylinder(hung, [wandX, 2.462, -2.3115], 0.0012, 0.0012, 4, [0.3, 0.3, 0.31], 1, false);
-  const foot: Vec3 = [wandX + 0.006, 1.868, -2.31];
+  // The tilt wand: a wire hook out of the head rail's underside, the coupler, and the rod with its grip, hanging a
+  // hand's breadth in from the blind's left end, clear of the slats' edges and leaning as it was last let go.
+  const front = BLIND.z + 0.0178;
+  const wandX = x0 + 0.115;
+  const hung: Vec3 = [wandX, BLIND.head, front + 0.0075];
+  const top: Vec3 = [wandX, BLIND.head - 0.016, front + 0.008];
+  b.cylinder(hung, top, 0.0012, 0.0012, 4, [0.3, 0.3, 0.31], 1, false);
+  const foot: Vec3 = [wandX + 0.008, 1.9, front + 0.015];
   const down = (t: number): Vec3 => [
-    hung[0] + (foot[0] - hung[0]) * t,
-    2.466 + (foot[1] - 2.466) * t,
-    hung[2] + (foot[2] - hung[2]) * t,
+    top[0] + (foot[0] - top[0]) * t,
+    top[1] + (foot[1] - top[1]) * t,
+    top[2] + (foot[2] - top[2]) * t,
   ];
-  b.cylinder(down(0), down(0.03), 0.0048, 0.0048, 6, WAND, 0.9);
+  b.cylinder(down(0), down(0.035), 0.0048, 0.0048, 6, WAND, 0.9);
   // The rod in lengths, so the light on it can change down the blind.
   const lengths = fine ? 6 : 3;
   for (let i = 0; i < lengths; i++)
     b.cylinder(
-      down(0.03 + (0.87 * i) / lengths),
-      down(0.03 + (0.87 * (i + 1)) / lengths),
+      down(0.035 + (0.865 * i) / lengths),
+      down(0.035 + (0.865 * (i + 1)) / lengths),
       0.0034,
       0.0034,
       6,
@@ -349,10 +453,9 @@ function windowFittings(b: MeshBuilder, detail: number): void {
       1,
       false,
     );
-  const axis: Vec3 = [foot[0] - hung[0], foot[1] - 2.466, foot[2] - hung[2]];
   b.lathe(
     down(0.9),
-    axis,
+    [foot[0] - top[0], foot[1] - top[1], foot[2] - top[2]],
     [
       [0.0034, 0],
       [0.0056, 0.006],
@@ -365,46 +468,46 @@ function windowFittings(b: MeshBuilder, detail: number): void {
     WAND,
   );
 
-  // The lift cords: out of the lock on the head rail's face, down in front of the slats, and joined in a tassel
-  // under the blind, in front of the lower sash's glass.
-  const cordX = right - 0.09;
-  b.box([cordX - 0.012, 2.476, -2.32], [cordX + 0.012, 2.494, -2.313], [0.55, 0.52, 0.5], 1, ['-z']);
-  const tassel: Vec3 = [cordX + 0.004, 1.47, -2.3145];
+  // The lift cords: out of the head rail past the slats' right ends, down before the casing, and joined in the pull.
+  const cordX = x1 - 0.0005;
+  const pull: Vec3 = [cordX + 0.003, 1.672, front + 0.004];
   const steps = fine ? 11 : 6;
   for (const side of [-1, 1]) {
     const path: Vec3[] = [];
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      // Apart at the lock, together at the tassel, with the slack of a cord that hangs free.
+      // Apart at the rail, together at the pull, with the kinks of a cord that has been wound round a cleat.
       const apart = side * 0.0045 * (1 - t) ** 0.6;
-      const slack = Math.sin(t * Math.PI) * 0.004 * side;
+      const kink = Math.sin(t * Math.PI * 3 + side) * 0.0016 * Math.sin(t * Math.PI);
       path.push([
-        cordX + (tassel[0] - cordX) * t + apart + slack,
-        2.476 + (tassel[1] - 2.476) * t,
-        -2.3165 + (tassel[2] + 2.3165) * t,
+        cordX + (pull[0] - cordX) * t + apart + kink,
+        BLIND.head + (pull[1] - BLIND.head) * t,
+        front + 0.001 + (pull[2] - front - 0.001) * t + kink * 0.5,
       ]);
     }
     b.tube(path, 0.0011, 3, CORD, 1, false);
   }
   b.lathe(
-    tassel,
+    pull,
     [0, -1, 0],
     [
       [0.0018, -0.002],
-      [0.0045, 0.004],
-      [0.0058, 0.02],
-      [0.0062, 0.034],
-      [0.0042, 0.04],
-      [0, 0.04],
+      [0.0048, 0.003],
+      [0.0082, 0.012],
+      [0.009, 0.022],
+      [0.0082, 0.033],
+      [0.0052, 0.042],
+      [0.003, 0.045],
+      [0, 0.045],
     ],
     round,
-    [0.55, 0.52, 0.5],
+    PULL,
   );
 }
 
 /** The rug's side, its thickness, and the height of its pile over the room's origin. */
 const RUG = 2.3514;
-const THICK = 0.016;
+const THICK = 0.021;
 const PILE = FLOOR + THICK;
 /** A square of the pattern, the backing's jute, and the two yarns seen at the rug's edge. */
 const CHECK = RUG / 5;
@@ -425,7 +528,7 @@ const smooth = (a: number, b: number, t: number): number => {
  */
 export const rug: Prop = {
   name: 'rug',
-  budget: 15000,
+  budget: 15800,
   build(sink) {
     const half = RUG / 2;
     const centre: Vec3 = [0.0415, 0, 0.4265];
@@ -451,10 +554,10 @@ export const rug: Prop = {
       // Flat along the rim, and under the turned corner where the flap rests on it.
       const calm = smooth(0.02, 0.16, rim) * smooth(-0.32, -0.46, past(x, z));
       const ridgeAt = 0.2 - 0.07 * x + 0.03 * Math.sin(x * 2.3);
-      const ridge = (0.014 / broad ** 0.5) * Math.exp(-(((z - ridgeAt) / (0.05 * broad)) ** 2)) * smooth(0.75, 0.1, x);
+      const ridge = (0.018 / broad ** 0.5) * Math.exp(-(((z - ridgeAt) / (0.05 * broad)) ** 2)) * smooth(0.75, 0.1, x);
       const creaseAt = -0.38 + 0.035 * Math.sin(z * 3.1);
       const crease =
-        (0.0075 / broad ** 0.5) *
+        (0.0095 / broad ** 0.5) *
         Math.exp(-(((x - creaseAt) / (0.045 * broad)) ** 2)) *
         smooth(0.05, -0.3, z) *
         smooth(-1.1, -0.75, z);
@@ -464,9 +567,9 @@ export const rug: Prop = {
         return (high / broad ** 0.5) * fall * (0.5 + 0.5 * Math.cos((along / (pitch * broad)) * Math.PI * 2));
       };
       const rucks =
-        ruck(0.55, 0.62, 0.55, 0.2, 0.3, 0.0105) +
-        ruck(-0.55, -0.5, 2.2, 0.22, 0.28, 0.0085) +
-        ruck(0.35, -0.45, 1.2, 0.24, 0.22, 0.006);
+        ruck(0.55, 0.62, 0.55, 0.2, 0.3, 0.0135) +
+        ruck(-0.55, -0.5, 2.2, 0.22, 0.28, 0.011) +
+        ruck(0.35, -0.45, 1.2, 0.24, 0.22, 0.008);
       const slow = 0.0024 * (Math.sin(x * 4.1 + z * 2.3) + Math.sin(z * 5.2 - x * 1.7));
       return calm * (ridge + crease + rucks + slow);
     };
@@ -475,8 +578,8 @@ export const rug: Prop = {
       const [x, z] = [(s - 0.5) * RUG, (0.5 - t) * RUG];
       if (past(x, z) > cell * 0.2) return -0.05;
       const rim = Math.min(half - Math.abs(x), half - Math.abs(z));
-      // The pile rolls down to the rim.
-      return lie(x, z) - 0.0045 * (1 - smooth(0, 0.035, rim)) ** 2;
+      // The pile rolls down to the rim: a soft shoulder.
+      return lie(x, z) - 0.006 * (1 - smooth(0, 0.045, rim)) ** 2;
     };
     const o = at(-half, PILE, half);
     const ux = at(half, PILE, half);
@@ -497,12 +600,16 @@ export const rug: Prop = {
     const b = sink.mesh('props');
     /** The yarn at the rug's edge, a little darker than on its face: the pattern seen from the side. */
     const yarn = (x: number, z: number): Rgb => {
-      const square = Math.floor((x + half) / CHECK) + Math.floor((half - z) / CHECK);
+      // On the rug's own edge a square's number is the last one's, whatever the arithmetic says of the fifth.
+      const number = (along: number): number => Math.min(4, Math.max(0, Math.floor(along / CHECK)));
+      const square = number(x + half) + number(half - z);
       const [c0, c1, c2] = Math.abs(square) % 2 === 0 ? NAVY : IVORY;
       return [c0 * 0.7, c1 * 0.7, c2 * 0.72];
     };
-    // The rim, round the three whole corners from one end of the crease to the other: the pile's edge, the cut
-    // side and the foot on the boards.
+    // The rim, round the three whole corners from one end of the crease to the other: the pile's shoulder, the cut
+    // side, the backing and its foot on the boards. The rim is straight (the relief is calm there), so on the top tier
+    // a piece of it spans three cells; a square of the pattern is a whole number of pieces either way.
+    const stride = cells % 3 === 0 && Math.round(turned / cell) % 3 === 0 ? 3 : 1;
     const rim: [number, number, number, number][] = [];
     const run = (
       x0: number,
@@ -517,10 +624,11 @@ export const rug: Prop = {
       for (let i = first; i <= count; i++)
         rim.push([x0 + ((x1 - x0) * i) / count, z0 + ((z1 - z0) * i) / count, nx, nz]);
     };
-    const whole = cells - Math.round(turned / cell);
+    const whole = (cells - Math.round(turned / cell)) / stride;
+    const side = cells / stride;
     run(half - turned, -half, -half, -half, whole, 0, -1);
-    run(-half, -half, -half, half, cells, -1, 0, 1);
-    run(-half, half, half, half, cells, 0, 1, 1);
+    run(-half, -half, -half, half, side, -1, 0, 1);
+    run(-half, half, half, half, side, 0, 1, 1);
     run(half, half, half, -half + turned, whole, 1, 0, 1);
     // A corner's two normals meet in a mitre.
     const out = rim.map(([, , nx, nz], i): [number, number] => {
@@ -537,60 +645,103 @@ export const rug: Prop = {
     const top = (x: number, z: number): number => PILE + height((x + half) / RUG, (half - z) / RUG);
     const rings = [
       edge(0.0012, (x, z) => top(x, z) - 0.0006),
-      edge(-0.002, (x, z) => top(x, z) - 0.0045),
-      edge(-0.0024, () => FLOOR + 0.0035),
-      edge(-0.0008, () => FLOOR + 0.0003),
+      edge(-0.0016, (x, z) => top(x, z) - 0.0032),
+      edge(-0.0032, (x, z) => top(x, z) - 0.0062),
+      edge(-0.0036, () => FLOOR + 0.0052),
+      edge(-0.0026, () => FLOOR + 0.0022),
+      edge(-0.0006, () => FLOOR + 0.0003),
     ];
-    const strip = (from: number, to: number): void => {
-      const [p, q] = [rings[from] as Vec3[], rings[to] as Vec3[]];
+    const backing = tint(JUTE, 0.6);
+    /** The strip down to ring `to`: the yarn dimmed by `dim` (or the backing), shaded from `shade[0]` to `shade[1]`. */
+    const strip = (to: number, dim: number, shade: readonly [number, number], jute = false): void => {
+      const [p, q] = [rings[to - 1] as Vec3[], rings[to] as Vec3[]];
       for (let i = 0; i + 1 < p.length; i++) {
-        const [x0, z0] = rim[i] as [number, number, number, number];
-        const [x1, z1] = rim[i + 1] as [number, number, number, number];
-        // Darker down the cut side, darkest at the foot.
-        const dim = to === 3 ? 0.55 : to === 2 ? 0.8 : 1;
-        const [c0, c1] = [yarn(x0, z0), yarn(x1, z1)];
-        const a0: Rgb = [c0[0] * dim, c0[1] * dim, c0[2] * dim];
-        const a1: Rgb = [c1[0] * dim, c1[1] * dim, c1[2] * dim];
-        b.gradient(p[i] as Vec3, q[i] as Vec3, q[i + 1] as Vec3, [a0, a0, a1], [1, 0.7, 0.7]);
-        b.gradient(p[i] as Vec3, q[i + 1] as Vec3, p[i + 1] as Vec3, [a0, a1, a1], [1, 0.7, 1]);
+        const [xa, za] = rim[i] as [number, number, number, number];
+        const [xb, zb] = rim[i + 1] as [number, number, number, number];
+        // One yarn a piece, the one at its middle: a square's edge stays sharp.
+        const tone = jute ? backing : tint(yarn((xa + xb) / 2, (za + zb) / 2), dim);
+        b.gradient(p[i] as Vec3, q[i] as Vec3, q[i + 1] as Vec3, [tone, tone, tone], [shade[0], shade[1], shade[1]]);
+        b.gradient(
+          p[i] as Vec3,
+          q[i + 1] as Vec3,
+          p[i + 1] as Vec3,
+          [tone, tone, tone],
+          [shade[0], shade[1], shade[0]],
+        );
       }
     };
-    strip(0, 1);
-    strip(1, 2);
-    strip(2, 3);
+    strip(1, 1, [1, 0.9]);
+    strip(2, 0.92, [0.9, 0.78]);
+    strip(3, 0.8, [0.78, 0.62]);
+    strip(4, 1, [0.62, 0.5], true);
+    strip(5, 0.8, [0.5, 0.4], true);
+    // Where the rim stops at the crease its section is closed: the cloth's own cut, before it turns up into the roll.
+    for (const [index, facing] of [
+      [0, at(half, FLOOR, -half)],
+      [rim.length - 1, at(half, FLOOR, -half)],
+    ] as const) {
+      const section = rings.map((ring) => ring[index] as Vec3);
+      const [x, z] = rim[index] as [number, number, number, number];
+      const inner = at(x, FLOOR + 0.0003, z);
+      const tone = tint(yarn(x, z), 0.6);
+      for (let k = 0; k + 1 < section.length; k++) {
+        const [p, q] = [section[k] as Vec3, section[k + 1] as Vec3];
+        const normal = cross(sub(p, inner), sub(q, inner));
+        const towards = dot(normal, sub(facing, inner)) > 0;
+        b.gradient(inner, towards ? p : q, towards ? q : p, [tone, tone, tone], [0.5, 0.6, 0.6]);
+      }
+    }
 
     // The turned corner: the cloth leaves the boards along the crease, rolls over, and lies back on the pile, jute
     // side up. A point of it is `a` along the crease from its middle and `d` round the roll from where it lifts.
     const length = turned * Math.SQRT2;
     const middle: readonly [number, number] = [half - turned / 2, -half + turned / 2];
-    const roll = (a: number): number => 0.028 * Math.sqrt(Math.min(1, (length / 2 - Math.abs(a)) / 0.07));
-    // The corner's point is worn round.
-    const reach = (a: number): number => Math.max(0, length / 2 - Math.abs(a) - 0.014 * Math.exp(-Math.abs(a) / 0.035));
+    /** The cloth's own thickness in the fold. Wool this thick does not crease: it rolls, fullest at its middle. */
+    const body = THICK * 0.86;
+    const roll = (a: number): number =>
+      0.027 + 0.007 * Math.sqrt(Math.min(1, Math.max(0, length / 2 - Math.abs(a)) / 0.12));
+    // The corner's point is worn round, and no edge of a rug this old is quite straight.
+    const reach = (a: number): number => {
+      const straight = length / 2 - Math.abs(a);
+      const worn = 0.03 * Math.exp(-Math.abs(a) / 0.06);
+      const wavy = 0.004 * Math.sin(a * 21 + 0.5) * Math.min(1, Math.max(0, straight) / 0.06);
+      return Math.max(0, straight - worn + wavy);
+    };
     const flap = (a: number, d: number, under = 0): Vec3 => {
-      const radius = Math.max(1e-5, roll(a));
+      const radius = roll(a);
       const arc = Math.PI * radius;
       let [q, y] = [0, 0];
       if (d <= arc) {
         const angle = d / radius;
         // `under` draws the cloth's other face: the same roll, a thickness nearer its middle.
-        const rr = Math.max(0, radius - under);
+        const rr = radius - under;
         q = rr * Math.sin(angle);
         y = FLOOR + radius - rr * Math.cos(angle);
       } else {
         const lying = d - arc;
-        // A stiff cloth does not lie down again: it sags from the roll and hangs over the pile, lowest near its tip.
-        const rest = 2 * THICK + 0.011;
-        const up = rest + (2 * radius - rest) * Math.exp(-lying / 0.15);
+        // Heavy cloth: past the roll's crown it comes down in a soft S and lies on the pile, a shallow trough along
+        // its middle, its cut edges and its point lifted a little.
+        const rest = THICK + body + 0.0015;
+        const down = smooth(0, 0.15, lying);
+        const settled = Math.min(1, lying / 0.05);
+        const edge = Math.exp(-Math.max(0, reach(a) - d) / 0.07);
+        const lifted = 0.006 * Math.exp(-Math.max(0, reach(a) - d) / 0.035) * Math.min(1, lying / 0.06);
+        const trough = 0.005 * (1 - ((2 * a) / length) ** 2) * down;
+        // Its edges wave as a heavy cloth's do, and nothing of it is quite flat.
+        const wave = (0.0045 * Math.sin(a * 24 + 1.3) * edge + 0.002 * Math.sin(a * 11 + d * 17)) * settled;
         q = -lying;
-        // It hangs in a shallow trough along its middle and ripples a little at its edges.
-        const trough = 0.007 * (1 - ((2 * a) / length) ** 2) * Math.min(1, lying / 0.1);
-        y = FLOOR + up - trough + 0.0022 * Math.sin(a * 31) * Math.min(1, lying / 0.12) - under;
+        y = FLOOR + rest + (2 * radius - rest) * (1 - down) - trough + lifted + wave - under;
       }
       const x = middle[0] + (a + q) / Math.SQRT2;
       const z = middle[1] + (a - q) / Math.SQRT2;
       return at(x, y, z);
     };
-    const [across, round] = sink.detail >= 0.8 ? [30, 16] : [16, 9];
+    const [across, round] = sink.detail >= 0.8 ? [32, 28] : [16, 12];
+    /** The share of a sheet's rows that go round the roll (a curve wants more of them than the lying cloth), and how
+     * far short of the cloth's cut edge a sheet stops: the edge's own rounding is drawn after it. */
+    const [turning, shoulder] = [0.6, 0.006];
+    /** How much of its rounding the cut edge has here: none where the cloth has only just left the boards. */
+    const full = (a: number): number => Math.min(1, reach(a) / 0.035);
     const sheet = (lower: number): Vec3[][] => {
       const rows: Vec3[][] = [];
       for (let j = 0; j <= round; j++) {
@@ -598,20 +749,21 @@ export const rug: Prop = {
         rows.push(
           Array.from({ length: across + 1 }, (_, i) => {
             const a = (i / across - 0.5) * length;
-            const far = reach(a);
+            const far = Math.max(0, reach(a) - shoulder * full(a));
             const arc = Math.min(far, Math.PI * roll(a));
-            // Half the rows go round the roll, half along the lying cloth.
-            const d = v < 0.5 ? (v / 0.5) * arc : arc + ((v - 0.5) / 0.5) * (far - arc);
+            const d = v < turning ? (v / turning) * arc : arc + ((v - turning) / (1 - turning)) * (far - arc);
             return flap(a, d, lower);
           }),
         );
       }
       return rows;
     };
+    /** The backing: jute, uneven as it was woven and worn, darker down in the roll's own shadow. */
     const jute = (point: Vec3): Rgb => {
-      const weave = 0.9 + 0.1 * Math.sin(point[0] * 310) * Math.sin(point[2] * 310);
-      const low = 0.55 + 0.45 * smooth(FLOOR, FLOOR + 0.018, point[1]);
-      return [JUTE[0] * weave * low, JUTE[1] * weave * low, JUTE[2] * weave * low];
+      const cloth = mottled(JUTE, point, 0.26, 0.05, 91);
+      const thread = 0.93 + 0.14 * noise3(point[0] * 260, point[1] * 260, point[2] * 260, 5);
+      const low = 0.55 + 0.45 * smooth(FLOOR, FLOOR + 0.02, point[1]);
+      return tint(cloth, thread * low);
     };
     const upper = sheet(0);
     const paint = (rows: Vec3[][], tone: (point: Vec3) => Rgb, flip: boolean, dim: number): void => {
@@ -635,21 +787,38 @@ export const rug: Prop = {
     };
     // The jute face, seen from outside the roll and from above; under it, the pile's face, in the roll's shadow.
     paint(upper, jute, true, 1);
-    const lower = sheet(THICK * 0.82);
-    paint(lower, () => [NAVY[0] * 0.8, NAVY[1] * 0.8, NAVY[2] * 0.8], false, 0.5);
-    // The cut edge between them, along the two sides that were the rug's own.
+    const lower = sheet(body);
+    const pile = tint(NAVY, 0.85);
+    paint(lower, (point) => mottled(pile, point, 0.3, 0.02, 92), false, 0.5);
+    // The cut edge between them, along the two sides that were the rug's own, rounded as the rim is: the backing
+    // turns over its shoulder to the cut side, and the yarn comes up from under it.
     const last = upper.length - 1;
-    for (let i = 0; i < across; i++) {
-      const [u0, u1, l0, l1] = [
-        (upper[last] as Vec3[])[i] as Vec3,
-        (upper[last] as Vec3[])[i + 1] as Vec3,
-        (lower[last] as Vec3[])[i] as Vec3,
-        (lower[last] as Vec3[])[i + 1] as Vec3,
-      ];
-      const side: Rgb = [NAVY[0] * 0.9 + 0.02, NAVY[1] * 0.9 + 0.02, NAVY[2] * 0.9 + 0.025];
-      // Both ways round: the edge is seen from either side of the corner's point.
-      b.quad(u0, u1, l1, l0, side, 0.8);
-      b.quad(u0, l0, l1, u1, side, 0.8);
-    }
+    const ring = (offset: number, inset: number, pileSide: boolean): Vec3[] =>
+      Array.from({ length: across + 1 }, (_, i): Vec3 => {
+        const a = (i / across - 0.5) * length;
+        const under = inset * full(a);
+        return flap(a, Math.max(0, reach(a) + offset * full(a)), pileSide ? body - under : under);
+      });
+    const cut = (high: Vec3[], low: Vec3[], tone: (point: Vec3) => Rgb, shade: readonly [number, number]): void => {
+      for (let i = 0; i < across; i++) {
+        const [h0, h1, l0, l1] = [high[i] as Vec3, high[i + 1] as Vec3, low[i] as Vec3, low[i + 1] as Vec3];
+        const [th0, th1, tl0, tl1] = [tone(h0), tone(h1), tone(l0), tone(l1)];
+        // Both ways round: the edge is seen from either side of the corner's point.
+        b.gradient(h0, h1, l1, [th0, th1, tl1], [shade[0], shade[0], shade[1]]);
+        b.gradient(h0, l1, l0, [th0, tl1, tl0], [shade[0], shade[1], shade[1]]);
+        b.gradient(h0, l1, h1, [th0, tl1, th1], [shade[0], shade[1], shade[0]]);
+        b.gradient(h0, l0, l1, [th0, tl0, tl1], [shade[0], shade[1], shade[1]]);
+      }
+    };
+    const [over, bulge, below] = [
+      ring(-0.0015, 0.0028, false),
+      ring(0.002, body * 0.45, false),
+      ring(-0.0015, 0.0028, true),
+    ];
+    const [bound, wool] = [(point: Vec3): Rgb => tint(jute(point), 0.85), tint(NAVY, 0.9)];
+    cut(upper[last] as Vec3[], over, jute, [1, 0.92]);
+    cut(over, bulge, bound, [0.92, 0.75]);
+    cut(bulge, below, () => wool, [0.75, 0.55]);
+    cut(below, lower[last] as Vec3[], () => tint(NAVY, 0.8), [0.55, 0.45]);
   },
 };

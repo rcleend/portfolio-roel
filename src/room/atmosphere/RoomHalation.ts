@@ -73,7 +73,8 @@ export class RoomHalation {
 
   /**
    * Another practical, before attach: the opal lamp beside the TV (tvLamp.ts), smaller than the room's own lamps, or
-   * one of the toy robot's eyes (toyRobot.ts), a small round glow of its own `tint` rather than the finish's warm one.
+   * the bare bulb on the cabinet's other end (bulbLamp.ts), a small round glow of its own `tint` rather than the
+   * finish's warm one.
    */
   addLamp(position: readonly [number, number, number], radius: number, tint?: readonly [number, number, number]): void {
     const lamp = this.lamp(position, radius, tint);

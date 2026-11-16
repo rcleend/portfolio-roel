@@ -1,7 +1,7 @@
 import { type IUniform, Vector3 } from 'three';
 
 /**
- * The opal desk lamp on the right-hand end of the TV cabinet (gen/props/lampAndRobot.ts), as the finish knows it. Its
+ * The opal desk lamp on the right-hand end of the TV cabinet (gen/props/cabinetLamps.ts), as the finish knows it. Its
  * light on the room is baked with the room (gen/rig.ts › tv-lamp, in the finish's own terms: `TV_LAMP_INTENSITY` on
  * the lamp's colour). What is left for a frame is what depends on the eye: its reflection in varnished surfaces
  * (RoomGloss), the air it warms (RoomAtmosphere) and its halo (RoomHalation), all from these two uniforms.

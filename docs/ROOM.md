@@ -221,14 +221,14 @@ room/
     roomSpec.ts         plain numbers: where the TV, the computer, the lamps and the view outside are
     rig.ts              the night's lights, as a table
     materials.ts        surface functions (GLSL the bake evaluates once per texel)
-    art.ts, artPaint.ts the art page: the game covers, the set's legends and wordmark, the robot's chest, painted
+    art.ts, artPaint.ts the art page: the game covers, the set's legends and wordmark, the console's, painted
                         on one 2D canvas; radioArt.ts paints the CD player's strip of it
     tiers.ts            what each quality tier builds and bakes at
     bake/               Baker.ts (shadow maps, light pages, the vertices' page, compose) and its three programs
     kit/                builder.ts (placed primitives → flat arrays), charts.ts (flat rectangles packed into
                         pages), hash.ts (integer hashes, the same in GLSL and JavaScript)
     props/              one module a corner: shell (walls, floor, rug, door, window, blind), cabinet, tvSet,
-                        lampAndRobot, plant, console, deskCorner, dresserCorner, lavaLamp, radio + radioSpec
+                        cabinetLamps, plant, console, deskCorner, dresserCorner, lavaLamp, radio + radioSpec
   stage/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, the quality's pixel ratio, resize, context loss
     RenderLoop.ts       frame scheduler: invalidate() + animation steps, coalesced per frame; tells a run
@@ -251,9 +251,9 @@ room/
     WindowRain.ts       water on the window's glass, refracting the view outside, in the composite
     RoomGloss.ts        view-dependent varnish on the baked hard surfaces; lights them with the TV's picture
                         (tv/screenLight.ts) and the storm's flashes
-    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the robot's eyes' too); no animation
+    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the bare bulb's too); no animation
     tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its uniforms, for its reflection and its air
-    toyRobot.ts         the toy robot (§ The toy robot): its eyes' intensity and halo size (their light is baked)
+    bulbLamp.ts         the bare-bulb lamp (§ The bulb lamp): its intensity and its halo (its light is baked)
     RoomScreens.ts      display mask in the frame's alpha; keeps content clear and hides the monitor's bezel quad
     LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
   rain/
@@ -521,7 +521,7 @@ over so the GPU's time stands clear of its timer's noise), and so what was and w
 - A frame's GPU time goes with its pixels more than with anything in it: 3 MP costs 3.6 ms, a phone's 1.3 MP 1.4 ms.
   One pixel ratio step (2 → 1.5) takes 32 % off; no single effect takes more than 17 %.
 - By effect, at the TV on a phone's 1.3 MP: the scene target's multisampling 15 %, the composite's bloom taps 13 %
-  (all of the composite's finish 17 %), half-float targets 11 %, varnish 10 %, the robot's eyes 9 %, the CRT shader
+  (all of the composite's finish 17 %), half-float targets 11 %, varnish 10 %, the toy robot's eyes 9 % (a per-pixel term then; baked since, and the robot is the bulb lamp now), the CRT shader
   9 %, the canvas's own multisampling 4 %; the TV's area light, the opal lamp, the haze volumes, the rain and the dust
   are each within the measurement's noise (± 3 %). So the lights and the air stay on every tier.
 - The main thread's dearest call at the TV is the picture's upload (`texSubImage2D` of the 320 × 240 canvas): 2 ms a
@@ -532,7 +532,7 @@ over so the GPU's time stands clear of its timer's noise), and so what was and w
 ## The generated room
 
 The room every visitor gets is made in the browser (`src/room/gen/`): the TV set, its cabinet and game cases, the opal
-lamp, the toy robot, the plant, the floor, rug, walls, ceilings, door, window and blind, the view outside, the desk
+lamp, the bare-bulb lamp, the plant, the floor, rug, walls, ceilings, door, window and blind, the view outside, the desk
 corner and the computer, the dresser, guitar, lava lamp, console and CD player. No model or texture is fetched and
 none is shipped (§ Assets); the two screens' glass are display meshes made on the main thread (`tv/tvGlass.ts`,
 `pc/pcGlass.ts`).
@@ -573,7 +573,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   their own texel density (`gen/kit/charts.ts`), so nothing is unwrapped.
 - **Surfaces** are functions (`gen/materials.ts`): oak boards, enamel, painted beadboard, evaluated once per texel by
   the bake. Their noise is integer hashes (`gen/kit/hash.ts`), exact in GLSL ES 3.0 and in JavaScript, so every GPU
-  draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the robot's chest) are
+  draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the console's) are
   painted on one 2D canvas (`gen/artPaint.ts`), and painted again when a GPU reset blanks it (§ Lost canvases).
 - **Light** is a table (`gen/rig.ts`): the colours of the rig the room was first lit with in Blender, places read off the room, an ambient dome that only
   furniture shadows, and one light standing for the floor's bounce. `gen/bake/Baker.ts` renders each light once from
@@ -583,7 +583,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   shadows by accumulation, which a frame could never afford and a load can. It then composes surface × light under a
   filmic curve into the pages the charts draw with, and reads the vertices' colours back. Without half-float render
   targets it accumulates in eight bits.
-- **The finish's static lights are in the bake.** The opal lamp, the robot's eyes and the lamps' warm pools never
+- **The finish's static lights are in the bake.** The opal lamp, the bare bulb and the lamps' warm pools never
   change, so the generated surfaces carry them, in the finish's own terms and with real shadows, and their materials
   names say so; the per-frame surface shader (`RoomGloss`) has no such terms any more. What runs every frame is what
   changes: the TV's light, the storm, the varnish. The bake reads the mood once; a mood changed
@@ -641,9 +641,9 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
   whether the rest was deferred, and `marks`, the way to the first shown frame in ms since the room's creation.
   `e2e/generated-room.spec.ts` covers it.
-- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the rug and the plant are built to be seen
+- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the wire basket, the rug, the plant and the bare-bulb lamp are built to be seen
   at arm's length (`gen/props/monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
-  `deskThings.ts`, `plant.ts`, the rug in `shell.ts`), from the shipped models' measurements (read off the shipped room's models before they were removed). `gen/props/form.ts` is what they share: skins and
+  `deskThings.ts`, `wireBasket.ts`, `plant.ts`, `cabinetLamps.ts`, the rug in `shell.ts`), from the shipped models' measurements (read off the shipped room's models before they were removed). `gen/props/form.ts` is what they share: skins and
   patches toned a vertex at a time (`MeshBuilder.gradient`), outlines cut along their sides so the light baked at the
   vertices can change across a face, mouldings with eased edges, turned parts, slabs. A tone finer than the mesh shows
   as specks a vertex wide: unevenness is kept slower than the vertices. The keyboard's 104 legends, the lock lamps'
@@ -779,7 +779,7 @@ dust/haze from its picture, live-PC tint and hand-over, resize and WebGL context
 
 ### The opal lamp
 
-A small opal globe lamp stands on the right-hand end of the TV cabinet (`gen/props/lampAndRobot.ts` › `opalLamp`: a
+A small opal globe lamp stands on the right-hand end of the TV cabinet (`gen/props/cabinetLamps.ts` › `opalLamp`: a
 round metal foot and a 16 cm globe), so the opening TV view is not lost in the dark around the set.
 
 - **Its light is baked.** `gen/rig.ts` › `opal` is a sphere light at the globe's centre (`TV_LAMP_SPEC`,
@@ -791,34 +791,40 @@ round metal foot and a 16 cm globe), so the opening TV view is not lost in the d
 - **What a frame adds** is what depends on the eye (`atmosphere/tvLamp.ts`, two uniforms): its reflection in the
   varnished surfaces (`RoomGloss`), a little warm air in the composite and its halo (`RoomHalation`). The globe's
   mesh is drawn as light: its colour × `glow` (2.8), past white, which the finish's highlights bloom around.
-- **Programs.** The globe and the robot's eyes draw with the room's plain-colour program; under a finish the varnish
+- **Programs.** The globe and the bulb's filament draw with the room's plain-colour program; under a finish the varnish
   gives them a variant of their own (`e2e/programs.ts`).
 - **Original.** The unprocessed bake (`original`) has no finish lights: it shows the globe but no light from it.
 
 The startup still (§ Startup) does not show the lamp; its glow appears as the still fades.
 
-### The toy robot
+### The bulb lamp
 
-A 30 cm tin toy robot stands on the left-hand end of the TV cabinet, behind the Product Engineer case
-(`gen/props/lampAndRobot.ts` › `toyRobot`: grey feet, red legs, a boxy body whose chest gauges are a print, a square
-head with aerials), so the dark left of the set has light and something to look at. Its body turns 30° towards the
-set and its eyes glow in the opal lamp's colour.
+A bare-bulb lamp stands on the left-hand end of the TV cabinet, turned most of the way down
+(`gen/props/cabinetLamps.ts` › `bulbLamp`), so the dark left of the set has light and something to look at: a turned
+walnut base, a brass lampholder with two knurled shade rings, and a clear pear-shaped bulb, 21 cm in all. It stands
+forward of the set's flank, so the room's overview sees it past the set as the TV view does beside it. Its filament
+is a cage, strung up and down between the hooks of two glass buttons on the stem, so it reads as a filament from every
+side and can be looked at. A braided flex leaves the base's back, lies across the top through a bakelite rocker switch
+and drops behind the cabinet. It builds lighter on the lower tiers (no knurling, fewer segments).
 
-- **Its eyes' light is baked.** `gen/rig.ts` › `eye-0`, `eye-1`: each eye is a spot at its bulb (`ROBOT_SPEC`), a soft
-  round beam along the aim, falling to a tenth off it and to nothing behind the face, with the inverse square softened
-  over the bulb's few millimetres and faded out from 0.9 m to 1.5 m. Like the lamp's it is a `finish` light, a quarter
-  of the lamp's intensity per eye (`TOY_ROBOT_EYE_INTENSITY`, 0.035). The shadow maps do what the surface shader's
-  boxes used to: the set, the cabinet and the robot's own body and legs shadow the beams, and the two eyes lay a warm
-  pool on the cabinet top in front of the robot, with the Product Engineer cover in it.
-- **What a frame adds.** The eyes themselves are drawn as light of their own colour, like a display (`RoomGloss` ›
-  `EMITTERS` writes alpha 0, `RoomScreens`' mask): the finish's bloom spreads a small bright point into a square, so it
-  passes them by, and their glow is a small round depth-tested halo each (`RoomHalation.addLamp` with a tint,
-  `TOY_ROBOT_EYE_HALO`, 11 mm), just past the glass.
-- **Programs.** None of its own: the body is part of the merged props, the eyes share the globe's program, the halos
-  the halation's.
-- **Original.** The unprocessed bake shows the robot's colours and its eyes but no light from them.
+- **Its light is baked.** `gen/rig.ts` › `bulb` is a point of light at the middle of the filament (`BULB_SPEC`,
+  `gen/roomSpec.ts`), softened to `1 / (d² + 0.06)` and faded out from 1 m to 1.6 m: a warm pool on the cabinet top,
+  on the set's flank and on the wall behind. Like the opal lamp's it is a `finish` light, three fifths of its
+  intensity (`BULB_LAMP_INTENSITY`, 0.084; `gen.test.ts` holds the rig to it). The lamp itself, its flex and its switch stand
+  inside the light's `clear` and shade nothing of it: what the holder would shade lies under the base, and a base's
+  edge drawn hard on the top's few light texels is a ring of teeth around its foot.
+- **What a frame adds** is three small draws and no term in any shader. The filament is drawn as light of its own
+  colour, like a display (`RoomGloss` › `EMITTERS` writes alpha 0, `RoomScreens`' mask): the finish's bloom spreads a
+  thin bright line into squares, so it passes it by, and the glow is one round depth-tested halo about the filament
+  (`RoomHalation.addLamp` with a tint, `BULB_LAMP_HALO`, 11 cm). The glass is clear, so it is only what it reflects: a
+  film of light added to the frame in colours its generator gives it (a faint sheen, the filament's glow in it, its
+  limbs as the room's eye sees them, the window's glint), drawn like the lava lamp's bottle. The stem and the
+  buttons are glass too, and part of the same film.
+- **Programs.** None of its own: the lamp is part of the merged props, the filament shares the globe's program, the
+  halo the halation's, and the glass the program of the lava lamp's bottle (`e2e/programs.ts`).
+- **Original.** The unprocessed bake shows the lamp, its filament and its glass but no light from them.
 
-The startup still does not show the robot either.
+The startup still does not show the lamp either.
 
 ### Rain audio
 
@@ -834,9 +840,24 @@ actual decoded loop seam, stereo/rate, all views, mute, one-source reuse and con
 
 ### The rug
 
-`gen/props/shell.ts` › `rug`: a 2.35 m square, 3 cm thick, turned 15° clockwise, with the corner nearest the TV folded
-over. Its pile is a surface function (`gen/materials.ts` › `rug`): navy and ivory checks with the pile's own soft
-mottle, baked like every chart. Changing the pattern is a change to that function; there is no image.
+`gen/props/shell.ts` › `rug`: a 2.35 m square of wool 2 cm thick, turned 15° clockwise, its rim a soft shoulder over
+the cut side and the jute backing, with the corner nearest the TV rolled back over itself: a fat roll (wool this thick
+does not crease), jute side out, that comes down in a soft S and lies on the pile. Its pile is a surface function
+(`gen/materials.ts` › `rug`): navy and ivory checks with tufts, rows of weft and the nap a brush and a vacuum cleaner
+leave, which the navy shows about three times as strongly as the ivory (dark wool does), baked like every chart.
+Changing the pattern is a change to that function; there is no image.
+
+### The window
+
+`gen/props/shell.ts` › `windowFrame`, to the shipped window's measures: a 13 cm casing (a bead at its inner edge, a
+band at its outer, a head board under a bed mould and a cap) whose face stands 87 mm proud of the wall, a stained sill
+with a rounded nose over its apron, the jamb with its stops, and two sashes, the lower in front of the upper, that meet
+at 1.65 m (`MEETING`): under the blind, where their two cam fasteners show; two hook lifts on the bottom rail. The
+blind (`BLIND`) hangs on the casing's face, in front of the opening: a head rail and valance, twenty crowned slats
+tilted open with their room-side edges low (the eye sees the night between them from below, and the rig's window light
+does not depend on them: docs › The night's rig), drawn up 47 mm crooked at the right, on ladder cords with a rung a
+slat, a bottom rail, the tilt wand at the left and the lift cords with a turned wooden pull at the right. The glass is
+not the generator's: the rain's plane stands at z = −2.43, behind both sashes (`WindowRain.ts`).
 
 ## CRT look (crtShader.ts)
 
