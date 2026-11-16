@@ -164,7 +164,7 @@ Clicking outside the monitor leaves, like the room. `window.__pcLab` lands, leav
 
 The three budgets over the spec's wait for the captain's word: what they hold is listed in `bundle-budgets.json`.
 
-Measured in the app (production build, Chromium on an M-series Mac; readable times on a paused clock, `e2e/pc-flow.spec.ts`):
+Measured in the app (production build, Chromium on an M-series Mac; readable times on a paused clock, `e2e/pc-flow.spec.ts`). The rows about the screen itself (readable times, the reader's mount, the hand-off) do not depend on how the room is made; the long-task and first-leave rows were measured before the room was generated in the browser and have not been measured since:
 
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
@@ -172,8 +172,6 @@ Measured in the app (production build, Chromium on an M-series Mac; readable tim
 | Reader mount, first visit / warm | 15 ms / 4 ms | 79 ms / 14 ms |
 | Long tasks over 50 ms from the click on the computer until it is left again | none | none |
 | First leave from the TV: pointerup → first flight frame (the still prepared between the game's frames, its upload left for the click) | | 26 ms (26 ms before the computer); 110-125 ms more at 20× on a phone, where nothing fits between the game's frames |
-| Phone (375 × 667): textures uploaded during the first flight to the computer, after the room view's quiet | none | none (two 2048² atlases, 37 ms each, before) |
-| WebGL frames from the landing to the open reader / while reading or scrolling | 1 / 0 | |
 | Hand-off, still vs live desktop on the landing frame (1440 × 900, 1280 × 720, 390 × 844, all at DPR 2) | mean \|Δ\| 0.66–0.80 / 255, only at edges (the still's texture is coarser than the page) | |
 | Hand-off in the 200 ms beat after the close button (1440 × 900 at DPR 2) | mean \|Δ\| 0.66–0.71 / 255, the CV icon deselected on both | |
 

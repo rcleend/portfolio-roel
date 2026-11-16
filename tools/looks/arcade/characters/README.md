@@ -4,11 +4,16 @@ The arcade (Neo Geo / Metal Slug) versions of the three heroes, their attack spr
 Python 3.9+ and Pillow only; every shipped pixel comes from this folder, deterministically.
 
 ```sh
+pnpm build:art --export src/game                          # the committed art back as PNGs beside its modules
 python3 tools/looks/arcade/characters/build.py            # writes src/game/art/looks/arcade/{characters,customer}/
-python3 tools/looks/arcade/characters/build.py --check    # fails if the committed sheets are stale
+python3 tools/looks/arcade/characters/build.py --check    # fails if the sheets are stale
 python3 tools/looks/arcade/characters/review.py --refs <look refs dir>   # review boards in /tmp
 python3 -m unittest discover -s tools/looks/arcade/characters -t tools/looks/arcade/characters
+pnpm build:art                                            # every PNG under src/game into its art module; removes the PNGs
 ```
+
+The game's art is committed as `*.art.ts` modules holding the pixels, with each sheet's JSON beside it; a PNG under `src/game` exists only between the export and `pnpm build:art` (tools/art/README.md › Art modules).
+Without the export, `--check` compares the JSON alone and exits 2 saying so, and the tests that read the sheets' pixels are skipped; with it, a sheet is compared with a fresh build pixel for pixel (`tools/looks/artfiles.py`).
 
 ## How a frame is made
 

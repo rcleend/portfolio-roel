@@ -7,7 +7,8 @@ The contract with the rest of the app is the `createRoom` API below; everything 
 ## Using it from the app
 
 ```ts
-// Load lazily: three.js is ~180 kB gzipped and the flat host does not need it.
+// Load lazily: the room's chunk, three.js included, is about 190 kB gzipped (bundle-budgets.json) and the flat
+// host does not need it.
 const { createRoom } = await import('@/room');
 
 let room;
@@ -79,20 +80,26 @@ interface CreateRoomOptions {
   quality?: QualityTier | 'auto';   // default 'auto': the device's own tier, governed by its frame times (§ Quality)
   maxPixelRatio?: number;           // a further cap under the tier's own
   maxDrawingBufferPixels?: number;  // a further cap under the tier's own
-  mood?: RoomMood;                  // 'original' (default), 'honey', 'rose' or 'midnight'
+  posters?: boolean;                // default true; false keeps the walls bare (tests measure what they add)
+  mood?: RoomMood;                  // 'original' (default: the bake without a finish), 'honey', 'rose' or 'midnight'
+  air?: RoomAir;                    // { haze, dust }, as setAir takes them
 }
 
 interface Room {
-  readonly ready: Promise<void>;           // rejects when the room cannot be built or lit: use the flat host
+  readonly ready: Promise<void>;           // the opening view is built, lit and drawn; rejects when the room cannot
+                                           // be built or lit: use the flat host
+  readonly generatedReady: Promise<boolean>; // true once the whole room is lit, false when it could not be
+  readonly postersReady: Promise<boolean>; // true once the walls are shown, false when they will not be this page load
   readonly shown: boolean;                 // false after a lost WebGL context until the room is lit again (§ Lost canvases)
   onShownChange(listener: (shown: boolean) => void): () => void;
   readonly view: RoomView;                 // 'tv' | 'room' | 'pc' | 'radio', at or flying to
   readonly settled: boolean;               // the camera rests at `view`
   readonly mood: RoomMood;
   setMood(mood: RoomMood): void;           // changes the finish in place, with no animation or reload
-  setAir(air: RoomAir): void;             // haze/dust multipliers, each 0–2 (1 uses the mood's settings)
+  setAir(air: RoomAir): void;              // haze/dust multipliers, each 0–2 (1 uses the mood's settings)
+  setMuted(muted: boolean): void;          // the app's sound switch, for the rain (§ Rain audio)
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
-  powerOn(): Promise<void>;
+  powerOn(options?: { instant?: boolean }): Promise<void>;  // instant: lit at once (§ Startup)
   powerOff(): Promise<void>;
   focusTv(): void;
   showRoom(): void;
@@ -101,15 +108,20 @@ interface Room {
   onViewChange(listener: (view: RoomView) => void): () => void;   // as the camera sets off
   onSettle(listener: (view: RoomView) => void): () => void;       // as it comes to rest
   setFramingInsets(insets: FramingInsets): void;   // CSS px covered by overlays
+  setTilt(tilt: { x: number; y: number } | null): void;  // a phone's tilt, −1…1 each way: looks round the room view
+  setTapToBegin(on: boolean): void;        // a tap on the set presses the game (the title's "PRESS TO BEGIN")
   registerInteractable(interactable: Interactable): () => void;
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
-  readonly radio: RadioDeck;               // the CD player (src/room/radio/RadioDeck.ts); usable before `ready`
+  readonly radio: RadioDoor;               // the CD player's door: available, prefetch, load() → the RadioDeck
+                                           // (src/room/radio/RadioDeck.ts); usable before `ready`
   readonly spotlight: PropSpotlight;       // the props' glow, bounce and label point (§ The spotlight); usable before `ready`
   readonly anchors: readonly PropAnchor[]; // the TV, the computer and the radio in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
-  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, quality (tier and scale), lava, programs, pcTexturePixels,
-                                           // backgroundPending (work still waiting for idle moments), radioReady,
-                                           // radioTexturePixels, radioLidDegrees, radioAmbient, spotlight (its chunk is in)
+  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, quality (tier and scale), lava, programs,
+                                           // pcTexturePixels, backgroundPending (work still waiting for idle moments),
+                                           // radioReady, radioTexturePixels (labels and LCD), radioLidDegrees, radioAmbient,
+                                           // posters, postersTexturePixels, postersPath, spotlight (its chunk is in), rainReady,
+                                           // generated and generatedStats (§ The generated room › Reading it)
   dispose(): void;
 }
 
@@ -199,11 +211,27 @@ room/
   assembleRoom.ts       wires the built room: TV, computer, radio, camera rig, interaction, anchors, the two glasses
   ViewController.ts     applies the view policy to the surface (pause/resume/input), the live screen and the camera
   viewState.ts          pure reducer: view requests/arrivals → effects
-  gen/                  the room itself (§ The generated room): generators (worker), prints, bake, the nodes a frame draws
+  gen/                  the room itself (§ The generated room). Only genKit.ts imports three.js at runtime
+    GeneratedRoom.ts    the worker's door, the meshes, the two-pass bake and its pacing, context loss, stats
+    GeneratedRadio.ts   the CD player's parts as meshes on the pivots RADIO_SPEC names
+    LavaWax.ts          the lava lamp's wax and glass: a lathe posed by the clock
+    genKit.ts           the three.js classes gen/ builds and bakes with, handed over (room chunk)
+    scene.ts            runs every prop generator and packs the charts; no three.js (worker.ts runs it)
+    worker.ts           the generators' worker
     roomSpec.ts         plain numbers: where the TV, the computer, the lamps and the view outside are
+    rig.ts              the night's lights, as a table
+    materials.ts        surface functions (GLSL the bake evaluates once per texel)
+    art.ts, artPaint.ts the art page: the game covers, the set's legends and wordmark, the robot's chest, painted
+                        on one 2D canvas; radioArt.ts paints the CD player's strip of it
+    tiers.ts            what each quality tier builds and bakes at
+    bake/               Baker.ts (shadow maps, light pages, the vertices' page, compose) and its three programs
+    kit/                builder.ts (placed primitives → flat arrays), charts.ts (flat rectangles packed into
+                        pages), hash.ts (integer hashes, the same in GLSL and JavaScript)
+    props/              one module a corner: shell (walls, floor, rug, door, window, blind), cabinet, tvSet,
+                        lampAndRobot, plant, console, deskCorner, dresserCorner, lavaLamp, radio + radioSpec
   stage/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, the quality's pixel ratio, resize, context loss
-    RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame; tells a run
+    RenderLoop.ts       frame scheduler: invalidate() + animation steps, coalesced per frame; tells a run
                         of frames (whose intervals measure the device) from frames that were only waited for
     quality.ts          pure: the quality tiers, the tier a device starts on, and the governor that moves the scale
                         and the tier with measured frame times (§ Quality)
@@ -212,20 +240,25 @@ room/
     slowDevice.ts       pure: whether the device is slow (a software GPU, or a first flight under 30 fps), for the radio and the posters
     stripUpload.ts      a large texture uploaded a 1 MB strip per background unit (the posters)
     sceneTextures.ts    every texture of the scene: anisotropy, disposal, and the upload of those no frame has drawn
+    canvasRestore.ts    repaints a canvas painted once when a GPU reset hands it back blank (§ Lost canvases)
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
   atmosphere/
-    moods.ts            three opt-in summer-night finishes and the original-bake comparison
+    moods.ts            three summer-night finishes, and `original`: the bake with no finish, for comparison
     RoomAtmosphere.ts   one room render, quarter-size highlight extraction, mip-based bloom and split-tone finish; the
                         TV's light in the haze, and only its brightest pixels' glare from a display
     RoomDust.ts         one point draw of 580 seeded world-space motes, depth-tested and excluded from screens
     AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
-    RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows; lights
-                        them with the TV's picture (tv/screenLight.ts)
+    WindowRain.ts       water on the window's glass, refracting the view outside, in the composite
+    RoomGloss.ts        view-dependent varnish on the baked hard surfaces; lights them with the TV's picture
+                        (tv/screenLight.ts) and the storm's flashes
     RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the robot's eyes' too); no animation
     tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its uniforms, for its reflection and its air
     toyRobot.ts         the toy robot (§ The toy robot): its eyes' intensity and halo size (their light is baked)
     RoomScreens.ts      display mask in the frame's alpha; keeps content clear and hides the monitor's bezel quad
     LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
+  rain/
+    RainSoundSlot.ts    imports the rain's sound at idle after power-on (room chunk)
+    RainSound.ts        the `RainSound` chunk: the recording, its seamless loop, mute and fades (§ Rain audio)
   camera/
     CameraRig.ts        TV / room / computer viewpoints, flights, reduced-motion cut, pointer (and phone tilt) parallax
     roomFraming.ts      pure: the whole-room overview for an aspect, tall to wide
@@ -239,6 +272,7 @@ room/
     tvGlass.ts          the glass: a display mesh made on the main thread to the screen's contract
     tvFraming.ts        pure: the TV viewpoint (the whole set, or the picture on portrait and short screens); the
                         picture's outline on the curved glass
+    tvFixtures.ts       the set's numbers for tests
     Television.ts       the device: CRT + LED + the light its picture casts, power choreography
     CrtScreen.ts        ShaderMaterial on the glass, CanvasTexture updated on onFrame, power state
     crtShader.ts        GLSL: scanlines, aperture grille, bloom, vignette, power raster, halation, glass
@@ -256,24 +290,28 @@ room/
                         after the first TV leave's first flight frame, on a prefetch or on a request for the radio view (which waits)
     RadioInteractable.ts the radio, its cabinet and the lava lamp as one click target (room chunk; the table below)
     radioModel.ts       the radio as `RADIO_SPEC` has it, with its cabinet and the lamp's bounds (room chunk)
+    radioFixtures.ts    the radio's bounds and the framing table's viewports, for tests
     deviceFacts.ts      Save-Data and device-memory probes (room chunk)
     deviceContract.ts   the seam to the lazy device (types only): RadioHost, RadioLink, RadioDevice
+    partsProvider.ts    what the generated room hands the device (types only): the parts on their pivots, the spec
     deckChunk.ts        the radio's lazy chunk (`radioDevice`): the deck below and the device, one chunk
     RadioDeckHandle.ts  the deck: listeners, live, label size; remembers discs/state until the device exists
     RadioParts.ts       the radio view's half of the click target: the device's discs, well and keys
     radioFraming.ts     pure: the 24° viewpoint over the radio and its discs, lens, lamp truck, portrait crop; the
-                        measured lid and hinge
+                        lid and hinge it frames
     discLayout.ts       pure: the disc slots (arc or stack) for a count and aspect; label size
     ControlsLayer.ts    the app's controls slot over the room, shown only while live
-    rendererInfo.ts     renderer string, device memory and Save-Data probes
-    device/             the `radioDevice` chunk, loaded on demand
-      RadioDevice.ts    createRadioDevice: takes the generated parts, prepares; the device (state, gestures, cues, frames)
+    device/             the rest of the `radioDevice` chunk
+      RadioDevice.ts    createRadioDevice: waits for the generated radio's parts; the device (state, gestures, cues, frames)
       choreography.ts   pure: every disc, the lid and the keys as functions of time; cues as timed moments
       discMotion.ts     pure: rise, glide and flip, settle, flight, drop and bounce, unseat, idle, attention
+      discContact.ts    pure: whether two discs touch (the planners' and the tests' measure)
       lidMotion.ts      pure: push, pop, the damped swing and the close as timed plans
       keyMotion.ts      pure: rocker tilt and side-key travel, hold and spring release, key shading
       springs.ts        pure: closed-form damped springs and spin tracks
-      deckLayout.ts     pure: the deck's measured seat, slot and keys; the layout on the page
+      timeWarp.ts       pure: a stretch of the storyboard played sooner (a leave mid-pick)
+      monotonicClock.ts the device's one clock, which never runs backwards
+      deckLayout.ts     pure: the deck's seat, slot and keys; the layout on the page
       Discs.ts          the disc meshes, labels (one upload per idle unit), radial averages, analytic picking
       discGeometry.ts   one 512-triangle disc (label face, data face, edge, hole wall)
       discShader.ts     the discs' one program: foil, diffraction, label, spin blur; JS mirrors for tests
@@ -281,6 +319,7 @@ room/
       Lcd.ts            the segment display: canvas, warm-up flicker, fades, blink
       lcdSegments.ts    pure: glyphs and the readout's frame
       AmbientPacer.ts   the idle float at ≤ 30 frames per second
+      storyboardSweep.ts the contact tests' harness
   pc/
     pcModel.ts          the computer as the room's spec has it; the picture's border and radius constants
     pcGlass.ts          the glass: a display mesh made on the main thread (planar UVs, v = 0 at the top)
@@ -321,14 +360,22 @@ room/
 
 ## Assets
 
-The room ships no model, texture or image: `public/room/` is gone. Its geometry, its surfaces, its prints and its
-light are made in the browser (§ The generated room); the posters' atlas and geometry too (§ Posters), and the startup
-still is CSS (§ Startup). What the room's code needs to know of the room without building it (where the TV, its glass
-and its LED are, the monitor's glass and shell, the lamps, the lava lamp's box, the view outside) is `gen/roomSpec.ts`
-and `gen/props/radioSpec.ts`: plain numbers, which `gen/gen.test.ts` holds to the generators.
-Baked surfaces carry a filmic display transform of their own, so the renderer uses `SRGBColorSpace` output and
-`NoToneMapping`. `public/CREDITS.txt` (linked from the résumé) names what the room was modelled after.
-`tools/room/` and the `build:room` / `verify:room` / `sync:room` scripts are the retired Blender pipeline.
+The room ships no model, texture or image, and fetches none. Its geometry, its surfaces, its prints and its light are
+made in the browser (§ The generated room), the posters' paintings and geometry too (§ Posters), and the startup still
+is CSS (§ Startup). The only file the room downloads besides its code is the rain's recording,
+`public/audio/attic-rain.mp3` (§ Rain audio).
+
+What the room's code needs to know of the room without building it (where the TV, its glass and its LED are, the
+monitor's glass and shell, the lamps, the lava lamp's box, the view outside, the radio's hinge and keys) is
+`gen/roomSpec.ts` and `gen/props/radioSpec.ts`: plain numbers, which `gen/gen.test.ts` and `gen/props/radio.test.ts`
+hold to the generators. Baked surfaces carry a filmic display transform of their own, so the renderer uses
+`SRGBColorSpace` output and `NoToneMapping`. `public/CREDITS.txt` (linked from the résumé) says what the site is made
+with.
+
+Until commit `0e275c7` the room was authored in Blender, baked offline and shipped as five GLB models and WebP
+textures under `public/room/`, built and checked by `tools/room/` (`pnpm build:room`, `verify:room`). All of that is
+removed; the commit before it is where to look for the pipeline. `docs/gen/reference/` keeps pictures of that room,
+which the generated one was matched to (§ The generated room › Comparing it).
 
 ### TV geometry contract
 
@@ -348,44 +395,84 @@ Baked surfaces carry a filmic display transform of their own, so the renderer us
 
 ## Rendering and performance
 
-- **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
-  Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, and while seated at the computer **0** under reduced motion or below the top quality tier and otherwise the air's 12 (the lava lamp is out of shot; the live screen is DOM; § Quality › Reading).
-  In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
+- **Frames.** `RenderLoop` draws only when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power
+  animations, the lava's and the air's ticks, resizes. Since the room is generated it is asked all the time: once the
+  room is lit, `GeneratedRoom` asks for a frame sixty times a second in every view, whether or not anything moves, as
+  a run of frames the quality governor judges (§ The generated room › Sixty frames a second), and for none while the
+  canvas is off screen or the tab hidden. So a resting room draws about sixty frames a second at the TV with the game
+  paused, in the room view, at the computer and at the radio, under reduced motion too (`node scripts/room-shots.mjs
+  --only perf` prints them). The slower clocks (the lava's 24 a second, the air's, the radio's float at 30) decide
+  what moves in those frames, not how many are drawn. The room with shipped files drew no frame at rest; the frame
+  counts at rest that these docs quoted from that time are gone (§ Known gaps).
+
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
   - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
   - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, its own estimate, `estimateMs`, else the longest so far), so no frame is late, and a unit at the head of the queue that does not fit steps aside for the first behind it that does; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait, except a task's small uploads (`smallUploads`: the posters' 1 MB strips at the TV), which run like CPU units, each with an idle period to itself;
   - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
   On a device too slow to fit a unit between the game's frames the work waits for a quiet moment, or for the flight that needs it. The room queues:
+  - **The bake's second pass**, the light of everything the opening view does not show, a few views a unit
+    (§ The generated room › Pacing).
   - **The pick chunks** (below), for quiet moments: the room view.
-  - **The monitor's glass finish**, in bands of 32 rows (17-50 ms in all on a phone twenty times slower than a laptop).
+  - **The monitor's glass finish**, in bands of 32 rows.
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
-  - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, for quiet moments, once the visitor first leaves the TV. three uploads a texture the first time a frame draws it: the TV view's own are on the GPU with the first frame; the first look around draws (and uploads) the rest of the room mid-flight, as it did before the computer; and the room view's quiet uploads what only the flight to the computer draws (two 2048² atlases on a portrait phone, 27-36 ms each at 6× CPU). A visitor who stays at the TV never allocates the room's other atlases: 97.8 MB of textures at the TV, as before the computer, against 221 MB once the room has been seen.
-- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), in units of 4096 triangle visits in quiet moments after the first frame (in the room view); until then rays test the whole meshes (from the TV, rays point away from the desk).
+  - **The posters' atlas**, in 1 MB strips (§ Posters), and at the radio the discs' labels (§ The CD player).
+  - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, a while after the TV turns on
+    (`assembleRoom` › `prewarm`) or at the latest when the visitor first leaves the TV. three uploads a texture the
+    first time a frame draws it, which would otherwise land in a flight. In the generated room this is little: the
+    baked pages are render targets, on the GPU since the bake, so what is left are the canvas textures a view has not
+    shown yet (the view outside the window, the monitor's still).
+
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a
+  mesh whose bounds the ray crosses, so `pickMeshes` cuts any registered mesh over 8,192 triangles into chunks of at
+  most 1,024 that share the mesh's attributes and carry their own bounds, in units of 4,096 triangle visits in quiet
+  moments; a ray tests only the chunks it crosses and finds the same hits. The generated room's click targets are
+  small meshes of their own or index ranges of the merged props (§ The generated room › Picking), so little or
+  nothing is cut now; what a pick costs has not been measured since.
+
 - **Software GPUs.** Where the GPU is software (SwiftShader, llvmpipe: `softwareGpu.ts` reads the renderer's name), a 2D canvas the browser accelerates queues its raster behind the room's frames on the same CPU: the computer's first wallpaper paint took the running game 1.1 s there. The monitor then paints its still and glass finish on CPU canvases (`willReadFrequently`) and asks the app's painter to do the same (`StillRequest.cpuCanvas`), so the work lands on the main thread, 7 ms of it, in the idle moments the room chooses.
-- **The game and the TV's turn-on stay as they were** (production builds, 3-6 runs each against the build before the computer): at 20× CPU on a phone, the game's first 3 s run at 52-61 frames/s with a worst frame gap of 21-32 ms (before: 54-60, 20-32 ms) and the turn-on's worst gap is 83-92 ms (81-89 ms), with no long task in either; under SwiftShader the game's longest frame is 82-139 ms (90-205 ms) and nothing freezes it; at 6× the game's worst gap is 11-18 ms (10-17 ms).
-- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 26 ms from pointerup to the first flight frame (26 ms before the computer existed): the still was prepared between the game's frames and only its upload is left for the click. On a phone twenty times slower than a laptop no unit fits between the game's frames, and the first leave pays the still once, about 110-125 ms after the game has paused and before the camera moves. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
-- **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
+- **Not measured since the room is generated**: the game's frame rate and the turn-on's worst frame gap on a slow
+  CPU, long tasks in the flights to and from the computer, the click-to-first-flight-frame time, and the time to the
+  first frame at 6× and 20× CPU throttling. The numbers this section used to carry were taken on the room with
+  shipped files, whose load (a 7 MB download, decode and upload) and whose frame (353 k triangles) were different
+  work. `node scripts/perf/profile.mjs` measures a production build along the visitor's path;
+  `stats.generatedStats.marks` has the way to the first shown frame.
+
 - **Resolution.** On the top tier DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52); a lower
   tier or scale draws fewer pixels (§ Quality).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The toy robot adds four draw calls (its body, its eyes and their two halos), about 2.4 k triangles, one 512² WebP colour map and no program (its body and eyes share the baked room's mapped program, the halos the halation's; 86.4 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
+- **Cost.** The generated geometry is 51,010 triangles (`stats.generatedStats.triangles`; every prop has a budget in
+  `gen/gen.test.ts`). Read from `room.stats` in the lab (the `rose` finish, 1440 × 900, top tier, headless Chromium on
+  an Apple GPU, the posters shown, five mock discs): the TV view draws about 35 k triangles in 19 calls, the room view
+  53 k in 40, the computer's 33 k in 17, the radio's with its discs up 48 k in 30. No three.js light is in the scene
+  and nothing is shadowed per frame: static surfaces are unlit materials that read the bake (a chart's page, or vertex
+  colours), and the finish extends those same materials (varnish, the TV's light, the storm).
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
-- **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
+- **Memory.** The baked pages dominate (`stats.generatedStats.pages`, `pageBytes`): four 2048² pages with their mips,
+  89.5 MB, on a device that starts on the top tier; four 1024² pages, 22.4 MB, on one that starts lower. They are
+  render targets: nothing is downloaded, decoded or uploaded for them, and they are allocated at the TV, when the bake
+  is made. While it runs the bake holds 43.8 MB more (37.5 MB on `low`; `transientBytes`), freed once the whole room is
+  lit. Beside them: the art page and the view outside (canvas textures, 1024² and 512² below the top tier), the
+  posters' atlas (2,097,152 texels, ≈ 10.7 MiB with mipmaps, a quarter of that at 1K; `stats.postersTexturePixels`),
+  the monitor's still (at most 1024 × 817; `stats.pcTexturePixels`), the discs' labels and the LCD
+  (`stats.radioTexturePixels`: 1.06 M with five 384² labels) and the finish's own targets, which are the size of the
+  drawing buffer and which `room.stats` does not count.
+
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. The room's own light goes with the context too: its baked pages are render targets, so the bake runs again and `room.shown` is false until what the camera shows is lit (§ The generated room › Loss and failure); at the TV the app covers the canvas with the startup still meanwhile. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
 
 ## Quality
 
 How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
 rate and a laptop shows everything. Every tier keeps the room's look: the finish, the TV's and the lamps' light on the
-room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, texture size on the room's far surfaces and, on the
-lowest, multisampling and the width of the bloom's filter; nothing else.
+room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, the baked pages' texel
+density and, on the lowest, multisampling, the width of the bloom's filter and half the bake's light samples; nothing
+else.
 
-| Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Room atlases | Starts on |
+| Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Baked pages, for a device that starts there | Starts on |
 | --- | --- | --- | --- | --- | --- | --- |
-| `high` | ≤ 2 | ≤ 3.0 MP | 2 samples | 5 | 2048² | anything that is not a phone: what the room always drew |
-| `medium` | ≤ 2 | ≤ 1.6 MP | 2 samples | 5 | 1024² (the floor's 2048²) | a phone (a finger for a pointer and a screen under 600 CSS px across): the picture `high` draws there |
-| `low` | ≤ 1.5 | ≤ 0.9 MP | 1 sample | 1 | as the tier it started on | a software renderer (which then stays there); otherwise only reached by the governor |
+| `high` | ≤ 2 | ≤ 3.0 MP | 2 samples | 5 | up to 2048², full density | anything that is not a phone |
+| `medium` | ≤ 2 | ≤ 1.6 MP | 2 samples | 5 | 1024², half the density | a phone (a finger for a pointer and a screen under 600 CSS px across): the picture `high` draws there |
+| `low` | ≤ 1.5 | ≤ 0.9 MP | not multisampled | 1 | 1024², half the density, a shorter bake | a software renderer (which then stays there); otherwise only reached by the governor, which leaves the pages as they were baked |
 
 - **Pages.** A device that starts below the top tier bakes smaller chart pages (`gen/tiers.ts`, § The generated
   room): 22 MB of them against 89 MB. The choice is made once, from the starting tier.
@@ -415,9 +502,8 @@ lowest, multisampling and the width of the bloom's filter; nothing else.
 - **The canvas is not multisampled** under a finish: the room is drawn into the finish's own target, and only two
   triangles and the dust onto the canvas. (The unprocessed bake, `mood: 'original'` at creation, draws straight onto
   the canvas and keeps its antialiasing.)
-- **Reading.** Below the top tier the room's air (dust, rain) rests while the camera rests at the computer: on a phone
-  the live screen covers the room, and the dust alone kept the whole room drawing twelve frames a second behind a
-  page being read. On the top tier it drifts on beside the monitor as before.
+- **Reading.** Below the top tier the room's air (dust, rain) holds still while the camera rests at the computer: on a
+  phone the live screen covers the room. On the top tier it drifts on beside the monitor.
 - **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
   `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
   phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
@@ -489,7 +575,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   the bake. Their noise is integer hashes (`gen/kit/hash.ts`), exact in GLSL ES 3.0 and in JavaScript, so every GPU
   draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the robot's chest) are
   painted on one 2D canvas (`gen/artPaint.ts`), and painted again when a GPU reset blanks it (§ Lost canvases).
-- **Light** is a table (`gen/rig.ts`): the Blender rig's colours, places read off the room, an ambient dome that only
+- **Light** is a table (`gen/rig.ts`): the colours of the rig the room was first lit with in Blender, places read off the room, an ambient dome that only
   furniture shadows, and one light standing for the floor's bounce. `gen/bake/Baker.ts` renders each light once from
   several points of its emitter (133 views on the top tiers, 69 on the lowest; a fill that nothing shadows needs no
   shadow map), each through a shadow map of the
@@ -502,8 +588,8 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   names say so; the per-frame surface shader (`RoomGloss`) has no such terms any more. What runs every frame is what
   changes: the TV's light, the storm, the varnish. The bake reads the mood once; a mood changed
   afterwards (the lab) keeps the pools and lamp it was baked with.
-- **A frame**: unlit materials named for the finish (their varnish and sheen), one map or vertex colours. The opening
-  view draws 35 k triangles in 19 calls, the room view 53 k in 37.
+- **A frame**: unlit materials named for the finish (their varnish and sheen), one map or vertex colours; what the
+  views draw is under § Rendering and performance › Cost.
 - **Pacing.** A bake unit is a few views, as many as the GPU has been seen to finish in 4 ms. IdleWork decides when the
   main thread runs one; the next is not queued until a fence says the GPU has the last one behind it, so frames always
   go in between. A view that takes the GPU over 5 ms sends the rest of the bake to quiet moments (a paused game, the
@@ -536,18 +622,20 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   through the open hole and the lid's underside is generated, and lit, where the open lid holds it, then hung on the
   pivot turned back by the open angle. Vertex colours rather than charted pages: the radio is curved, moulded and
   moving, a chart is a flat rectangle, and at the close-up's 3.6 device pixels a millimetre its panel alone would want
-  a 2048² page (22 MB with mips, what the 2K skin cost) where the vertices cost 0.6 MB and nothing to upload.
+  a 2048² page (22 MB with mips) where the vertices cost 0.6 MB and nothing to upload.
 - **The night's rig** (`gen/rig.ts`). The window's light is a small emitter outside and above the sash, in two parts:
   what comes under the blind (the bright patch past the desk's end) and what comes through it (a third, unstriped:
   `clear` ends its shadow map past the slats, whose stripes a handful of emitter points cannot resolve). A pool over
-  the middle of the floor and its bounce stand for the bake's indirect light; the desk lamp and the lava lamp are
+  the middle of the floor and its bounce stand for indirect light, which the bake does not compute; the desk lamp and the lava lamp are
   small omnis that their own housings do not shadow (`clear`); the blind and the casing are lit from the room side
   through a portal the size of the casing. Eight-bit light pages (no float colour buffers) round each pass by a hash
   and are read through a small blur, so a hundred weak passes still sum to the light's mean.
 - **Comparing it.** `node scripts/gen-shots.mjs` shoots the four views and seventeen true-zoom crops from fixed
-  cameras (`--tier`, `--viewport desktop|phone`, `--mood`, `--eight-bit`, `--only`); `--compare docs/gen/reference`
-  writes each beside the shipped room's picture. `docs/gen/reference/` is the shipped room's record (high and low,
-  desktop and phone), taken before its files were retired.
+  cameras (`--tier`, `--viewport desktop|phone`, `--mood`, `--eight-bit`, `--only`, `--out`); `--compare
+  docs/gen/reference` writes each beside the same picture of the room with shipped files. `docs/gen/reference/` is
+  that room's record (high and low, desktop and phone, and its posters), taken before its files were removed; it
+  cannot be taken again (`--mode shipped` needs those files).
+
 - **Reading it.** `room.stats.generated` is `loading`, `opening` (the TV view lit, the rest on its way), `ready` or
   `failed`; `generatedStats` has where the geometry was built, the views baked, the bake's main-thread and wall time
   to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
@@ -622,7 +710,7 @@ values, as the tube outshines the dim baked room more than an 8-bit display can 
 
 The light follows every game frame (a phosphor's afterglow lasts about a millisecond), from the mips the picture's
 upload already makes: no readback, no extra pass, draw call, render target or program. The unprocessed bake (`original`)
-has no live TV light: its own baked screen emitter is what it shows. `e2e/tv-light.spec.ts` paints the lab's picture in
+has no live TV light. `e2e/tv-light.spec.ts` paints the lab's picture in
 menu colours and checks that the lip and the tube's border take its colour, the set's front stays dark (the veil this
 replaced added 19–31 levels there), the floor before the set brightens and the far wall does not.
 
@@ -633,7 +721,8 @@ drifting dust. Each mote checks the frame depth for occlusion and its alpha to s
 capped at five CSS pixels to avoid foreground glare. Neither haze nor particles cover live PC text.
 Rain shares the existing composite: no additional render target, draw call, shader program or texture. A camera ray
 intersects the window plane at z=-2.43 within its world bounds. Scene depth masks the frame, blinds, sash and computer.
-Rounded water lenses and fine beads distort the already-loaded exterior tree texture directly; its existing mip chain
+Rounded water lenses and fine beads distort the view outside directly (the plate behind the window, painted in code:
+`gen/artPaint.ts` › `paintExterior`); its mip chain
 softens the damp glass between drops. Moving drops pause and accelerate, leaving narrow, irregular tapered trails.
 Small warm/cool reflections and darker menisci give the clear beads volume. World-space coordinates keep them attached
 to the glass through flights. Sampling the exterior directly prevents foreground objects from bleeding into refraction.
@@ -650,83 +739,56 @@ The shared rain/dust timer requests at most 24 frames/s and defers to existing g
 with the original bake, while hidden or context-lost, on disposal, or when both dust is zero and the window is outside
 the frustum. Reduced motion freezes rain and dust. The resolved depth adds at most 12 MB at the 3 MP cap.
 
-The finish adds six shader programs plus two linear-output material variants to the first room view
-(`e2e/programs.ts`, `ATMOSPHERE_PROGRAMS`). Reduced-motion cuts add the linear-target veil; the real radio adds its prewarmed and linear-output CD variants. The first comparison with original also compiles screen-output variants;
-subsequent switches reuse them. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse, idle frames,
+`e2e/programs.ts` is where the program counts are pinned, with what draws with each: the room holds 12 from its first
+frame without a finish, the posters add 1 and the spotlight 2, and a night finish adds 10 to that (its halation,
+highlight extraction, composition and dust, the monitor's display mask, two variants the varnish splits off, and the
+posters' linear-target variants): 25 after the first room view in the app, 27 once the radio's discs have been drawn.
+Reduced motion adds none. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse,
 reduced motion, the fixed production finish, dust visibility and scheduling, device navigation, TV contrast and exclusion of
 dust/haze from its picture, live-PC tint and hand-over, resize and WebGL context restoration.
 
 ### The opal lamp
 
-A small opal globe lamp stands on the right-hand end of the TV cabinet (`tools/room/tv-lamp.mjs`, the supplied
-PlexiAndOpaline Desk Lamp with its plexi box, cord and backdrop left out), so the opening TV view is not lost in the
-dark around the set. It is not in the bake: the finish lights the room with it, like the TV's picture.
+A small opal globe lamp stands on the right-hand end of the TV cabinet (`gen/props/lampAndRobot.ts` › `opalLamp`: a
+round metal foot and a 16 cm globe), so the opening TV view is not lost in the dark around the set.
 
-- **The asset.** Its node in `room.glb` (`01_TV` › `TV desk lamp`, `userData.supplied_asset = "tv-lamp"`) carries the
-  light: the globe's centre and radius, its colour and `glow`. `attachTvLamp` (`atmosphere/tvLamp.ts`) reads it when
-  the finish attaches and multiplies the globe's unlit colour by `glow` (2.8), so the globe is light past white that the
-  finish's highlights bloom around, with a halo (`RoomHalation`) and a little warm air in the composite.
-- **Diffuse.** Every baked surface `RoomGloss` extends takes the globe as a sphere light: Lambert with a slight wrap
-  (a surface just past its horizon still sees the globe's top), softened to `1 / (d² + 0.04)` (no hot spot under it)
-  and faded out from 1.4 m to 2 m. The bake stands in for albedo exactly as for the TV's light (25 × the baked colour,
-  at most 0.85). The set and the cabinet cast its shadows: each is a box (the set's measured bounds, the cabinet's),
-  and the light fades over the first 7 cm of either box the ray to the globe runs through, a soft edge like a 16 cm
-  globe's penumbra. The wall beside the set, the plant, the set's right side and the cabinet top take its light; the
-  floor in front of the cabinet takes it only past the cabinet's front edge; the set's front, behind which it stands,
-  never does. Its intensity is `TV_LAMP_INTENSITY` (0.14 × its colour in the finish's linear light).
-- **Varnish.** The varnished surfaces reflect it like the other practicals.
-- **The base.** Its metal base is a dark steel `_BAKED_UNLIT` material, so the globe above it lights it like any
-  surface. The base and the globe share one material (mapless unlit with the finish): two programs under a finish, its
-  screen and linear-target variants (`e2e/programs.ts` › `TV_LAMP_PROGRAMS`), none in the original bake.
-- **Original.** The unprocessed bake (`original`) shows the globe but no light from it, as it has no live TV light.
+- **Its light is baked.** `gen/rig.ts` › `opal` is a sphere light at the globe's centre (`TV_LAMP_SPEC`,
+  `gen/roomSpec.ts`), rendered through shadow maps of the room's geometry like every other light: Lambert with a
+  slight wrap, softened to `1 / (d² + 0.04)` and faded out from 1.4 m to 2 m. It is a `finish` light: the bake adds it
+  in the finish's own terms (`TV_LAMP_INTENSITY`, 0.14 × the lamp's colour), so the wall
+  beside the set, the plant, the set's right side and the cabinet top carry it with real shadows, and the surface
+  shader has no term for it. `gen.test.ts` holds the copy in `gen/tiers.ts` to `atmosphere/tvLamp.ts`.
+- **What a frame adds** is what depends on the eye (`atmosphere/tvLamp.ts`, two uniforms): its reflection in the
+  varnished surfaces (`RoomGloss`), a little warm air in the composite and its halo (`RoomHalation`). The globe's
+  mesh is drawn as light: its colour × `glow` (2.8), past white, which the finish's highlights bloom around.
+- **Programs.** The globe and the robot's eyes draw with the room's plain-colour program; under a finish the varnish
+  gives them a variant of their own (`e2e/programs.ts`).
+- **Original.** The unprocessed bake (`original`) has no finish lights: it shows the globe but no light from it.
 
-Re-render the startup stills (§ Startup) whenever the lamp or its light changes: they show it at the set's right.
+The startup still (§ Startup) does not show the lamp; its glow appears as the still fades.
 
 ### The toy robot
 
 A 30 cm tin toy robot stands on the left-hand end of the TV cabinet, behind the Product Engineer case
-(`tools/room/toy-robot.mjs`, the supplied "Vintage Toy Robot" by Tom Scudder, CC-BY-4.0, `public/room/CREDITS.txt`), so
-the dark left of the set has light and something to look at. Its body turns 30° towards the room, its head (turned in
-the source) looks almost straight at the opening camera, and its eyes glow in the opal lamp's colour.
+(`gen/props/lampAndRobot.ts` › `toyRobot`: grey feet, red legs, a boxy body whose chest gauges are a print, a square
+head with aerials), so the dark left of the set has light and something to look at. Its body turns 30° towards the
+set and its eyes glow in the opal lamp's colour.
 
-- **The asset.** The source's 32 parts (15,475 vertices, three 1K PNGs, 2.7 MB) become one body mesh and one eye
-  mesh, simplified with meshoptimizer (`simplifyWithAttributes`, permissive across the source's hard edges and UV
-  seams, pruning slivers: about 2,500 vertices and 2,400 triangles); only the colour map ships, at 512² WebP (43 kB),
-  as the room is unlit. The robot adds 86.4 kB to `room.glb`. The body is `_BAKED_UNLIT` with its true colours dimmed
-  to the room's night (× 0.04), so the finish's albedo (25 × the colour) is the robot's own and the room's lights
-  light it. Its node (`01_TV` › `TV toy robot`, `userData.supplied_asset = "toy-robot"`) carries the eyes' light: a
-  point on each eye's bulb, 2 mm behind the glass (so neither the glass nor the face it is set in takes its own eye's
-  light), the head's facing, the beams' aim (35° below it, looking at the desk), the lamp's colour
-  (`tools/room/tv-lamp-light.mjs`, which the lamp reads too), the eyes' `glow` and the body's and legs' boxes in the
-  body's frame. `attachToyRobot` (`atmosphere/toyRobot.ts`) reads it and makes the eyes light.
-- **Ambient light, baked.** The rest of the room carries its light in its bake; the robot is not in it, so the script
-  bakes the night's ambient light into the colour map itself: texel by texel over the body's UV islands (which do not
-  overlap), the share of 48 fixed directions around the texel's face that reach 6 cm without meeting the robot or the
-  cabinet top, times a little less light from below, multiplied in linear light. The joints, the gaps under the arms
-  and the feet where they stand on the cabinet darken; the feet are also toned from the source's pale grey to a darker
-  gunmetal, so they no longer read as flat pale blocks.
-- **The eyes.** Each eye's disc in the colour map is repainted as lit glass: white in a tight core falling off round
-  to a fifth at the rim, tinted with the lamp's colour × `glow` (1.1). They are drawn as light of their own colour like
-  a display (`RoomGloss` › `EMITTERS` writes alpha 0, RoomScreens' mask): the finish's bloom spreads a small bright
-  point into a square, so it passes them by, and their glow is a small round depth-tested halo each in the lamp's
-  colour (`RoomHalation.addLamp` with a tint, `TOY_ROBOT_EYE_HALO`, 11 mm), just past the glass.
-- **Diffuse.** Each eye is a bulb behind a lens: a soft round beam along the aim, falling smoothly to a tenth off it
-  and to nothing behind the face; Lambert at the surface and the inverse square, softened only over the bulb's few
-  millimetres (`1 / (d² + 1 cm²)`), faded out from 0.9 m to 1.5 m, with the bake as albedo as for the lamp. The set's and
-  the cabinet's boxes shadow it (`tvLamp.ts` › `TV_SET`, `CABINET`), and so do the robot's own body and legs, tested in
-  the body's frame (`uRobotFrame`), each shadow softening over the first 10 cm of occluder its ray crosses. Together the
-  two eyes lay a warm pool on the cabinet top in front of the robot (the chest, a centimetre proud of the eyes, shades
-  the strip right at its feet), brightest a hand's width in front and falling off round, with the Product Engineer
-  cover in it. The cover is a print baked in the same night (`room_lit_print`) but not named like the bake, so
-  `RoomGloss` extends it by name (`BAKED_PRINTS`); the covers inside the cabinet are left as baked. Its intensity is
-  `TOY_ROBOT_EYE_INTENSITY` (0.035 × the lamp's colour per eye along the beam): along it the two together give about
-  two thirds of the lamp's light at the same distance (a lens gathers a small bulb's light into its beam), off it a
-  tenth of that; the pool stays well under the lamp's, which stands 12 cm from the cabinet top against the eyes' 27.
-- **Programs.** None added: the eyes, the body and the cover share the baked room's mapped programs, the halos the
-  halation's.
+- **Its eyes' light is baked.** `gen/rig.ts` › `eye-0`, `eye-1`: each eye is a spot at its bulb (`ROBOT_SPEC`), a soft
+  round beam along the aim, falling to a tenth off it and to nothing behind the face, with the inverse square softened
+  over the bulb's few millimetres and faded out from 0.9 m to 1.5 m. Like the lamp's it is a `finish` light, a quarter
+  of the lamp's intensity per eye (`TOY_ROBOT_EYE_INTENSITY`, 0.035). The shadow maps do what the surface shader's
+  boxes used to: the set, the cabinet and the robot's own body and legs shadow the beams, and the two eyes lay a warm
+  pool on the cabinet top in front of the robot, with the Product Engineer cover in it.
+- **What a frame adds.** The eyes themselves are drawn as light of their own colour, like a display (`RoomGloss` ›
+  `EMITTERS` writes alpha 0, `RoomScreens`' mask): the finish's bloom spreads a small bright point into a square, so it
+  passes them by, and their glow is a small round depth-tested halo each (`RoomHalation.addLamp` with a tint,
+  `TOY_ROBOT_EYE_HALO`, 11 mm), just past the glass.
+- **Programs.** None of its own: the body is part of the merged props, the eyes share the globe's program, the halos
+  the halation's.
 - **Original.** The unprocessed bake shows the robot's colours and its eyes but no light from them.
 
-Re-render the startup stills (§ Startup) whenever the robot or its light changes: they show it at the set's left.
+The startup still does not show the robot either.
 
 ### Rain audio
 
@@ -740,15 +802,11 @@ source/playhead. Browser autoplay restrictions are retried on real gestures. Dis
 listeners and closes the context. `stats.rainReady`/`rainPlaying` expose diagnostics. `e2e/rain.spec.ts` checks the
 actual decoded loop seam, stereo/rate, all views, mute, one-source reuse and context cleanup.
 
-### Rug texture
+### The rug
 
-`tools/room/assets/rug-geometric.png` is the generated navy/white checker albedo; the original wool shading,
-folded backing, mesh and placement remain. For a targeted update, run
-`node tools/room/retexture-rug.mjs --work <dir> --prepare`, open the native restyled `room-source.blend` in Blender and
-run `tools/room/retexture-rug.py -- --work <dir>`, then run the node command without `--prepare`. It transfers source
-UVs onto the shipped geometry, bakes only the rug into its existing atlas islands and replaces that embedded image.
-Other geometry/compressed buffers remain byte-for-byte unchanged; hashes/lengths are regenerated and the GLB validated.
-`pnpm verify:room` checks the published assets.
+`gen/props/shell.ts` › `rug`: a 2.35 m square, 3 cm thick, turned 15° clockwise, with the corner nearest the TV folded
+over. Its pile is a surface function (`gen/materials.ts` › `rug`): navy and ivory checks with the pile's own soft
+mottle, baked like every chart. Changing the pattern is a change to that function; there is no image.
 
 ## CRT look (crtShader.ts)
 
@@ -760,12 +818,14 @@ Power-on (≈600 ms after a 140 ms LED lead): dot → horizontal line → vertic
 
 The room owns the monitor as a device and knows nothing about what the app shows on it, just as it shows a `GameSurface` it does not understand.
 
-- **Glass contract.** `pc-base.glb`'s `PC_Interactive_Screen_base` (`interaction_id "pc-screen"`, `replaceable_screen`) faces +Z with planar UVs (v = 0 at the top); `pnpm verify:room` asserts both (within 0.5° and 0.002), because the flat DOM screen and the projector UVs depend on them. Bounds x −1.518…−1.162, y 0.929…1.213, z −1.679…−1.668 (11 mm of bulge); the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`), everything else is found at runtime.
+- **Glass contract.** The glass (`pc/pcGlass.ts`, from `PC_SPEC.glass`) is a display mesh made on the main thread, not a baked one (`interaction_id "pc-screen"`, `replaceable_screen`): a 12 × 10 grid facing +Z with planar UVs (v = 0 at the top), flat along its rim and domed 11 mm inside it, because the flat DOM screen and the projector UVs depend on that facing and those UVs. Bounds x −1.518…−1.162, y 0.929…1.213, the rim at z −1.679; the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`). The shell, the keyboard and the desk top it measures against are `PC_SPEC` too (`gen/roomSpec.ts`), which `gen.test.ts` holds to the generated desktop set.
+
 - **Camera.** `pcViewpoint` looks exactly along −facing (zero pitch, yaw and roll) and fits the glass plus 18 mm of bezel (30 mm chin) into the whole viewport with a 2 % margin, starting at a 30° lens and widening while the eye would be further than 0.72 m from the glass (it stays clear of the chair). Clicking outside the computer is a way back to the room, so the frame always leaves 6 % of room beyond the CRT shell, on both sides of it or above it, whichever keeps the picture larger: wide and tall screens already do; squarer ones (4:3, 5:4, a window that is not maximised) step back for it, so 1024 × 768 shows the window and the wall beside the monitor round a 635 × 499 picture. Flights to and from it take the usual 1.1 s on a crane path (control point halfway across, 5 cm above the higher eye, at the desk eye's depth) that clears the chair back by 27 cm (landscape) to 18 cm (portrait); arriving, the look-at reaches the glass at 82 % of the flight, so the landing is a pure settle.
-- **Material.** The glass keeps its baked unlit `MeshBasicMaterial`, cloned with only its `map` swapped, so the computer compiles no shader program (the same count in the lab after the first room view, before and after). The baked 2048² desktop picture is disposed and its `ImageBitmap` closed at assembly, before it could ever be uploaded.
-- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture`. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is made in the background (`IdleWork`) as soon as the app hands over a painter, and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen (in the room view, at the computer and on any flight; the TV's and the radio's frames keep it out of sight, so there a stale still waits for the next flight and a resting radio draws no frame for the clock's minute): the painter's own preparation (`StillPainter.prepare`, its fonts and wallpaper) and the composition are units that may go between the game's frames, and the upload waits for a quiet moment, so the TV view allocates nothing for it. A flight that starts before the background got there finishes the job first (what is left of it, usually the upload): any flight when nothing is shown yet, a flight to or from the computer when the still is stale; and a still that went stale on the way in (a resize, the clock's minute) is repainted on the landing frame, before the live screen fades in over it. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
-- **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 2.1/255 on average (lab test card, 1440 × 900 @2).
-- **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the room draws nothing; `setLight` (e.g. a white page) renders one frame of brighter spill.
+- **Material.** The glass has an unlit `MeshBasicMaterial` with a map, cloned with only its `map` swapped for the still, so it draws with the program the room's charts already use and the computer compiles none (under a finish, the display mask gives it one variant: `e2e/programs.ts`).
+
+- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture`. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is made in the background (`IdleWork`) as soon as the app hands over a painter, and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen (in the room view, at the computer and on any flight; the TV's and the radio's frames keep it out of sight, so there a stale still waits for the next flight): the painter's own preparation (`StillPainter.prepare`, its fonts and wallpaper) and the composition are units that may go between the game's frames, and the upload waits for a quiet moment, so the TV view allocates nothing for it. A flight that starts before the background got there finishes the job first (what is left of it, usually the upload): any flight when nothing is shown yet, a flight to or from the computer when the still is stale; and a still that went stale on the way in (a resize, the clock's minute) is repainted on the landing frame, before the live screen fades in over it. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
+- **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 1.8/255 on average (lab test card, 1440 × 900 @2; `node scripts/room-shots.mjs --only pc-handoff` prints it).
+- **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the glass under it does not change; `setLight` (e.g. a white page) brightens the spill around it.
 - **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour. The bezel's emitter has the picture's rounded corners, so the corners catch the same light as the border along the edges.
 - **Glass finish.** An edge shadow (23 % in the corners, 8 % at the edge midpoints, nothing over the central 70 %) and a 6.5 % warm sheen of the desk lamp at the top left, the top of their tuning range, so the screen reads as a tube's curved glass.
 
@@ -778,12 +838,13 @@ The radio on the cabinet is the room's third device. The room owns the machine �
 | What | Where | When |
 | --- | --- | --- |
 | The door (`RadioDoor`, `room.radio`), the click target (`RadioInteractable`: the radio, its cabinet and the lamp), `radioModel` | room chunk | first load, with nothing of it solved before the room's first frame |
+| The radio itself: its body and its moving parts (`gen/props/radio.ts`), as nine vertex-lit meshes with the lid, the rocker's halves and the side keys on the pivots `RADIO_SPEC` names (`gen/GeneratedRadio.ts`) | the room's worker and bake | with the room (§ The generated room › The CD player). No file is fetched for it |
 | The deck (`RadioDeckHandle`, `ControlsLayer`, `RadioParts`, `radioFraming`, `discLayout`), with the device below in one chunk (`deckChunk.ts`, so that three.js stays in the room chunk) | lazy | imported as the camera first sets off from the TV (behind that flight), or on a prefetch or a request for the radio view, which waits for it (the latest request wins); the camera frames the radio through a hook the deck installs (`CameraRig.setRadioFraming`), the radio's pose solved when first needed and again only after a resize or new insets |
-| The device (`radio/device/**`, in the same chunk), `radio-closeup.glb` (56 KB, downloaded beside the chunk, not after it), `radio-skin-2k.webp` (179 KB, downloaded after the close-up on devices it is for, decoded off the main thread only on an intent) | lazy | `prefetch('idle')` from the app, `prefetch('intent')` when the pointer reaches a radio target in the room view or the overview's Music item takes the pointer or the keyboard, or the approach; Save-Data: intent only |
-| Preparation, one `IdleWork` unit at a time: CPU units between the frames of whatever plays (the game, the computer's screen, the discs' float) when they fit the idle period; GPU uploads (the atlas, the prints, the skin's strips) only when nothing plays, because the main thread cannot time what an upload costs a weak GPU; nothing while the camera moves. On the way to the radio and there its tasks are urgent: they also run between the flight's frames, uploads included, when they fit (the landing and the visit wait for them), and a print or a strip that has waited 400 ms for an idle period that can hold it runs in the next one anyway, one per period (judged by the longest unit so far, the close-up's assembly, none might fit between the float's frames on a fast display, and the prints would wait seconds for the float to rest) | — | parse the close-up (in meshopt's worker); check its fingerprint of `radio-base.glb`, plan all five cuts (the lid, the rocker's halves, the side keys: lists precomputed by the build, shared attributes, same material or a clone, same program) and check every part lies where the build measured it before any base mesh changes; build the well, lid underside, LCD, LED and discs; upload the close-up atlas; one label and its radial average per unit; the 2K skin, after an intent (a hover or a focus; on a touch screen, which cannot hover, the tap that starts the flight, so a phone that never visits the radio never holds its 20 MB on the GPU), in 16 strips of 128 rows (≈ 1 MB, a millisecond each) with the mipmaps on the last, so no unit is the whole 2048² upload (30–40 ms, 80 ms on a slow phone) and the skin is up within moments of the arrival |
-| The disc program | — | compiled with `renderer.compileAsync` at the approach, never at idle: the first room view and the computer keep their count (The CD player › Frames and budgets); the radio adds one. The discs rise only once it is ready (one that rose before would appear mid-air). Shader error checks (a synchronous GPU read per program) run in development only |
+| The device (`radio/device/**`, in the same chunk) | lazy | made on `prefetch('idle')` from the app, `prefetch('intent')` when the pointer reaches a radio target in the room view or the overview's Music item takes the pointer or the keyboard, or the approach; Save-Data: intent only. It waits for the generated room's radio to be lit (`host.generated.ready`), takes its parts from it (`partsProvider.ts`) and makes the LCD, the LED and the discs in one `IdleWork` unit |
+| The labels, one `IdleWork` unit each: a label's upload and its radial average. Uploads wait for a moment where nothing plays, because the main thread cannot time what an upload costs a weak GPU; nothing while the camera moves. On the way to the radio and there its tasks are urgent: they also run between the flight's frames when they fit (the landing and the visit wait for them), and a print that has waited 400 ms for an idle period that can hold it runs in the next one anyway, one per period | — | as the app hands the prints over |
+| The disc program | — | compiled with `renderer.compileAsync` at the approach, never at idle. The discs rise only once it is ready (one that rose before would appear mid-air). Shader error checks (a synchronous GPU read per program) run in development only |
 
-Nothing of the radio is requested before the first room view (`e2e/radio-deck.spec.ts`, and in the real app `e2e/radio-flow.spec.ts`). In the app, `prefetch('idle')` comes 0.4 s after the camera rests in the room view, so a visitor who heads for the radio at once still finds its device preparing on the way, and the player 3 s after (docs/RADIO.md › Loading). Nothing the device prepares reads the GPU back: the slow tier's software-renderer test is the stage's `softwareGpu`, read once when the renderer is made, and the app paints its prints on CPU canvases. Away from the radio a new deck state draws nothing (the lid is shut and the choreography is a function of time, so the next visit samples it). The discs rise whether or not their prints are there; the prints show together once the last is up, fading in over the bare silver in 260 ms at the radio. A close-up that fails to load, a fingerprint or a cut part that does not match (a room rebuild without `pnpm build:radio`) or a chunk that fails makes the radio scenery again (at runtime the fingerprint is each base mesh's vertex and triangle count, and each cut part's measured bounds; the build's SHA-256 of the geometry is checked by `pnpm verify:room`, not in the browser), its base meshes exactly as baked: `available` turns false (warned once), the overview's menu drops its Music item, the interactable answers nothing and a camera at or flying to the radio returns to the room.
+The radio's chunk is not requested before the camera first leaves the TV (`e2e/radio-deck.spec.ts`, and in the real app `e2e/radio-flow.spec.ts`). In the app, `prefetch('idle')` comes 0.4 s after the camera rests in the room view, so a visitor who heads for the radio at once still finds its device preparing on the way, and the player 3 s after (docs/RADIO.md › Loading). Nothing the device prepares reads the GPU back: the slow tier's software-renderer test is the stage's `softwareGpu`, read once when the renderer is made, and the app paints its prints on CPU canvases. Away from the radio a new deck state moves nothing (the lid is shut and the choreography is a function of time, so the next visit samples it). The discs rise whether or not their prints are there; the prints show together once the last is up, fading in over the bare silver in 260 ms at the radio. A chunk that fails to load, or a room without its radio, makes the radio scenery: `available` turns false (warned once), the overview's menu drops its Music item, the interactable answers nothing and a camera at or flying to the radio returns to the room.
 
 ### Views and interaction
 
@@ -843,43 +904,46 @@ No disc passes through another, nor through the radio's body, the well floor bes
 
 A disc chosen before it is out (a keyboard can choose one the moment the camera lands) comes up and over to its column first and flies on from there with no wind-up: heard about 1.4 s after such a pick, against 0.95 s once the shelf is up (`e2e/radio-flow.spec.ts`). The other departures from the design's motion are its invariants' doing too: the approach is straight above the seat, so the flat disc slides under the shelf rather than past it; neighbours lean away from the eye while a disc has attention; the seat and its approach follow the well floor's measured 5.7° tilt; the side keys travel along the panel's measured normal.
 
-Reduced motion: the existing fade-cut-fade lands on the open lid with the discs in their slots (on a first visit the screen stays black until the device is ready, at most 1.2 s, so it is one cut to the open radio rather than a shut one that then snaps open); a pick seats the disc in one frame, draws ▷II pressed for 120 ms and fires `seated` in a microtask; only state-change cues sound (the latch too, when it leaves); no step outlives 300 ms. The slow tier (a software renderer, or a first flight to the radio whose median frame exceeds 34 ms) keeps the choreography on its warm timings and drops the ambient float, the 2K skin and the blink.
+Reduced motion: the existing fade-cut-fade lands on the open lid with the discs in their slots (on a first visit the screen stays black until the device is ready, at most 1.2 s, so it is one cut to the open radio rather than a shut one that then snaps open); a pick seats the disc in one frame, draws ▷II pressed for 120 ms and fires `seated` in a microtask; only state-change cues sound (the latch too, when it leaves); no step outlives 300 ms. The slow tier (a software renderer, or a first flight to the radio whose median frame exceeds 34 ms) keeps the choreography on its warm timings and drops the ambient float and the blink.
 
 ### Look
 
-- **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries the bake's three sources by name (the lilac ambient, the lava lamp as a point light, the moon from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark lilac room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp across the varnish says the disc spins. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise, the flip, the leave) reads as a silver disc, never a flat grey: a mirror brightening towards grazing, the lamp's spoke and the room's sheen across its tracks, the lamp and the moon diffracted in the first two orders (the rainbow spoke stays put while the disc turns), softly shouldered so a disc right by the lamp flashes but never burns out; a polished rim catches the room and the lamp, so overlapping discs keep their outlines. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
+- **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries three of the room's sources by name (the lilac ambient, the lava lamp as a point light, the moon from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark lilac room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp across the varnish says the disc spins. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise, the flip, the leave) reads as a silver disc, never a flat grey: a mirror brightening towards grazing, the lamp's spoke and the room's sheen across its tracks, the lamp and the moon diffracted in the first two orders (the rainbow spoke stays put while the disc turns), softly shouldered so a disc right by the lamp flashes but never burns out; a polished rim catches the room and the lamp, so overlapping discs keep their outlines. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
 - **Labels**: the app's prints at `labelSize` (256, 384 or 512 from the discs' size at the radio; 256 with little memory or software GL), uploaded one per idle unit; the discs never wait for them: they show together once the last is up, fading in over the bare silver (260 ms) when the visitor is watching.
-- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the baked surfaces' own program; painted only when the readout or the blink phase changes, which draws a frame only at the radio (elsewhere the clock of a playing disc shows on the next frame drawn for another reason, so music at the computer costs no frames). The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
-- **Well and lid**: the close-up's parts, baked open in the room's Cycles scene; dark at night as the bake says, so the lamp-lit seated disc is the bright subject.
+- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the charts' own program; painted only when the readout or the blink phase changes, and asks for a frame only at the radio. The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
+- **Well and lid**: generated parts (the well with its turntable and pickup, the lid's ribbed underside), lit by the bake as the open lid shows them (§ The generated room › The CD player); dark at night, so the lamp-lit seated disc is the bright subject.
 
 ### Frames and budgets
 
-| State (real app, Apple GPU Metal, headless Chromium, 1440 × 900) | Frames/s |
-| --- | ---: |
-| At the radio, resting | 0 |
-| A disc paying attention, waking, coming to rest (`AmbientPacer`) | 30, at 1× and 6× CPU (median frame 33.2 ms on a 130 Hz headless display) |
-| Playing, resting | 1 (the clock) |
-| Playing, at the computer | 0 |
-| The first flight to the radio, its device preparing on the way (headless, uncapped) | 116–120, longest frame 10 ms (24 ms at 6× CPU) |
+The room draws its steady sixty frames a second at the radio as everywhere (§ Rendering and performance › Frames).
+The device's own requests sit inside them: the choreography's step while something moves, `AmbientPacer` for the
+discs' float, one a second for a playing disc's clock.
 
-`AmbientPacer` watches the display's own frames and asks for one whenever the next would reach a slot of a 30-a-second grid, so a 60 Hz display draws every second frame, a 120 Hz one every fourth, and one in between (75 Hz, or Playwright's 62.5 Hz fake clock) mixes gaps of one and two frames and still averages 30, never more in any second (`AmbientPacer.test.ts`); a frame drawn for another cause restarts the grid a full interval after it, and a stall is followed by one interval, not a burst. The previous 33 ms timer could not see the display's frames and drew 18 a second at 60 Hz.
+`AmbientPacer` watches the display's own frames and asks for one whenever the next would reach a slot of a 30-a-second grid, so a 60 Hz display draws every second frame, a 120 Hz one every fourth, and one in between (75 Hz, or Playwright's 62.5 Hz fake clock) mixes gaps of one and two frames and still averages 30, never more in any second (`AmbientPacer.test.ts`); a frame drawn for another cause restarts the grid a full interval after it, and a stall is followed by one interval, not a burst.
 
-`stats.programs` is 9 after the first room view and at the computer (7 for the room, two for the props' spotlight once its chunk is in, § The spotlight), 10 once the radio has been visited, and one more again for the posters on a hardware GPU (see Posters › Frames and budgets); `e2e/programs.ts` is where the e2e suites pin all of it. The stage sets `renderer.debug.checkShaderErrors` only in development, for the whole room (the TV and the computer too): checking a program's link status makes the main thread wait for the driver to finish linking it, a quarter of a second for the disc's program under SwiftShader, which lacks `KHR_parallel_shader_compile`; a shader error therefore shows only in development builds. GPU memory: labels N × labelSize² × 4/3 pixels, the 512² close-up atlas, the LCD, and where it applies the 2K skin, which replaces the radio's 1K atlas (`stats.radioTexturePixels` counts all four: 5.5 M with five 384² labels and the skin). On a slow CPU (6×, the real app on the dev server): no long animation frame over 50 ms in the flights to and from the radio, the arrival, an insert or a swap; a pick is heard 0.93–0.95 s after the click. The room's first frame is unchanged by the radio (production, 6× CPU, median of six: 1,096 ms against 1,122 ms before these changes; a phone 1,132 against 1,146). Away from the radio a new layout (a phone turned in the room, at the computer or at the TV) is only noted in the resize handler and applied in the room's next idle moment (one background unit, never during a flight), or as the camera sets off for the radio if that comes first, so neither the rotation nor the click that next goes to the radio pays for the planning, and it draws no frame. The re-layout's search for clear glides works each moment of the other discs' ways out once and checks every sixth sample first: with twelve discs mid-rise it plans in 6.0 ms on average and 7.6 ms at worst on an M-series Mac (13.3 and 17.6 before), five discs in 1.7 ms. Bundle (`bundle-budgets.json`, against `feat/pc-desktop`): the radio's own code adds 2.70 kB gzip to the room chunk (the door, the click target with its cabinet and the lamp, the camera's framing hook and the model lookup) and 0.55 kB to the entry; since the build ships every shader, three.js's included, without comments, indentation or spaces inside brackets (`scripts/glslMinify.ts`), the room chunk gives back 2.79, so it is 184.49 against 184.58 and the entry 210.37 against 209.82: +0.46 kB of first-load JavaScript in all (the captain's +0.6; +5.69 before the third review moved the glue out). The lazy chunk with the deck and the device is 33.75 kB (the design's 16 kB, pending the captain's word); see docs/RADIO.md › Budgets and the budget file's note.
+The radio adds one shader program, the discs', and a second under a finish (compiled for the screen, then drawn into the finish's linear target); its body and parts draw with the room's vertex-lit program and the LCD with the charts'. `e2e/programs.ts` pins the counts. The stage sets `renderer.debug.checkShaderErrors` only in development, for the whole room (the TV and the computer too): checking a program's link status makes the main thread wait for the driver to finish linking it, a quarter of a second for the disc's program under SwiftShader, which lacks `KHR_parallel_shader_compile`; a shader error therefore shows only in development builds. GPU memory: labels N × labelSize² × 4/3 pixels and the LCD, nothing else, since the radio itself has no texture (`stats.radioTexturePixels`: 1,056,768 with five 384² labels and the 512 × 144 LCD). Away from the radio a new layout (a phone turned in the room, at the computer or at the TV) is only noted in the resize handler and applied in the room's next idle moment (one background unit, never during a flight), or as the camera sets off for the radio if that comes first, so neither the rotation nor the click that next goes to the radio pays for the planning. The re-layout's search for clear glides works each moment of the other discs' ways out once and checks every sixth sample first: with twelve discs mid-rise it plans in 6.0 ms on average and 7.6 ms at worst on an M-series Mac, five discs in 1.7 ms. Bundle: the lazy `radioDevice` chunk is about 31 kB gzip (`pnpm report:bundle`; docs/RADIO.md › Budgets).
 
-### Assets
+Not measured since the radio is generated: long frames in the flights to and from the radio at 6× CPU, and the frame rate of the first flight while the device prepares.
 
-`pnpm build:radio` (after `pnpm build:room`, which runs it too) bakes the 2K skin on the shipped radio's UVs and the parts an open lid reveals in the restyled room's own Cycles scene (`tools/room/radio_closeup.py`, two Blender processes), then proves, compresses and publishes them (`tools/room/radio-closeup.mjs`): the skin's UVs match `radio-base.glb` to 0.5/65535, the close-up carries the base's geometry and UV fingerprints, the triangle lists that cut the lid, the rocker's halves and the side keys, and the measured hinge, rocker pivot, key travel, seat, slot, well, LCD and LED. The close-up also lists the body's own tub floor, which the liner covers: the bake leaves it out (it would seal the pickup pocket and the magazine slit from every light, so they baked black), and at runtime it is drawn only while the lid is shut. Its bake adds the lava lamp's glass glow from the lamp's side and a faint bounce from the far side (docs/ROOM-ART-DIRECTION.md › CD player); the hinge barrels outside the well are re-baked in the room's light alone. Every first-load file but `radio-base.glb`, whose atlas loses the source model's lettering (`tools/room/debrand.mjs`, `debrand-base.mjs`; its geometry and UVs untouched), stays byte-identical; both new files are `lazyFiles` in `manifest.json`. `pnpm verify:room` checks the contract (sizes ≤ 80 KB and ≤ 280 KB, the fingerprints, the cut parts' shapes, the tub floor's list against the body's faces under the liner, the lid's 9 mm clearance from the antenna through 0–90°, and no brand lettering in `radio-base.glb`'s atlas or the 2K skin). See [the rebuild guide](../tools/room/README.md).
+### Measurements
+
+The radio has no asset. `RADIO_SPEC` (`gen/props/radioSpec.ts`) is the machine's measurements and its generator
+(`gen/props/radio.ts`) builds from it: hinge, rocker pivot, key travel, turntable, slot, well, display, lamp, bounds.
+The constants the cameras, the choreography and the overlays use (`DECK` in `device/deckLayout.ts`, `LID_FRAMING` in
+`radioFraming.ts`, `RADIO_FIXTURE`, `RADIO_ANCHOR`) were measured on the model the room used to ship; the generated
+radio is built to them, and `gen/props/radio.test.ts` holds the two together within half a millimetre. The radio
+carries no brand: its wordmark is the site's own and its legends are plain words (`gen/radioArt.ts`).
 
 ## Posters (`posters/`)
 
-Twenty-nine printed pieces and a corkboard cover the back wall and the sloped ceiling, where the room's layout put them ([ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) › Posters). Everything on them is drawn in code: no model and no picture is fetched for the walls. The artwork is original and fictional, made for this room, and takes only its topics from the collection it replaces (which was third-party artwork, baked in Blender): one band, The Loud Hours, across a retail poster, a tour banner, an album print, a CD single, a live pull-out and a ticket stub; the three games on the room's own shelf (Powder Rush, Crown & Key, Brick Galaxy) as shop posters, and three more that never existed (a rhythm game, a stealth game, an online world); a star chart, a patent drawing, a blueprint, a travel print, a film one-sheet, a teaser, a festival bill, two photocopied flyers, a typographic print, a bumper sticker, a sticker, and on the cork a postcard, a note, a boarding pass and a snapshot. `node scripts/poster-sheet.mjs` paints them all flat on one contact sheet (`--texels` at the density the wall carries).
+Twenty-nine printed pieces and a corkboard cover the back wall and the sloped ceiling, where the room's layout put them ([ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) › Posters). Everything on them is drawn in code: no model and no picture is fetched for the walls. The artwork is original and fictional, made for this room; an earlier, unpublished collection of third-party artwork gave it only its topics: one band, The Loud Hours, across a retail poster, a tour banner, an album print, a CD single, a live pull-out and a ticket stub; the three games on the room's own shelf (Powder Rush, Crown & Key, Brick Galaxy) as shop posters, and three more that never existed (a rhythm game, a stealth game, an online world); a star chart, a patent drawing, a blueprint, a travel print, a film one-sheet, a teaser, a festival bill, two photocopied flyers, a typographic print, a bumper sticker, a sticker, and on the cork a postcard, a note, a boarding pass and a snapshot. `node scripts/poster-sheet.mjs` paints them all flat on one contact sheet (`--texels` at the density the wall carries).
 
 ### Who makes what
 
 | What | Where | When |
 | --- | --- | --- |
 | `PostersSlot` (the TV-side trigger, the first-departure hook, the cut hold, `stats.posters`, `room.postersReady`) and `posterKit` (the tier choice, the per-pose visibility boxes, the two materials and their meshes, the strip uploader) | room chunk | first load; nothing runs before the room's first frame |
-| `PosterWall` (the `posterWall` chunk), with the layout (`wall/layout.ts`) and the geometry and atlas plan made from it (`wall/geometry.ts`): the door to the painter, the upload, reveal, per-pose hiding, slow-flight demotion, context loss | lazy | imported by one idle unit at the TV, judged by its own 1 ms estimate; the geometry is one unit of background work (1,343 card and 192 skirt triangles, the node the Blender stage used to ship, triangle for triangle) |
+| `PosterWall` (the `posterWall` chunk), with the layout (`wall/layout.ts`) and the geometry and atlas plan made from it (`wall/geometry.ts`): the door to the painter, the upload, reveal, per-pose hiding, slow-flight demotion, context loss | lazy | imported by one idle unit at the TV, judged by its own 1 ms estimate; the geometry is one unit of background work (1,343 card and 192 skirt triangles) |
 | The painter (`paint/worker.ts`): the designs (`paint/music.ts`, `games.ts`, `prints.ts`) with their kit (`paint/kit.ts`), the atlas painter (`paint/atlas.ts`) and the night's light (`wall/light.ts`) | a worker | started by the wall at the TV. It loads the site's three faces from the files the app's own `@font-face` rules name (`paint/faces.ts`), paints the whole atlas on an `OffscreenCanvas` and hands back one `ImageBitmap`; the main thread spends nothing on it |
 | The same painter as a chunk (`paint/atlas.ts`) | lazy | only where a worker or `OffscreenCanvas` cannot be had (or the worker fails): the main thread paints, a sheet per unit of background work, each unit rasterized as it ends (a canvas only records until its pixels are read), after waiting at most 2.5 s for the faces |
 | The upload | — | from the moment the atlas is painted on a hardware GPU: one unit for the storage and the program (`compileAsync`), then 1 MB strips, each a small upload that goes between the playing game's frames with an idle period to itself (`IdleTaskOptions.smallUploads`), the node hidden. On a software GPU (the lite path) it waits for the first departure, since its GPU is the CPU that draws the game. Whatever is left when the camera first leaves the TV becomes urgent, sliced work between that flight's frames |
@@ -894,7 +958,7 @@ The painted pixels are not kept: the bitmap is closed (or the main thread's canv
 
 A design is a small function that draws one sheet in millimetres with the 2D canvas, the site's three faces (Nunito, Chewy, Silkscreen) and the kit's few tools: gradients, a hashed starfield, a ridgeline of value noise, halftone dots sized by a tone function, sunbursts, pixel art from rows of characters, bars for small print. Each keeps to a handful of colours. The atlas carries 4 to 8.25 texels per centimetre (the layout's densities, the 2K's; the sweep test holds what the camera does with them), so a millimetre is about half a texel: designs are built from bold shapes and headline type, and small print is there to read as small print.
 
-The atlas painter gives each sheet its island (a skyline packing of the cards, the corkboard, a block of tape strips, the pins' heads and the skirts' ramp, each with a 4-texel gutter filled with its own edge for the mip levels) and then does to it what the wall does: the shadow of any sheet taped over it, the folds a pull-out came with, a corner that has come away turned from the light, a gloss sheet's sheen, its own masking tape (cream on the back wall, white paper tape on the pale slope) with the small shadow under it, paper grain from a hashed tile, and last the night's light, multiplied in. That light (`wall/light.ts`) is analytic, matched to the Blender bake it replaces by sampled values and by eye: a dim mauve fill right of the window, bluer and dimmer left of it and under the desk lamp's shade, the lava lamp's amber pool under the cluster, the slope fading from the ridge to the knee wall; a small grid of samples per sheet, interpolated. It is in the texture, so the cards stay on the room's unlit program and cost nothing per frame. The generated room's light rig (`gen/rig.ts`) is not used: it is a GPU bake into that room's own charts, in another lazy chunk, and the walls must look the same with and without `?room=generated`.
+The atlas painter gives each sheet its island (a skyline packing of the cards, the corkboard, a block of tape strips, the pins' heads and the skirts' ramp, each with a 4-texel gutter filled with its own edge for the mip levels) and then does to it what the wall does: the shadow of any sheet taped over it, the folds a pull-out came with, a corner that has come away turned from the light, a gloss sheet's sheen, its own masking tape (cream on the back wall, white paper tape on the pale slope) with the small shadow under it, paper grain from a hashed tile, and last the night's light, multiplied in. That light (`wall/light.ts`) is analytic, matched by sampled values and by eye to the offline bake the walls first had: a dim mauve fill right of the window, bluer and dimmer left of it and under the desk lamp's shade, the lava lamp's amber pool under the cluster, the slope fading from the ridge to the knee wall; a small grid of samples per sheet, interpolated. It is in the texture, so the cards stay on the room's unlit program and cost nothing per frame. The room's light rig (`gen/rig.ts`) is not used for it: that is a GPU bake into the room's own charts, and the painter runs in a worker with no GPU.
 
 ### Rendering
 
@@ -902,20 +966,19 @@ One node, two meshes sharing the atlas. The cards (every sheet with a sub-grid t
 
 ### Frames and budgets
 
-Measured in headless Chromium on an M-series Mac (`node scripts/room-shots.mjs --only posters-perf,posters-views`):
+Measured in headless Chromium on an M-series Mac (`node scripts/room-shots.mjs --only posters-perf,posters-views`), before the room was generated; the painter and the walls' geometry have not changed since:
 
 | | |
 | --- | --- |
 | Painting | the whole atlas in 44 ms at the 2K and 15 ms at the 1K in one go, which is what the worker does, off the main thread. On the main thread (the fallback), 36 units: 45 ms in all at the 2K, median 1.1 ms, longest 4.0 ms; at 6× CPU 93 ms in all, median 1.8 ms, longest 15 ms (the star chart), and 74 ms at the 1K |
 | GPU memory (`stats.postersTexturePixels`) | 2K: 2,097,152 texels, 8 MiB, ≈ 10.7 MiB with mipmaps; 1K: 524,288 texels, ≈ 2.7 MiB. Nothing of the painting is kept on the CPU once it is up |
-| Draw calls and programs at rest | room view +2 calls (+1 on the lite path), +1 program (0); TV, PC and radio views +0 |
-| Room view at rest | 23.5 frames/s (the lava's 24), as bare |
+| Draw calls and programs at rest | room view +2 calls (+1 on the lite path), +1 program (0) without a finish, 4 under one (`e2e/programs.ts`); TV, PC and radio views +0 |
 
-Bytes: nothing of the walls is in the first load but the room chunk's trigger and kit. Lazy, per visitor: `posterWall` 6.65 kB gzip and the painter's worker 18.07 kB gzip, where there used to be `posterWall` 2.32 kB, `posters.glb` 30.2 KB and an atlas of 238.5 KB (2K) or 89.0 KB (1K). `bundle-budgets.json` itemises it.
+Bytes: nothing of the walls is in the first load but the room chunk's trigger and kit. Lazy, per visitor: `posterWall` about 6.7 kB gzip and the painter's worker about 18.1 kB (`pnpm report:bundle`; `bundle-budgets.json` itemises them). No file is fetched for the walls.
 
 ### The layout
 
-`wall/layout.ts` is the layout the Blender stage was built from (`tools/room/assets/posters/layout.json`), as code: each piece's surface, place, size, turn, layer, tape, density, finish, curls, creases and skirt widths. The tape's frames follow from it (a corner strip lies across the corner's diagonal, 4 mm onto the sheet). `wall/geometry.test.ts` holds the geometry to the shipped node's triangle counts and boxes; `posterVisibility.sweep.test.ts` measures the magnification from it and the shipped camera path, in drawing-buffer pixels per texel on screens up to 32:9 with the tier each size gets: 0.89 in the room view, 1.9 in the TV ↔ room flights, and up to 5.0 in the flights to and from the computer and the radio, which pass 1.25–1.6 m from the pieces over the desk for about a quarter of a second at their fastest.
+`wall/layout.ts` is the layout as code: each piece's surface, place, size, turn, layer, tape, density, finish, curls, creases and skirt widths. The tape's frames follow from it (a corner strip lies across the corner's diagonal, 4 mm onto the sheet). `wall/geometry.test.ts` holds the geometry to its triangle counts and boxes (those of the node the room first shipped); `posterVisibility.sweep.test.ts` measures the magnification from it and the shipped camera path, in drawing-buffer pixels per texel on screens up to 32:9 with the tier each size gets: 0.89 in the room view, 1.9 in the TV ↔ room flights, and up to 5.0 in the flights to and from the computer and the radio, which pass 1.25–1.6 m from the pieces over the desk for about a quarter of a second at their fastest.
 
 ## The spotlight (`spotlight/`)
 
@@ -923,12 +986,12 @@ The room's answer to a pointer over a prop, after c-na.dev/explore's (the study:
 
 | | |
 | --- | --- |
-| What glows and bounces | the TV whole; the computer's monitor (its shell and glass: the keyboard the chair half hides would glow through it); the radio whole — its device's parts (the cut lid, the keys, the well and the discs, which hang in the scene beside it) join the prop as it lights, once they are there (`SpotlitProp.joins`, read through `radio.prepared`), so the outline, the brightening and the bounce stay whole |
+| What glows and bounces | the TV whole; the computer's monitor (its shell and glass: the keyboard the chair half hides would glow through it); the radio whole, its lid, keys and well with it (they are parts of its node) — and the device's discs, which hang in the scene beside it, join the prop as it lights, once they are there (`SpotlitProp.joins`, read through `radio.prepared`), so the outline, the brightening and the bounce stay whole |
 | Glow | after the room's frame, only while a prop has any: its meshes (position-only proxies sharing the meshes' buffers and world matrices) go into a quarter-resolution, 4× multisampled mask (red: there; green: its level), a nine-tap Gaussian across and down (σ 6 CSS px), and one full-screen triangle adds warm white (`0.50, 0.47, 0.42` in display values) outside the outline only: full from the outline to about 3 px out, gone by about 12, the c-na.dev headset's profile. Fades are exponential, 80 ms in and 110 ms out (95 % in about 240 and 330 ms); a hand-off cross-fades, each prop at its own level |
 | Brighter | the prop's textured baked materials' colour × 1.12 at full light, given back as it fades. A material it shares with a mesh outside the prop (the computer's device material is the keyboard's and the mouse's too) becomes the prop's own copy, so the lift reaches no further than the prop |
 | Jelly | the moment a prop lights: [t, across, up] keys (0, 1, 1), (0.2, 1.03, 0.97), (0.45, 0.98, 1.035), (0.7, 1.02, 0.995), (1, 1.015, 1.015) over 520 ms, smoothstepped, about the middle of its foot; it holds 1.015 while lit and goes home at an exponential rate of 8 /s (95 % in 375 ms). The same prop lit again within 500 ms of its own jelly eases back up instead (a pointer wobbling on an edge) |
 | Label point | the middle of the prop's top as it bounces, projected with the live camera after every drawn frame (`LitProp`), so the app's label rides the jelly and the parallax |
-| Holding still | the radio until its device is prepared: assembling the close-up hangs the cut parts from the radio's world pose (`closeUpAsset.ts`), so it never bounces before; it still glows and has its label. Afterwards the bounce runs in the room view only, and the device measures its world poses nowhere else |
+| Holding still | the radio until its device is prepared, so its discs never hang from a pose mid-bounce; it still glows and has its label. Afterwards the bounce runs in the room view only, and the device measures its world poses nowhere else |
 | Reduced motion | no jelly; the glow and the brighter colours still fade (a fade is not motion) |
 
 Who loads what: the door, the kit and the props' hover are in the room chunk (+0.63 kB with the props it lights; `bundle-budgets.json` itemises it); `Spotlight.ts` is the lazy `propSpotlight` chunk (3.11 kB), imported just after the first flight frame away from the TV, beside the radio's deck, and imports types only (`scripts/bundle-report.mjs`'s `propSpotlight` row, `three: 'room'`, holds it to that). Its two programs, the mask-and-blur one and the glow's, are compiled then with `compileAsync` (the mask's for a render target), so the first hover never stalls: `stats.programs` is 2 more after the first room view (`e2e/programs.ts` › `SPOTLIGHT_PROGRAMS`, `stats.spotlight` once the chunk is in). The passes add their draw calls to `stats.drawCalls` while a prop glows (the lit prop's meshes once more at a sixteenth of the pixels, and three full-screen triangles); nothing at all while none does.
@@ -937,9 +1000,13 @@ Who loads what: the door, the kit and the props' hover are in the room chunk (+0
 
 ```sh
 pnpm dev                     # then open /room-lab.html  (?clean hides the panel, ?autopower=0 keeps the TV off,
-                             #   ?view=pc or ?view=radio flies there after power-on, ?mockpc=1 puts a test card on
-                             #   the computer, ?mockradio=1 hands the radio five numbered discs and a fake player)
-node scripts/room-shots.mjs  # headless Chromium (Metal ANGLE) → .shots/room/*.png
+                             #   ?view=room, ?view=pc or ?view=radio flies there after power-on, ?mockpc=1 puts a
+                             #   test card on the computer, ?mockradio=1 hands the radio five numbered discs and a
+                             #   fake player, ?mood=original|honey|rose|midnight (the lab's default is original, the
+                             #   bake without a finish; the app's is rose), ?quality=high|medium|low, ?posters=0)
+node scripts/gen-shots.mjs   # the four views and seventeen crops from fixed cameras → .shots/gen/final/<viewport>-<tier>/
+                             #   (§ The generated room › Comparing it)
+node scripts/room-shots.mjs  # headless Chromium (Metal ANGLE) → .shots/room/*.png; `pnpm shot:room` is the same
 node scripts/room-shots.mjs --only power-on,perf
 node scripts/room-shots.mjs --only pc-desktop,pc-phone,pc-flight,pc-handoff
 node scripts/room-shots.mjs --only radio-desktop,radio-wide,radio-phone,radio-arrival,radio-insert,radio-swap,radio-press
@@ -950,17 +1017,17 @@ node scripts/room-shots.mjs --only posters-detail,posters-perf,posters-views   #
 `MockGameSurface` draws an animated test card at 320 × 240 with corner labels, a white edge ring and a crosshair at the reported pointer pixel, so mapping, pause/resume and the CRT look can be checked without the game.
 `MockPcScreen` paints the computer's still and its live screen from one test card (a 50 px grid, an edge ring, labelled corners and colour ramps), so registration and the hand-off can be measured; the lab's status line shows the view, `live`, frames, draw calls, programs and the still's pixels.
 `MockRadioApp` answers the radio like the app does (picks load and play, the keys act, a fake clock runs on the LCD) and logs every intent, cue and `seated` with its time; the lab's radio button and ▷II / ■ / ⏭ press through it.
-The shot script uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
+`room-shots.mjs` drives the lab only, so every recipe works on the generated room as it did on the shipped one; the frame rates it prints are now the room's steady sixty (§ Rendering and performance › Frames). It uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
 Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a browser.
 
 ## Known gaps
 
 - Clicks are ray-cast against registered interactables only, so a prop standing in front of the TV in the room view would not block a click on the TV (none does from the room viewpoint today).
-- `monitorGlow.ts` measures the desk top (y 0.785); moving the desk in Blender means re-measuring it. The TV's light measures itself from the set (`screenLight.ts`).
-- `TV_SCREEN_APERTURE` is a measured constant; re-run `scripts/inspect-tv-screen.mjs` after a TV asset change.
-- `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
-- Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
-- Under software GL the room is fill-bound everywhere (flights 5–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. The first frame under SwiftShader comes about 60 ms later than before the computer (it did in the previous round too).
-- The room's atlases the TV view never draws go up from the TV, 4 s after the picture is on (`assembleRoom` › `prewarm`), as small uploads between the game's frames where an idle period can hold one, else in a quiet moment or, at the latest, in the first look around's flight as before (round six: on an iPhone the first look around lagged). It costs a visitor who stays at the TV the ~120 MB of GPU memory the first look around would; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap and cut texture memory by about four, a room-wide follow-up.
-- Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
-- The radio: a room rebuild changes `radio-base.glb`'s fingerprint, so `verify:room` fails (and the radio stays scenery at runtime) until `pnpm build:radio` runs; Metal bakes of the 2K skin differ between runs by a few pixels (mean 0.05/255), the close-up is reproducible byte for byte. The rocker pivots 7 mm behind its face, so while pressed (6°, deep enough to be seen) it slides 0.7 mm across the panel and a few sub-pixel specks of the neighbouring keys' bevels can show in a close crop. A disc chosen before it is out of the radio comes out first, so it is heard 1.2–1.6 s after the pick (its own climb out of the well), not 0.95 s. A phone turned while the discs are rising or between picks can still make two discs graze: in the 5-disc sweeps (portrait 390 × 844 ↔ landscape 844 × 390) a turn with no pick touches in 18 of the swept turn times, all 2260–2430 ms after the click towards the radio (up to 7.9 mm, for one 8 ms frame; landscape to portrait none), and a pick, a turn 0–1000 ms later and another pick 0–1500 ms after it touch in 312 of 2112 runs portrait to landscape and 81 landscape to portrait (none jumps). A disc hovered within 100 ms of the pick of its neighbour on a portrait phone can come forward into the inserting disc's path (5 of 1220 runs). The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.
+- The room draws sixty frames a second at rest in every view (§ Rendering and performance › Frames), where the room with shipped files drew none. What that costs a phone's battery has not been measured, and neither has anything else in the lists marked "not measured since" above.
+- The numbers the room's code shares with its generators are copies held together by tests, not one source: `TV_SCREEN_APERTURE` (`tv/tvModel.ts`) against the set's lip, `DECK` and `LID_FRAMING` against `RADIO_SPEC`, the finish's lamp intensities in `gen/tiers.ts`. Moving a prop means changing the spec (`gen/roomSpec.ts`, `gen/props/radioSpec.ts`) and following the tests that fail.
+- The startup still is CSS drawn to four lengths (§ Startup): a change to the set (`gen/props/tvSet.ts`) or its framing (`tv/tvFraming.ts`) must be made there by hand as well.
+- The bake has no indirect light: a pool and a bounce light in the rig stand for it (§ The generated room › The night's rig).
+- A mood changed after the bake (the lab's `setMood`) keeps the lamp pools it was baked with.
+- Under software GL the room is fill-bound everywhere, and the bake's shadow maps run on the CPU; the room starts on the lowest tier there and is not governed.
+- Lab screenshots and every number in this file come from Apple-GPU headless Chromium; real low-end and mobile GPUs are untested.
+- The radio: the rocker pivots 7 mm behind its face, so while pressed (6°, deep enough to be seen) it slides 0.7 mm across the panel. A disc chosen before it is out of the radio comes out first, so it is heard 1.2–1.6 s after the pick (its own climb out of the well), not 0.95 s. A phone turned while the discs are rising or between picks can still make two discs graze: in the 5-disc sweeps (portrait 390 × 844 ↔ landscape 844 × 390) a turn with no pick touches in 18 of the swept turn times, all 2260–2430 ms after the click towards the radio (up to 7.9 mm, for one 8 ms frame; landscape to portrait none), and a pick, a turn 0–1000 ms later and another pick 0–1500 ms after it touch in 312 of 2112 runs portrait to landscape and 81 landscape to portrait (none jumps). A disc hovered within 100 ms of the pick of its neighbour on a portrait phone can come forward into the inserting disc's path (5 of 1220 runs). The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.

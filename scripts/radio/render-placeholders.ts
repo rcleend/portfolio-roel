@@ -2,7 +2,7 @@
  * Renders the placeholder albums' music (scripts/radio/songs) to the files the radio
  * streams: offline through the game's own synth and master bus in Chromium, loudness
  * matched to the game's first stage, then encoded to AAC with Apple's `afconvert`
- * (macOS; an authoring-only tool like Blender, the results are committed).
+ * (macOS; an authoring-only tool, the results are committed).
  *
  *   pnpm build:radio-placeholders [--only night-shift,low-tide] [--covers-only] [--url http://localhost:5173]
  *

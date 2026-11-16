@@ -16,6 +16,12 @@ CUSTOMER_ANIMATIONS = ["walk", "shout", "hurt", "stunned", "happy"]
 LOOPS = {"idle", "run", "walk", "victory"}
 ONCE = {"attack", "skill", "hurt"}
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(ART.rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def load(png: Path):
     return Image.open(png).convert("RGBA"), json.loads(png.with_suffix(".json").read_text())
@@ -48,6 +54,7 @@ class SheetContract(unittest.TestCase):
                     self.assertTrue(0 <= x < frame[0] and 0 <= y < frame[1], f"{anim['name']}.{name} {x},{y}")
         return meta
 
+    @NEEDS_PNGS
     def test_hero_sheets(self) -> None:
         for hero in HEROES:
             with self.subTest(hero=hero):
@@ -59,6 +66,7 @@ class SheetContract(unittest.TestCase):
         skill = next(a for a in artsy["animations"] if a["name"] == "skill")
         self.assertIn("mouth", skill["anchors"], "UX ELIXIR needs Artsy's lips")
 
+    @NEEDS_PNGS
     def test_attack_sprites(self) -> None:
         for hero in HEROES:
             with self.subTest(hero=hero):
@@ -68,9 +76,11 @@ class SheetContract(unittest.TestCase):
                 self.assertFalse(anims["impact"]["loop"])
                 self.assertIn("muzzle", anims)
 
+    @NEEDS_PNGS
     def test_customer_sheet(self) -> None:
         self.assert_sheet(ART / "customer" / "sheet.png", CUSTOMER_ANIMATIONS, (64, 64), (32, 64))
 
+    @NEEDS_PNGS
     def test_heroes_stand_on_the_feet_line_at_hibit_scale(self) -> None:
         for hero in HEROES:
             img, _ = load(ART / "characters" / hero / "sheet.png")

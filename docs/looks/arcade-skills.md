@@ -12,10 +12,10 @@ This document is the Phase B blueprint: what each sprite is for, when it plays, 
 
 ```
 src/game/art/looks/arcade/skills/<skillId>/
-  icon.png + icon.json            24 × 24, one 16-frame "idle" loop
-  fx-<name>.png + fx-<name>.json  effect strips (ASSETS.md format)
+  icon.art.ts + icon.json            24 × 24, one 16-frame "idle" loop
+  fx-<name>.art.ts + fx-<name>.json  effect strips (ASSETS.md format); each .art.ts holds its PNG's pixels
 tools/looks/arcade/skills/
-  build.py                        writes every PNG + JSON above; --check verifies the committed files
+  build.py                        writes every sheet above as PNG + JSON; --check verifies the checkout's files
   review.py                       review renders: icons in their slots, contact sheets, key frames in both levels
   pixkit/                         the pixel kit: canvas and shapes, palette, sheet packing, Biome-shaped JSON, review stages
   skillart/                       one module per skill (icon + strips), the shared icon frame, shared motifs
@@ -23,15 +23,20 @@ tools/looks/arcade/skills/
 ```
 
 ```sh
+pnpm build:art --export src/game                      # the committed art back as PNGs beside its modules
 python3 tools/looks/arcade/skills/build.py            # rebuild all six (or name skill ids)
-python3 tools/looks/arcade/skills/build.py --check    # fail if a committed file is stale
+python3 tools/looks/arcade/skills/build.py --check    # fail if a file is stale
 python3 tools/looks/arcade/skills/review.py icons strips scenes
 python3 -m unittest discover -s tools/looks/arcade/skills -t tools/looks/arcade/skills
+pnpm build:art                                        # every PNG under src/game into its art module; removes the PNGs
 ```
+
+The art is committed as `*.art.ts` modules; a PNG under `src/game` exists only between the export and `pnpm build:art` (tools/art/README.md › Art modules).
+Without the export, `--check` and the freshness test compare the manifests alone (`--check` exits 2 saying so) and the tests that read pixels are skipped.
 
 Every pixel is drawn by code: hand-written character grids for the subjects that need a hand (the drone, the icon's flask, the Strat, hearts, notes) and parametric drawing for the rest (beam bands, bursts, rings, the tilting flask, the faceted star).
 No image generation was used, so there are no raw sources; `tools/art/prompts/looks-arcade-skills.md` records that.
-The build is deterministic and the freshness test compares a fresh build with the committed files pixel for pixel.
+The build is deterministic and the freshness test compares a fresh build with the exported files pixel for pixel and the manifests byte for byte.
 
 ### Inventory
 

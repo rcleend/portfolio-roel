@@ -3,8 +3,8 @@
 The hibit look of the six skills: their icons and their in-game effects.
 This is the Phase B blueprint: what every sprite is for, when it plays, where it is drawn and what code draws around it.
 
-- Assets: `src/game/art/looks/hibit/skills/<skillId>/` (`icon.png/json` plus `fx-*.png/json` strips in the looks sheet format).
-- Generator: `python3 tools/looks/hibit/skills/build.py` (`--check` verifies the committed files against a fresh build).
+- Assets: `src/game/art/looks/hibit/skills/<skillId>/` (`icon` plus `fx-*` strips in the looks sheet format, each a `.json` and an `.art.ts` module holding its PNG's pixels).
+- Generator: `python3 tools/looks/hibit/skills/build.py` (`--check` verifies the checkout's files against a fresh build: the JSON always, the pixels once `pnpm build:art --export src/game` has written the PNGs back; run `pnpm build:art` after building or checking, tools/art/README.md › Art modules).
 - Review: `python3 tools/looks/hibit/skills/mockups.py` writes key-frame mock-ups in both levels, the icon, HUD, select and style boards, and contact sheets of every animation to `/tmp/arcade-looks-hibit-skills/mockups/`.
 - Tests: `python3 -m unittest discover -s tools/looks/hibit/skills -t tools/looks/hibit/skills`.
 
