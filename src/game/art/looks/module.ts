@@ -1,5 +1,6 @@
 import type { CharacterId, SkillId } from '@/content';
 import type { PixelArtSheet } from '@/engine/gfx/PixelArt';
+import type { PixelData } from '@/engine/gfx/PixelData';
 import type { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import type { AttackVisual } from '../../entities/shots/AttackVisual';
 import type { SkillVisual } from '../../skills/SkillVisual';
@@ -12,16 +13,18 @@ import type { SkillVisual } from '../../skills/SkillVisual';
  */
 
 /**
- * A PNG + JSON sheet, imported by the index module: `import png from
- * './sheet.png'` gives the URL Vite serves, `import json from './sheet.json'`
- * the data. The PNG is fetched only once the look is selected.
+ * A drawn sheet and its JSON, imported by the index module: `import { art }
+ * from './sheet.art'` is the sheet's pixels in code (`pnpm build:art` writes
+ * `sheet.art.ts` from a `sheet.png`), `import json from './sheet.json'` the
+ * data. Both travel in the piece's own chunk, fetched only once the look is
+ * selected; no image file is downloaded.
  */
 export interface ImageSheetSource {
-  readonly png: string;
+  readonly art: PixelData;
   readonly json: unknown;
 }
 
-/** A sheet as a look ships it: a PNG + JSON pair, or pixel art in code (classic). */
+/** A sheet as a look ships it: a drawn sheet's pixels with its JSON, or pixel art written in code (classic). */
 export type SheetSource = ImageSheetSource | PixelArtSheet;
 
 /** A look's effect sheets once loaded, by the names its module gave them. */
@@ -33,7 +36,7 @@ export interface HeroLookModule {
   readonly characterId: CharacterId;
   /** The eight hero animations (`HERO_SHEET`). */
   readonly sheet: SheetSource;
-  /** Extra sheets for the attack visual, e.g. `{ attack: { png, json } }`. */
+  /** Extra sheets for the attack visual, e.g. `{ attack: { art, json } }`. */
   readonly fx: Readonly<Record<string, SheetSource>>;
   /** Builds the basic attack's visual from the loaded `fx`; whatever it leaves out, classic draws. */
   readonly attack: ((fx: FxSheets) => Partial<AttackVisual>) | null;
@@ -52,7 +55,7 @@ export interface SkillLookModule<K extends SkillId> {
   readonly skillId: K;
   /** The `idle` icon (`SKILL_ICON_SHEET`); classic's when left out. */
   readonly icon: SheetSource | null;
-  /** Effect strips for the visual, e.g. `{ wave: { png, json } }`. */
+  /** Effect strips for the visual, e.g. `{ wave: { art, json } }`. */
   readonly fx: Readonly<Record<string, SheetSource>>;
   /** Builds the skill's visual from the loaded `fx`; whatever it leaves out, classic draws. */
   readonly visual: ((fx: FxSheets) => SkillVisual<K>) | null;
@@ -63,8 +66,8 @@ export interface SkillLookModule<K extends SkillId> {
  * the names given to them:
  *
  *     export const look = defineHeroLook('hackerman', {
- *       sheet: { png: sheetPng, json: sheetJson },
- *       fx: { attack: { png: attackPng, json: attackJson } },
+ *       sheet: { art: sheetArt, json: sheetJson },
+ *       fx: { attack: { art: attackArt, json: attackJson } },
  *       attack: (fx) => spriteAttack(fx.attack),
  *     });
  */
@@ -86,7 +89,7 @@ export function defineHeroLook<F extends string = never>(
   };
 }
 
-/** Declares the customer's look: `export const look = defineCustomerLook({ sheet: { png, json } })`. */
+/** Declares the customer's look: `export const look = defineCustomerLook({ sheet: { art, json } })`. */
 export function defineCustomerLook(look: { readonly sheet: SheetSource }): CustomerLookModule {
   return { kind: 'customer', sheet: look.sheet };
 }
@@ -96,8 +99,8 @@ export function defineCustomerLook(look: { readonly sheet: SheetSource }): Custo
  * functions receive the skill's own typed state (`SkillVisualTypes`):
  *
  *     export const look = defineSkillLook('power-chord', {
- *       icon: { png: iconPng, json: iconJson },
- *       fx: { wave: { png: wavePng, json: waveJson } },
+ *       icon: { art: iconArt, json: iconJson },
+ *       fx: { wave: { art: waveArt, json: waveJson } },
  *       visual: (fx) => ({
  *         active: (gfx, state, caster, layer) => { … fx.wave … },
  *       }),

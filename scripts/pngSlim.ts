@@ -6,8 +6,7 @@ const PALETTE_SIZE = 256;
 
 /**
  * Clears the colour of every fully transparent pixel of an 8-bit RGBA buffer, in place, so they all count as one
- * colour. Nothing on the page shows it: the game's art and the cursors are drawn through premultiplied 2D canvases
- * and CSS, where a transparent pixel has no colour.
+ * colour. Nothing on the page shows it: the cursors are drawn by CSS, where a transparent pixel has no colour.
  */
 export function clearHiddenColour(rgba: Uint8Array): void {
   for (let i = 0; i < rgba.length; i += 4) {
@@ -65,8 +64,9 @@ export async function slimPng(png: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Slims every PNG the build emits (`slimPng`), so the committed art stays exactly what its generators write (their
- * `--check`s compare bytes) and only what visitors download changes. Build only: the dev server serves the sources.
+ * Slims every PNG the build emits (`slimPng`): the cursors, the only PNGs left since the game's art is code
+ * (docs/ARCHITECTURE.md › Art in code). The committed files stay exactly what `pnpm build:cursors` writes and only
+ * what visitors download changes. Build only: the dev server serves the sources.
  */
 export function pngSlimPlugin(): Plugin {
   return {

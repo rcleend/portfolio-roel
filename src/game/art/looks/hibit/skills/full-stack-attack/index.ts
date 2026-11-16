@@ -6,20 +6,20 @@ import { defineSkillLook, type FxSheets } from '@/game/art/looks/module';
 import type { BurstView } from '@/game/entities/effects/Burst';
 import type { CasterSnapshot, FullStackState } from '@/game/skills/SkillVisual';
 import { chestLift, drawFrame, frameAt } from '../draw';
+import { art as beamArt } from './fx-beam.art';
 import beamJson from './fx-beam.json';
-import beamPng from './fx-beam.png';
+import { art as dataArt } from './fx-beam-data.art';
 import dataJson from './fx-beam-data.json';
-import dataPng from './fx-beam-data.png';
+import { art as pierceArt } from './fx-beam-hit.art';
 import pierceJson from './fx-beam-hit.json';
-import piercePng from './fx-beam-hit.png';
+import { art as muzzleArt } from './fx-beam-muzzle.art';
 import muzzleJson from './fx-beam-muzzle.json';
-import muzzlePng from './fx-beam-muzzle.png';
+import { art as tipArt } from './fx-beam-tip.art';
 import tipJson from './fx-beam-tip.json';
-import tipPng from './fx-beam-tip.png';
+import { art as bitsArt } from './fx-bits.art';
 import bitsJson from './fx-bits.json';
-import bitsPng from './fx-bits.png';
+import { art as iconArt } from './icon.art';
 import iconJson from './icon.json';
-import iconPng from './icon.png';
 
 type Sheets = FxSheets<'beam' | 'data' | 'muzzle' | 'tip' | 'pierce' | 'bits'>;
 
@@ -48,14 +48,14 @@ const BIT_GLYPHS = 8;
  * beam collapses into dashes and dots (docs/looks/hibit-skills.md).
  */
 export const look = defineSkillLook('full-stack-attack', {
-  icon: { png: iconPng, json: iconJson },
+  icon: { art: iconArt, json: iconJson },
   fx: {
-    beam: { png: beamPng, json: beamJson },
-    data: { png: dataPng, json: dataJson },
-    muzzle: { png: muzzlePng, json: muzzleJson },
-    tip: { png: tipPng, json: tipJson },
-    pierce: { png: piercePng, json: pierceJson },
-    bits: { png: bitsPng, json: bitsJson },
+    beam: { art: beamArt, json: beamJson },
+    data: { art: dataArt, json: dataJson },
+    muzzle: { art: muzzleArt, json: muzzleJson },
+    tip: { art: tipArt, json: tipJson },
+    pierce: { art: pierceArt, json: pierceJson },
+    bits: { art: bitsArt, json: bitsJson },
   },
   visual: (fx) => ({
     active: (gfx, beam, caster, layer, kit) => {

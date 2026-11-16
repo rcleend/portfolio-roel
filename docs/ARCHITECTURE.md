@@ -46,13 +46,13 @@ Allowed imports (enforced by `src/architecture.test.ts`):
 ```
 engine/
   core/     Game (loop), Scene, Director (typed scene switching + transitions), GameSurface
-  gfx/      Gfx (pixel-snapped drawing), PixelArt (sprite definitions + compiler), SpriteSheet (+ PNG/JSON spec),
+  gfx/      Gfx (pixel-snapped drawing), PixelArt (sprite definitions + compiler), PixelData (pictures stored in code), SpriteSheet (+ JSON spec),
             BitmapFont + TextStyle (crisp styled text), Parallax, Camera2D, color/dither helpers
   input/    InputManager<Action> (keyboard, gamepad, virtual buttons, host-injected pointer)
   audio/    AudioService contract, NullAudio, WebAudio synth + sequencer
   motion/   easing, progress/segment helpers, oscillators (blink, wobble, shake)
   math/     Vec2, Rect (AABB), seeded Rng, clamp/lerp
-  assets/   AssetStore (preloads images and fonts)
+  assets/   AssetStore (decodes pictures stored in code, preloads fonts)
 ```
 
 ### Scene
@@ -157,11 +157,27 @@ interface PixelArtAnimation { readonly fps: number; readonly loop: boolean; read
 Each frame is `size.h` strings of exactly `size.w` characters. The compiler validates this and throws a `PixelArtError` naming the animation, frame, row and column.
 Write frames with the `pixels` template-literal helper (one row per line, indentation trimmed) so formatters leave the shapes alone.
 `SpriteSheet.compile(sheet, name)` builds one atlas; `gfx.sprite(sheet, animation, time, x, y, { flipX, alpha, flash })` draws the frame for `time` seconds with the origin at (x, y).
-Sheets can also come as a PNG with a JSON spec (one row per animation, docs/LOOKS.md): `parseSpriteSheetSpec(json, source)` validates it with errors naming the file and field, and `SpriteSheet.fromImage(image, spec, name)` plays it through the same API, checking the PNG's size against the spec.
+Sheets can also come as a drawn picture with a JSON spec (one row per animation, docs/LOOKS.md): `parseSpriteSheetSpec(json, source)` validates it with errors naming the file and field, and `SpriteSheet.fromImage(image, spec, name)` plays it through the same API, checking the picture's size against the spec. The picture is not an image file but its pixels in code (Art in code, below).
 All sheets face right; draw with `flipX` to face left. `sheet.duration(a)`, `frameIndex(a, t)` and `isFinished(a, t)` drive timing.
 Image sheets may name pixels per frame (`anchors`): `sheet.anchor(a, name, t)` returns the one on show in frame pixels, and `sheet.toScreen(point, x, y, flipX)` the screen pixel that shows it when drawn at (x, y), mirrored with the sprite.
 
-The heroes, the customer and the skill icons are drawn through the selected *looks* (see Looks below): the game ships Terraria heroes and customer, PNG sheets written by `tools/looks/terraria/`, and classic's skills. Classic's pieces are pixel art assembled from one shared body rig (`game/art/looks/classic/rig.ts`: shared legs and arms, per-character head, torso, palette and props), so a crew can redraw a piece without touching the rest.
+The heroes, the customer and the skill icons are drawn through the selected *looks* (see Looks below): the game ships Terraria heroes and customer, sheets drawn by `tools/looks/terraria/`, and classic's skills. Classic's pieces are pixel art assembled from one shared body rig (`game/art/looks/classic/rig.ts`: shared legs and arms, per-character head, torso, palette and props), so a crew can redraw a piece without touching the rest.
+
+### Art in code
+
+The game downloads no image file of its art. Every drawn picture (the looks' sheets, the stages' layers, tilesets and props) is a module beside where its PNG was, `sheet.art.ts` for `sheet.png`, exporting `art`: the same pixels as one string (`engine/gfx/PixelData.ts`).
+
+```
+<width>x<height>,<colour>,<colour>,…;<pixels>
+```
+
+A colour is `rrggbb`, or `rrggbbaa` where it is not opaque. The pixels run left to right, top to bottom, one character each, the palette index spelled in the ASCII characters `:` to `~` without the backslash (68 colours at most; the art keeps to 55), and a run of eight or more of one colour is the character followed by its length in decimal. Nothing else is packed: the transfer's own compression does better on plain indices than a PNG's deflate did (the 24 pictures of a visit, 186.9 kB as slimmed PNGs, are 166 kB of gzip and 151 of brotli), and counting the long runs keeps the strings small in memory, a sprite sheet being mostly empty.
+
+- **Writing**: `pnpm build:art` (`scripts/build-art.ts`) turns every PNG under `src/game` into its module and removes the PNG, so a generator or an artist still writes PNGs and this is the last step. It decodes each PNG, encodes it (`scripts/art/encodePixelData.ts`), decodes the string with the game's own decoder and compares every byte of RGBA, hidden colour and alpha included, before writing, and records the SHA-256 of the PNG's RGBA in `src/game/art/art-digests.json`. `pnpm build:art --against <rev>` compares every module with the PNG git has at `<rev>` (b139c5e is the last commit with the PNGs); `pnpm build:art --export <dir>` writes the modules back as PNGs to look at or edit.
+- **Loading**: `AssetStore.addImage(key, art)` decodes a string onto a canvas, synchronously and once per key (`pixelDataCanvas`), through `paintCanvas`, so a canvas a GPU reset hands back blank is decoded again from the string. Scenes draw from that canvas as they drew from an image.
+- **Chunks**: the art travels with the code that needs it and never in the first script. A look's index module imports its sheets' modules, so they are in the piece's own chunk, fetched only when the look is selected (`art/looks/registry.ts`). The stages' pictures are one chunk, `levels/art/pictures.ts`, which `loadLevelArt` imports as the game loads; nothing else may import it (`pnpm report:bundle` holds it to importing nothing and to a budget, `levelArt`).
+- **Cost**: decoding is JavaScript on the main thread where the browser decoded PNGs off it: about 8 ms for the 24 pictures of a visit (4.5 million pixels, most of them empty sheet) on a desktop, 38 ms at 6× CPU throttling, while the game is still loading. Keep it that way: a picture needed later than startup should be decoded when its chunk arrives, not on the frame that first draws it.
+- **Not art in code**: the cursors stay PNG files (`app/cursors`, written by `pnpm build:cursors`), because CSS can only point `cursor` at a URL, they are fetched only by a device with a mouse and only when first shown, and inlining them as data URIs would put their 7 kB into the stylesheet every phone waits for. Fonts, audio, the social card, the favicon and touch icon, the startup stills and the radio's covers and prints are files by decision.
 
 ### Text
 
@@ -229,7 +245,7 @@ game/
   skills/              one module per SkillId implementing the shared Skill behaviour contract
   world/               level runtime: tile grid, AABB collision, layout DSL + validation, camera, World, autopilot,
                        nav/ (the route planner and walker mouse play walks with)
-  levels/art/          LevelArt loader: validates each layers.json, preloads its PNGs, exposes parallax layers, Tileset and PropSheets
+  levels/art/          LevelArt loader: validates each layers.json, decodes its pictures (pictures.ts, a chunk of their own), exposes parallax layers, Tileset and PropSheets
   levels/<levelId>/    level map, theme, generated parallax art + layers.json (tools/art/README.md)
   art/                 looks (looks/: one folder per look, classic included), shared fx sheets, fonts, procedural logos (logos/); scene-only art lives in its scene folder
 ```
@@ -402,4 +418,5 @@ The script uses the dev server given by `--url`, otherwise starts Vite from the 
 - Unit tests (Vitest) sit next to the code they test; end-to-end smoke tests (Playwright) live in `e2e/`. Tests tagged `@frames` time real frames under CPU throttling, so `playwright.config.ts` runs them one at a time after the parallel suite.
 - `pnpm check` runs type-check, lint (Biome), unit tests and the architecture boundary test.
 - Shaders are written readable, as template literals marked `/* glsl */`; a Vite plugin (`scripts/glslMinify.ts`) strips their comments and indentation in the dev server, the tests and the build alike, keeping line breaks so preprocessor lines keep their meaning and source maps stay true. `pnpm report:bundle` checks the chunk budgets in `bundle-budgets.json`.
-- PNGs ship slimmer than they are committed: the build (`scripts/pngSlim.ts`, a Vite plugin, build only) writes every emitted PNG of at most 256 colours (the game's pixel art and the cursors) as an indexed PNG with the colour of its fully transparent pixels cleared, and keeps it only if it decodes to the same alpha and visible colours and is smaller, so the committed art stays what its generators write (about half the bytes: 1160 kB of PNGs became 608).
+- The game's art is code, not image files (Art in code, above): `src/game/art/artModules.test.ts` holds every `*.art.ts` to the digest of the PNG it was written from and fails on a PNG left under `src/game`.
+- The PNGs that remain (the cursors, which CSS must point at as files) ship slimmer than they are committed: the build (`scripts/pngSlim.ts`, a Vite plugin, build only) writes every emitted PNG of at most 256 colours as an indexed PNG with the colour of its fully transparent pixels cleared, and keeps it only if it decodes to the same alpha and visible colours and is smaller, so the committed art stays what its generators write (about half the bytes: 1160 kB of PNGs became 608).

@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { characters, type SkillId, skills } from '@/content';
 import { type PixelArtSheet, validatePixelArt } from '@/engine/gfx/PixelArt';
+import { pixelDataSize } from '@/engine/gfx/PixelData';
 import { parseSpriteSheetSpec, specImageSize } from '@/engine/gfx/SpriteSheetSpec';
 import { CUSTOMER_SHEET, HERO_SHEET, type SheetContract, SKILL_ICON_SHEET, strayHeroAnimations } from './contracts';
 import type { SheetSource } from './module';
@@ -11,7 +12,7 @@ import { lookRegistry } from './registry';
 /**
  * Every look folder in the repository, checked without a browser: modules
  * that declare the right piece, and sheets that meet their kind's contract
- * with PNGs the size their JSON describes. Drawing every look is covered end
+ * with pixels the size their JSON describes. Drawing every look is covered end
  * to end in e2e/looks.spec.ts.
  */
 const LOOKS_DIR = resolve(import.meta.dirname);
@@ -35,7 +36,7 @@ describe('registered looks', () => {
         join(LOOKS_DIR, look, 'customer'),
         ...subfolders(join(LOOKS_DIR, look, 'skills')),
       ])
-      .filter((folder) => exists(folder) && readdirSync(folder).some((file) => /\.(png|json)$/.test(file)));
+      .filter((folder) => exists(folder) && readdirSync(folder).some((file) => /\.(png|art\.ts|json)$/.test(file)));
     const unregistered = pieceFolders.filter((folder) => !readdirSync(folder).includes('index.ts'));
     expect(unregistered.map((folder) => relative(ROOT, folder))).toEqual([]);
   });
@@ -67,9 +68,9 @@ describe('registered looks', () => {
   );
 });
 
-/** Pixel art must compile and play the kind's animations; an image sheet must also fit its frame, origin and PNG. */
+/** Pixel art must compile and play the kind's animations; a drawn sheet must also fit its frame, origin and pixels. */
 function checkSheet(source: SheetSource, contract: SheetContract<string> | null, name: string): void {
-  if (!('png' in source)) {
+  if (!('art' in source)) {
     const art = source as PixelArtSheet;
     expect(() => validatePixelArt(art, name)).not.toThrow();
     if (contract) expect(Object.keys(art.animations), name).toEqual(expect.arrayContaining([...contract.animations]));
@@ -84,20 +85,14 @@ function checkSheet(source: SheetSource, contract: SheetContract<string> | null,
     expect(spec.frame, name).toEqual(contract.frame);
     expect(spec.origin, name).toEqual(contract.origin);
   }
-  expect(pngSize(resolve(ROOT, `.${source.png}`)), name).toEqual(specImageSize(spec));
+  const { width, height } = pixelDataSize(source.art);
+  expect({ w: width, h: height }, name).toEqual(specImageSize(spec));
 }
 
 function animationNames(source: SheetSource): string[] {
-  if ('png' in source)
+  if ('art' in source)
     return parseSpriteSheetSpec(source.json, 'sheet.json').animations.map((animation) => animation.name);
   return Object.keys((source as PixelArtSheet).animations);
-}
-
-/** Width and height from a PNG's IHDR chunk. */
-function pngSize(file: string): { w: number; h: number } {
-  const bytes = readFileSync(file);
-  expect(bytes.subarray(1, 4).toString('latin1'), `${file} is a PNG`).toBe('PNG');
-  return { w: bytes.readUInt32BE(16), h: bytes.readUInt32BE(20) };
 }
 
 function subfolders(dir: string): string[] {

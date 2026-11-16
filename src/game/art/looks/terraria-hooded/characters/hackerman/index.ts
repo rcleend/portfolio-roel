@@ -1,9 +1,9 @@
 import { defineHeroLook } from '@/game/art/looks/module';
 import { spriteAttack } from '@/game/art/looks/spriteAttack';
+import { art as attackArt } from '@/game/art/looks/terraria/characters/hackerman/attack.art';
 import attackJson from '@/game/art/looks/terraria/characters/hackerman/attack.json';
-import attackPng from '@/game/art/looks/terraria/characters/hackerman/attack.png';
+import { art as sheetArt } from './sheet.art';
 import sheetJson from './sheet.json';
-import sheetPng from './sheet.png';
 
 /**
  * The revised Terraria ENGINEER with his black hood pulled up, drawn by tools/looks/terraria
@@ -12,7 +12,7 @@ import sheetPng from './sheet.png';
  * imported from its folder (characters.test.ts holds the revision to them).
  */
 export const look = defineHeroLook('hackerman', {
-  sheet: { png: sheetPng, json: sheetJson },
-  fx: { attack: { png: attackPng, json: attackJson } },
+  sheet: { art: sheetArt, json: sheetJson },
+  fx: { attack: { art: attackArt, json: attackJson } },
   attack: (fx) => spriteAttack(fx.attack),
 });

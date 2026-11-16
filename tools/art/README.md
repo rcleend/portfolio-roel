@@ -21,7 +21,8 @@ tools/art/
 2. Put raw sources in `$ARCADE_ART_SOURCES` (default `../.arcade-art-sources`, next to the checkout). They are inputs, never committed.
 3. `python3 tools/art/build.py luna scripe` (or `--only mid,near`) writes the PNGs, `tileset.png` and `layers.json`.
 4. Review: `python3 tools/art/preview.py luna`, `--seams`, `--tiles` write to `tools/art/.preview/` (gitignored). Look at them; iterate on the recipe.
-5. `python3 -m unittest discover -s tools/art -t tools/art` validates the pipeline and the committed art against the contract below.
+5. `python3 -m unittest discover -s tools/art -t tools/art` validates the pipeline and the PNGs against the contract below.
+6. `pnpm build:art` turns every PNG under `src/game` into `<name>.art.ts`, the same pixels as a string in code, and removes the PNG: the game loads no image file (docs/ARCHITECTURE.md › Art in code), and a test fails on a PNG left there. `layers.json` keeps naming the `.png`. To preview or test art that is already converted, `pnpm build:art --export src/game` writes the PNGs back beside their modules; run `pnpm build:art` again when done.
 
 ## The pipeline
 

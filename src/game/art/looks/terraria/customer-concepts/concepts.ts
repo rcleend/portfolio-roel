@@ -3,12 +3,12 @@ import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
 import type { CustomerAnimation } from '../../contracts';
 import type { ImageSheetSource } from '../../module';
+import { art as onThePhoneArt } from './on-the-phone.art';
 import onThePhoneJson from './on-the-phone.json';
-import onThePhonePng from './on-the-phone.png';
+import { art as oneStarArt } from './one-star.art';
 import oneStarJson from './one-star.json';
-import oneStarPng from './one-star.png';
+import { art as theReceiptArt } from './the-receipt.art';
 import theReceiptJson from './the-receipt.json';
-import theReceiptPng from './the-receipt.png';
 
 /** The two ends of a customer each concept is drawn in, named after the customer animations they will open. */
 export const CONCEPT_POSES = ['shout', 'happy'] as const satisfies readonly CustomerAnimation[];
@@ -38,34 +38,34 @@ export const CUSTOMER_CONCEPTS: readonly CustomerConcept[] = [
     name: 'On the phone',
     description:
       'A middle manager, red to the scalp, yelling into the brick phone at his ear and jabbing a finger at you; won over, a thumbs up.',
-    sheet: { png: onThePhonePng, json: onThePhoneJson },
+    sheet: { art: onThePhoneArt, json: onThePhoneJson },
   },
   {
     id: 'the-receipt',
     name: 'The receipt',
     description: 'A shopper fuming steam, holding up a receipt as long as she is; won over, it goes in the bag.',
-    sheet: { png: theReceiptPng, json: theReceiptJson },
+    sheet: { art: theReceiptArt, json: theReceiptJson },
   },
   {
     id: 'one-star',
     name: 'One star',
     description: 'An app user brandishing a cracked tablet rating you 1 star; won over, it shows five stars.',
-    sheet: { png: oneStarPng, json: oneStarJson },
+    sheet: { art: oneStarArt, json: oneStarJson },
   },
 ];
 
 const imageKey = (concept: CustomerConcept): string => `looks/terraria/customer-concepts/${concept.id}`;
 
 /**
- * Downloads every concept into `assets`. The game never does: whoever opens
+ * Decodes every concept into `assets`. The game never does: whoever opens
  * a scene that draws them (the harness) calls this first, so the scene can
  * read them synchronously.
  */
 export async function loadCustomerConcepts(assets: AssetStore): Promise<void> {
-  await Promise.all(CUSTOMER_CONCEPTS.map((concept) => assets.loadImage(imageKey(concept), concept.sheet.png)));
+  for (const concept of CUSTOMER_CONCEPTS) assets.addImage(imageKey(concept), concept.sheet.art);
 }
 
-/** The concept's sheet, from the image `loadCustomerConcepts` stored; the store throws if it never ran. */
+/** The concept's sheet, from the image `loadCustomerConcepts` decoded; the store throws if it never ran. */
 export function customerConceptSheet(assets: AssetStore, concept: CustomerConcept): SpriteSheet<ConceptPose> {
   const key = imageKey(concept);
   const sheet = SpriteSheet.fromImage(assets.image(key), parseSpriteSheetSpec(concept.sheet.json, `${key}.json`), key);

@@ -32,7 +32,8 @@ src/game/art/looks/<lookId>/
 
 - Every piece is its own folder with an `index.ts`; the game finds it by its path, so adding a piece never edits a shared file. A folder with art but no `index.ts` fails the tests.
 - A look may cover only some pieces: the selection offers only what exists.
-- Generators, prompts and processing scripts live in `tools/looks/<lookId>/` (see *Making the art*); only the PNG + JSON outputs are loaded.
+- Generators, prompts and processing scripts live in `tools/looks/<lookId>/` (see *Making the art*); only their outputs are loaded.
+- The game loads no PNG: once a sheet's PNG is written, `pnpm build:art` turns it into `sheet.art.ts` beside it, the same pixels as a string in code, and removes the PNG (docs/ARCHITECTURE.md › Art in code). Wherever this document says `sheet.png`, the repository holds `sheet.art.ts`; `pnpm build:art --export <dir>` writes the PNGs back out to look at or edit. A generator's `--check` against committed PNG bytes has nothing to compare any more: `src/game/art/art-digests.json` holds each sheet's pixels instead.
 
 ## Sheets: PNG + JSON
 
@@ -81,13 +82,13 @@ Each `index.ts` exports `look`, built with a helper from `src/game/art/looks/mod
 import { defineHeroLook } from '@/game/art/looks/module';
 import { spriteAttack } from '@/game/art/looks/spriteAttack';
 import attackJson from './attack.json';
-import attackPng from './attack.png';
+import { art as attackArt } from './attack.art';
 import sheetJson from './sheet.json';
-import sheetPng from './sheet.png';
+import { art as sheetArt } from './sheet.art';
 
 export const look = defineHeroLook('hackerman', {
-  sheet: { png: sheetPng, json: sheetJson },
-  fx: { attack: { png: attackPng, json: attackJson } },
+  sheet: { art: sheetArt, json: sheetJson },
+  fx: { attack: { art: attackArt, json: attackJson } },
   attack: (fx) => spriteAttack(fx.attack),
 });
 ```
@@ -96,22 +97,22 @@ export const look = defineHeroLook('hackerman', {
 // looks/arcade/customer/index.ts
 import { defineCustomerLook } from '@/game/art/looks/module';
 import sheetJson from './sheet.json';
-import sheetPng from './sheet.png';
+import { art as sheetArt } from './sheet.art';
 
-export const look = defineCustomerLook({ sheet: { png: sheetPng, json: sheetJson } });
+export const look = defineCustomerLook({ sheet: { art: sheetArt, json: sheetJson } });
 ```
 
 ```ts
 // looks/arcade/skills/power-chord/index.ts
 import { defineSkillLook } from '@/game/art/looks/module';
 import iconJson from './icon.json';
-import iconPng from './icon.png';
+import { art as iconArt } from './icon.art';
 import waveJson from './fx-wave.json';
-import wavePng from './fx-wave.png';
+import { art as waveArt } from './fx-wave.art';
 
 export const look = defineSkillLook('power-chord', {
-  icon: { png: iconPng, json: iconJson },
-  fx: { wave: { png: wavePng, json: waveJson } },
+  icon: { art: iconArt, json: iconJson },
+  fx: { wave: { art: waveArt, json: waveJson } },
   visual: (fx) => ({
     active: (gfx, state, caster, layer) => {
       if (layer !== 'front' || state.age >= state.duration) return;
@@ -121,7 +122,7 @@ export const look = defineSkillLook('power-chord', {
 });
 ```
 
-- `fx` names extra sheets; the factory receives them loaded, typed by those names. PNGs are fetched only when the look is selected.
+- `fx` names extra sheets; the factory receives them loaded, typed by those names. A piece's sheets travel in its own chunk, fetched only when the look is selected.
 - Everything is optional except a hero's or the customer's `sheet`: a hero without `attack`, or a skill without an `icon` or with only some visual parts, is drawn by classic for the rest.
 - `spriteAttack(sheet)` draws the `projectile` animation with the shot, plays `muzzle` (if the strip has one) once where the shot leaves the hand and `impact` once where it strikes, and adds nothing on the customer it hit. The strip's origin is the projectile's centre.
 - A strip may vary its shots: every `projectile-<v>` is a variant that successive shots take turns with, after the plain `projectile`, in sheet order. A variant's shot plays `impact-<v>` and `muzzle-<v>` where the strip has them and the plain ones otherwise, so Artsy's paint can cycle pink, cyan, yellow with `projectile`, `projectile-cyan`, `impact-cyan`, `projectile-yellow`, `impact-yellow`.
@@ -230,7 +231,7 @@ His phone antenna tops out 32 px over his feet, two over classic's head, so the 
 
 ## Checks
 
-- `pnpm test` (`registeredLooks.test.ts`): every index module declares its piece; every sheet meets its kind's animations, frame size and origin; every PNG has the size its JSON describes; every folder with art has an `index.ts`.
+- `pnpm test` (`registeredLooks.test.ts`): every index module declares its piece; every sheet meets its kind's animations, frame size and origin; every sheet's pixels have the size its JSON describes; every folder with art has an `index.ts`.
 - `pnpm e2e` (`e2e/looks.spec.ts`): every registered look loads in the browser, and the first and last frame of every animation is non-blank with alpha only 0 or 255; every showcase demo plays without errors.
 
 ## Making the art

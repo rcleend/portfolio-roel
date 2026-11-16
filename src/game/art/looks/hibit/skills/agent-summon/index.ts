@@ -1,13 +1,13 @@
 import { defineSkillLook } from '@/game/art/looks/module';
 import { drawDottedLine, drawFrame, drawSparks, frameAt, handOf, RAMPS } from '../draw';
+import { art as droneArt } from './fx-drone.art';
 import droneJson from './fx-drone.json';
-import dronePng from './fx-drone.png';
+import { art as impactArt } from './fx-drone-impact.art';
 import impactJson from './fx-drone-impact.json';
-import impactPng from './fx-drone-impact.png';
+import { art as shotArt } from './fx-drone-shot.art';
 import shotJson from './fx-drone-shot.json';
-import shotPng from './fx-drone-shot.png';
+import { art as iconArt } from './icon.art';
 import iconJson from './icon.json';
-import iconPng from './icon.png';
 
 const SUMMON_SECONDS = 13 / 30;
 const FIRE_SECONDS = 6 / 30;
@@ -26,11 +26,11 @@ const TRAIL_FRAMES = [2, 4, 6] as const;
  * fires, turns its light red in its last second and lifts away as cyan dust.
  */
 export const look = defineSkillLook('agent-summon', {
-  icon: { png: iconPng, json: iconJson },
+  icon: { art: iconArt, json: iconJson },
   fx: {
-    drone: { png: dronePng, json: droneJson },
-    shot: { png: shotPng, json: shotJson },
-    impact: { png: impactPng, json: impactJson },
+    drone: { art: droneArt, json: droneJson },
+    shot: { art: shotArt, json: shotJson },
+    impact: { art: impactArt, json: impactJson },
   },
   visual: (fx) => ({
     active: (gfx, drone, caster, layer, kit) => {

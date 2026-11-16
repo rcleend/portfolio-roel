@@ -15,6 +15,8 @@
 // - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
 // - mousePlay: a level's mouse play (docs/ARCHITECTURE.md › Mouse play), the route planner and walker with it, fetched
 //   from the mission select.
+// - levelArt: every stage's pictures as pixels in code (docs/ARCHITECTURE.md › Art in code), one chunk the game imports
+//   as it loads, in place of the PNGs it used to fetch; it must import nothing, so the pictures stay out of the entry.
 // PcSlot, the glue that loads the computer's screen, is part of the entry; RadioSlot, the radio's, loads the first time
 // the camera leaves the TV. PcExperience, RadioSlot and RadioExperience must not
 // contain three.js (none of their files may be the room chunk or one it loads, nor carry three's names), and
@@ -45,6 +47,7 @@ const LAZY_CHUNKS = {
   propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
   generatedRoom: { source: 'src/room/gen/GeneratedRoom.ts', three: 'room' },
   mousePlay: { source: 'src/game/scenes/level/mouse/MousePlay.ts', three: 'none', standalone: true },
+  levelArt: { source: 'src/game/levels/art/pictures.ts', three: 'none', standalone: true },
 };
 
 const { budgets, baseline } = JSON.parse(readFileSync(join(ROOT, 'bundle-budgets.json'), 'utf8'));
