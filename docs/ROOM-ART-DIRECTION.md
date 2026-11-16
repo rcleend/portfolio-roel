@@ -82,9 +82,9 @@ What the room takes from it:
   stepping in to the back plate, a plinth, a strip of round buttons under printed legends and front jacks. Its
   wordmark is the site's own. The glass is a separate mesh with the CRT shader.
 - **TV cabinet top.** At the set's right an opal globe lamp on a round metal foot and a 21 cm plant in an ivory
-  pot, broad dark leaves with a paler midrib; at its left a bare-bulb lamp turned most of the way down (a turned
-  walnut base, a brass holder, a clear bulb whose cage filament glows orange, a braided flex with a bakelite rocker
-  switch).
+  pot, broad dark leaves with a paler midrib; at its left a bare-bulb lamp of today turned most of the way down (a
+  plain cast concrete cylinder, a smooth matte black socket, a clear bulb whose cage filament glows orange, a grey
+  cloth flex with a small pale inline switch).
 - **Console.** On the floor in front of the cabinet: a slim black console of its years, a design of its own with
   the room's wordmark, two pads on their cables, a memory card and a game case beside it.
 - **Game cases.** Three, with covers made for this room: Powder Rush, Crown & Key and Brick Galaxy, the games the

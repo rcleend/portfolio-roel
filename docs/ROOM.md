@@ -833,12 +833,14 @@ The startup still (§ Startup) does not show the lamp; its glow appears as the s
 ### The bulb lamp
 
 A bare-bulb lamp stands on the left-hand end of the TV cabinet, turned most of the way down
-(`gen/props/cabinetLamps.ts` › `bulbLamp`), so the dark left of the set has light and something to look at: a turned
-walnut base, a brass lampholder with two knurled shade rings, and a clear pear-shaped bulb, 21 cm in all. It stands
+(`gen/props/cabinetLamps.ts` › `bulbLamp`), so the dark left of the set has light and something to look at: a lamp
+of today, a cast concrete cylinder (84 mm across, 62 high, on a cork pad) with a smooth matte black socket, and a
+clear pear-shaped bulb, 21 cm in all. It stands
 forward of the set's flank, so the room's overview sees it past the set as the TV view does beside it. Its filament
 is a cage, strung up and down between the hooks of two glass buttons on the stem, so it reads as a filament from every
-side and can be looked at. A braided flex leaves the base's back, lies across the top through a bakelite rocker switch
-and drops behind the cabinet. It builds lighter on the lower tiers (no knurling, fewer segments).
+side and can be looked at. A grey cloth flex leaves the base's back, lies across the top through a small pale inline
+switch and drops behind the cabinet. It builds lighter on the lower tiers (the concrete's grain is a speck a vertex,
+so the top tier cuts the drum finer; fewer segments below it).
 
 - **Its light is baked.** `gen/rig.ts` › `bulb` is a point of light at the middle of the filament (`BULB_SPEC`,
   `gen/roomSpec.ts`), softened to `1 / (d² + 0.06)` and faded out from 1 m to 1.6 m: a warm pool on the cabinet top,
