@@ -14,7 +14,7 @@ export interface Decal {
 }
 
 /** Which mesh a prop's vertex-lit geometry joins: each is one draw call with one material. */
-export type MeshName = 'tv' | 'props' | 'globe' | 'eyes';
+export type MeshName = 'tv' | 'props' | 'globe' | 'eyes' | 'glass';
 
 export interface PropSink {
   /** The vertex-lit mesh `name`'s builder. */

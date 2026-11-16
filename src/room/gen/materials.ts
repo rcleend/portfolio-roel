@@ -19,6 +19,11 @@ export const MATERIAL = {
   plaster: 5,
   /** The rug's pile: navy and ivory squares, `params.x` metres a square, with the pile's own soft mottle. */
   rug: 6,
+  /**
+   * Stained softwood furniture (the dresser): `params.rgb` the stain; `params.a` under 0.5 runs the grain along the
+   * chart, from 0.5 up it, and its fraction seeds the board.
+   */
+  stained: 7,
 } as const;
 
 /** `vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity)`; needs `uArt`. */
@@ -79,6 +84,16 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     return texture(uArt, params.xy + vec2(at.x, 1.0 - at.y) * params.zw).rgb;
   }
   if (material < 5.5) return params.rgb * (0.95 + 0.04 * vnoise(metres * 380.0) + 0.08 * fbm(metres * 1.3 + 9.0));
+  if (material > 6.5) {
+    vec2 g = (params.a < 0.5 ? metres : metres.yx) + fract(params.a * 2.0) * 61.0;
+    // Growth rings cut along the board: lines a few millimetres apart that wander and open into cathedrals.
+    float wander = fbm(vec2(g.x * 1.4, g.y * 5.0)) * 11.0 + fbm(vec2(g.x * 0.5, g.y * 1.5) + 17.0) * 16.0;
+    float ring = abs(fract(g.y * 70.0 + wander) - 0.5) * 2.0;
+    float late = smoothstep(0.55, 0.95, ring);
+    float streak = fbm(vec2(g.x * 2.5, g.y * 210.0));
+    float pores = vnoise(vec2(g.x * 150.0, g.y * 1200.0));
+    return params.rgb * (0.94 + 0.14 * streak - 0.09 * late) * (0.965 + 0.06 * pores);
+  }
   vec2 square = floor(metres / params.x);
   float navy = mod(square.x + square.y, 2.0);
   float pile = 0.82 + 0.3 * vnoise(metres * 900.0) * vnoise(metres * 140.0 + 5.0) + 0.1 * fbm(metres * 22.0);

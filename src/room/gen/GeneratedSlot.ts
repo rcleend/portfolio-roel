@@ -31,6 +31,11 @@ export class GeneratedSlot {
     return this.#room?.stats ?? null;
   }
 
+  /** Whether the generated lava lamp's wax is moving. */
+  get lavaRunning(): boolean {
+    return this.#room?.lavaRunning ?? false;
+  }
+
   /** Starts the generated room; called once the shipped room is assembled and its first frame drawn. */
   attach(context: GeneratedContext): void {
     if (this.state !== 'loading' || this.#room) return;

@@ -1,4 +1,13 @@
-import { type AnimationClip, AnimationMixer, Box3, type Camera, Frustum, Matrix4, type Object3D } from 'three';
+import {
+  type AnimationClip,
+  AnimationMixer,
+  Box3,
+  type Camera,
+  Frustum,
+  Matrix4,
+  type Mesh,
+  type Object3D,
+} from 'three';
 
 const LAVA_FPS = 24;
 /** Longest step fed to the mixer, so a throttled tab does not make the wax jump. */
@@ -27,6 +36,8 @@ export class LavaLamp {
   private readonly frustum = new Frustum();
   private readonly projection = new Matrix4();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The lamp's meshes: the generated room retires them when its own lamp takes their place (gen/LavaWax.ts). */
+  private readonly meshes: Object3D[] = [];
   private last = 0;
   private disposed = false;
 
@@ -37,7 +48,12 @@ export class LavaLamp {
     });
     // World bounds need the parents' matrices, which nothing has updated before the first frame.
     options.root.updateMatrixWorld(true);
-    for (const object of lamp) this.bounds.expandByObject(object);
+    for (const object of lamp) {
+      this.bounds.expandByObject(object);
+      object.traverse((part) => {
+        if ((part as Mesh).isMesh) this.meshes.push(part);
+      });
+    }
     this.mixer = options.clips.length > 0 && lamp.length > 0 ? new AnimationMixer(options.root) : null;
     for (const clip of options.clips) this.mixer?.clipAction(clip).play();
     options.reducedMotion.addEventListener('change', this.sync);
@@ -80,6 +96,7 @@ export class LavaLamp {
   private shouldAnimate(): boolean {
     if (this.disposed || !this.mixer || this.bounds.isEmpty()) return false;
     if (this.options.reducedMotion.matches || !this.options.isStageVisible()) return false;
+    if (this.meshes.length > 0 && this.meshes.every((mesh) => mesh.userData.retired)) return false;
     const { camera } = this.options;
     camera.updateMatrixWorld();
     this.projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);

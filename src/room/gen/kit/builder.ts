@@ -99,6 +99,7 @@ export class MeshBuilder {
   private readonly albedo: number[] = [];
   private readonly shade: number[] = [];
   private placement: Placement = IDENTITY;
+  private occlusion: ((point: Vec3) => number) | null = null;
 
   get triangles(): number {
     return this.positions.length / 9;
@@ -112,6 +113,18 @@ export class MeshBuilder {
     this.placement = previous;
   }
 
+  /**
+   * Runs `build` with the shade of every vertex it adds multiplied by `occlusion` at that vertex, in the coordinates
+   * the primitives are given in (before any placement): the dark a moulded part gathers under itself, changing
+   * smoothly over one surface.
+   */
+  shaded(occlusion: (point: Vec3) => number, build: () => void): void {
+    const previous = this.occlusion;
+    this.occlusion = previous ? (point) => occlusion(point) * previous(point) : occlusion;
+    build();
+    this.occlusion = previous;
+  }
+
   tri(a: Vec3, b: Vec3, c: Vec3, color: Rgb, shade = 1): void {
     // A triangle without area (a lathe's pole, a ring that closes on its axis) has no normal and draws nothing.
     if (length(cross(sub(b, a), sub(c, a))) < 1e-12) return;
@@ -119,7 +132,7 @@ export class MeshBuilder {
       const p = apply(this.placement, point);
       this.positions.push(p[0], p[1], p[2]);
       this.albedo.push(color[0], color[1], color[2]);
-      this.shade.push(shade);
+      this.shade.push(this.occlusion ? shade * this.occlusion(point) : shade);
     }
   }
 
@@ -335,6 +348,114 @@ export class MeshBuilder {
     for (let i = 0; i < stacks; i++) this.loft(rings[i] as Ring, rings[i + 1] as Ring, { from: centre }, color, shade);
   }
 
+  /**
+   * A skin over a run of rings of one length (a moulded grip, a pad's body): each joined to the next, facing away from
+   * the run's own middle line, and the two ends closed with fans where `caps` asks.
+   */
+  skin(rings: readonly Ring[], color: Rgb, shade = 1, caps = true): void {
+    const centres = rings.map(centroid);
+    for (let i = 0; i + 1 < rings.length; i++) {
+      const middle = scale(add(centres[i] as Vec3, centres[i + 1] as Vec3), 0.5);
+      this.loft(rings[i] as Ring, rings[i + 1] as Ring, { from: middle }, color, shade);
+    }
+    const last = rings.length - 1;
+    if (!caps || last < 1) return;
+    this.cap(rings[0] as Ring, sub(centres[0] as Vec3, centres[1] as Vec3), color, shade);
+    this.cap(rings[last] as Ring, sub(centres[last] as Vec3, centres[last - 1] as Vec3), color, shade);
+  }
+
+  /**
+   * A round tube swept along `path` (a cable): a ring of `sides` points at every point of the path, carried along it
+   * without twisting. `radius` is one number, or a function of how far along the path a point is (0–1 by count).
+   */
+  tube(
+    path: readonly Vec3[],
+    radius: number | ((along: number) => number),
+    sides: number,
+    color: Rgb,
+    shade = 1,
+    caps = true,
+  ): void {
+    const n = path.length;
+    if (n < 2) return;
+    const tangent = (i: number): Vec3 =>
+      normalize(sub(path[Math.min(n - 1, i + 1)] as Vec3, path[Math.max(0, i - 1)] as Vec3));
+    let side = basis(tangent(0))[0];
+    const rings: Ring[] = [];
+    for (let i = 0; i < n; i++) {
+      const t = tangent(i);
+      // The last ring's side, laid into this ring's plane: the frame turns only as much as the path does.
+      const laid = sub(side, scale(t, dot(side, t)));
+      side = length(laid) > 1e-6 ? normalize(laid) : basis(t)[0];
+      const up = cross(t, side);
+      const r = typeof radius === 'number' ? radius : radius(i / (n - 1));
+      const centre = path[i] as Vec3;
+      rings.push(
+        Array.from({ length: sides }, (_, k): Vec3 => {
+          const angle = (k / sides) * Math.PI * 2;
+          return add(centre, add(scale(side, Math.cos(angle) * r), scale(up, Math.sin(angle) * r)));
+        }),
+      );
+    }
+    this.skin(rings, color, shade, caps);
+  }
+
+  /**
+   * A flat shape with thickness (a guitar's body, a scratch plate): `outline`, (x, y) pairs that may turn inwards,
+   * pulled along z from `z0` to `z1`, both rims rounded over `bevel` in `steps` rings, and both faces filled in rows
+   * cut every `grid` metres, so light baked at the vertices can change across a face. `relief` moves the front
+   * (`z1`) face along z, point by point (an arm's contour); `back: false` leaves the `z0` face open.
+   */
+  extrude(
+    outline: readonly (readonly [number, number])[],
+    z0: number,
+    z1: number,
+    color: Rgb,
+    options: {
+      readonly bevel?: number;
+      readonly steps?: number;
+      readonly grid?: number;
+      readonly relief?: (x: number, y: number) => number;
+      readonly back?: boolean;
+    } = {},
+    shade = 1,
+  ): void {
+    const { steps = 2, grid = Infinity, relief, back = true } = options;
+    const bevel = Math.max(0, Math.min(options.bevel ?? 0, (z1 - z0) / 2));
+    const ccw = signedArea(outline) >= 0 ? outline : [...outline].reverse();
+    const front = (x: number, y: number, z: number): Vec3 => [x, y, z + (relief ? relief(x, y) : 0)];
+    const rear = (x: number, y: number, z: number): Vec3 => [x, y, z];
+    // The rings from the back face's rim, round its bevel, up the side and round the front's.
+    const rings: Ring[] = [];
+    const turns = bevel > 0 ? steps : 0;
+    for (let i = 0; i <= turns; i++) {
+      const angle = turns ? (i / turns) * (Math.PI / 2) : 0;
+      const ring = inset(ccw, bevel * (1 - Math.sin(angle)));
+      rings.push(ring.map(([x, y]) => rear(x, y, z0 + bevel * (1 - Math.cos(angle)))));
+    }
+    for (let i = turns; i >= 0; i--) {
+      const angle = turns ? (i / turns) * (Math.PI / 2) : 0;
+      const ring = inset(ccw, bevel * (1 - Math.sin(angle)));
+      rings.push(ring.map(([x, y]) => front(x, y, z1 - bevel * (1 - Math.cos(angle)))));
+    }
+    const n = ccw.length;
+    for (let r = 0; r + 1 < rings.length; r++) {
+      const [a, b] = [rings[r] as Ring, rings[r + 1] as Ring];
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        this.quad(a[i] as Vec3, a[j] as Vec3, b[j] as Vec3, b[i] as Vec3, color, shade);
+      }
+    }
+    const face = inset(ccw, bevel);
+    fillRows(face, grid, (p, q, r) =>
+      this.tri(front(p[0], p[1], z1), front(q[0], q[1], z1), front(r[0], r[1], z1), color, shade),
+    );
+    if (back)
+      fillRows(face, Infinity, (p, q, r) =>
+        this.tri(rear(p[0], p[1], z0), rear(r[0], r[1], z0), rear(q[0], q[1], z0), color, shade),
+      );
+  }
+
   /** The finished mesh, its normals smoothed across edges shallower than `creaseDegrees`. */
   finish(creaseDegrees = 38): MeshData {
     const positions = new Float32Array(this.positions);
@@ -357,6 +478,121 @@ function mirror(p: Vec3, axis: 0 | 1 | 2, sum: number): Vec3 {
   const q: [number, number, number] = [p[0], p[1], p[2]];
   q[axis] = sum - q[axis];
   return q;
+}
+
+function centroid(ring: Ring): Vec3 {
+  return scale(
+    ring.reduce<Vec3>((sum, p) => add(sum, p), [0, 0, 0]),
+    1 / ring.length,
+  );
+}
+
+/**
+ * A smooth path through `points` (a Catmull-Rom spline), `steps` pieces between each two: what a cable's few
+ * hand-placed points become before `tube` sweeps them.
+ */
+export function spline(points: readonly Vec3[], steps: number): Vec3[] {
+  const at = (i: number): Vec3 => points[Math.max(0, Math.min(points.length - 1, i))] as Vec3;
+  const path: Vec3[] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const [t2, t3] = [t * t, t * t * t];
+      path.push(
+        [0, 1, 2].map(
+          (k) =>
+            0.5 *
+            (2 * (p1[k] as number) +
+              ((p2[k] as number) - (p0[k] as number)) * t +
+              (2 * (p0[k] as number) - 5 * (p1[k] as number) + 4 * (p2[k] as number) - (p3[k] as number)) * t2 +
+              (3 * (p1[k] as number) - (p0[k] as number) - 3 * (p2[k] as number) + (p3[k] as number)) * t3),
+        ) as unknown as Vec3,
+      );
+    }
+  }
+  if (points.length > 0) path.push(at(points.length - 1));
+  return path;
+}
+
+type Point = readonly [number, number];
+
+function signedArea(outline: readonly Point[]): number {
+  let sum = 0;
+  for (let i = 0; i < outline.length; i++) {
+    const [p, q] = [outline[i] as Point, outline[(i + 1) % outline.length] as Point];
+    sum += p[0] * q[1] - q[0] * p[1];
+  }
+  return sum / 2;
+}
+
+/** A counter-clockwise outline moved `distance` inwards along its corners' bisectors (outwards: negative). */
+export function inset(outline: readonly Point[], distance: number): Point[] {
+  if (distance === 0) return [...outline];
+  const n = outline.length;
+  return outline.map((p, i) => {
+    const [before, after] = [outline[(i + n - 1) % n] as Point, outline[(i + 1) % n] as Point];
+    const a = unit(p[1] - before[1], before[0] - p[0]);
+    const b = unit(after[1] - p[1], p[0] - after[0]);
+    const mid = unit(a[0] + b[0], a[1] + b[1]);
+    // A mitre, held to twice the distance at a sharp corner.
+    const reach = distance / Math.max(0.5, mid[0] * a[0] + mid[1] * a[1]);
+    return [p[0] - mid[0] * reach, p[1] - mid[1] * reach];
+  });
+}
+
+function unit(x: number, y: number): Point {
+  const l = Math.hypot(x, y) || 1;
+  return [x / l, y / l];
+}
+
+/**
+ * Fills a counter-clockwise outline with triangles (counter-clockwise too), in rows between its corners' heights and
+ * the lines of a `grid`: every row is a run of trapezoids, each cut at the grid's uprights, so no triangle is longer
+ * than the grid and rows share their points.
+ */
+function fillRows(outline: readonly Point[], grid: number, emit: (p: Point, q: Point, r: Point) => void): void {
+  const n = outline.length;
+  const heights = outline.map((p) => p[1]);
+  const [low, high] = [Math.min(...heights), Math.max(...heights)];
+  if (Number.isFinite(grid))
+    for (let y = Math.ceil(low / grid) * grid; y < high; y += grid) if (y > low) heights.push(y);
+  heights.sort((a, b) => a - b);
+  const levels = heights.filter((y, i) => i === 0 || y - (heights[i - 1] as number) > 1e-9);
+  // A level's points between two walls: the walls, the grid's uprights and any corner of the outline lying between.
+  const row = (y: number, from: number, to: number): Point[] => {
+    const xs = [from, to];
+    if (Number.isFinite(grid)) for (let x = Math.ceil(from / grid) * grid; x < to; x += grid) xs.push(x);
+    for (const p of outline) if (Math.abs(p[1] - y) <= 1e-9) xs.push(p[0]);
+    xs.sort((a, b) => a - b);
+    const kept = xs.filter((x, i) => x >= from && x <= to && (i === 0 || x - (xs[i - 1] as number) > 1e-9));
+    return kept.map((x) => [x, y]);
+  };
+  for (let l = 0; l + 1 < levels.length; l++) {
+    const [y0, y1] = [levels[l] as number, levels[l + 1] as number];
+    const middle = (y0 + y1) / 2;
+    // The walls crossing this row: where each stands at its foot and at its head.
+    const walls: [number, number][] = [];
+    for (let i = 0; i < n; i++) {
+      const [p, q] = [outline[i] as Point, outline[(i + 1) % n] as Point];
+      if (Math.min(p[1], q[1]) > middle || Math.max(p[1], q[1]) <= middle) continue;
+      const at = (y: number) => p[0] + ((q[0] - p[0]) * (y - p[1])) / (q[1] - p[1]);
+      walls.push([at(y0), at(y1)]);
+    }
+    walls.sort((a, b) => a[0] + a[1] - (b[0] + b[1]));
+    for (let w = 0; w + 1 < walls.length; w += 2) {
+      const [left, right] = [walls[w] as [number, number], walls[w + 1] as [number, number]];
+      const foot = row(y0, left[0], right[0]);
+      const head = row(y1, left[1], right[1]);
+      let [i, j] = [0, 0];
+      while (i + 1 < foot.length || j + 1 < head.length) {
+        const forward =
+          j + 1 >= head.length || (i + 1 < foot.length && (foot[i + 1] as Point)[0] <= (head[j + 1] as Point)[0]);
+        if (forward) emit(foot[i] as Point, foot[++i] as Point, head[j] as Point);
+        else emit(foot[i] as Point, head[j + 1] as Point, head[j++] as Point);
+      }
+    }
+  }
 }
 
 /** Two unit vectors that make a right-handed frame with `axis`. */

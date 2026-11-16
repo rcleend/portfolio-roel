@@ -2,8 +2,11 @@ import { ART_SIZE, artUv } from './art';
 import { MeshBuilder, type MeshData } from './kit/builder';
 import { type Chart, type ChartMeshes, chartMeshes, type PackedPage, packCharts } from './kit/charts';
 import { cabinet } from './props/cabinet';
+import { consoleCables, floorGame, gameConsole, gamepads } from './props/console';
 import { basket, chair, desk, desktop, towerAndLamp } from './props/deskCorner';
+import { dresser, dresserBooksAndLead, guitar } from './props/dresserCorner';
 import { opalLamp, toyRobot } from './props/lampAndRobot';
+import { lavaLamp } from './props/lavaLamp';
 import { plant } from './props/plant';
 import { ceilings, door, floor, rug, walls, windowFrame } from './props/shell';
 import { tvSet } from './props/tvSet';
@@ -27,6 +30,14 @@ export const PROPS: readonly Prop[] = [
   basket,
   towerAndLamp,
   desktop,
+  dresser,
+  dresserBooksAndLead,
+  guitar,
+  gameConsole,
+  gamepads,
+  consoleCables,
+  floorGame,
+  lavaLamp,
 ];
 
 export interface GenRequest {
@@ -53,7 +64,7 @@ export interface GenScene {
   readonly buildMs: number;
 }
 
-const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes'];
+const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass'];
 
 /** Runs every prop's generator; pure, so it runs the same in a worker, on the main thread and in tests. */
 export function buildScene(request: GenRequest, now: () => number = () => performance.now()): GenScene {

@@ -3,8 +3,10 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  CustomBlending,
   DepthTexture,
   DoubleSide,
+  DynamicDrawUsage,
   Group,
   HalfFloatType,
   LinearFilter,
@@ -13,6 +15,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
+  OneFactor,
   PerspectiveCamera,
   Scene,
   ShaderMaterial,
@@ -22,6 +25,7 @@ import {
   Vector3,
   Vector4,
   WebGLRenderTarget,
+  ZeroFactor,
 } from 'three';
 import { onCanvasRestored } from '../stage/canvasRestore';
 import { QUIET } from '../stage/IdleWork';
@@ -36,8 +40,10 @@ export const genKit = {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  CustomBlending,
   DepthTexture,
   DoubleSide,
+  DynamicDrawUsage,
   Group,
   HalfFloatType,
   LinearFilter,
@@ -46,6 +52,7 @@ export const genKit = {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
+  OneFactor,
   PerspectiveCamera,
   Scene,
   ShaderMaterial,
@@ -55,6 +62,7 @@ export const genKit = {
   Vector3,
   Vector4,
   WebGLRenderTarget,
+  ZeroFactor,
   /** IdleWork's QUIET: the unit it leads to is GPU work. */
   quiet: QUIET,
   onCanvasRestored,

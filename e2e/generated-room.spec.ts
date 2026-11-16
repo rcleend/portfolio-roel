@@ -36,10 +36,10 @@ test("the generated room builds in a worker, bakes its light and takes the shipp
   expect(built?.builtIn).toBe('worker');
   // Every light from every point of its emitter, on the top tier (rig.ts).
   expect(built?.views).toBeGreaterThan(100);
-  expect(built?.triangles).toBeLessThan(30_000);
+  expect(built?.triangles).toBeLessThan(70_000);
   // The opening view draws a third of the shipped set's triangles, in fewer calls.
   await page.evaluate(() => window.__roomLab?.room.powerOn());
-  await expect.poll(async () => (await stats(page))?.triangles).toBeLessThan(30_000);
+  await expect.poll(async () => (await stats(page))?.triangles).toBeLessThan(70_000);
   // Sixty frames a second whether or not anything moves: the paused game still gets frames.
   await page.evaluate(() => window.__roomLab?.surface.pause());
   const before = (await stats(page))?.framesRendered ?? 0;
@@ -60,5 +60,53 @@ test("the generated room builds in a worker, bakes its light and takes the shipp
   expect(luma(chin)).toBeLessThan(60);
   expect(luma(wall)).toBeGreaterThan(20);
   expect(luma(cabinet)).toBeGreaterThan(20);
+  expect(errors).toEqual([]);
+});
+
+test("the generated lava lamp takes the shipped one's place, moves by the clock and stands still on request", async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await page.goto('/room-lab.html?clean&mood=rose&room=generated&view=room');
+  await page.waitForFunction(() => window.__roomLab !== undefined);
+  expect(await page.evaluate(() => window.__roomLab?.room.generatedReady)).toBe(true);
+  // What the lamp is drawn with (dev only: GeneratedRoom hands itself out): the shipped glass and wax, and the wax's
+  // vertices as one number.
+  const lamp = () =>
+    page.evaluate(() => {
+      type Part = { isMesh?: boolean; visible: boolean; userData: Record<string, unknown>; parent: Part | null };
+      type Wax = { geometry: { getAttribute(name: string): { array: Float32Array } } };
+      const room = (
+        globalThis as unknown as {
+          __generatedRoom: {
+            context: { stage: { scene: { traverse(visit: (part: Part) => void): void } } };
+            lava: { meshes: Wax[] };
+          };
+        }
+      ).__generatedRoom;
+      const shipped: boolean[] = [];
+      room.context.stage.scene.traverse((part) => {
+        const lava = part.userData.supplied_asset === 'lava' || part.parent?.userData.supplied_asset === 'lava';
+        if (part.isMesh && lava) shipped.push(part.visible);
+      });
+      const positions = room.lava.meshes[0]?.geometry.getAttribute('position').array ?? new Float32Array();
+      return { shipped, wax: positions.reduce((sum, value, index) => sum + value * (index % 7), 0) };
+    });
+  await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(true);
+  const before = await lamp();
+  expect(before.shipped.length).toBeGreaterThan(0);
+  expect(before.shipped.every((visible) => !visible)).toBe(true);
+  await expect.poll(async () => (await lamp()).wax).not.toBe(before.wax);
+  // Reduced motion: one pose, and nothing asks for it to change.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(false);
+  const still = await lamp();
+  await page.waitForTimeout(400);
+  expect((await lamp()).wax).toBe(still.wax);
+  // At the TV the lamp is out of sight and rests.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(true);
+  await page.evaluate(() => window.__roomLab?.room.focusTv());
+  await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(false);
   expect(errors).toEqual([]);
 });

@@ -16,6 +16,9 @@ export function paintArt(canvas: HTMLCanvasElement, size: number): void {
   kingdom(c, ART.coverKingdom);
   bricks(c, ART.coverBricks);
   chest(c, ART.chest);
+  powder(c, ART.coverPowder);
+  consoleMark(c, ART.consoleMark);
+  consoleLamp(c, ART.consoleLamp);
 }
 
 type Context = CanvasRenderingContext2D;
@@ -221,6 +224,124 @@ function bricks(c: Context, rect: ArtRect): void {
     c.textAlign = 'center';
     c.fillText('THE BUILD-IT-YOURSELF SAGA', w / 2, 318);
     spine(c, w, h, '#101425');
+  });
+}
+
+/** A fictional winter game: a rider's line down a peak under a low sun. */
+function powder(c: Context, rect: ArtRect): void {
+  within(c, rect, (w, h) => {
+    const sky = c.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#1b4fb8');
+    sky.addColorStop(0.55, '#7fc4f2');
+    sky.addColorStop(1, '#eaf6ff');
+    c.fillStyle = sky;
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = '#ffd98a';
+    c.beginPath();
+    c.arc(206, 150, 30, 0, Math.PI * 2);
+    c.fill();
+    // The far range, then the peak with its shaded face.
+    c.fillStyle = '#5d8fd6';
+    c.beginPath();
+    c.moveTo(0, 250);
+    for (const [x, y] of [
+      [40, 196],
+      [78, 226],
+      [128, 170],
+      [176, 222],
+      [232, 184],
+      [272, 214],
+      [272, 368],
+      [0, 368],
+    ] as const)
+      c.lineTo(x, y);
+    c.fill();
+    c.fillStyle = '#f6fbff';
+    c.beginPath();
+    c.moveTo(-10, 368);
+    c.lineTo(108, 172);
+    c.lineTo(150, 216);
+    c.lineTo(182, 196);
+    c.lineTo(290, 368);
+    c.fill();
+    c.fillStyle = '#b9d6f2';
+    c.beginPath();
+    c.moveTo(108, 172);
+    c.lineTo(150, 216);
+    c.lineTo(132, 262);
+    c.lineTo(160, 300);
+    c.lineTo(120, 368);
+    c.lineTo(60, 368);
+    c.lineTo(96, 280);
+    c.lineTo(84, 236);
+    c.fill();
+    // The rider's line, the board at its end, and the spray it throws.
+    c.strokeStyle = '#ff5a1f';
+    c.lineWidth = 7;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(118, 190);
+    c.bezierCurveTo(176, 236, 96, 262, 168, 296);
+    c.bezierCurveTo(206, 314, 196, 330, 150, 340);
+    c.stroke();
+    c.save();
+    c.translate(140, 340);
+    c.rotate(-0.32);
+    c.fillStyle = '#e32612';
+    c.beginPath();
+    c.ellipse(0, 0, 44, 8, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#12204a';
+    c.beginPath();
+    c.ellipse(-4, -22, 10, 15, 0.3, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(4, -42, 7, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    c.fillStyle = '#ffffff';
+    for (let i = 0; i < 26; i++) {
+      c.globalAlpha = 0.5 + ((i * 29) % 50) / 100;
+      c.beginPath();
+      c.arc(176 + ((i * 53) % 78), 300 + ((i * 37) % 44), 1.5 + (i % 4), 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+    title(c, ['POWDER', 'RUSH'], w / 2 + 8, 74, 46, '#ffffff', '#12307a');
+    spine(c, w, h, '#0c2f7c');
+  });
+}
+
+/** The console's wordmark, the room's own, with the model's number in a ring. */
+function consoleMark(c: Context, rect: ArtRect): void {
+  within(c, rect, (_w, h) => {
+    c.fillStyle = '#d6d6de';
+    c.textBaseline = 'middle';
+    c.textAlign = 'left';
+    c.font = `600 44px ${SANS}`;
+    c.fillText('reo·leo', 6, h / 2 + 1);
+    const end = 6 + c.measureText('reo·leo').width;
+    c.strokeStyle = '#d6d6de';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.arc(end + 38, h / 2, 22, 0, Math.PI * 2);
+    c.stroke();
+    c.textAlign = 'center';
+    c.font = `700 30px ${SANS}`;
+    c.fillText('2', end + 38, h / 2 + 2);
+  });
+}
+
+/** The console's standby lamp: a red point with a little bloom of its own. */
+function consoleLamp(c: Context, rect: ArtRect): void {
+  within(c, rect, (w, h) => {
+    const glow = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    glow.addColorStop(0, 'rgba(255,120,90,1)');
+    glow.addColorStop(0.22, 'rgba(255,40,24,1)');
+    glow.addColorStop(0.4, 'rgba(255,30,20,0.35)');
+    glow.addColorStop(1, 'rgba(255,30,20,0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, w, h);
   });
 }
 

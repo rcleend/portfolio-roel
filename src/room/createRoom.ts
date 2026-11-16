@@ -329,6 +329,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         tv: assets.tv,
         anisotropy,
         tier: stage.quality.tier,
+        reducedMotion,
       });
     });
   });
@@ -411,7 +412,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         rainPlaying: rain.playing,
         framesRendered: stage.loop.framesRendered,
         renderLoopIdle: stage.loop.idle,
-        lavaRunning: scene?.lava.running ?? false,
+        lavaRunning: (scene?.lava.running ?? false) || generated.lavaRunning,
         drawCalls: calls,
         triangles,
         pixelRatio: stage.size.pixelRatio,

@@ -6,6 +6,7 @@ import type { RoomStage } from '../stage/RoomStage';
 import { paintArt, paintExterior } from './artPaint';
 import { type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
 import type { GenKit } from './genKit';
+import { LavaWax } from './LavaWax';
 import { GROUP } from './props/types';
 import type { GenRequest, GenScene } from './scene';
 import { GENERATED_TIERS, type GeneratedTier, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
@@ -19,6 +20,7 @@ export interface GeneratedContext {
   readonly anisotropy: number;
   /** The tier the device started on: what to generate at and bake with (tiers.ts). */
   readonly tier: QualityTier;
+  readonly reducedMotion: MediaQueryList;
 }
 
 export interface GeneratedStats {
@@ -70,10 +72,19 @@ const REPLACED_IN_ROOM = new Set([
   'Woven_geometric_rug',
   'Night_tree_exterior_view',
   '02_Desk_surfaces',
+  '04_Drawer_surfaces',
+  '04_Drawer_guitar',
   'PC_Imported_CRT_base',
   'PC_Imported_Keyboard_base',
   'PC_Imported_Mouse_base',
+  'PS2_Imported_Object009_M_PS2_Body_0_base',
+  'PS2_Imported_PS2_Body_M_PS2_Details_0_base',
+  'PS2_Imported_PS2_Details_M_PS2_Details_0_base',
+  'PS2_SSX3_case_base',
 ]);
+/** The shipped lava lamp's glass and wax, whatever their meshes are called: the nodes tools/room/ marked as its. */
+const isShippedLava = (object: Object3D): boolean =>
+  object.userData.supplied_asset === 'lava' || object.parent?.userData.supplied_asset === 'lava';
 /** The shell's cutaway pieces (ceilings, front wall, door). */
 const REPLACED_CUTAWAY = /^Cutaway_/;
 /** Every part of the shipped set but its glass, which keeps the screen's contract (docs/ROOM.md). */
@@ -115,6 +126,8 @@ export class GeneratedRoom {
   private stopFrames: (() => void) | null = null;
   private stopCanvas: (() => void) | null = null;
   private displays: { tv: Mesh; props: Mesh; charts: Map<number, Mesh> } | null = null;
+  private lava: LavaWax | null = null;
+  private stopLava: (() => void) | null = null;
   private timings = {
     cpu: 0,
     longest: 0,
@@ -145,7 +158,10 @@ export class GeneratedRoom {
     this.group.name = 'GeneratedRoom';
     this.group.visible = false;
     context.stage.scene.traverse((object) => {
-      if ((object as Mesh).isMesh && (REPLACED_IN_ROOM.has(nameOf(object)) || REPLACED_CUTAWAY.test(nameOf(object))))
+      if (
+        (object as Mesh).isMesh &&
+        (REPLACED_IN_ROOM.has(nameOf(object)) || REPLACED_CUTAWAY.test(nameOf(object)) || isShippedLava(object))
+      )
         this.replaced.push(object as Mesh);
     });
     context.tv.traverse((object) => {
@@ -169,6 +185,11 @@ export class GeneratedRoom {
     return this.lastStats;
   }
 
+  /** Whether the lava lamp's wax is moving. */
+  get lavaRunning(): boolean {
+    return this.lava?.running ?? false;
+  }
+
   dispose(): void {
     this.disposed = true;
     const canvas = this.context.stage.canvas;
@@ -176,6 +197,8 @@ export class GeneratedRoom {
     canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.dropTask?.();
     this.stopCanvas?.();
+    this.stopLava?.();
+    this.lava?.dispose();
     this.show(false);
     this.baker?.dispose(true);
     this.art?.dispose();
@@ -323,6 +346,16 @@ export class GeneratedRoom {
     outside.name = 'Generated view outside';
     outside.userData.exterior = true;
     this.group.add(outside);
+
+    // The lava lamp's wax and bottle: the wax moves, by the clock, while the generated room is what is drawn.
+    this.lava = new LavaWax(k, gen.meshes.glass, {
+      camera: context.stage.camera,
+      isVisible: () => this.shown && context.stage.visible,
+      reducedMotion: context.reducedMotion,
+      invalidate: () => context.stage.loop.invalidate(),
+    });
+    this.stopLava = context.stage.onRender(this.lava.sync);
+    this.group.add(...this.lava.meshes);
 
     // The set joins the shipped set's own node: the spotlight glows and bounces what is under it.
     tv.visible = false;
@@ -514,6 +547,7 @@ export class GeneratedRoom {
         if (this.disposed || this.baker !== baker) return;
         this.show(true);
         this.shown = true;
+        this.lava?.sync();
         this.retire();
         // Sixty frames a second in every view of the generated room, whether or not something moves.
         this.stopFrames ??= sixtyFrames(context.stage.loop);
@@ -579,6 +613,7 @@ export class GeneratedRoom {
     this.stopFrames = null;
     if (this.shown) this.events.onLost();
     this.shown = false;
+    this.lava?.sync();
     this.show(false);
   };
 

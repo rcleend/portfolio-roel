@@ -16,6 +16,11 @@ export const ART = {
   coverBricks: [564, 136, 272, 368],
   /** The robot's chest panel: two rows of gauges. */
   chest: [844, 136, 160, 160],
+  /** The game on the floor by the console: a cover as the three above, in the page's bottom corner. */
+  coverPowder: [748, 652, 272, 368],
+  /** The console's wordmark, 0.085 m × 0.017 m of its lid, and its standby lamp. */
+  consoleMark: [420, 956, 320, 64],
+  consoleLamp: [380, 988, 32, 32],
 } as const satisfies Record<string, ArtRect>;
 
 /** A rectangle as fractions of the page, inset half a pixel so filtering never reads a neighbour. */
