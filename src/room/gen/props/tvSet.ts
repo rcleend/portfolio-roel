@@ -100,7 +100,15 @@ export const tvSet: Prop = {
     // The front jacks: video, left, right.
     const jack = (z: number, color: Rgb) => {
       b.cylinder([FRONT + 0.001, 0.555, z], [FRONT - PROUD + 0.0004, 0.555, z], 0.0072, 0.0068, 20, color, 1.6);
-      b.cylinder([FRONT - PROUD + 0.0005, 0.555, z], [FRONT - PROUD + 0.0002, 0.555, z], 0.0048, 0.0048, 14, [0.5, 0.42, 0.25], 1);
+      b.cylinder(
+        [FRONT - PROUD + 0.0005, 0.555, z],
+        [FRONT - PROUD + 0.0002, 0.555, z],
+        0.0048,
+        0.0048,
+        14,
+        [0.5, 0.42, 0.25],
+        1,
+      );
       b.cylinder(
         [FRONT - PROUD + 0.0003, 0.555, z],
         [FRONT - PROUD, 0.555, z],

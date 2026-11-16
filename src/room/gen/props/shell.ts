@@ -1,6 +1,7 @@
-import { place, type Rgb, type Vec3 } from '../kit/builder';
+import { place, type Rgb, spline, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
+import { mottled, segments, skin, slab, type Tone, tint, turned } from './form';
 import { FLOOR, GROUP, PAGE, type Prop } from './types';
 
 /** The room: 5.6 m × 4.8 m, 3.28 m high on the left, sloping from x = 0.95 down to a 1.88 m knee wall on the right. */
@@ -137,55 +138,183 @@ export const door: Prop = {
 };
 
 /**
- * The window in the back wall: a narrow casing, the deep sill, two sashes (the lower one's stiles and rails, the
- * meeting rail, a glazing bar) and a venetian blind hung inside the reveal and let halfway down, twenty-four slats
- * tilted nearly shut. Every bar is cut into short lengths so the lamp's pool and the blind's shadows can cross it.
+ * The window in the back wall (the shipped one's parts): a moulded casing with a bead at its inner edge, a stained sill
+ * with a rounded nose over its apron, the reveal, two sashes with their stiles, rails and meeting rails, a glazing bar,
+ * two sash locks, and a venetian blind let halfway down: a head box and valance, twenty-four curved slats tilted
+ * nearly shut on their ladder cords, a bottom rail, the tilt wand at the left and the lift cord with its tassel at the
+ * right. Every bar and slat is cut into short lengths so the lamp's pool and the blind's shadows can cross it.
  */
 export const windowFrame: Prop = {
   name: 'window',
-  budget: 5200,
+  budget: 9600,
   build(sink) {
     const b = sink.mesh('props');
+    const { detail } = sink;
+    const fine = detail >= 0.8;
     const { x0, x1, y0, y1 } = WINDOW;
     const [zOut, zIn] = [-2.45, -2.36];
     const casing = 0.075;
-    // The casing round the opening, proud of the wall, with a bead along its inner edge, and the deep sill.
-    b.beam([x0 - casing, y0 - 0.1, ROOM.z0], [x0, y1 + casing, zIn], FRAME);
-    b.beam([x1, y0 - 0.1, ROOM.z0], [x1 + casing, y1 + casing, zIn], FRAME);
-    b.beam([x0, y1, ROOM.z0], [x1, y1 + casing, zIn], FRAME);
-    b.beam([x0 - 0.012, y0, zIn], [x0 + 0.01, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x1 - 0.01, y0, zIn], [x1 + 0.012, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x0 + 0.01, y1 - 0.01, zIn], [x1 - 0.01, y1 + 0.012, zIn + 0.012], FRAME);
-    b.beam([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], SILL);
+    const paint: Tone = (point) => mottled(FRAME, point, 0.04, 0.07, 81);
+    const stain: Tone = (point) => mottled(SILL, point, 0.12, 0.012, 82);
+    /** A painted board with eased edges, cut along its length for the light. */
+    const board = (min: Vec3, max: Vec3, axis: 0 | 1 | 2, tone: Tone = paint, ease = 0.003): void => {
+      const cuts: [number, number, number] = [1, 1, 1];
+      cuts[axis] = Math.max(1, Math.round((max[axis] - min[axis]) / (fine ? 0.14 : 0.3)));
+      slab(b, min, max, axis, ease, tone, { corner: 1, cuts, ease, turns: 1 });
+    };
+    // The casing round the opening, proud of the wall, its outer edge stepped back, and a bead at its inner edge.
+    board([x0 - casing, y0 - 0.1, ROOM.z0], [x0, y1 + casing, zIn], 1);
+    board([x1, y0 - 0.1, ROOM.z0], [x1 + casing, y1 + casing, zIn], 1);
+    board([x0 - casing - 0.012, y1, ROOM.z0], [x1 + casing + 0.012, y1 + casing + 0.008, zIn + 0.004], 0);
+    board(
+      [x0 - casing - 0.02, y1 + casing + 0.004, ROOM.z0],
+      [x1 + casing + 0.02, y1 + casing + 0.022, zIn + 0.016],
+      0,
+      paint,
+      0.004,
+    );
+    board([x0 - 0.012, y0, zIn], [x0 + 0.01, y1 + 0.012, zIn + 0.012], 1, paint, 0.0035);
+    board([x1 - 0.01, y0, zIn], [x1 + 0.012, y1 + 0.012, zIn + 0.012], 1, paint, 0.0035);
+    board([x0 + 0.01, y1 - 0.01, zIn], [x1 - 0.01, y1 + 0.012, zIn + 0.012], 0, paint, 0.0035);
+    // The sill: a stained board with a rounded nose, and the apron under it.
+    board([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], 0, stain, 0.012);
+    board([x0 - 0.095, y0 - 0.148, ROOM.z0], [x1 + 0.095, y0 - 0.082, -2.367], 0, paint, 0.005);
     // The reveal's inside faces.
-    b.beam([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], FRAME);
-    b.beam([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], FRAME);
-    b.beam([x0, y0, zOut], [x1, y0 + 0.035, ROOM.z0], FRAME);
-    b.beam([x0, y1 - 0.03, zOut], [x1, y1, ROOM.z0], FRAME);
-    // Sashes: the meeting rail at mid height and one upright bar.
+    board([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], 1);
+    board([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], 1);
+    board([x0, y0, zOut], [x1, y0 + 0.035, ROOM.z0], 0);
+    board([x0, y1 - 0.03, zOut], [x1, y1, ROOM.z0], 0);
+    // The sashes: the upper one behind, the lower one in front, their meeting rails at mid height, and a glazing bar.
     const mid = (y0 + y1) / 2;
-    b.beam([x0 + 0.03, mid - 0.025, -2.41], [x1 - 0.03, mid + 0.025, -2.37], FRAME);
-    b.beam([(x0 + x1) / 2 - 0.016, y0 + 0.035, -2.41], [(x0 + x1) / 2 + 0.016, y1 - 0.03, -2.38], FRAME);
-    // The lower sash's own frame: two stiles and the bottom rail.
-    for (const x of [x0 + 0.03, x1 - 0.075]) b.beam([x, y0 + 0.035, -2.4], [x + 0.045, mid - 0.025, -2.37], FRAME);
-    b.beam([x0 + 0.075, y0 + 0.035, -2.4], [x1 - 0.075, y0 + 0.09, -2.37], FRAME);
-    // The blind, inside the casing: a head rail, the slats from the top down to 1.76 m, and its bottom rail.
-    const slat: Rgb = [0.6, 0.56, 0.54];
-    const slatShade: Rgb = [0.3, 0.27, 0.27];
+    const middle = (x0 + x1) / 2;
+    for (const [low, high, z] of [
+      [mid - 0.004, y1 - 0.03, -2.425],
+      [y0 + 0.035, mid + 0.004, -2.4],
+    ] as const) {
+      for (const x of [x0 + 0.03, x1 - 0.075]) board([x, low, z], [x + 0.045, high, z + 0.03], 1);
+      board([x0 + 0.075, low, z], [x1 - 0.075, low + (low < mid - 0.1 ? 0.055 : 0.036), z + 0.03], 0);
+      board([x0 + 0.075, high - (high > mid + 0.1 ? 0.045 : 0.036), z], [x1 - 0.075, high, z + 0.03], 0);
+      board([middle - 0.014, low + 0.03, z + 0.004], [middle + 0.014, high - 0.03, z + 0.026], 1, paint, 0.005);
+    }
+    // Two sash locks on the meeting rail: a plate, a keeper and the lever turned home.
+    const brass: Rgb = [0.3, 0.24, 0.12];
+    for (const x of [middle - 0.39, middle + 0.39]) {
+      b.roundedBox([x - 0.022, mid + 0.004, -2.392], [x + 0.022, mid + 0.0075, -2.372], 0.002, brass, 1, 1, 1);
+      b.cylinder(
+        [x, mid + 0.0075, -2.382],
+        [x, mid + 0.014, -2.382],
+        0.0065,
+        0.0055,
+        segments(10, detail, 6),
+        brass,
+        1,
+      );
+      b.placed(place([x, mid + 0.014, -2.382], 0.5), () =>
+        b.roundedBox([-0.004, 0, -0.004], [0.03, 0.005, 0.004], 0.002, [0.36, 0.29, 0.15], 1, 1, 1),
+      );
+    }
+
+    // The blind, inside the casing: its head box and valance, the slats down to 1.76 m, and its bottom rail.
+    const slat: Rgb = [0.62, 0.6, 0.57];
+    const metal: Tone = (point) => mottled(slat, point, 0.03, 0.05, 83);
     const [left, right] = [x0 + 0.035, x1 - 0.035];
-    b.beam([left, y1 - 0.045, -2.365], [right, y1 - 0.005, -2.32], slat);
+    board([left - 0.006, y1 - 0.047, -2.368], [right + 0.006, y1 - 0.003, -2.318], 0, metal, 0.004);
+    board([left - 0.012, y1 - 0.052, -2.318], [right + 0.012, y1 + 0.002, -2.312], 0, metal, 0.002);
     const slats = 24;
+    const pieces = Math.max(3, Math.round((right - left) / (fine ? 0.2 : 0.4)));
+    const [depth, crown] = [0.044, 0.0038];
     for (let i = 0; i < slats; i++) {
       const y = 2.462 - (i * (2.462 - 1.775)) / (slats - 1);
-      // A slat is curved: its upper half faces the room, its lower half turns down into its own shade.
       b.placed(place([0, y, -2.342], 0, 0.95), () => {
-        b.beam([left, -0.001, -0.026], [right, 0.001, 0.002], slat, 0.9, 0.4);
-        b.beam([left, -0.001, 0.002], [right, 0.001, 0.026], slatShade, 0.9, 0.4);
+        // A slat is a shallow arch across its depth: three lines along it, lit above and seen from below.
+        const line = (across: number): Vec3[] =>
+          Array.from(
+            { length: pieces + 1 },
+            (_, k): Vec3 => [left + ((right - left) * k) / pieces, crown * (1 - across * across), (across * depth) / 2],
+          );
+        const rows = [line(-1), line(0), line(1)];
+        skin(b, rows, () => slat, {
+          facing: { along: [0, 1, 0] },
+          closed: false,
+          shade: () => 0.9,
+          back: () => tint(slat, 0.82),
+        });
       });
     }
-    b.beam([left, 1.735, -2.355], [right, 1.755, -2.33], slat);
-    for (const x of [x0 + 0.27, x1 - 0.27])
-      b.box([x - 0.0012, 1.755, -2.3235], [x + 0.0012, y1 - 0.045, -2.3225], [0.4, 0.38, 0.36], 1);
+    board([left, 1.733, -2.357], [right, 1.757, -2.328], 0, metal, 0.005);
+    // The ladder cords the slats hang in, front and back, and the lift cords through them.
+    const cord: Rgb = [0.5, 0.48, 0.45];
+    for (const x of [x0 + 0.27, x1 - 0.27]) {
+      for (const z of [-2.3615, -2.3225])
+        b.box([x - 0.0011, 1.757, z - 0.0006], [x + 0.0011, y1 - 0.047, z + 0.0006], cord, 1, ['+y', '-y']);
+      if (fine)
+        for (let i = 0; i < slats; i++) {
+          const y = 2.462 - (i * (2.462 - 1.775)) / (slats - 1) - 0.019;
+          b.box([x - 0.0009, y, -2.3615], [x + 0.0009, y + 0.0009, -2.3225], cord, 0.9, ['-z', '+z']);
+        }
+    }
+    // The tilt wand, hanging a little off plumb from the head box's left end; the lift cord and its tassel at the right.
+    const wand: Vec3 = [left + 0.06, y1 - 0.05, -2.312];
+    b.cylinder(
+      wand,
+      [wand[0] + 0.012, wand[1] - 0.014, wand[2] + 0.004],
+      0.0022,
+      0.0022,
+      5,
+      [0.45, 0.45, 0.46],
+      1,
+      false,
+    );
+    b.cylinder(
+      [wand[0] + 0.012, wand[1] - 0.014, wand[2] + 0.004],
+      [wand[0] + 0.03, wand[1] - 0.6, wand[2] + 0.012],
+      0.0034,
+      0.0034,
+      6,
+      [0.66, 0.66, 0.64],
+      1,
+    );
+    turned(
+      b,
+      [wand[0] + 0.03, wand[1] - 0.6, wand[2] + 0.012],
+      [0.03, -1, 0.012],
+      [1, 0, 0],
+      [
+        [0.0034, 0],
+        [0.0052, 0.004],
+        [0.0052, 0.03],
+        [0.003, 0.036],
+        [0, 0.037],
+      ],
+      segments(8, detail, 6),
+      () => [0.66, 0.66, 0.64],
+    );
+    const pull = spline(
+      [
+        [right - 0.05, y1 - 0.05, -2.31],
+        [right - 0.046, y1 - 0.3, -2.306],
+        [right - 0.03, y1 - 0.62, -2.3],
+        [right - 0.02, y1 - 0.86, -2.296],
+      ],
+      segments(5, detail, 3),
+    );
+    b.tube(pull, 0.0013, 4, cord, 1, false);
+    const end = pull[pull.length - 1] as Vec3;
+    turned(
+      b,
+      end,
+      [0, -1, 0],
+      [1, 0, 0],
+      [
+        [0.0015, 0],
+        [0.0085, 0.01],
+        [0.009, 0.036],
+        [0.006, 0.044],
+        [0, 0.045],
+      ],
+      segments(10, detail, 6),
+      () => [0.55, 0.52, 0.47],
+    );
   },
 };
 

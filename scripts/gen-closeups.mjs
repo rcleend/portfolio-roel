@@ -104,6 +104,7 @@ export const CLOSEUPS = {
     window: { position: [-1.25, 1.55, -0.95], target: [-1.3, 1.75, -2.4], fov: 52 },
     basket: { position: [-1.95, 0.55, -0.75], target: [-2.45, 0.16, -1.45], fov: 42 },
     door: { position: [-0.5, 1.4, 0.4], target: [-0.8, 1.1, 2.4], fov: 55 },
+    sheets: { position: [-1.15, 1.9, 0.55], target: [-2.15, 0, -0.65], fov: 52 },
   },
   rug: {
     corner: { position: [0.95, 0.5, 0.2], target: [1.4, 0.04, -0.3], fov: 40 },

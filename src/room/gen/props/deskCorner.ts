@@ -75,7 +75,7 @@ export const chair: Prop = {
   },
 };
 
-/** The wire wastepaper basket by the wall and its eighteen crumpled sheets: fifteen inside, three on the floor. */
+/** The wire wastepaper basket by the wall and its eighteen crumpled sheets (fifteen inside, three on the floor) and one flat sheet beside it. */
 export const basket: Prop = {
   name: 'basket',
   budget: 4200,
@@ -133,13 +133,8 @@ export const basket: Prop = {
       [-1.95, -0.6, 17],
     ] as const)
       b.blob([x, 0.05, z], 0.042, 10, 0.22, i, paper);
-    // Four printed sheets lying on the boards, a chart each so the blind's stripes cross them.
-    for (const [x, z] of [
-      [-2.41, -0.97],
-      [-2.08, -0.36],
-      [-1.77, -0.12],
-      [-2.44, -0.09],
-    ] as const)
+    // One printed sheet lying on the boards by the basket (the room had four; the three further off are gone), a chart each so the blind's stripes cross them.
+    for (const [x, z] of [[-2.41, -0.97]] as const)
       sink.chart({
         page: PAGE.floor,
         group: GROUP.floor,
