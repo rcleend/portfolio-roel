@@ -12,10 +12,10 @@ const SHEEN: Readonly<Record<string, number>> = { device_tv_front_BAKED_UNLIT: 1
 
 /**
  * Small lights drawn as light of their own colour, like a display (alpha 0 in the frame, RoomScreens): the finish's
- * bloom passes them by and they glare only at their brightest pixels. The robot's eyes: the room's bloom spreads a small
- * bright point into a square, so their glow is the halation's small round halo instead (toyRobot.ts).
+ * bloom passes them by and they glare only at their brightest pixels. The bare bulb's filament: the room's bloom spreads
+ * a small bright line into squares, so its glow is the halation's round halo instead (bulbLamp.ts).
  */
-const EMITTERS: Readonly<Record<string, number>> = { '01_TV_robot_eyes_BAKED_UNLIT': 1 };
+const EMITTERS: Readonly<Record<string, number>> = { '01_TV_bulb_filament_BAKED_UNLIT': 1 };
 
 /** Only varnished hard surfaces catch reflections. Cloth, paper, the screens and walls stay matte. */
 const VARNISH: Readonly<Record<string, number>> = {
@@ -57,7 +57,7 @@ float reflection(vec3 source, vec3 normal, vec3 view, float tightness) {
 const FINISH = /* glsl */ `
 vec3 finishNormal = normalize(vFinishNormal);
 vec3 finishView = normalize(cameraPosition - vFinishPosition);
-// Every static light is baked into the surface (gen/): the lamps' warm pools, the opal lamp, the robot's eyes. What is
+// Every static light is baked into the surface (gen/): the lamps' warm pools, the opal lamp, the bare bulb. What is
 // left for a frame is what changes from one to the next.
 // A broad storm outside the opening. Project the incoming light onto the real pane, so the blind/sash
 // bands fall across the floor and desk. A soft indirect bounce reaches the rest of the room.

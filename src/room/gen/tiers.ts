@@ -29,7 +29,7 @@ export const GENERATED_TIERS: Readonly<Record<QualityTier, GeneratedTier>> = {
 
 /**
  * The finish's static lights, as the room's own code sets them (gen.test.ts holds these to atmosphere/tvLamp.ts,
- * toyRobot.ts and moods.ts): the opal lamp's intensity on its colour, and each mood's warmth on the lamps' pools.
+ * bulbLamp.ts and moods.ts): the opal lamp's intensity on its colour, and each mood's warmth on the lamps' pools.
  * Copies, because a runtime import of the room's modules from this lazy chunk would split them out of the room's.
  */
 export const TV_LAMP_INTENSITY = 0.14;

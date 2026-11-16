@@ -1,4 +1,4 @@
-import { place, type Rgb, type Ring, type Vec3 } from '../kit/builder';
+import { place, type Rgb, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
@@ -10,6 +10,7 @@ import { monitor } from './monitor';
 import { mouse } from './mouse';
 import { tower } from './tower';
 import { GROUP, PAGE, type Prop } from './types';
+import { wireBasket } from './wireBasket';
 
 const WHITE: Rgb = [0.62, 0.6, 0.57];
 
@@ -75,43 +76,15 @@ export const chair: Prop = {
   },
 };
 
-/** The wire wastepaper basket by the wall and its eighteen crumpled sheets: fifteen inside, three on the floor. */
+/** The wire wastepaper basket by the wall (wireBasket.ts) and its eighteen crumpled sheets (fifteen inside, three on the floor) and one flat sheet beside it. */
 export const basket: Prop = {
   name: 'basket',
-  budget: 4200,
+  budget: 6600,
   build(sink) {
     const b = sink.mesh('desk');
-    const wire: Rgb = [0.1, 0.13, 0.2];
     const paper: Rgb = [0.3, 0.3, 0.29];
     const centre: Vec3 = [-2.47, 0.006, -1.48];
-    const radius = (y: number) => 0.132 + (y / 0.34) * 0.03;
-    b.cylinder(centre, [centre[0], 0.031, centre[2]], 0.13, 0.132, 24, wire, 1);
-    for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2;
-      const at = (y: number): Vec3 => [
-        centre[0] + Math.cos(angle) * radius(y),
-        y,
-        centre[2] + Math.sin(angle) * radius(y),
-      ];
-      b.cylinder(at(0.023), at(0.344), 0.003, 0.003, 4, wire, 1, false);
-    }
-    for (const y of [0.093, 0.194, 0.303, 0.344]) {
-      const ring = (r: number, h: number): Ring =>
-        Array.from(
-          { length: 24 },
-          (_, i): Vec3 => [
-            centre[0] + Math.cos((i / 24) * Math.PI * 2) * r,
-            h,
-            centre[2] + Math.sin((i / 24) * Math.PI * 2) * r,
-          ],
-        );
-      b.loft(
-        ring(radius(y) + 0.004, y - 0.003),
-        ring(radius(y) + 0.004, y + 0.003),
-        { from: [centre[0], y, centre[2]] },
-        wire,
-      );
-    }
+    wireBasket(b, centre, sink.detail);
     const random = seeded(18);
     for (let i = 0; i < 15; i++) {
       const layer = i < 6 ? 0 : i < 12 ? 1 : 2;
@@ -133,13 +106,8 @@ export const basket: Prop = {
       [-1.95, -0.6, 17],
     ] as const)
       b.blob([x, 0.05, z], 0.042, 10, 0.22, i, paper);
-    // Four printed sheets lying on the boards, a chart each so the blind's stripes cross them.
-    for (const [x, z] of [
-      [-2.41, -0.97],
-      [-2.08, -0.36],
-      [-1.77, -0.12],
-      [-2.44, -0.09],
-    ] as const)
+    // One printed sheet lying on the boards by the basket (the room had four; the three further off are gone), a chart each so the blind's stripes cross them.
+    for (const [x, z] of [[-2.41, -0.97]] as const)
       sink.chart({
         page: PAGE.floor,
         group: GROUP.floor,

@@ -10,12 +10,13 @@ import type { RoomStats } from '../src/room/createRoom';
  *  1. the generated room's vertex-lit meshes: the TV set, the monitor, the props, the desk corner, the CD player's
  *     parts;
  *  2. its charts, a baked page each: the cabinet, the walls, the floor, the rug, the desk, the dresser;
- *  3. plain colour: the opal lamp's globe and the robot's eyes, the TV's dark glass and the LEDs' lenses;
+ *  3. plain colour: the opal lamp's globe and the bare bulb's filament, the TV's dark glass and the LEDs' lenses;
  *  4. its prints (a map tinted by vertex colours, blended);
  *  5. the view outside the window (a map on a plate without normals, so not program 2);
  *  6. the lava lamp's wax (vertex colours, no normals; the desk's pick meshes, never drawn, land on it too);
  *  7. the lava lamp's glass, back faces, and
- *  8. its front faces (a double-sided blended material draws in two passes, a program each);
+ *  8. its front faces (a double-sided blended material draws in two passes, a program each); the bare bulb's glass, a
+ *     film of light of the same kind with front faces only, draws with this one;
  *  9. the CRT;
  * 10. the TV's light on the surfaces around it (ScreenGlow);
  * 11. the LEDs' halo;
@@ -51,7 +52,7 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
  *  - four of its own: the lamps' halation, the highlight extraction, the composition and the dust;
  *  - the monitor's display mask (its picture drawn with alpha 0, so no longer the charts' program);
  *  - the varnish splits two of the room's programs, since only surfaces named for the finish take it (RoomGloss):
- *    the globe and the eyes leave the glass and the lenses (program 3), and the desk's pick meshes, which share the
+ *    the globe and the filament leave the glass and the lenses (program 3), and the desk's pick meshes, which share the
  *    desk props' varnished material but have no normals, leave the wax (program 6). The second is a program nothing ever
  *    draws: `renderer.compile` prepares invisible meshes too.
  */

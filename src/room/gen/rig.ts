@@ -6,9 +6,8 @@ import type { Rgb, Vec3 } from './kit/builder';
  * (soft shadows by accumulation), into the room's light maps and vertex colours (bake/Baker.ts).
  *
  * `scene` lights are the room's own, in scene-linear light under the bake's display curve. `finish` lights are the two
- * small practicals the room's finish used to add to every pixel of every frame (atmosphere/tvLamp.ts, toyRobot.ts): the
- * opal lamp and the toy robot's eyes. They never move, so here they are baked, with real shadows, in the finish's own
- * terms, and leave the per-frame shader.
+ * small practicals on the TV cabinet, in the finish's own terms (atmosphere/tvLamp.ts, bulbLamp.ts): the opal lamp and
+ * the dimmed bare bulb. They never move, so they are baked, with real shadows, and cost a frame nothing.
  */
 export interface RigLight {
   readonly name: string;
@@ -56,18 +55,10 @@ export interface RigLight {
   readonly through?: number;
 }
 
-/** The opal lamp's globe and the robot's eyes, as the shipped room places them (room.glb › userData.light). */
+/** The opal lamp's globe, as the shipped room places it (room.glb › userData.light). */
 export const TV_LAMP = { center: [2.33, 0.6014, 0.46] as Vec3, radius: 0.08 };
-export const ROBOT = {
-  eyes: [
-    [2.549, 0.7517, -0.877],
-    [2.5543, 0.7517, -0.8506],
-  ] as readonly [Vec3, Vec3],
-  facing: [-0.9067, 0, 0.4218] as Vec3,
-  aim: [-0.7427, -0.5736, 0.3455] as Vec3,
-  origin: [2.58, 0.486, -0.87] as Vec3,
-  yaw: 0.5236,
-};
+/** The bare-bulb lamp on the cabinet's left-hand end: where its base stands, and the middle of its filament. */
+export const BULB = { origin: [2.31, 0.486, -0.84] as Vec3, filament: [2.31, 0.666, -0.84] as Vec3 };
 
 /** Where the night's light comes from: outside the window, above it and a little to its right. */
 const MOON: Vec3 = [-1.25, 2.65, -3.4];
@@ -234,8 +225,8 @@ export const RIG: readonly RigLight[] = [
     wrap: 0.1,
     casters: 'local',
   },
-  // And what of it crosses the room to the cabinet's near end: the dim red on the robot, the cabinet's top and the knee
-  // wall beside them. A fill (nothing shadows it), since a lamp this small would draw the dresser's edge hard on the
+  // And what of it crosses the room to the cabinet's near end: the dim red on the cabinet's top and the knee wall
+  // beside it. A fill (nothing shadows it), since a lamp this small would draw the dresser's edge hard on the
   // wall beside it, which the room does not show.
   {
     name: 'lava-spill',
@@ -373,24 +364,24 @@ export const RIG: readonly RigLight[] = [
     wrap: 0.1,
     casters: 'local',
   },
-  // The toy robot's eyes: two torch bulbs behind lenses, as atmosphere/toyRobot.ts drew them every frame.
-  ...ROBOT.eyes.map(
-    (eye, index): RigLight => ({
-      name: `eye-${index}`,
-      kind: 'spot',
-      space: 'finish',
-      position: eye,
-      target: [eye[0] + ROBOT.aim[0], eye[1] + ROBOT.aim[1], eye[2] + ROBOT.aim[2]],
-      // An eye's intensity against the lamp's (TOY_ROBOT_EYE_INTENSITY / TV_LAMP_INTENSITY): they share its colour.
-      color: [0.25, 0.25, 0.25],
-      size: 0.004,
-      samples: [3, 2],
-      cone: [1.2, 1.35],
-      soften: 0.0001,
-      reach: [0.9, 1.5],
-      wrap: 0,
-      beam: { aim: ROBOT.aim, cos: [0.55, 0.97], floor: 0.1, facing: ROBOT.facing },
-      casters: 'local',
-    }),
-  ),
+  // The bare bulb on the cabinet's other end, dimmed (atmosphere/bulbLamp.ts): a point of light a hand above the
+  // top, so the set's shadow is crisp. The lamp itself, its flex and its switch are inside `clear` and shade nothing
+  // of it: what its holder would shade lies under its own base, and a base's edge drawn on the top's few texels
+  // would be a ring of teeth around its foot.
+  {
+    name: 'bulb',
+    kind: 'omni',
+    space: 'finish',
+    position: BULB.filament,
+    target: BULB.filament,
+    // Its intensity against the opal lamp's (BULB_LAMP_INTENSITY / TV_LAMP_INTENSITY): they share its colour.
+    color: [0.6, 0.6, 0.6],
+    size: 0.006,
+    samples: [1, 1],
+    soften: 0.06,
+    reach: [1.0, 1.6],
+    wrap: 0,
+    casters: 'local',
+    clear: 0.185,
+  },
 ];

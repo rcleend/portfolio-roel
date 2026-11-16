@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { BULB_LAMP_INTENSITY } from '../atmosphere/bulbLamp';
 import { ROOM_MOODS } from '../atmosphere/moods';
-import { TOY_ROBOT_EYE_INTENSITY } from '../atmosphere/toyRobot';
 import { TV_LAMP_INTENSITY as ROOM_LAMP_INTENSITY } from '../atmosphere/tvLamp';
 import { QUALITY_TIERS } from '../stage/quality';
 import { rigViews } from './bake/Baker';
 import { BAKE_CELL, BLEED, chartMeshes, packCharts } from './kit/charts';
 import { hash2, hash32, seeded } from './kit/hash';
 import { LAVA } from './props/lavaLamp';
-import type { MeshName } from './props/types';
-import { RIG, ROBOT, TV_LAMP } from './rig';
-import { LAVA_BOUNDS, PC_SPEC, PICK_PROPS, ROBOT_SPEC, TV_LAMP_SPEC, TV_SPEC } from './roomSpec';
+import { FLOOR, type MeshName } from './props/types';
+import { BULB, RIG, TV_LAMP } from './rig';
+import { BULB_SPEC, LAVA_BOUNDS, PC_SPEC, PICK_PROPS, TV_LAMP_SPEC, TV_SPEC } from './roomSpec';
 import { buildScene, PROPS } from './scene';
 import { GENERATED_TIERS, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
 
@@ -89,8 +89,8 @@ describe('the bake', () => {
 
   it('keeps its copies of the finish in step with the room', () => {
     expect(TV_LAMP_INTENSITY).toBe(ROOM_LAMP_INTENSITY);
-    const eye = RIG.find((light) => light.name === 'eye-0');
-    expect(eye?.color[0]).toBeCloseTo(TOY_ROBOT_EYE_INTENSITY / ROOM_LAMP_INTENSITY, 6);
+    const bulb = RIG.find((light) => light.name === 'bulb');
+    expect(bulb?.color[0]).toBeCloseTo(BULB_LAMP_INTENSITY / ROOM_LAMP_INTENSITY, 6);
     expect(POOL_WARMTH.original).toBe(0);
     for (const mood of ['honey', 'rose', 'midnight'] as const)
       expect(POOL_WARMTH[mood]).toBe(ROOM_MOODS[mood].finish.warmth);
@@ -210,7 +210,7 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
   it('has the lamps where the rig lights from, and the lava lamp where it is built', () => {
     expect(TV_LAMP_SPEC.center).toEqual(TV_LAMP.center);
     expect(TV_LAMP_SPEC.radius).toBe(TV_LAMP.radius);
-    expect(ROBOT_SPEC.eyes).toEqual(ROBOT.eyes);
+    expect(BULB_SPEC.filament).toEqual(BULB.filament);
     expect(LAVA_BOUNDS).toEqual(LAVA.bounds);
     const globe = boundsOf(scene.meshes.globe.positions);
     for (let axis = 0; axis < 3; axis++)
@@ -218,6 +218,46 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
         TV_LAMP_SPEC.center[axis] as number,
         3,
       );
+    // The bulb's light comes from the middle of its filament, inside its glass.
+    const filament = boundsOf(scene.meshes.filament.positions);
+    const glass = boundsOf(scene.meshes.bulb.positions);
+    for (let axis = 0; axis < 3; axis++) {
+      expect(((filament.min[axis] as number) + (filament.max[axis] as number)) / 2).toBeCloseTo(
+        BULB_SPEC.filament[axis] as number,
+        2,
+      );
+      expect(filament.min[axis] as number).toBeGreaterThan(glass.min[axis] as number);
+      expect(filament.max[axis] as number).toBeLessThan(glass.max[axis] as number);
+    }
+  });
+
+  it("stands the bare-bulb lamp on the cabinet top, clear of the set, the wall and the top's edges", () => {
+    const lamp = scene.props.find((prop) => prop.name === 'bulb-lamp');
+    const [start, count] = lamp?.ranges.props ?? [0, 0];
+    const positions = scene.meshes.props.positions;
+    // What stands on the top: everything of it in front of the top's back edge (the flex drops behind it).
+    let foot = Infinity;
+    for (let vertex = start; vertex < start + count; vertex++) {
+      const [x, y, z] = [positions[vertex * 3], positions[vertex * 3 + 1], positions[vertex * 3 + 2]] as [
+        number,
+        number,
+        number,
+      ];
+      if (x > 2.69) {
+        // Behind the cabinet: between its back and the skirting, down to the boards.
+        expect(x).toBeLessThan(2.73);
+        expect(y).toBeGreaterThanOrEqual(FLOOR);
+        continue;
+      }
+      foot = Math.min(foot, y);
+      expect(y, `${x}, ${y}, ${z}`).toBeGreaterThanOrEqual(BULB.origin[1]);
+      expect(x).toBeGreaterThan(2.12);
+      expect(z).toBeGreaterThan(-1.125);
+      expect(z).toBeLessThan(TV_SPEC.bounds.min[2]);
+    }
+    // Its base rests on the top, and its glass ends under the set's own top.
+    expect(foot - BULB.origin[1]).toBeLessThan(0.001);
+    expect(boundsOf(scene.meshes.bulb.positions).max[1] as number).toBeLessThan(TV_SPEC.bounds.max[1]);
   });
 
   it('names props that exist for the pointer to pick', () => {

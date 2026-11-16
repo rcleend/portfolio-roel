@@ -103,9 +103,10 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     float pores = vnoise(vec2(g.x * 150.0, g.y * 1200.0));
     return params.rgb * (0.94 + 0.14 * streak - 0.09 * late) * (0.965 + 0.06 * pores);
   }
-  // The rug: flat-woven wool. A square's edge follows the knots, so it wanders a little; the pile is tufts (a knot
-  // each 3.4 mm), rows of weft where a texel can hold them, slow patches where it has been trodden, and the long
-  // strokes a brush leaves across it.
+  // The rug: wool pile. A square's edge follows the knots, so it wanders a little; the pile is tufts (a knot each
+  // 3.4 mm), rows of weft where a texel can hold them, slow patches where it has been trodden, and the strokes a brush
+  // and a vacuum cleaner left across it, two ways. Dark wool shows its nap far more than pale wool does: where the
+  // pile lies towards the eye it is near black, where it lies away it catches the room.
   float texel = max(fwidth(metres.x), fwidth(metres.y));
   vec2 knot = floor(metres / 0.0034);
   // A square's edge wanders a few millimetres along its length, and is a texel or two of mixed yarn across.
@@ -118,8 +119,14 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
   float rows = 1.0 - smoothstep(0.0022, 0.0034, texel);
   float trodden = fbm(metres * 19.0);
   float stroke = fbm(vec2(metres.x * 2.6, metres.y * 21.0) + 40.0);
-  float pile = 0.87 + 0.12 * tuft + 0.06 * rows * (weft - 0.5) + 0.3 * (trodden - 0.5) + 0.14 * (stroke - 0.5);
-  vec3 yarn = mix(vec3(0.6, 0.6, 0.63) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.012, 0.028, 0.1), navy);
-  return yarn * pile;
+  vec2 slant = vec2(metres.x + metres.y, metres.y - metres.x) * 0.7071;
+  float sweep = fbm(vec2(slant.x * 3.4, slant.y * 26.0) + 80.0);
+  float clump = vnoise(metres * 150.0);
+  float nap = 0.3 * (trodden - 0.5) * (1.0 + 1.5 * navy)
+    + (0.14 * (stroke - 0.5) + 0.12 * (sweep - 0.5)) * (1.0 + 3.0 * navy);
+  float pile = 0.87 + (0.12 * tuft + 0.07 * (clump - 0.5)) * (1.0 + 1.5 * navy)
+    + 0.06 * rows * (weft - 0.5) * (1.0 + 2.0 * navy) + nap;
+  vec3 yarn = mix(vec3(0.6, 0.6, 0.63) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.019, 0.034, 0.108), navy);
+  return yarn * max(pile, 0.3);
 }
 `;

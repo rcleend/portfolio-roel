@@ -2,7 +2,7 @@
  * The room's measurements as the room's own code needs them (docs/ROOM.md › The generated room): where the TV set, the
  * computer, the lamps and the view outside are, in world metres. Plain numbers and nothing else, like
  * `props/radioSpec.ts`, so the room's main thread reads them without the generators, and tests build their fixtures
- * from them. `gen.test.ts` holds the generators (props/tvSet.ts, deskCorner.ts, lampAndRobot.ts, rig.ts) to these.
+ * from them. `gen.test.ts` holds the generators (props/tvSet.ts, deskCorner.ts, cabinetLamps.ts, rig.ts) to these.
  */
 type Vec3 = readonly [number, number, number];
 interface Box {
@@ -56,14 +56,14 @@ export const TV_LAMP_SPEC = {
   glow: 2.8,
 } as const;
 
-/** The toy robot's eyes on the cabinet's other end: each eye's glass, the lamp's colour and the eyes' glow. */
-export const ROBOT_SPEC = {
-  eyes: [
-    [2.549, 0.7517, -0.877],
-    [2.5543, 0.7517, -0.8506],
-  ] as readonly [Vec3, Vec3],
-  color: [1, 0.72, 0.46] as Vec3,
-  glow: 1.1,
+/**
+ * The bare-bulb lamp on the cabinet's other end, dimmed: the middle of its filament, and the colour and glow the
+ * filament itself is drawn in (a dimmed lamp burns more orange than the opal globe).
+ */
+export const BULB_SPEC = {
+  filament: [2.31, 0.666, -0.84] as Vec3,
+  color: [1, 0.5, 0.2] as Vec3,
+  glow: 1.5,
 } as const;
 
 /** The lava lamp on the dresser, foot to cap: what its wax ticks for and the radio view keeps out of frame. */

@@ -20,17 +20,17 @@ import {
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
-import { ROBOT_SPEC, TV_LAMP_SPEC } from '../gen/roomSpec';
+import { BULB_SPEC, TV_LAMP_SPEC } from '../gen/roomSpec';
 import type { TierSettings } from '../stage/quality';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import { AirMotion } from './AirMotion';
+import { BULB_LAMP_HALO, BULB_LAMP_HALO_TINT } from './bulbLamp';
 import { ROOM_MOODS, type RoomAir, type RoomMood, SCREEN_FINISH_STRENGTH } from './moods';
 import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
-import { TOY_ROBOT_EYE_HALO } from './toyRobot';
 import { createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
@@ -49,8 +49,6 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
-/** The toy robot's eye halos: the lamp's colour × this, against the room lamps' warm halation tint (about 1). */
-const EYE_HALO_TINT = 0.8;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -259,11 +257,10 @@ export class RoomAtmosphere {
     this.quad = new Mesh(this.geometry, this.extract);
     this.quad.frustumCulled = false;
     this.passScene.add(this.quad);
-    // The practicals beside the TV, where the room's spec has them: the opal lamp's halo and one over each robot eye.
+    // The practicals beside the TV, where the room's spec has them: the opal lamp's halo and the bare bulb's.
     this.lamp.uTvLamp.value.fromArray(TV_LAMP_SPEC.center);
     this.halation.addLamp(TV_LAMP_SPEC.center, 0.32);
-    const tint = ROBOT_SPEC.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
-    for (const eye of ROBOT_SPEC.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
+    this.halation.addLamp(BULB_SPEC.filament, BULB_LAMP_HALO, BULB_LAMP_HALO_TINT);
   }
 
   attach(scene: Scene): void {

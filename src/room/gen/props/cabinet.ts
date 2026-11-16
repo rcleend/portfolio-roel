@@ -68,7 +68,7 @@ export const cabinet: Prop = {
   },
 };
 
-/** The three game cases: one lying on the cabinet top in front of the robot, two in the shelves. */
+/** The two game cases lying in the shelves. */
 function cases(sink: PropSink): void {
   const body: Rgb = [0.035, 0.04, 0.075];
   const lie = (min: Vec3, max: Vec3, art: readonly [number, number, number, number]) => {
@@ -86,7 +86,6 @@ function cases(sink: PropSink): void {
       v: [max[0] - min[0] - 0.006, 0, 0],
     });
   };
-  lie([2.21, 0.486, -0.935], [2.41, 0.5, -0.785], ART.coverEngineer);
   lie([2.215, 0.237, 0.192], [2.405, 0.251, 0.327], ART.coverKingdom);
   lie([2.213, 0.061, 0.25], [2.407, 0.075, 0.39], ART.coverBricks);
 }
