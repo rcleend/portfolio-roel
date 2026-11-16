@@ -2,6 +2,8 @@ import { place, type Rgb, type Ring, roundedRect, type Vec3 } from '../kit/build
 import { boxCharts, type Chart } from '../kit/charts';
 import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
+import { monitor } from './monitor';
+import { tower } from './tower';
 import { GROUP, PAGE, type Prop } from './types';
 
 const WHITE: Rgb = [0.62, 0.6, 0.57];
@@ -209,17 +211,13 @@ export const basket: Prop = {
   },
 };
 
-/** The tower under the desk and the lamp on it: a beige case with two drive bays, and a jointed arm lamp. */
+/** The tower under the desk (tower.ts) and the arm lamp on it. */
 export const towerAndLamp: Prop = {
   name: 'tower-and-desk-lamp',
-  budget: 1500,
+  budget: 4000,
   build(sink) {
     const b = sink.mesh('props');
-    b.roundedBox([-2.06, 0.036, -2.19], [-1.84, 0.586, -1.77], 0.006, BEIGE, 1, 1, 2);
-    b.roundedBox([-2.063, 0.031, -1.779], [-1.837, 0.591, -1.741], 0.008, BEIGE, 1, 2, 2);
-    for (const y of [0.466, 0.401]) b.box([-2.04, y, -1.741], [-1.86, y + 0.05, -1.732], BEIGE_DARK, 0.8, ['-z']);
-    b.box([-2.025, 0.345, -1.741], [-1.875, 0.377, -1.733], BEIGE_DARK, 0.8, ['-z']);
-    b.cylinder([-1.892, 0.3, -1.741], [-1.892, 0.3, -1.735], 0.009, 0.009, 12, BEIGE_DARK, 1);
+    tower(sink);
     // The lamp: a weighted foot, two arms on spring joints and a cone shade tipped down at the desk.
     const metal: Rgb = [0.03, 0.035, 0.05];
     const foot: Vec3 = [-2.085, 0.785, -2.035];
@@ -255,55 +253,13 @@ export const towerAndLamp: Prop = {
   },
 };
 
-/**
- * The beige desktop set: the CRT monitor on its swivel foot (its glass keeps the shipped screen's contract), the
- * two-tone keyboard with every key, and the wheel mouse. It faces +z.
- */
+/** The desktop set: the CRT monitor (monitor.ts), the keyboard and the mouse. It faces +z. */
 export const desktop: Prop = {
   name: 'desktop',
-  budget: 4200,
+  budget: 9000,
   build(sink) {
     const b = sink.mesh('props');
-    const face = -1.662;
-    const screen = { x0: -1.518, x1: -1.162, y0: 0.929, y1: 1.213 };
-    const axis: Vec3 = [-1.34, 1.06, -1.9];
-    const ring = (z: number, x0: number, x1: number, y0: number, y1: number, r: number): Ring =>
-      roundedRect(x0, x1, y0, y1, r, 4).map(([x, y]): Vec3 => [x, y, z]);
-    const outward = { from: axis };
-    // The foot: three stacked discs.
-    b.lathe(
-      [-1.34, 0.785, -1.86],
-      [0, 1, 0],
-      [
-        [0, 0],
-        [0.132, 0],
-        [0.139, 0.012],
-        [0.139, 0.022],
-        [0.1, 0.03],
-        [0.07, 0.075],
-        [0, 0.075],
-      ],
-      28,
-      BEIGE,
-    );
-    // The bezel: from the glass's rim forward to the face, then back along the case as it tapers to the tube's neck.
-    const lipIn = ring(-1.672, screen.x0, screen.x1, screen.y0, screen.y1, 0.012);
-    const lipOut = ring(face, screen.x0 - 0.016, screen.x1 + 0.016, screen.y0 - 0.016, screen.y1 + 0.016, 0.02);
-    const faceOut = ring(face, -1.562, -1.118, 0.866, 1.26, 0.022);
-    b.loft(lipIn, lipOut, { towards: [-1.34, 1.07, -1.2] }, BEIGE_DARK, 0.7);
-    b.loft(lipOut, faceOut, { along: [0, 0, 1] }, BEIGE);
-    const rings = [
-      ring(face - 0.008, -1.57, -1.11, 0.858, 1.268, 0.028),
-      ring(-1.7, -1.57, -1.11, 0.858, 1.268, 0.03),
-      ring(-1.76, -1.552, -1.128, 0.872, 1.25, 0.04),
-      ring(-2.0, -1.5, -1.18, 0.9, 1.19, 0.05),
-      ring(-2.085, -1.45, -1.23, 0.93, 1.15, 0.04),
-    ];
-    b.loft(faceOut, rings[0] as Ring, outward, BEIGE);
-    for (let i = 0; i + 1 < rings.length; i++) b.loft(rings[i] as Ring, rings[i + 1] as Ring, outward, BEIGE);
-    b.cap(rings[rings.length - 1] as Ring, [0, 0, -1], BEIGE);
-    for (const x of [-1.485, -1.454, -1.423, -1.392, -1.276, -1.246])
-      b.box([x - 0.008, 0.874, face], [x + 0.008, 0.886, face + 0.004], BEIGE_DARK, 1, ['-z']);
+    monitor(sink);
     // The keyboard: a sloped tray and six rows of keys, the outer blocks in the darker tone.
     const tilt = Math.atan2(0.02, 0.2);
     b.placed(place([-1.345, 0.785, -1.505], 0, tilt), () => {
