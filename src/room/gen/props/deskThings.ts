@@ -13,7 +13,7 @@ const BISCUIT: Rgb = [0.36, 0.2, 0.08];
  * of paper, a mug of coffee with its handle, a cup of pencils behind the books, and a plate of three biscuits.
  */
 export function deskThings(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   // The mat under the mouse: foam under blue cloth, its corners rounded.
   slab(
@@ -193,7 +193,7 @@ export function deskThings(sink: PropSink): void {
 
 /** A drawer's pull: a lip moulded along the front, to hook fingers under. */
 export function pull(sink: PropSink, x0: number, x1: number, y: number, face: number): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const enamel: Tone = (point) => mottled([0.62, 0.6, 0.57], point, 0.04, 0.05, 79);
   // A wedge: full depth along its top, drawn back underneath.
   const sections: Ring[] = [];

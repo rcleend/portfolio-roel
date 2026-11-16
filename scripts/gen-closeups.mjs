@@ -242,7 +242,7 @@ try {
         const c = (v / (v + 0.6)) * 1.25;
         return c + (c * c * (3 - 2 * c) - c) * 0.35;
       };
-      for (const name of ['props', 'tv']) {
+      for (const name of ['props', 'desk', 'tv']) {
         const mesh = room.displays[name];
         const data = room.gen.meshes[name];
         const colors = mesh.geometry.getAttribute('color');

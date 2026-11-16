@@ -33,7 +33,7 @@ const LEAN = [-0.13, -0.085, -0.03, 0.03, 0.085, 0.085] as const;
  * row leaning its own way — with their legends printed on them, and the three lock lamps over the number pad.
  */
 export function keyboard(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
 
   // The case: up from the desk, over its eased rim, across the top, down into the well.
@@ -133,7 +133,7 @@ export function keyboard(sink: PropSink): void {
 
 /** One cap: a tapered foot, a bevelled rim and a top dished across, leaning as its row does, and its legend. */
 function cap(sink: PropSink, key: Key, index: number): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const fine = detail >= 0.8;
   const base = key.alt ? CAP_ALT : CAP;

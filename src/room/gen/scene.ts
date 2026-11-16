@@ -69,7 +69,8 @@ export interface GenScene {
   readonly buildMs: number;
 }
 
-const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES];
+// 'desk' is last: the bake's colours follow this order, and the meshes before it keep their places in them.
+const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES, 'desk'];
 
 /** Runs every prop's generator; pure, so it runs the same in a worker, on the main thread and in tests. */
 export function buildScene(request: GenRequest, now: () => number = () => performance.now()): GenScene {

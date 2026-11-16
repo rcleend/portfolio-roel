@@ -34,7 +34,7 @@ const zinc: Tone = (point) => mottled(ZINC, point, 0.12, 0.004, 42);
  * inside, over its bulb.
  */
 export function deskLamp(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
 
   // The foot: a flange, the weight with a chamfered shoulder, and a dish sunk in its top.

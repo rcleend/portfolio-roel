@@ -21,7 +21,7 @@ const at = (across: number, up: number, out: number): Vec3 => [X + across, up - 
  * its ring, two lamps, a louvred grille and four feet. It faces +z.
  */
 export function tower(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const steel: Tone = (point) => aged(tint(REAR, 1.04), point, 31);
   const moulded: Tone = (point) => aged(IVORY, point, 32);

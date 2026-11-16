@@ -20,6 +20,9 @@ export type MeshName =
   | 'globe'
   | 'eyes'
   | 'glass'
+  // The desk corner's props: a mesh of their own, small enough about the desk that the frustum of a view looking
+  // away from it (the TV's) leaves it out.
+  | 'desk'
   // The CD player's body and the parts its deck moves or hides (props/radio.ts).
   | 'radio'
   | 'radioLid'

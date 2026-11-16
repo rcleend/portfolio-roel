@@ -35,7 +35,7 @@ const at = (across: number, up: number, back: number): Vec3 => [X + across, up, 
  * the power key. It faces +z; its glass keeps the shipped screen's contract (the aperture is 0.356 m × 0.284 m).
  */
 export function monitor(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const span = (p: readonly number[], q: readonly number[]): number =>
     Math.hypot((q[0] as number) - (p[0] as number), (q[3] as number) - (p[3] as number));

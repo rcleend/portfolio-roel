@@ -45,7 +45,7 @@ const back = (across: number, v: number): Vec3 => {
  * its slot. It stands on its mat and points at the monitor.
  */
 export function mouse(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const rows = segments(26, detail, 12);
   const columns = segments(18, detail, 8) & ~1;

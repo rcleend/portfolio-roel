@@ -32,7 +32,7 @@ export const desk: Prop = {
   budget: 4200,
   build(sink) {
     seed = 0;
-    const b = sink.mesh('props');
+    const b = sink.mesh('desk');
     sink.chart(...boxCharts([-2.225, 0.767, -2.29], [-0.375, 0.785, -1.366], enamel(WHITE, 420)));
     // The drawer unit, its three fronts and their pulls.
     sink.chart(...boxCharts([-1.033, 0.006, -2.265], [-0.414, 0.767, -1.412], enamel(), ['+y']));
@@ -80,7 +80,7 @@ export const basket: Prop = {
   name: 'basket',
   budget: 4200,
   build(sink) {
-    const b = sink.mesh('props');
+    const b = sink.mesh('desk');
     const wire: Rgb = [0.1, 0.13, 0.2];
     const paper: Rgb = [0.3, 0.3, 0.29];
     const centre: Vec3 = [-2.47, 0.006, -1.48];

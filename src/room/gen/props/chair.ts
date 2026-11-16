@@ -56,7 +56,7 @@ function oblong(halfX: number, front: number, back: number, power: number, count
  * telescoping lift over its steel piston, and a five-star base on twin-wheel casters.
  */
 export function swivelChair(sink: PropSink): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const fine = detail >= 0.8;
   b.placed(place(SEAT, YAW), () => {
@@ -90,7 +90,7 @@ export function swivelChair(sink: PropSink): void {
     lid(b, seat[0] as Ring, 2, nylon, { along: [0, -1, 0] });
     // The top, sat in: a shallow dip towards the back of the middle.
     const crown = seat[seat.length - 1] as Ring;
-    const steps = segments(5, detail, 2);
+    const steps = segments(8, detail, 3);
     const top: Ring[] = [];
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
@@ -344,7 +344,7 @@ export function swivelChair(sink: PropSink): void {
 
 /** A twin-wheel caster under an arm's tip at `foot` (on the floor), trailing along `turn`. */
 function caster(sink: PropSink, foot: Vec3, turn: number): void {
-  const b = sink.mesh('props');
+  const b = sink.mesh('desk');
   const { detail } = sink;
   const floor = 0.006;
   // The swivel pin up into the arm.

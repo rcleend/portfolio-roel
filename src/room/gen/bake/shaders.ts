@@ -18,6 +18,8 @@ void main() {
   vNormal = normal;
   vShade = shade;
   gl_Position = vec4(clip, 0.0, 1.0);
+  // The props' vertices are drawn as points, a texel each.
+  gl_PointSize = 1.0;
 }
 `;
 
@@ -179,6 +181,7 @@ void main() {
   vWorld = position;
   vAlbedo = albedo;
   gl_Position = vec4(clip, 0.0, 1.0);
+  gl_PointSize = 1.0;
 }
 `;
 

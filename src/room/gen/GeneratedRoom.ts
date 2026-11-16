@@ -130,7 +130,7 @@ export class GeneratedRoom {
   private disposed = false;
   private stopFrames: (() => void) | null = null;
   private stopCanvas: (() => void) | null = null;
-  private displays: { tv: Mesh; props: Mesh; charts: Map<number, Mesh> } | null = null;
+  private displays: { tv: Mesh; props: Mesh; desk: Mesh; charts: Map<number, Mesh> } | null = null;
   private lava: LavaWax | null = null;
   private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
@@ -280,6 +280,8 @@ export class GeneratedRoom {
     };
     const tv = vertexLit(gen.meshes.tv, 'device_tv_front_BAKED_UNLIT');
     const props = vertexLit(gen.meshes.props, '01_TV_props_BAKED_UNLIT');
+    // The desk corner's props: their own mesh, culled by the frustum of a view that looks away from the desk.
+    const desk = vertexLit(gen.meshes.desk, '02_Desk_props_BAKED_UNLIT');
     // Light itself: the globe and the eyes are drawn as the shipped ones were, in the colour the room's lamp carries.
     const emitter = (data: GenScene['meshes']['tv'], name: string, color: readonly number[] | null): Mesh => {
       const geometry = new k.BufferGeometry();
@@ -383,9 +385,9 @@ export class GeneratedRoom {
     // The set joins the shipped set's own node: the spotlight glows and bounces what is under it.
     tv.visible = false;
     context.tv.add(tv);
-    this.group.add(props, globe, eyes, decals, ...charts.values());
+    this.group.add(props, desk, globe, eyes, decals, ...charts.values());
     context.stage.scene.add(this.group);
-    this.displays = { tv, props, charts };
+    this.displays = { tv, props, desk, charts };
     this.tagCasters();
     // The finish takes the new materials in (RoomGloss.attach); nothing is drawn with them yet.
     context.stage.attachAtmosphere();
@@ -557,6 +559,12 @@ export class GeneratedRoom {
       offset += count;
     }
     this.radioParts?.light(result.colors);
+    // The desk's mesh is the last in the bake's colours (scene.ts › MESHES).
+    const deskColors = displays.desk.geometry.getAttribute('color');
+    (deskColors.array as Float32Array).set(
+      result.colors.subarray(result.colors.length - gen.meshes.desk.positions.length),
+    );
+    deskColors.needsUpdate = true;
     for (const mesh of displays.charts.values()) {
       const material = mesh.material as MeshBasicMaterial;
       material.map = result.pages[material.userData.page as number] ?? null;
