@@ -112,72 +112,61 @@
       </main>
     </noscript>
     <!--
-      The startup still (docs/ROOM.md › Startup): the room's own TV view, rendered by scripts/capture-tv-stills.mjs at
-      one viewport per framing and placed here as the room will frame it (room/tv/tvFraming.ts), so it is the first
-      picture on the page, before any script. The app lays the game's picture into it and fades it out as the live
-      room takes over. Each framing's lengths are the capture's, in units of its container (the viewport):
-      - set (landscape, tall enough for the whole set): fitted to the height and centred; 1440 × 608 at capture.
-      - landscape (a phone on its side): the picture fills the height between the pad's clusters; 900 × 390.
-      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height); 390 × 900.
+      The startup still (docs/ROOM.md › Startup): the room's TV view drawn in CSS, placed as the room will frame it
+      (room/tv/tvFraming.ts), so it is the first picture on the page, before any script and without a request. The app
+      lays the game's picture into it and fades it out as the live room takes over. The set at night is three boxes
+      around the picture (its casing, the lip round the glass, the cabinet's top); each framing's lengths are the
+      live picture's (`__tvPicture()` in development), in units of the still's container (the viewport):
+      - set (landscape, tall enough for the whole set): fitted to the height and centred.
+      - landscape (a phone on its side): the picture fills the height between the pad's clusters.
+      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height).
     -->
-    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true">
-      <picture>
-        <source media="(orientation: portrait)" srcset="/startup/tv-portrait.webp" />
-        <source media="(max-height: 544.98px)" srcset="/startup/tv-landscape.webp" />
-        <img class="tv-still__image" src="/startup/tv-desktop.webp" alt="" fetchpriority="high" />
-      </picture>
-    </div>
-    <script>
-      // The generated room (docs/ROOM.md › The generated room): its startup still is drawn below, not fetched.
-      if (/[?&]room=generated(&|$)/.test(location.search)) {
-        const still = document.getElementById("tv-still");
-        still.className += " tv-still--drawn";
-        still.innerHTML = "<i></i>";
-      }
-    </script>
+    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true"><i></i></div>
     <style>
-      /* The set at night as three boxes around the picture: its casing, the lip round the glass, the cabinet's top. */
-      .tv-still--drawn {
-        background: linear-gradient(#130e1a 60%, #181019);
-      }
-      .tv-still--drawn i,
-      .tv-still--drawn i::before,
-      .tv-still--drawn::after {
+      .tv-still i,
+      .tv-still i::before,
+      .tv-still::after {
         position: absolute;
         content: "";
       }
-      .tv-still--drawn::after {
-        top: calc(var(--picture-top) + var(--picture-height) * 1.16);
+      .tv-still::after {
+        top: calc(var(--picture-top) + var(--picture-height) * 1.136);
         right: 0;
         bottom: 0;
         left: 0;
-        background: linear-gradient(#22161f, #2e1d28 70%, #1a1118 71%);
+        background: linear-gradient(
+          #23131a,
+          #41262d calc(var(--picture-height) * 0.04),
+          #765250 calc(var(--picture-height) * 0.2),
+          #553942 calc(var(--picture-height) * 0.326),
+          #2c1926 calc(var(--picture-height) * 0.33)
+        );
       }
-      .tv-still--drawn i {
+      .tv-still i {
         z-index: 1;
-        top: calc(var(--picture-top) - var(--picture-height) * 0.152);
-        left: calc(var(--picture-left) - var(--picture-width) * 0.111);
-        width: calc(var(--picture-width) * 1.231);
-        height: calc(var(--picture-height) * 1.465);
+        top: calc(var(--picture-top) - var(--picture-height) * 0.148);
+        left: calc(var(--picture-left) - var(--picture-width) * 0.115);
+        width: calc(var(--picture-width) * 1.23);
+        height: calc(var(--picture-height) * 1.451);
         border-radius: calc(var(--picture-width) * 0.03);
-        background: #050408;
-        box-shadow: 0 calc(var(--picture-height) * 0.08) 0 calc(var(--picture-width) * -0.085) #030305;
+        background: #080409;
+        box-shadow: 0 calc(var(--picture-height) * 0.24) 0 calc(var(--picture-width) * -0.0937) #030103;
       }
-      .tv-still--drawn i::before {
-        top: 7.4%;
-        left: 7.1%;
-        width: 85.2%;
-        height: 74.8%;
-        border-radius: calc(var(--picture-width) * 0.035);
-        background: #000;
-        box-shadow: 0 0 0 calc(var(--picture-width) * 0.004) #16131d;
+      .tv-still i::before {
+        top: 6.25%;
+        left: 6.76%;
+        width: 86.5%;
+        height: 76.9%;
+        border-radius: calc(var(--picture-width) * 0.03);
+        background: #0d0f11;
+        box-shadow: 0 0 0 calc(var(--picture-width) * 0.0106) #362836;
       }
       .tv-still {
         position: fixed;
         inset: 0;
         z-index: 5;
         overflow: hidden;
-        background: #0c0a14;
+        background: linear-gradient(90deg, #120b17, #1b111e 45%, #3d2a38);
         container-type: size;
         pointer-events: none;
         transition: opacity 400ms ease, visibility 0s 400ms;
@@ -190,14 +179,6 @@
         opacity: 0;
         visibility: hidden;
       }
-      .tv-still__image {
-        position: absolute;
-        top: 0;
-        left: calc(50cqw - 118.421cqh);
-        display: block;
-        height: 100cqh;
-        user-select: none;
-      }
       @media (orientation: landscape) and (max-height: 544.98px) {
         .tv-still {
           --picture-left: calc(50cqw - 71.423cqh);
@@ -205,23 +186,20 @@
           --picture-width: 133.615cqh;
           --picture-height: 99.8cqh;
         }
-        .tv-still__image {
-          left: calc(50cqw - 115.385cqh);
-        }
       }
       @media (orientation: portrait) {
         .tv-still {
           --pad: 0px;
+          background: #170e19;
           --picture-left: 0.1cqw;
           --picture-top: calc(50cqh - var(--pad) / 2 - 37.556cqw);
           --picture-width: 99.8cqw;
           --picture-height: 75.113cqw;
         }
-        .tv-still__image {
-          top: calc(50cqh - var(--pad) / 2 - 86.154cqw);
-          left: 0;
-          width: 100cqw;
-          height: auto;
+        /* From closer and lower the cabinet's top is an edge under the set's plinth, its front below. */
+        .tv-still::after {
+          top: calc(var(--picture-top) + var(--picture-height) * 1.42);
+          background: linear-gradient(#3b2539, #2e1c2c 8px);
         }
       }
       @media (orientation: portrait) and (pointer: coarse) {

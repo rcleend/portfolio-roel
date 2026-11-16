@@ -1,8 +1,10 @@
 import {
   AdditiveBlending,
+  Box3,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  Color,
   CustomBlending,
   DepthTexture,
   DoubleSide,
@@ -20,6 +22,7 @@ import {
   Points,
   Scene,
   ShaderMaterial,
+  Sphere,
   SRGBColorSpace,
   UnsignedByteType,
   UnsignedIntType,
@@ -33,14 +36,16 @@ import { QUIET } from '../stage/IdleWork';
 
 /**
  * The three.js the lazy generated room builds and bakes with, all of it already in the room's chunk, handed over
- * rather than imported (posterKit.ts says why). Everything under gen/ but this file and GeneratedSlot.ts imports types
- * only; scripts/bundle-report.mjs's generatedRoom row (three: 'room') holds it to that.
+ * rather than imported (posterKit.ts says why). Everything under gen/ but this file imports types
+ * only; scripts/bundle-report.mjs holds the worker and the roomBuilder chunk to that (no three.js in either).
  */
 export const genKit = {
   AdditiveBlending,
+  Box3,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  Color,
   CustomBlending,
   DepthTexture,
   DoubleSide,
@@ -58,6 +63,7 @@ export const genKit = {
   Points,
   Scene,
   ShaderMaterial,
+  Sphere,
   SRGBColorSpace,
   UnsignedByteType,
   UnsignedIntType,

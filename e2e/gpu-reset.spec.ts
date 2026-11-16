@@ -190,3 +190,48 @@ test('the discs keep their prints after the GPU process restarts', async ({ play
     await browser.close();
   }
 });
+
+test('the room is lit again after the GPU process restarts, the startup still over it meanwhile', async ({
+  playwright,
+}) => {
+  const { browser, page } = await launch(playwright);
+  try {
+    // The whole room is baked, the visitor has pressed (the still has gone) and the game rests on one frame.
+    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    await pauseOnCharacterSelect(page);
+    await page.evaluate(() => window.__arcade?.pause());
+    await page.waitForTimeout(600);
+    // The wall beside the set and the cabinet's top under the robot: baked surfaces, lit by the bake alone.
+    const wall: Clip = { x: 60, y: 120, width: 120, height: 120 };
+    const cabinet: Clip = { x: 200, y: 800, width: 100, height: 40 };
+    const before = { wall: await look(page, wall), cabinet: await look(page, cabinet) };
+    expect(before.wall.brightness).toBeGreaterThan(8);
+    await page.evaluate(() => {
+      const still = document.getElementById('tv-still');
+      const log: string[] = [];
+      (window as unknown as { __stillLog: string[] }).__stillLog = log;
+      if (still) new MutationObserver(() => log.push(still.dataset.shown ?? '')).observe(still, { attributes: true });
+      window.__room?.onShownChange((shown) => log.push(shown ? 'lit' : 'lost'));
+    });
+    await crashGpu(browser, page);
+    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    // The room lost its light, the still covered it, the room was lit again and the still went: in that order.
+    const log = await page.evaluate(() => (window as unknown as { __stillLog: string[] }).__stillLog);
+    expect(log.filter((entry, index) => entry !== log[index - 1])).toEqual(['lost', 'true', 'lit', 'false']);
+    // The same light as before: neither darker nor missing.
+    await page.waitForTimeout(800);
+    for (const [name, clip] of [
+      ['wall', wall],
+      ['cabinet', cabinet],
+    ] as const) {
+      const after = await look(page, clip);
+      expect(after.brightness, name).toBeGreaterThan(before[name].brightness * 0.95);
+      expect(after.brightness, name).toBeLessThan(before[name].brightness * 1.05);
+    }
+  } finally {
+    await browser.close();
+  }
+});

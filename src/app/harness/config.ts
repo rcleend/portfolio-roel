@@ -14,7 +14,7 @@ export interface HarnessConfig {
   readonly frames: number | null;
   /** Which look each hero, the customer and each skill is drawn in, e.g. `{"customer":"hibit"}`. */
   readonly looks: LookSelectionInput | null;
-  /** `?capture`: the TV view with its tube dark and no UI, for the startup stills (scripts/capture-tv-stills.mjs). */
+  /** `?capture`: the TV view with its tube dark and no UI, to compare with the CSS-drawn startup still (index.html). */
   readonly capture: boolean;
 }
 

@@ -1,7 +1,3 @@
-import { join } from 'node:path';
-import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { MeshoptDecoder } from 'meshoptimizer';
 import { Box3, MathUtils, Mesh, PlaneGeometry, Triangle, Vector2, Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Viewpoint } from '../camera/cameraPath';
@@ -16,17 +12,13 @@ const PAD_BOTTOM = { top: 0, right: 0, bottom: 194, left: 0 };
 const PAD_SIDES = { top: 0, right: 174, bottom: 0, left: 138 };
 const NONE = { top: 0, right: 0, bottom: 0, left: 0 };
 
-/** The shipped TV: its glass, its picture's content rect and what the camera frames. */
+/** The TV: its glass, its picture's content rect and what the camera frames. */
 let glass: Mesh;
 let content: UvRect;
 let tv: TvFramingModel;
 
-beforeAll(async () => {
-  await MeshoptDecoder.ready;
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
-  ({ glass, content, framing: tv } = tvFixture(await io.read(join(process.cwd(), 'public/room/tv-high.glb'))));
+beforeAll(() => {
+  ({ glass, content, framing: tv } = tvFixture());
 });
 
 /** The picture's edge on the glass every 1/400 of each side, by brute force: the oracle for the traced outline. */

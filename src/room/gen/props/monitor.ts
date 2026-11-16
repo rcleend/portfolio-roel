@@ -79,13 +79,11 @@ export function monitor(sink: PropSink): void {
     if (lidSteps)
       lid(b, rings[rings.length - 1] as Ring, lidSteps, (point) => aged(REAR, point), { along: [0, 0, -1] });
   };
-  // The bezel plate: from the mask behind the glass's rim, up the recess, over the face and its rounded rim, along
-  // its side, and in behind it to the seam.
+  // The bezel plate: from the glass's own rectangle, just in front of its rim, up the recess, over the face and its
+  // rounded rim, along its side, and in behind it to the seam.
   housing(
     [
-      [0.168, 0.132, GLASS, 0.0225, 0.008, 0.02, 0],
-      [0.178, 0.142, GLASS, 0.019, 0.012, 0.03, 0],
-      [0.1783, 0.1423, GLASS, 0.0183, 0.012, 0.42, 0],
+      [0.178, 0.142, GLASS, 0.0186, 0.012, 0.3, 0],
       [0.1812, 0.1452, GLASS, 0.0095, 0.0135, 0.62, 0],
       [0.184, 0.148, GLASS, 0.001, 0.015, 0.94, 0],
       [0.2265, 0.2015, CENTRE, 0, 0.0105, 1, 0],
@@ -94,7 +92,7 @@ export function monitor(sink: PropSink): void {
       [0.226, 0.201, CENTRE, 0.0403, 0.012, 0.3, 0.5],
     ],
     [segments(6, detail, 3), segments(12, detail, 4), segments(10, detail, 4)],
-    (i) => (i >= 4 && i <= 6 ? segments(2, detail, 1) : 0),
+    (i) => (i >= 2 && i <= 4 ? segments(2, detail, 1) : 0),
     lerp(0.07, 0.03, detail),
     { along: [0, 0, 1] },
   );
@@ -184,7 +182,7 @@ export function monitor(sink: PropSink): void {
   }
   b.roundedBox(
     at(0.128, 0.853, 0.004),
-    at(0.154, 0.861, -0.006),
+    at(0.154, 0.861, -0.0018),
     0.0016,
     aged(tint(IVORY, 1.03), at(0.14, 0.857, 0), 5),
     1,
@@ -192,7 +190,7 @@ export function monitor(sink: PropSink): void {
     2,
   );
   // A fine dark line across the power key (its mark), and the lamp: a print, lit whatever the room's light.
-  b.box(at(0.1395, 0.8548, -0.006), at(0.1425, 0.8592, -0.0062), tint(RECESS, 0.7), 1, ['-z']);
+  b.box(at(0.1395, 0.8548, -0.0018), at(0.1425, 0.8592, -0.002), tint(RECESS, 0.7), 1, ['-z']);
   sink.decal({
     origin: at(0.1735, 0.8595, -0.0004),
     u: [0.007, 0, 0],

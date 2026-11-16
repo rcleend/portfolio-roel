@@ -95,7 +95,7 @@ const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
 
 /**
  * The attic room presenting the game on its CRT. Falls back to the flat TV
- * whenever the room cannot run (no WebGL, failed download), so the visitor
+ * whenever the room cannot run (no WebGL, a room that cannot be made), so the visitor
  * always gets a game.
  */
 export function RoomHost(props: HostProps) {
@@ -118,7 +118,7 @@ function AtticStage({
   const screensRef = useRef<HTMLDivElement>(null);
   // One gate per surface; the room only ever sees the gated view.
   const [gated] = useState(() => new FocusGatedSurface(surface));
-  const status = useRoom(stageRef, screensRef, gated);
+  const status = useRoom(stageRef, screensRef, gated, insets);
   const room = status.state === 'ready' ? status.room : null;
   useEffect(() => room?.setMuted(muted), [room, muted]);
   const [view, setView] = useState<RoomView>('tv');
@@ -145,6 +145,7 @@ function AtticStage({
   });
   const unavailable = useEffectEvent(onUnavailable);
   const stillDone = useEffectEvent(() => events.onStillDone());
+  const stillBack = useEffectEvent(() => events.onStillBack());
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -212,7 +213,7 @@ function AtticStage({
     const opening = (id: string | null): boolean => id === null || id === 'boot' || id === 'title';
     const check = (): void => {
       const due = pressed.current || !opening(scenes.current) || (room !== null && room.view !== 'tv');
-      if (due && room?.powerState === 'on' && tvOn) stillDone();
+      if (due && room?.powerState === 'on' && room.shown && tvOn) stillDone();
     };
     const press = (): void => {
       pressed.current = true;
@@ -221,16 +222,29 @@ function AtticStage({
     check();
     const stopScenes = scenes.onSceneChange(check);
     const stopViews = room?.onViewChange(check);
+    const stopShown = room?.onShownChange(check);
     const options = { capture: true, passive: true } as const;
     window.addEventListener('keydown', press, options);
     window.addEventListener('pointerdown', press, options);
     return () => {
       stopScenes();
       stopViews?.();
+      stopShown?.();
       window.removeEventListener('keydown', press, options);
       window.removeEventListener('pointerdown', press, options);
     };
   }, [still, room, tvOn, scenes]);
+
+  // A lost WebGL context takes the room's light (docs/ROOM.md › Lost canvases): at the TV the still covers the canvas
+  // again, the game playing on it, until the hand-over above finds the room lit. Elsewhere the still (a close-up of
+  // the TV) has nothing to stand for.
+  useEffect(
+    () =>
+      room?.onShownChange((shown) => {
+        if (!shown && room.view === 'tv') stillBack();
+      }),
+    [room],
+  );
 
   useEffect(() => {
     if (!tvOn || guideDue) return;

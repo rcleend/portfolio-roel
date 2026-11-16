@@ -1,5 +1,5 @@
 // Types only: three.js arrives through the GenKit (genKit.ts).
-import type { Group, Mesh, MeshBasicMaterial, Object3D } from 'three';
+import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import type { DeviceParts, GeneratedRadioSource } from '../radio/partsProvider';
 import { CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
 import type { GenKit } from './genKit';
@@ -33,9 +33,8 @@ export class GeneratedRadio implements GeneratedRadioSource {
     this.group = group;
     const material = (name: string): MeshBasicMaterial => {
       const made = new k.MeshBasicMaterial({ vertexColors: true });
-      // Named as the shipped radio's, for the finish; GENERATED: the static lights are in the vertices (RoomGloss).
+      // Named for the finish (RoomGloss).
       made.name = name;
-      made.defines = { GENERATED: '' };
       return made;
     };
     const body = material('device_radio_BAKED_UNLIT');
@@ -119,19 +118,9 @@ export class GeneratedRadio implements GeneratedRadioSource {
       keyAxis: new k.Vector3(...keyTravel.axis).normalize(),
       well: m.radioWell,
       wellFloor: m.radioWellCover,
-      skinMaterials: [],
       keyMaterials: keys,
-      atlas: null,
       restore: rest,
     };
-  }
-
-  /** Hangs the radio under `parent` (the shipped radio's own node, which the spotlight lights) where the world has it. */
-  attach(parent: Object3D): void {
-    parent.updateMatrixWorld(true);
-    this.group.matrixAutoUpdate = false;
-    this.group.matrix.copy(parent.matrixWorld).invert();
-    parent.add(this.group);
   }
 
   /** The bake's vertex colours (every generated mesh end to end, in `GenScene.meshes` order) into the radio's meshes. */

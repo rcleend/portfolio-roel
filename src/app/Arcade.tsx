@@ -39,7 +39,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   const started = useRef(false);
   const begun = useBegun(services.director);
   const running = startup.phase === 'running';
-  // A capture of the startup stills keeps the tube dark (harness/config.ts).
+  // `?capture` keeps the tube dark, to compare the live set with the startup still (harness/config.ts).
   const powering = (startup.phase === 'powering' || running) && !config.capture;
 
   const events = useMemo<HostEvents>(
@@ -54,6 +54,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
       },
       onViewChange: setView,
       onStillDone: () => dispatch({ type: 'stillDone' }),
+      onStillBack: () => dispatch({ type: 'stillBack' }),
     }),
     [created, config, dispatch],
   );

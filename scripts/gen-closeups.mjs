@@ -240,7 +240,7 @@ try {
   await page.evaluate(() => window.__roomLab.room.setAir({ haze: 0.7, dust: 0.3 }));
   await page.evaluate(() => window.__roomLab.room.postersReady);
   if (mode === 'generated') {
-    const ok = await page.evaluate(() => window.__roomLab.room.generatedReady);
+    const ok = await page.evaluate(() => window.__roomLab.room.generatedReady ?? true);
     const stats = await page.evaluate(() => window.__roomLab.room.stats.generatedStats);
     console.log(`generated ${ok}:`, JSON.stringify(stats));
   }
@@ -251,8 +251,7 @@ try {
         const c = (v / (v + 0.6)) * 1.25;
         return c + (c * c * (3 - 2 * c) - c) * 0.35;
       };
-      for (const name of ['props', 'desk', 'tv']) {
-        const mesh = room.displays[name];
+      for (const [name, mesh] of Object.entries(room.vertexLit)) {
         const data = room.gen.meshes[name];
         const colors = mesh.geometry.getAttribute('color');
         for (let i = 0; i < data.positions.length; i += 3) {

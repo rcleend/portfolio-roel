@@ -1,13 +1,12 @@
 import { type Material, Mesh, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import { assembleRoom, type RoomScene } from './assembleRoom';
-import { loadRoomAssets } from './assets/roomAssets';
 import { LiveScreenMood } from './atmosphere/LiveScreenMood';
 import type { RoomAir, RoomMood } from './atmosphere/moods';
 import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
-import type { GeneratedStats } from './gen/GeneratedRoom';
-import { GeneratedSlot, type GeneratedState } from './gen/GeneratedSlot';
+import { GeneratedRoom, type GeneratedStats } from './gen/GeneratedRoom';
+import { genKit } from './gen/genKit';
 import type { Interactable } from './interaction/Interactable';
 import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
 import { ScreenOverlay } from './pc/ScreenOverlay';
@@ -18,7 +17,7 @@ import { RainSoundSlot } from './rain/RainSoundSlot';
 import type { PropSpotlight } from './spotlight/PropSpotlight';
 import { SpotlightDoor } from './spotlight/SpotlightDoor';
 import { spotlightKit } from './spotlight/spotlightKit';
-import { QUALITY_TIERS, type Quality, type QualityTier } from './stage/quality';
+import type { Quality, QualityTier } from './stage/quality';
 import { RoomStage } from './stage/RoomStage';
 import { forEachTexture } from './stage/sceneTextures';
 import type { PowerState } from './tv/powerTimeline';
@@ -27,6 +26,13 @@ import type { RoomView } from './viewState';
 
 /** How long after the TV turns on the room's textures start going up (assembleRoom › prewarm). */
 const PREWARM_DELAY_MS = 4000;
+const MAX_ANISOTROPY = 4;
+
+/**
+ * Where the room is: its geometry and its opening view's light on their way (again, after a lost context), the
+ * opening view on screen with the rest of the room baking behind it, all of it baked, or failed.
+ */
+export type GeneratedState = 'loading' | 'opening' | 'ready' | 'failed';
 export interface CreateRoomOptions {
   /** Element the room's canvas fills; its size drives the framing. */
   readonly container: HTMLElement;
@@ -36,10 +42,11 @@ export interface CreateRoomOptions {
    */
   readonly overlayContainer?: HTMLElement;
   readonly surface: GameSurface;
-  /** Download progress, 0–1. */
-  readonly onProgress?: (fraction: number) => void;
-  /** Absolute URL of the folder holding the room assets; defaults to `<BASE_URL>room/`. */
-  readonly assetBaseUrl?: string;
+  /**
+   * The strips of the viewport the app's overlays cover, as `setFramingInsets` takes them: given here, the opening
+   * view is framed (and lit first) as it will be shown.
+   */
+  readonly framingInsets?: FramingInsets;
   /** A further upper bound for devicePixelRatio, under the quality tier's own (docs/ROOM.md › Quality). */
   readonly maxPixelRatio?: number;
   /** A further upper bound for drawing-buffer pixels, under the quality tier's own. */
@@ -51,19 +58,23 @@ export interface CreateRoomOptions {
   readonly quality?: QualityTier | 'auto';
   /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
   readonly posters?: boolean;
-  /**
-   * Replaces the opening view's shipped models and textures with ones generated in code and lit in the browser
-   * (docs/ROOM.md › The generated room). Off by default: nothing of it is loaded.
-   */
-  readonly generated?: boolean;
   /** Optional night-time finish; original keeps the unprocessed bake for comparison. */
   readonly mood?: RoomMood;
   readonly air?: RoomAir;
 }
 
 export interface Room {
-  /** Resolves once the room is loaded and its first frame drawn; rejects if loading fails. */
+  /**
+   * Resolves once the room is built, what its opening view shows is lit and its first frame drawn; rejects if it
+   * cannot be made (docs/ROOM.md › Startup). The rest of the room is lit behind the running game.
+   */
   readonly ready: Promise<void>;
+  /**
+   * True while the room has its light. A lost WebGL context takes it: until the room is lit again it draws nothing
+   * worth showing, and the page covers it (the startup still, docs/ROOM.md › Lost canvases).
+   */
+  readonly shown: boolean;
+  onShownChange(listener: (shown: boolean) => void): () => void;
   /** The view the camera is at or flying to. */
   readonly view: RoomView;
   /** True while the camera rests at `view`, false while it flies there. */
@@ -122,7 +133,7 @@ export interface Room {
   readonly stats: RoomStats;
   /** Resolves true once the decorated walls are shown, false when they will not be this page load. */
   readonly postersReady: Promise<boolean>;
-  /** Resolves true once the generated room is on screen, false when it was not asked for or could not be built. */
+  /** Resolves true once the whole room is lit (first time), false when it could not be. */
   readonly generatedReady: Promise<boolean>;
   dispose(): void;
 }
@@ -166,7 +177,7 @@ export interface RoomStats {
   readonly screenFade: number;
   /** The props' spotlight is in (from the first flight away from the TV): its two programs exist. */
   readonly spotlight: boolean;
-  /** The generated room (docs/ROOM.md › The generated room): where it is, and what building and baking it took. */
+  /** Where the room's making is (docs/ROOM.md › The generated room), and what building and baking it took. */
   readonly generated: GeneratedState;
   readonly generatedStats: GeneratedStats | null;
 }
@@ -185,13 +196,11 @@ export function createRoom(options: CreateRoomOptions): Room {
   const pc = new PcMonitorHandle(overlay);
   const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
   const posters = new PostersSlot(options.posters ?? true);
-  const generated = new GeneratedSlot(options.generated === true);
   const spotlight = new SpotlightDoor();
   const rain = new RainSoundSlot();
-  const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
   let scene: RoomScene | null = null;
   let disposed = false;
-  let framingInsets: FramingInsets | null = null;
+  let framingInsets: FramingInsets | null = options.framingInsets ?? null;
   let tapToBegin = false;
   let anchors: readonly PropAnchor[] = [];
   const anchorListeners = new Set<(anchors: readonly PropAnchor[]) => void>();
@@ -231,7 +240,13 @@ export function createRoom(options: CreateRoomOptions): Room {
     revealRadio: () => radio.deck?.reveal(),
     concealRadio: () => radio.deck?.conceal(),
     // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
-    whenReady: (view) => (view === 'radio' && !radio.deck ? radio.load() : null),
+    // And no view but the TV's is shown before the whole room is lit (docs/ROOM.md › Startup): a visitor who leaves
+    // sooner waits for the rest of the bake, which then hurries.
+    whenReady: (view) => {
+      const deck = (): Promise<unknown> | null => (view === 'radio' && !radio.deck ? radio.load() : null);
+      if (view === 'tv' || generated.whole) return deck();
+      return generated.whenWhole().then(deck);
+    },
   });
   // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
   // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds), and
@@ -258,82 +273,122 @@ export function createRoom(options: CreateRoomOptions): Room {
   views.onChange(() => spotlight.setOpen(false));
   views.onSettle((view) => spotlight.setOpen(view === 'room'));
 
-  // Decided with the starting tier, before anything is uploaded: a tier the governor drops to later keeps its atlases.
-  const smallAtlases = QUALITY_TIERS[stage.quality.tier].smallAtlases;
-  const ready = loadRoomAssets(assetBaseUrl, options.onProgress ?? (() => {}), { smallAtlases }).then((assets) => {
-    if (disposed) return;
-    scene = assembleRoom({
-      stage,
-      assets,
-      surface,
-      views,
-      reducedMotion,
-      overlay,
-      radio,
-      onAnchorsChange: (next) => {
-        anchors = next;
-        for (const listener of anchorListeners) listener(next);
+  const anisotropy = Math.min(MAX_ANISOTROPY, stage.renderer.capabilities.getMaxAnisotropy());
+  let state: GeneratedState = 'loading';
+  let shown = false;
+  const shownListeners = new Set<(shown: boolean) => void>();
+  const setShown = (next: boolean): void => {
+    if (shown === next) return;
+    shown = next;
+    for (const listener of shownListeners) listener(next);
+  };
+  let settleReady: { resolve(): void; reject(error: unknown): void } | null = null;
+  const ready = new Promise<void>((resolve, reject) => (settleReady = { resolve, reject }));
+  let settleRadio: (lit: boolean) => void = () => {};
+  const radioLit = new Promise<boolean>((resolve) => (settleRadio = resolve));
+  let settleWhole: (whole: boolean) => void = () => {};
+  const generatedReady = new Promise<boolean>((resolve) => (settleWhole = resolve));
+  // The room's geometry is built at once, in a worker; everything below waits for it, not for any download.
+  const generated: GeneratedRoom = new GeneratedRoom(
+    { stage, anisotropy, tier: stage.quality.tier, reducedMotion },
+    genKit,
+    {
+      onBuilt: (parts) => {
+        if (disposed) return;
+        const built = assembleRoom({
+          stage,
+          parts,
+          anisotropy,
+          surface,
+          views,
+          reducedMotion,
+          overlay,
+          radio,
+          onAnchorsChange: (next) => {
+            anchors = next;
+            for (const listener of anchorListeners) listener(next);
+          },
+          onHover: (target) => spotlight.hover(target),
+          tapToBegin: () => tapToBegin,
+        });
+        scene = built;
+        stage.attachAtmosphere();
+        if (framingInsets) built.setFramingInsets(framingInsets);
+        for (const [interactable] of queuedInteractables) {
+          queuedInteractables.set(interactable, built.register(interactable));
+        }
+        pc.attach(built.monitor);
+        radio.attach({
+          model: built.radioModel,
+          rig: built.rig,
+          stage,
+          views,
+          background: built.background,
+          anisotropy,
+          // The device moves the generated radio's parts, once they have their light.
+          generated: { ready: radioLit, radio: () => generated.radio },
+        });
+        posters.attach({ stage, views, background: built.background, anisotropy });
+        const { spotlit } = built;
+        spotlight.attach(() => ({
+          kit: spotlightKit,
+          renderer: stage.renderer,
+          camera: stage.camera,
+          loop: stage.loop,
+          props: spotlit,
+          reducedMotion,
+          size: () => stage.size,
+          still: (target) => target === 'radio' && radio.prepared === null,
+          onRender: (listener) => stage.onRender(listener),
+        }));
+        stopReframe = stage.onResize(() => generated.reframed());
+        // What the page opens on is lit first: the TV view, where the camera stands unless it was asked elsewhere.
+        generated.bake({ background: built.background, opening: () => (views.view === 'tv' ? built.tvClip() : null) });
       },
-      onHover: (target) => spotlight.hover(target),
-      tapToBegin: () => tapToBegin,
-    });
-    stage.attachAtmosphere();
-    if (framingInsets) scene.setFramingInsets(framingInsets);
-    for (const [interactable] of queuedInteractables) {
-      queuedInteractables.set(interactable, scene.register(interactable));
-    }
-    pc.attach(scene.monitor);
-    if (scene.radioModel) {
-      radio.attach({
-        model: scene.radioModel,
-        rig: scene.rig,
-        stage,
-        views,
-        background: scene.background,
-        loader: assets.loader,
-        assetBaseUrl,
-        anisotropy: scene.anisotropy,
-        // The generated room brings its own radio: the device waits for it and moves its parts.
-        ...(options.generated === true ? { generated: { ready: generated.ready, radio: () => generated.radio } } : {}),
-      });
-    } else {
-      radio.unavailable(new Error('The room assets lack the radio'));
-    }
-    posters.attach({ stage, views, background: scene.background, anisotropy: scene.anisotropy });
-    const { spotlit } = scene;
-    spotlight.attach(() => ({
-      kit: spotlightKit,
-      renderer: stage.renderer,
-      camera: stage.camera,
-      loop: stage.loop,
-      props: spotlit,
-      reducedMotion,
-      size: () => stage.size,
-      still: (target) => target === 'radio' && radio.prepared === null,
-      onRender: (listener) => stage.onRender(listener),
-    }));
-    const { background, anisotropy } = scene;
-    // Work ahead of need never delays the first frame.
-    return firstFrame(stage).then(() => {
-      background.start();
-      if (disposed) return;
-      generated.attach({
-        stage,
-        background,
-        room: assets.room.scene,
-        tv: assets.tv,
-        radio: scene?.radioModel?.root ?? null,
-        anisotropy,
-        tier: stage.quality.tier,
-        reducedMotion,
-      });
-    });
-  });
+      onShown: () => {
+        if (disposed) return;
+        state = generated.whole ? 'ready' : 'opening';
+        settleRadio(true);
+        // Work ahead of need never delays the first frame.
+        firstFrame(stage).then(() => {
+          if (disposed) return;
+          scene?.background.start();
+          setShown(true);
+          settleReady?.resolve();
+          settleReady = null;
+        });
+      },
+      onComplete: () => {
+        state = 'ready';
+        settleWhole(true);
+      },
+      onLost: () => {
+        state = 'loading';
+        setShown(false);
+      },
+      onFailed: (error) => {
+        state = 'failed';
+        settleRadio(false);
+        settleWhole(false);
+        if (settleReady) settleReady.reject(error);
+        else console.warn('The room could not be lit again.', error);
+        settleReady = null;
+      },
+    },
+  );
+  let stopReframe: (() => void) | null = null;
 
   return {
     ready,
+    get shown() {
+      return shown;
+    },
+    onShownChange(listener) {
+      shownListeners.add(listener);
+      return () => shownListeners.delete(listener);
+    },
     postersReady: posters.ready,
-    generatedReady: generated.ready,
+    generatedReady,
     get mood() {
       return stage.mood;
     },
@@ -381,6 +436,7 @@ export function createRoom(options: CreateRoomOptions): Room {
     setFramingInsets(insets) {
       framingInsets = insets;
       scene?.setFramingInsets(insets);
+      generated.reframed();
     },
     registerInteractable(interactable) {
       queuedInteractables.set(interactable, scene ? scene.register(interactable) : () => {});
@@ -408,7 +464,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         rainPlaying: rain.playing,
         framesRendered: stage.loop.framesRendered,
         renderLoopIdle: stage.loop.idle,
-        lavaRunning: (scene?.lava.running ?? false) || generated.lavaRunning,
+        lavaRunning: generated.lavaRunning,
         drawCalls: calls,
         triangles,
         pixelRatio: stage.size.pixelRatio,
@@ -426,7 +482,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         postersFading: posters.fading,
         screenFade: scene?.fade.opacity ?? 0,
         spotlight: spotlight.loaded,
-        generated: generated.state,
+        generated: state,
         generatedStats: generated.stats,
       };
     },
@@ -439,6 +495,10 @@ export function createRoom(options: CreateRoomOptions): Room {
       radio.dispose();
       posters.dispose();
       generated.dispose();
+      stopReframe?.();
+      shownListeners.clear();
+      settleRadio(false);
+      settleWhole(false);
       spotlight.dispose();
       scene?.dispose();
       scene = null;
@@ -450,10 +510,6 @@ export function createRoom(options: CreateRoomOptions): Room {
       stage.dispose();
     },
   };
-}
-
-function defaultAssetBaseUrl(): string {
-  return new URL(`${import.meta.env.BASE_URL}room/`, window.location.href).href;
 }
 
 function firstFrame(stage: RoomStage): Promise<void> {

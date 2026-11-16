@@ -65,7 +65,6 @@ export class RadioDeckHandle implements RadioDeck {
   #device: RadioDevice | null = null;
   #loading = false;
   #wanted = false;
-  #intentShown = false;
   /** An approach the device has not seen yet (it was still loading): its start time. */
   #pendingApproach: number | null = null;
   readonly #availability = new Emitter<boolean>();
@@ -167,10 +166,6 @@ export class RadioDeckHandle implements RadioDeck {
   prefetch(reason: 'idle' | 'intent'): void {
     // Save-Data: only a visitor reaching for the radio pays for it.
     if (!this.#isAvailable || (reason === 'idle' && saveData())) return;
-    if (reason === 'intent' && !this.#intentShown) {
-      this.#intentShown = true;
-      this.#device?.intent();
-    }
     this.#wanted = true;
     this.#load();
   }
@@ -295,7 +290,6 @@ export class RadioDeckHandle implements RadioDeck {
         device.setDiscs(this.#discs);
         device.setState(this.#state);
         device.setKeyboardAttention(this.#keyboard);
-        if (this.#intentShown) device.intent();
         if (this.#pendingApproach !== null || host.views.view === 'radio') {
           device.approach(this.#pendingApproach ?? performance.now());
         }

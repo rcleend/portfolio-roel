@@ -1,13 +1,11 @@
-import { join } from 'node:path';
-import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { MeshoptDecoder } from 'meshoptimizer';
-import { Box3, Matrix4, PerspectiveCamera, Vector2, Vector3, Vector4 } from 'three';
+import { type Box3, Group, Matrix4, PerspectiveCamera, Vector2, Vector3, Vector4 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ALBUMS } from '../../content/radio/albums';
 import { CameraRig, FLIGHT_MS, type FramingInsets, NO_INSETS } from '../camera/CameraRig';
 import type { ScreenFade } from '../camera/ScreenFade';
 import type { PcFramingModel } from '../pc/pcFraming';
+import { createPcGlass } from '../pc/pcGlass';
+import { pcModelOf } from '../pc/pcModel';
 import { MAX_DISCS } from '../radio/discLayout';
 import { RADIO_FIXTURE, RADIO_VIEWPORTS } from '../radio/radioFixtures';
 import { radioPoseSolver } from '../radio/radioFraming';
@@ -25,13 +23,13 @@ import { ATLAS_HEIGHT, ATLAS_WIDTH, wallGeometry } from './wall/geometry';
  * never hide it where a polygon does.
  */
 
-const ROOM = join(process.cwd(), 'public/room');
-/** pc-base.glb's glass and shell (room revision 6), as `locatePc` finds them. */
-const PC: PcFramingModel = {
-  facing: new Vector3(0, 0, 1),
-  rim: { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 },
-  shellBounds: new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654)),
-};
+/** The computer as the room measures it (`PC_SPEC`, gen/roomSpec.ts). */
+const PC: PcFramingModel = pcModelOf({
+  root: new Group(),
+  desk: new Group(),
+  shell: new Group(),
+  glass: createPcGlass(),
+});
 
 /** The sweep's aspects (spec 6.2): phone portrait to a 32:9 ultrawide. */
 const ASPECTS = [
@@ -98,16 +96,7 @@ let atlas: readonly [number, number];
 let boxes: Box3[];
 let tv: TvFramingModel;
 
-async function readAsset(io: NodeIO, name: string) {
-  return io.read(join(ROOM, name));
-}
-
-beforeAll(async () => {
-  await MeshoptDecoder.ready;
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
-
+beforeAll(() => {
   const wall = wallGeometry();
   boxes = decorBoxes(wall.boxes);
   atlas = [ATLAS_WIDTH, ATLAS_HEIGHT];
@@ -132,7 +121,7 @@ beforeAll(async () => {
   cardUvs = Float32Array.from(cardTexels);
 
   // The TV set as the room measures it: the bounds of the whole set, the picture on its glass, facing the room (−x).
-  tv = tvFixture(await readAsset(io, 'tv-high.glb')).framing;
+  tv = tvFixture().framing;
 });
 
 /** Frames on demand: `run(ms)` runs what was requested at that time. */

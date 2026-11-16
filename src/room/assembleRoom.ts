@@ -1,30 +1,32 @@
-import { Box3, Mesh, type Object3D, Vector2, Vector3 } from 'three';
+import { Box3, Matrix4, type Object3D, PerspectiveCamera, Vector2, Vector3 } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import type { RoomAssets } from './assets/roomAssets';
 import { type AnchorTarget, type PropAnchor, propAnchors, type RoomTarget } from './camera/anchors';
 import { CameraRig, type FramingInsets } from './camera/CameraRig';
 import { boxCorners } from './camera/framing';
 import { ScreenFade } from './camera/ScreenFade';
+import { CASTERS_ALL, CASTERS_LOCAL } from './gen/bake/Baker';
+import type { GeneratedParts } from './gen/GeneratedRoom';
+import { LAVA_BOUNDS } from './gen/roomSpec';
 import type { Interactable } from './interaction/Interactable';
 import { RoomInteraction } from './interaction/RoomInteraction';
 import { planeCentre } from './pc/glassPlane';
 import { Monitor } from './pc/Monitor';
 import { PcInteractable } from './pc/PcInteractable';
-import { locatePc } from './pc/pcModel';
+import { createPcGlass } from './pc/pcGlass';
+import { pcModelOf } from './pc/pcModel';
 import type { ScreenOverlay } from './pc/ScreenOverlay';
 import type { RadioDoorHandle } from './radio/RadioDoor';
 import { RadioInteractable } from './radio/RadioInteractable';
-import { locateRadio, RADIO_ANCHOR, type RadioModel } from './radio/radioModel';
+import { RADIO_ANCHOR, type RadioModel, radioModelOf } from './radio/radioModel';
 import type { SpotlitProp } from './spotlight/spotlightContract';
 import { type IdleMoment, IdleWork } from './stage/IdleWork';
-import { LavaLamp } from './stage/LavaLamp';
 import type { RoomStage } from './stage/RoomStage';
-import { addRoomLighting } from './stage/roomLighting';
-import { forEachTexture, uploadTextures } from './stage/sceneTextures';
+import { uploadTextures } from './stage/sceneTextures';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { pictureOutline } from './tv/tvFraming';
-import { locateTv, type TvModel } from './tv/tvModel';
+import { createTvGlass } from './tv/tvGlass';
+import { type TvModel, tvModelOf } from './tv/tvModel';
 import type { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
 
@@ -37,7 +39,10 @@ const PREWARM_UNIT_ESTIMATE_MS = 2;
 
 export interface RoomSceneOptions {
   readonly stage: RoomStage;
-  readonly assets: RoomAssets;
+  /** The generated room's nodes, already in the scene. */
+  readonly parts: GeneratedParts;
+  /** Texture anisotropy the room uses (≤ 4). */
+  readonly anisotropy: number;
   readonly surface: GameSurface;
   readonly views: ViewController;
   readonly reducedMotion: MediaQueryList;
@@ -53,7 +58,7 @@ export interface RoomSceneOptions {
   readonly tapToBegin: () => boolean;
 }
 
-/** Everything that exists once the room's assets are loaded. */
+/** Everything that exists once the room's geometry is in. */
 export interface RoomScene {
   readonly rig: CameraRig;
   /** The reduced-motion cut's black veil. */
@@ -61,13 +66,10 @@ export interface RoomScene {
   readonly television: Television;
   readonly tvInput: TvInteractable;
   readonly monitor: Monitor;
-  /** The radio and its surroundings; null when the assets lack it. */
-  readonly radioModel: RadioModel | null;
-  readonly lava: LavaLamp;
+  /** The radio and its surroundings. */
+  readonly radioModel: RadioModel;
   /** Work ahead of need on idle time; `start()` it once the first frame is drawn. */
   readonly background: IdleWork;
-  /** Texture anisotropy the room uses (≤ 4). */
-  readonly anisotropy: number;
   /** The props the spotlight lights. */
   readonly spotlit: readonly SpotlitProp[];
   register(interactable: Interactable): () => void;
@@ -76,32 +78,33 @@ export interface RoomScene {
   refreshCursor(): void;
   /** Starts uploading the rest of the room's textures from the TV, ahead of the first look around. */
   prewarm(): void;
+  /** World to clip space of the settled TV view for the viewport as it is: what the page opens on. */
+  tvClip(): Matrix4;
   /** The phone's tilt as the room view's parallax (Room.setTilt). */
   tilt(tilt: { readonly x: number; readonly y: number } | null): void;
   dispose(): void;
 }
 
-const MAX_ANISOTROPY = 4;
-
 /** The prop a hover on each interactable lights: the one its click flies to (the desk's is the computer's). */
 const HOVER_TARGETS: Readonly<Record<string, RoomTarget>> = { tv: 'tv', pc: 'pc', desk: 'pc', radio: 'radio' };
 
-/** Puts the loaded attic together: lighting, TV, computer, radio, camera, lava and pointer interaction. */
+/** Wires the generated attic: TV, computer, radio, camera and pointer interaction around its nodes. */
 export function assembleRoom(options: RoomSceneOptions): RoomScene {
-  const { stage, assets, surface, views, reducedMotion, overlay, radio } = options;
+  const { stage, parts, surface, views, reducedMotion, overlay, radio, anisotropy } = options;
   const { scene, loop, camera } = stage;
-  scene.add(assets.room.scene, assets.tv, ...assets.devices);
-  const removeLighting = addRoomLighting(scene);
-  const anisotropy = Math.min(MAX_ANISOTROPY, stage.renderer.capabilities.getMaxAnisotropy());
-  scene.traverse((object) => {
-    if (object instanceof Mesh) forEachTexture(object.material, (texture) => (texture.anisotropy = anisotropy));
-  });
-
-  const tvModel = locateTv(assets.tv);
-  const pcRoot = assets.devices.find((device) => device.getObjectByName('PC_Imported_CRT_base'));
-  const desk = assets.room.scene.getObjectByName('02_Desk');
-  if (!pcRoot || !desk) throw new Error('Room assets lack the computer or its desk');
-  const pcModel = locatePc(pcRoot, desk);
+  // The two screens' glass: display meshes made here, in their sets' nodes. They close their tubes in the bake's
+  // shadow maps like any other part of the set.
+  const tvGlass = createTvGlass();
+  parts.tv.add(tvGlass);
+  const pcGlass = createPcGlass();
+  parts.pc.add(pcGlass);
+  for (const glass of [tvGlass, pcGlass]) {
+    glass.layers.enable(CASTERS_ALL);
+    glass.layers.enable(CASTERS_LOCAL);
+  }
+  scene.updateMatrixWorld(true);
+  const tvModel = tvModelOf(parts.tv, tvGlass);
+  const pcModel = pcModelOf({ root: parts.pc, desk: parts.desk, shell: parts.monitor, glass: pcGlass });
   const fade = new ScreenFade();
   scene.add(fade.mesh);
   const television = new Television({ model: tvModel, surface, scene, loop, reducedMotion });
@@ -158,20 +161,11 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   // the spill stops to compile it (e2e/programs.ts counts it in the room's first view).
   const spill = scene.getObjectByName('ScreenGlow');
   if (spill) stage.prepare(spill);
-  const lava = new LavaLamp({
-    root: assets.room.scene,
-    clips: assets.room.animations,
-    camera,
-    isStageVisible: () => stage.visible,
-    reducedMotion,
-    invalidate: () => loop.invalidate(),
-  });
-  // The radio view keeps the lamp out of frame (so it can rest at zero frames): its bounds are the ones the lamp
-  // ticks for.
-  const radioModel = locateRadio(
-    assets.devices.find((device) => device.getObjectByName('Radio_Imported_Part_00_base')),
-    assets.room.scene,
-    lava.bounds,
+  // The radio view keeps the lava lamp out of frame (so it can rest at zero frames of the lamp's own).
+  const radioModel = radioModelOf(
+    parts.radio.group,
+    parts.dresser,
+    new Box3(new Vector3(...LAVA_BOUNDS.min), new Vector3(...LAVA_BOUNDS.max)),
   );
 
   const tvInput = new TvInteractable({
@@ -222,19 +216,17 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     interaction.register(new PcInteractable('desk', pcModel.desk, views)),
   ];
   // The radio, its cabinet and the lava lamp: one target that flies to the CD player.
-  if (radioModel) {
-    unregister.push(
-      interaction.register(
-        new RadioInteractable({
-          root: radioModel.root,
-          bodyBounds: radioModel.bodyBounds,
-          cabinet: radioModel.cabinet,
-          views,
-          deck: radio,
-        }),
-      ),
-    );
-  }
+  unregister.push(
+    interaction.register(
+      new RadioInteractable({
+        root: radioModel.root,
+        bodyBounds: radioModel.bodyBounds,
+        cabinet: radioModel.cabinet,
+        views,
+        deck: radio,
+      }),
+    ),
+  );
 
   // The spotlight (docs/ROOM.md › The spotlight): the TV and the radio glow and bounce whole; at the computer only the
   // monitor does, so nothing slides across the desk and no glow outlines a keyboard the chair half hides.
@@ -244,23 +236,19 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     inTheLight('pc', monitor3d, monitor3d, pcModel.shellBounds),
     // The radio's device hangs the cut lid, the keys, the well and the discs in the scene beside it once prepared:
     // the prop takes them in, so it lights and bounces whole.
-    ...(radioModel
-      ? [
-          inTheLight(
-            'radio',
-            [radioModel.root],
-            [radioModel.root],
-            radioModel.bodyBounds,
-            () => radio.prepared?.root ?? null,
-          ),
-        ]
-      : []),
+    inTheLight(
+      'radio',
+      [radioModel.root],
+      [radioModel.root],
+      radioModel.bodyBounds,
+      () => radio.prepared?.root ?? null,
+    ),
   ];
 
   const anchorTargets: readonly AnchorTarget[] = [
     { target: 'tv', point: tvPictureCentre(tvModel) },
     { target: 'pc', point: planeCentre(pcModel.picture) },
-    ...(radioModel ? [{ target: 'radio', point: RADIO_ANCHOR.clone() } as const] : []),
+    { target: 'radio', point: RADIO_ANCHOR.clone() },
   ];
   const publishAnchors = (): void => {
     options.onAnchorsChange(propAnchors(anchorTargets, rig.viewpoint('room'), stage.size));
@@ -274,16 +262,13 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   };
   syncSize();
   const stopResize = stage.onResize(syncSize);
-  const stopRender = stage.onRender(() => {
-    television.syncGlow();
-    lava.sync();
-  });
+  const stopRender = stage.onRender(() => television.syncGlow());
   rig.jumpTo(views.view);
   // Asked for the computer before the room had loaded: the camera is already there.
   if (views.view !== 'tv') monitor.prepare('tv', views.view);
   queueUploads(views.view);
   if (import.meta.env.DEV) {
-    // The startup still's capture (scripts/capture-tv-stills.mjs) reads where the picture lands, in CSS px.
+    // Where the picture lands, in CSS px: what the startup still's lengths in index.html are held to.
     (globalThis as { __tvPicture?: () => readonly number[] }).__tvPicture = () => {
       const { width, height } = stage.size;
       const points = picture.map((point) => point.clone().project(camera));
@@ -300,9 +285,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     tvInput,
     monitor,
     radioModel,
-    lava,
     background,
-    anisotropy,
     spotlit,
     register: (interactable) => interaction.register(interactable),
     setFramingInsets(insets) {
@@ -311,6 +294,14 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     },
     refreshCursor: () => interaction.refreshCursor(),
     prewarm: () => queueUploads('prewarm'),
+    tvClip() {
+      const pose = rig.viewpoint('tv');
+      const eye = new PerspectiveCamera(pose.fov, stage.size.width / stage.size.height, camera.near, camera.far);
+      eye.position.copy(pose.position);
+      eye.lookAt(pose.target);
+      eye.updateMatrixWorld(true);
+      return new Matrix4().multiplyMatrices(eye.projectionMatrix, eye.matrixWorldInverse);
+    },
     tilt: (tilt) => rig.setParallaxPointer(tilt ? new Vector2(tilt.x, tilt.y) : null),
     dispose() {
       background.dispose();
@@ -320,12 +311,14 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       stopCursor();
       for (const stop of unregister) stop();
       interaction.dispose();
-      lava.dispose();
       monitor.dispose();
       television.dispose();
       rig.dispose();
       fade.dispose();
-      removeLighting();
+      tvGlass.removeFromParent();
+      pcGlass.removeFromParent();
+      tvGlass.geometry.dispose();
+      pcGlass.geometry.dispose();
     },
   };
 }

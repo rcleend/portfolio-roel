@@ -22,7 +22,6 @@ function fakeDevice(): RadioDevice & Record<string, ReturnType<typeof vi.fn>> {
     approach: vi.fn(),
     reveal: vi.fn(),
     conceal: vi.fn(),
-    intent: vi.fn(),
     relayout: vi.fn(),
     pick: vi.fn(() => null),
     pointerDown: vi.fn(() => false),
@@ -39,7 +38,7 @@ function fakeDevice(): RadioDevice & Record<string, ReturnType<typeof vi.fn>> {
 function host(view: 'room' | 'radio' = 'room'): RadioHost {
   const size = { width: 1440, height: 900, pixelRatio: 1 };
   return {
-    model: { ...RADIO_FIXTURE, root: {}, meshes: [], cabinet: null } as never,
+    model: { ...RADIO_FIXTURE, root: {}, cabinet: null } as never,
     rig: {
       viewpoint: () => radioViewpoint(RADIO_FIXTURE, discSlots(5, 1.6), size, { top: 0, right: 0, bottom: 0, left: 0 }),
       setRadioFraming: vi.fn(),
@@ -55,9 +54,8 @@ function host(view: 'room' | 'radio' = 'room'): RadioHost {
     },
     views: { view, moving: false, request: vi.fn() },
     background: { add: () => () => {} },
-    loader: {} as never,
-    assetBaseUrl: 'http://localhost/room/',
     anisotropy: 4,
+    generated: { ready: Promise.resolve(true), radio: () => null },
   };
 }
 
@@ -156,7 +154,6 @@ describe('RadioDeckHandle', () => {
     expect(device.setDiscs).toHaveBeenCalledWith(discs);
     expect(device.setState).toHaveBeenCalledWith({ ...PLAYING, loaded: 'b' });
     expect(device.setKeyboardAttention).toHaveBeenCalledWith('a');
-    expect(device.intent).toHaveBeenCalled();
     expect(deck.prepared).toBe(device);
     expect(deck.prepared?.lidDegrees(0)).toBe(42);
   });
@@ -221,7 +218,7 @@ describe('RadioDeckHandle', () => {
 
   it('becomes scenery when the device fails: warned once, unavailable, back to the room', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const loader = vi.fn(() => Promise.reject(new Error('404 radio-closeup.glb')));
+    const loader = vi.fn(() => Promise.reject(new Error('no generated radio')));
     const { deck } = handle(loader);
     const room = host('radio');
     const availability = vi.fn();

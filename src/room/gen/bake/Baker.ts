@@ -59,7 +59,7 @@ interface View {
 }
 
 /** What eight-bit light pages hold: light ÷ these, so the sum of every pass stays under one. */
-const EIGHT_BIT_RANGE = { scene: 6, finish: 24 };
+const EIGHT_BIT_RANGE = { scene: 3, finish: 24 };
 
 const CUBE: readonly (readonly [Vec3, Vec3])[] = [
   [
@@ -178,6 +178,14 @@ export function rigViews(sampleSet: 0 | 1, rig: readonly RigLight[] = RIG): View
   return views;
 }
 
+/** A part of the bake's receivers (`Baker.begin`). */
+export interface BakePart {
+  /** Per chart page: the vertices of its bake mesh to light, as a triangle list (null: all; empty: none). */
+  readonly charts: readonly (Uint32Array | null)[];
+  /** Whether the props' vertices take light in this pass. */
+  readonly vertices: boolean;
+}
+
 export interface BakeResult {
   /** One texture a chart page: what its charts draw with. */
   readonly pages: readonly Texture[];
@@ -217,6 +225,8 @@ export class Baker {
   private pending: Promise<Float32Array> | null = null;
   private colors: Float32Array | null = null;
   private cleared = false;
+  /** The part of the receivers this pass lights (`begin`); null: all of them. */
+  private part: BakePart | null = null;
 
   constructor(
     private readonly kit: GenKit,
@@ -270,6 +280,7 @@ export class Baker {
         uShadowMap: { value: this.shadow.depthTexture },
         uShadowTexel: { value: new k.Vector4() },
         uEncode: { value: encode },
+        uDither: { value: 0 },
       },
       blending: k.AdditiveBlending,
       premultipliedAlpha: true,
@@ -285,7 +296,7 @@ export class Baker {
     this.chartCompose = new k.ShaderMaterial({
       vertexShader: CHART_COMPOSE_VERTEX,
       fragmentShader: CHART_COMPOSE_FRAGMENT,
-      uniforms: { ...display, uLight: { value: null }, uArt: { value: art } },
+      uniforms: { ...display, uLight: { value: null }, uArt: { value: art }, uSoften: { value: new k.Vector4() } },
       depthTest: false,
       depthWrite: false,
     });
@@ -380,6 +391,23 @@ export class Baker {
       depthBuffer: false,
       minFilter: k.NearestFilter,
       magFilter: k.NearestFilter,
+    });
+  }
+
+  /**
+   * Starts a pass over every view that lights only `part` of the receivers, adding to what earlier passes lit: the
+   * room bakes what its opening view shows first and the rest behind the running game (GeneratedRoom). Each pass ends
+   * as a bake does, composing every page from the light so far; `result()` then has the pages and the colours.
+   */
+  begin(part: BakePart): void {
+    this.part = part;
+    this.next = 0;
+    this.composed = false;
+    // A pass without the vertices keeps the colours the pass that lit them read back.
+    this.pending = part.vertices ? null : Promise.resolve(this.colors ?? new Float32Array(this.vertexCount * 3));
+    this.chartMeshes.forEach((mesh, index) => {
+      const cells = part.charts[index];
+      mesh.geometry.setIndex(cells ? new this.kit.BufferAttribute(cells, 1) : null);
     });
   }
 
@@ -552,17 +580,20 @@ export class Baker {
     } else set('uPortal', 0, 0, 0, 0);
     (uniform('uShadow').value as Matrix4).multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     set('uShadowTexel', 1 / this.options.shadowSize, texel, light.casters === 'none' ? 1 : 0, 0);
+    uniform('uDither').value = this.options.halfFloat ? 0 : this.next;
 
     renderer.autoClear = false;
     this.receivers.clear();
     this.vertexMesh.material = this.lightMaterial;
     this.chartMeshes.forEach((mesh, index) => {
+      if (mesh.geometry.index?.count === 0) return;
       mesh.material = this.lightMaterial;
       this.receivers.add(mesh);
       renderer.setRenderTarget(this.lightPages[index] ?? null);
       renderer.render(this.receivers, this.flat);
       this.receivers.remove(mesh);
     });
+    if (this.part?.vertices === false) return;
     this.receivers.add(this.vertexMesh);
     renderer.setRenderTarget(this.vertexLight);
     renderer.render(this.receivers, this.flat);
@@ -576,13 +607,22 @@ export class Baker {
     this.chartMeshes.forEach((mesh, index) => {
       const light = this.lightPages[index];
       if (!light) return;
+      // Every chart of the page, whatever part the pass lit.
+      mesh.geometry.setIndex(null);
       (this.chartCompose.uniforms.uLight as { value: Texture }).value = light.texture;
+      (this.chartCompose.uniforms.uSoften as { value: { set(...v: number[]): void } }).value.set(
+        this.options.halfFloat ? 0 : 1.5 / light.width,
+        this.options.halfFloat ? 0 : 1.5 / light.height,
+        0,
+        0,
+      );
       mesh.material = this.chartCompose;
       this.receivers.add(mesh);
       renderer.setRenderTarget(this.finalPages[index] ?? null);
       renderer.render(this.receivers, camera);
       this.receivers.remove(mesh);
     });
+    if (this.part?.vertices === false) return;
     (this.vertexCompose.uniforms.uLight as { value: Texture }).value = this.vertexLight.texture;
     this.vertexMesh.material = this.vertexCompose;
     this.receivers.add(this.vertexMesh);

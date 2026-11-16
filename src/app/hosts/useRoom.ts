@@ -1,6 +1,6 @@
-import { type RefObject, useEffect, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { GameSurface } from '@/engine/core/GameSurface';
-import type { Room } from '@/room';
+import type { FramingInsets, Room } from '@/room';
 
 export type RoomStatus =
   | { readonly state: 'loading' }
@@ -14,16 +14,19 @@ export type RoomStatus =
  * cover the same box outside the stage's `role="application"`.
  *
  * StrictMode safe: the first, discarded effect run is cancelled before the
- * module resolves, so only one WebGL context and one asset download ever
- * exist. Any failure — the chunk, no WebGL (createRoom throws), or the
- * models — reports `unavailable` so the caller can fall back to the flat TV.
+ * module resolves, so only one WebGL context ever exists. Any failure — the
+ * chunk, no WebGL (createRoom throws), or the room's making — reports `unavailable` so the caller can fall back to the flat TV.
  */
 export function useRoom(
   container: RefObject<HTMLElement | null>,
   overlayContainer: RefObject<HTMLElement | null>,
   surface: GameSurface,
+  /** What the app's overlays cover as the page opens: the room frames its opening view, and lights it first, by it. */
+  insets: FramingInsets,
 ): RoomStatus {
   const [status, setStatus] = useState<RoomStatus>({ state: 'loading' });
+  // Read once, at creation; later changes go through `setFramingInsets`.
+  const opening = useRef(insets);
 
   useEffect(() => {
     const element = container.current;
@@ -46,10 +49,10 @@ export function useRoom(
           container: element,
           overlayContainer: overlay,
           surface,
+          framingInsets: opening.current,
           mood: 'rose',
           air: { haze: 0.7, dust: 0.3 },
           quality: fixedQuality(),
-          generated: generatedRoom(),
         });
       } catch (error) {
         fail(error);
@@ -80,12 +83,4 @@ function fixedQuality(): 'high' | 'medium' | 'low' | 'auto' {
   const value = query.get('quality');
   const allowed = import.meta.env.DEV || query.has('debug');
   return allowed && (value === 'high' || value === 'medium' || value === 'low') ? value : 'auto';
-}
-
-/**
- * `?room=generated`: the opening view's models and textures generated in code and lit in the browser instead of
- * fetched (docs/ROOM.md › The generated room). A hidden flag while the room is converted; without it nothing changes.
- */
-function generatedRoom(): boolean {
-  return new URLSearchParams(window.location.search).get('room') === 'generated';
 }

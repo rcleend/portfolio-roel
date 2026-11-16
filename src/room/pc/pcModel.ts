@@ -1,15 +1,12 @@
-import { Box3, type Mesh, type Object3D, type Vector3 } from 'three';
-import { averageNormal, meshesOf } from '../assets/modelQueries';
+import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
+import { PC_SPEC } from '../gen/roomSpec';
 import { type GlassPlane, insetPlane } from './glassPlane';
 
 /**
- * Facts about the computer on the desk (pc-base.glb and room.glb's `02_Desk`, room revision 6)
- * that the room relies on. Everything findable at runtime is found at runtime; only the
- * picture's border and corner radius are design constants.
+ * Facts about the computer on the desk that the room relies on: the generated desktop set (gen/props/deskCorner.ts)
+ * as `PC_SPEC` (gen/roomSpec.ts) measures it, and its glass (pcGlass.ts). Only the picture's border and corner radius
+ * are design constants.
  */
-
-/** `userData.interaction_id` of the monitor's glass, exported from Blender. */
-export const PC_SCREEN_INTERACTION_ID = 'pc-screen';
 
 /** Uniform dark tube border between the glass rim and the picture, like the TV's thin border. */
 export const PC_PICTURE_BORDER = 0.01;
@@ -18,14 +15,10 @@ export const PC_PICTURE_RADIUS = 0.006;
 /** The unlit tube: the TV's `TUBE` constant (crtShader.ts), sRGB-encoded. */
 export const PC_TUBE_COLOR = '#070a09';
 
-/** The monitor's shell (its glass is a sibling node). */
-const CRT_NAME = 'PC_Imported_CRT_base';
-const KEYBOARD_NAME = 'PC_Imported_Keyboard_base';
-
 export interface PcModel {
-  /** The device: CRT, glass, keyboard and mouse. */
+  /** The device as a click target: the monitor, its glass, the keyboard and the mouse. */
   readonly root: Object3D;
-  /** The desk with its chair, lamp, tower and clutter (`02_Desk`). */
+  /** The desk with its chair, lamp, tower and clutter, as a click target. */
   readonly desk: Object3D;
   /** The monitor's shell: what glows and bounces in the light, the glass with it. */
   readonly shell: Object3D;
@@ -37,43 +30,27 @@ export interface PcModel {
   readonly rim: GlassPlane;
   /** The picture: the rim inset by the tube border. */
   readonly picture: GlassPlane;
-  /** World z of the CRT shell's front face, where the bezel lip catches the screen's light. */
+  /** World z of the monitor's front face, where the bezel lip catches the screen's light. */
   readonly shellFrontZ: number;
-  /** The CRT shell: the computer's outline, beyond which a click is a click on the room. */
+  /** The monitor's shell: the computer's outline, beyond which a click is a click on the room. */
   readonly shellBounds: Box3;
   readonly keyboardBounds: Box3;
 }
 
-export function locatePc(root: Object3D, desk: Object3D): PcModel {
-  root.updateMatrixWorld(true);
-  const glass = meshesOf(root).find(
-    (mesh) => mesh.userData.replaceable_screen === true && mesh.userData.interaction_id === PC_SCREEN_INTERACTION_ID,
-  );
-  const crt = root.getObjectByName(CRT_NAME);
-  const keyboard = root.getObjectByName(KEYBOARD_NAME);
-  if (!glass || !crt || !keyboard) {
-    throw new Error(`PC asset is missing its "${PC_SCREEN_INTERACTION_ID}" glass, CRT or keyboard`);
-  }
+const box = ({ min, max }: { readonly min: readonly number[]; readonly max: readonly number[] }): Box3 =>
+  new Box3(new Vector3().fromArray(min), new Vector3().fromArray(max));
 
-  const glassBounds = new Box3().setFromObject(glass);
-  const shellBounds = new Box3().setFromObject(crt);
-  const rim: GlassPlane = {
-    minX: glassBounds.min.x,
-    maxX: glassBounds.max.x,
-    minY: glassBounds.min.y,
-    maxY: glassBounds.max.y,
-    z: glassBounds.min.z,
-  };
+/** The computer as the spec has it, around the nodes the room made for it. */
+export function pcModelOf(nodes: Pick<PcModel, 'root' | 'desk' | 'shell' | 'glass'>): PcModel {
+  const { glass, shell, keyboard } = PC_SPEC;
+  const rim: GlassPlane = { minX: glass.minX, maxX: glass.maxX, minY: glass.minY, maxY: glass.maxY, z: glass.rimZ };
   return {
-    root,
-    desk,
-    shell: crt,
-    glass,
-    facing: averageNormal(glass.geometry).transformDirection(glass.matrixWorld),
+    ...nodes,
+    facing: new Vector3(0, 0, 1),
     rim,
     picture: insetPlane(rim, PC_PICTURE_BORDER),
-    shellFrontZ: shellBounds.max.z,
-    shellBounds,
-    keyboardBounds: new Box3().setFromObject(keyboard),
+    shellFrontZ: shell.max[2],
+    shellBounds: box(shell),
+    keyboardBounds: box(keyboard),
   };
 }

@@ -48,7 +48,7 @@ export interface MonitorOptions {
 const GLASS_LAYER_WIDTH = 256;
 /** Rows of the glass finish painted per unit of background work: a few ms on a slow phone. */
 const FINISH_BAND_ROWS = 32;
-/** A projected picture this far off a rectangle means pc-base.glb's glass no longer faces +Z. */
+/** A projected picture this far off a rectangle means the glass no longer faces +Z. */
 const MAX_SKEW_PX = 0.5;
 
 /**
@@ -85,13 +85,10 @@ export class Monitor {
   constructor(private readonly options: MonitorOptions) {
     const { model, overlay } = options;
     const { glass } = model;
-    // KHR_materials_unlit, which `pnpm verify:room` asserts for every static surface, loads as a
-    // MeshBasicMaterial; a clone with the same parameters compiles to the same program as every
-    // baked surface in the room.
+    // The glass's own unlit material (pcGlass.ts): a clone compiles to the same program as every baked surface's.
     const baked = glass.material as MeshBasicMaterial;
     this.originalMaterial = baked;
     this.material = baked.clone();
-    releaseBakedPicture(baked);
 
     this.still = new MonitorTexture({
       glass: model.rim,
@@ -269,18 +266,6 @@ export class Monitor {
     while (!step.done) step = this.finishing.next();
     return this.layer;
   };
-}
-
-/**
- * The asset ships a baked 2048² desktop picture on the glass. It is replaced before any frame
- * shows the computer, so release it before it is ever uploaded (≈ 18 MB of GPU memory with mips).
- */
-function releaseBakedPicture(material: MeshBasicMaterial): void {
-  const map = material.map;
-  // An ImageBitmap (GLTFLoader's choice where available) holds its pixels until closed.
-  (map?.image as Partial<ImageBitmap> | null)?.close?.();
-  map?.dispose();
-  material.map = null;
 }
 
 function worldPositionsOf(model: PcModel): Float32Array {

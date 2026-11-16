@@ -1,11 +1,9 @@
-import type { Group, Mesh, MeshBasicMaterial, Texture, Vector3 } from 'three';
+import type { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 
 /**
  * Where the CD player's moving parts come from (docs/ROOM.md › The CD player). Types only: the device
- * (device/RadioDevice.ts) drives whatever a source hands it. There are two sources while the room is converted to
- * code: the shipped one (radio-closeup.glb cut out of radio-base.glb, device/closeUpAsset.ts), and the generated one
- * (gen/props/radio.ts built in the worker, hung on its pivots by gen/GeneratedRadio.ts). The shipped one goes when the
- * model files do.
+ * (device/RadioDevice.ts) drives what the generated room hands it: gen/props/radio.ts built in the worker and hung on
+ * its pivots by gen/GeneratedRadio.ts.
  */
 
 type Vec3 = readonly [number, number, number];
@@ -27,12 +25,8 @@ export interface DeviceParts {
   readonly well: Mesh;
   /** What closes the body under the shut lid: shown only while the well is hidden. */
   readonly wellFloor: Mesh;
-  /** The materials that carry the shipped radio's atlas (the 2K skin replaces it); none on the generated radio. */
-  readonly skinMaterials: readonly MeshBasicMaterial[];
   /** The key faces' own materials (for their shading). */
   readonly keyMaterials: Readonly<Record<'rockerTop' | 'rockerBottom' | 'previous' | 'next', MeshBasicMaterial>>;
-  /** The shipped close-up's atlas (512²); the generated radio has no texture. */
-  readonly atlas: Texture | null;
   /** Puts the radio back as the room view shows it (lid shut, keys up). Idempotent. */
   restore(): void;
 }
@@ -54,9 +48,9 @@ export interface GeneratedRadioSource {
   readonly spec: DeviceSpec;
 }
 
-/** The generated room's side of the radio (RadioHost.generated): absent where the room is the shipped one. */
+/** The generated room's side of the radio (RadioHost.generated). */
 export interface GeneratedRadioDoor {
-  /** True once the generated room is on screen; false when it will not be this page load (the shipped radio serves). */
+  /** True once the generated room is on screen; false when it will not be this page load (the radio stays scenery). */
   readonly ready: Promise<boolean>;
   radio(): GeneratedRadioSource | null;
 }

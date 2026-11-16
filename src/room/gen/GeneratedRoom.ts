@@ -1,156 +1,166 @@
-// Types only: every runtime dependency the room's chunk also carries arrives through the GenKit (genKit.ts).
-import type { CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D, Texture } from 'three';
+// Types only: every runtime dependency arrives through the GenKit (genKit.ts), so the worker and the main-thread
+// fallback's chunk (scene.ts and the generators) never pull three.js in.
+import type { BufferAttribute, CanvasTexture, Group, Material, Matrix4, Mesh, MeshBasicMaterial } from 'three';
 import type { IdleTask, IdleWork } from '../stage/IdleWork';
 import type { QualityTier } from '../stage/quality';
 import type { RoomStage } from '../stage/RoomStage';
 import { paintArt, paintExterior } from './artPaint';
-import { type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
+import { type BakePart, type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
 import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
 import { LavaWax } from './LavaWax';
-import { GROUP } from './props/types';
+import { GROUP, type MeshName } from './props/types';
+import { EXTERIOR_PLATE, PICK_PROPS, ROBOT_SPEC, TV_LAMP_SPEC } from './roomSpec';
 import type { GenRequest, GenScene } from './scene';
 import { GENERATED_TIERS, type GeneratedTier, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
 
 export interface GeneratedContext {
   readonly stage: RoomStage;
-  readonly background: IdleWork;
-  /** The shipped room and TV set: the generated pieces replace some of their meshes. */
-  readonly room: Object3D;
-  readonly tv: Object3D;
-  /** The shipped CD player's node, where there is one: the generated radio replaces its meshes and joins it. */
-  readonly radio?: Object3D | null;
   readonly anisotropy: number;
   /** The tier the device started on: what to generate at and bake with (tiers.ts). */
   readonly tier: QualityTier;
   readonly reducedMotion: MediaQueryList;
 }
 
+/** The generated room's nodes, as the room wires its devices, its clicks and its spotlight to them. */
+export interface GeneratedParts {
+  /** The TV set: its casing and its prints. The room adds the glass. */
+  readonly tv: Group;
+  /** The computer as a click target: the monitor, and the keyboard's and the mouse's triangles. The room adds the glass. */
+  readonly pc: Group;
+  /** The monitor's shell, under `pc`: what the spotlight lights. */
+  readonly monitor: Mesh;
+  /** The desk, its chair, tower, lamp and basket as a click target. */
+  readonly desk: Group;
+  /** The dresser's flat faces: the cabinet the radio stands on. */
+  readonly dresser: Mesh | null;
+  readonly radio: GeneratedRadio;
+}
+
 export interface GeneratedStats {
   /** Where the geometry was built, and how long that took there (ms). */
   readonly builtIn: 'worker' | 'main';
   readonly buildMs: number;
-  /** Shadow maps rendered and their light passes. */
+  /** From the room's creation to its geometry on the main thread (ms): the worker's start and the transfer included. */
+  readonly builtAtMs: number;
+  /** Shadow maps rendered and their light passes, over both passes. */
   readonly views: number;
   /** The bake's main-thread time over all its units, and the longest unit (ms). */
   readonly bakeCpuMs: number;
   readonly longestUnitMs: number;
-  /** From the first unit to the generated room on screen (ms): idle waits included. */
+  /** From the bake's first unit to the opening view on screen, and to the whole room baked (ms; 0 until then). */
+  readonly shownWallMs: number;
   readonly bakeWallMs: number;
+  /** The share of the charts' cells the opening view's pass lit (1: the bake was one pass). */
+  readonly openingShare: number;
   /** The longest one view's GPU work was seen to take (ms; without a GPU timer, the wait for it). */
   readonly longestGpuMs: number;
-  /** The bake's units were kept for quiet moments: one took the GPU too long to go between a playing game's frames. */
+  /** The rest's units were kept for quiet moments: one took the GPU too long to go between a playing game's frames. */
   readonly deferred: boolean;
+  /** The whole room is baked. */
+  readonly complete: boolean;
   readonly triangles: number;
   readonly pages: readonly (readonly [number, number])[];
   /** Bytes of the pages the room keeps, with their mips, and of the bake's own targets while it ran. */
   readonly pageBytes: number;
   readonly transientBytes: number;
   readonly halfFloat: boolean;
+  /**
+   * The way to the first shown frame, in ms since the room was created: `built` (the geometry on the main thread),
+   * `compiled` (the bake's programs linked), `lit` (the opening view's pass back from the GPU), `shown`.
+   */
+  readonly marks: Readonly<Record<string, number>>;
 }
 
 export interface GeneratedEvents {
-  /** The generated pieces are baked and on screen. */
+  /** The geometry is in and its meshes are in the scene, without their light yet. */
+  readonly onBuilt: (parts: GeneratedParts) => void;
+  /** What the opening view shows is baked: the room may be shown. Again after a lost context. */
   readonly onShown: (stats: GeneratedStats) => void;
-  /** A context loss took the bake: the shipped pieces are back until it has run again (onShown). */
+  /** The whole room is baked. */
+  readonly onComplete: (stats: GeneratedStats) => void;
+  /** A context loss took the bake: nothing of the room may be shown until it has run again (onShown). */
   readonly onLost: () => void;
   readonly onFailed: (error: unknown) => void;
 }
 
-/** The shipped meshes this stage replaces, by the names tools/room/ gave them. */
-const REPLACED_IN_ROOM = new Set([
-  '01_TV_surfaces',
-  'TV_desk_plant',
-  'TV_desk_lamp_base',
-  'TV_desk_lamp_globe',
-  'TV_toy_robot_body',
-  'TV_toy_robot_eyes',
-  'PS2_printed_cover_Product_Engineer',
-  'PS2_printed_cover_Kingdom_Hearts',
-  'PS2_printed_cover_LEGO_Star_Wars',
-  '03_Room_floor',
-  'Right_knee_wall',
-  '03_Room_surfaces',
-  '03_Room_window',
-  'Woven_geometric_rug',
-  'Night_tree_exterior_view',
-  '02_Desk_surfaces',
-  '04_Drawer_surfaces',
-  '04_Drawer_guitar',
-  'PC_Imported_CRT_base',
-  'PC_Imported_Keyboard_base',
-  'PC_Imported_Mouse_base',
-  'PS2_Imported_Object009_M_PS2_Body_0_base',
-  'PS2_Imported_PS2_Body_M_PS2_Details_0_base',
-  'PS2_Imported_PS2_Details_M_PS2_Details_0_base',
-  'PS2_SSX3_case_base',
-]);
-/** The shipped lava lamp's glass and wax, whatever their meshes are called: the nodes tools/room/ marked as its. */
-const isShippedLava = (object: Object3D): boolean =>
-  object.userData.supplied_asset === 'lava' || object.parent?.userData.supplied_asset === 'lava';
-/** The shell's cutaway pieces (ceilings, front wall, door). */
-const REPLACED_CUTAWAY = /^Cutaway_/;
-/** Every part of the shipped set but its glass, which keeps the screen's contract (docs/ROOM.md). */
-const REPLACED_IN_TV = /^TV_Imported_/;
-/** The shipped CD player's seven baked meshes (not the parts its device may have cut from them). */
-const REPLACED_IN_RADIO = /^Radio_Imported_Part_\d+_base$/;
-/** The room's shell: it cannot shadow the ambient dome, which stands for the light it bounces. */
-const SHELL = /^03_Room_|^Cutaway|knee_wall|geometric_rug/;
+export interface BakeRequest {
+  /** Paces the rest of the bake behind the running game. */
+  readonly background: IdleWork;
+  /**
+   * World to clip space of the opening view, when the camera is there: what it shows is baked first. Null bakes the
+   * whole room in one pass.
+   */
+  readonly opening: () => Matrix4 | null;
+}
 
 /** A view whose GPU work takes longer than this is not run between a playing game's frames again (ms). */
 const UNIT_GPU_LIMIT_MS = 5;
-/** What a unit's views together may take of the GPU (ms): a quarter of a 60 Hz frame. */
-const UNIT_GPU_TARGET_MS = 4;
-const MAX_VIEWS_A_UNIT = 12;
+/**
+ * What a unit's views together may take of the GPU (ms): a quarter of a 60 Hz frame behind the room's own frames,
+ * half of one while only the startup still's game draws, and most of one while a visitor waits for the room.
+ */
+const UNIT_GPU_TARGET_MS = { opening: 8, rest: 4, hurried: 12 };
+/** What a unit's views together may take of the main thread behind the room's frames (ms). */
+const UNIT_CPU_TARGET_MS = 3;
+const MAX_VIEWS_A_UNIT = { opening: 24, rest: 12 };
 /** How often a unit's fence is looked at (ms). */
 const GPU_POLL_MS = 3;
 /** What a unit costs the main thread before one is timed: a few dozen WebGL calls. */
 const UNIT_ESTIMATE_MS = 2;
-
-const nameOf = (object: Object3D): string => String(object.userData.name ?? object.name).replace(/ /g, '_');
+/** How far past the opening view's edges its pass reaches, as a share of the view: a resize's worth. */
+const OPENING_MARGIN = 0.12;
 
 /**
- * The generated room's lazy half (docs/ROOM.md › The generated room): builds the geometry in a worker, paints the
- * prints, bakes the light on the GPU in idle moments, and then swaps the generated pieces in for the shipped ones. A
- * lost context swaps them back until the bake has run again.
+ * The room (docs/ROOM.md › The generated room): builds its geometry in a worker, paints its prints, puts its meshes in
+ * the scene and bakes their light on the GPU, what the opening view shows first and the rest behind the running game.
+ * A lost context takes the light with it; the bake then runs again.
  */
 export class GeneratedRoom {
   private gen: GenScene | null = null;
   private builtIn: 'worker' | 'main' = 'worker';
-  private readonly group: Group;
-  private readonly replaced: Mesh[] = [];
-  private readonly retired = new Set<Texture>();
+  private readonly created = performance.now();
+  private builtAt = 0;
+  private readonly groups: Group[] = [];
   private readonly artCanvas = document.createElement('canvas');
   private art: CanvasTexture | null = null;
   private readonly exteriorCanvas = document.createElement('canvas');
   private exterior: CanvasTexture | null = null;
+  /** What a chart draws with until its page is baked: the same program as with it. */
+  private blank: CanvasTexture | null = null;
   private baker: Baker | null = null;
+  /** A bake of nothing, made for its programs (warmUp). */
+  private warm: Baker | null = null;
+  private request: BakeRequest | null = null;
   private dropTask: (() => void) | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private waited: (() => void) | null = null;
   private shown = false;
+  private complete = false;
+  private hurried = false;
+  private waiting: (() => void)[] = [];
   private disposed = false;
+  private failed = false;
   private stopFrames: (() => void) | null = null;
   private stopCanvas: (() => void) | null = null;
-  private displays: { tv: Mesh; props: Mesh; desk: Mesh; charts: Map<number, Mesh> } | null = null;
+  private vertexLit: Partial<Record<MeshName, Mesh>> = {};
+  private charts = new Map<number, Mesh>();
+  /** The opening view's cells as last classified, and the clip matrix they were classified with. */
+  private opening: { readonly clip: Matrix4; readonly share: number } | null = null;
+  private late: BakePart | null = null;
   private lava: LavaWax | null = null;
   private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
-  private timings = {
-    cpu: 0,
-    longest: 0,
-    started: 0,
-    gpu: 0,
-    deferred: false,
-    units: 0,
-    compiled: 0,
-    baked: 0,
-    created: 0,
-  };
+  private timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
   /** What one view was last seen to take of the GPU (ms); a cautious guess before any has been timed. */
-  private viewGpuMs = UNIT_GPU_TARGET_MS;
-  private lastStats: GeneratedStats | null = null;
+  private viewGpuMs = UNIT_GPU_TARGET_MS.rest;
+  /** What one view was last seen to take of the main thread (ms). */
+  private viewCpuMs = 1;
+  private slowUnits = 0;
+  /** When the first bake's moments came, in ms since the room was created (GeneratedStats.marks). */
+  private readonly marks: Record<string, number> = {};
+  private transientBytes = 0;
   private readonly tier: GeneratedTier;
-  /** The opal lamp's colour, from the shipped room's own record of it. */
-  private lamp: readonly [number, number, number] | null = null;
 
   constructor(
     private readonly context: GeneratedContext,
@@ -160,43 +170,71 @@ export class GeneratedRoom {
     // Development only: tests and the bake's tuning read the instance (its scene, its timings).
     if (import.meta.env.DEV) (globalThis as { __generatedRoom?: GeneratedRoom }).__generatedRoom = this;
     this.tier = GENERATED_TIERS[context.tier];
-    this.group = new kit.Group();
-    this.group.name = 'GeneratedRoom';
-    this.group.visible = false;
-    context.stage.scene.traverse((object) => {
-      if (
-        (object as Mesh).isMesh &&
-        (REPLACED_IN_ROOM.has(nameOf(object)) || REPLACED_CUTAWAY.test(nameOf(object)) || isShippedLava(object))
-      )
-        this.replaced.push(object as Mesh);
-    });
-    context.tv.traverse((object) => {
-      if ((object as Mesh).isMesh && REPLACED_IN_TV.test(nameOf(object))) this.replaced.push(object as Mesh);
-    });
-    context.radio?.traverse((object) => {
-      if ((object as Mesh).isMesh && REPLACED_IN_RADIO.test(nameOf(object))) this.replaced.push(object as Mesh);
-    });
     const canvas = context.stage.canvas;
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
+    this.warmUp();
     this.build().then(
-      (gen) => {
-        if (this.disposed) return;
-        this.gen = gen;
-        this.assemble(gen);
-        this.startBake();
-      },
+      (gen) => this.raise(gen),
       (error: unknown) => this.fail(error),
     );
   }
 
-  get stats(): GeneratedStats | null {
-    return this.lastStats;
+  /**
+   * The built room into the scene, a task at a time: painting its prints, making its meshes and wiring the room to
+   * them each take a slow phone tens of milliseconds, and the game is starting on the startup still meanwhile.
+   */
+  private async raise(gen: GenScene): Promise<void> {
+    if (this.disposed) return;
+    this.gen = gen;
+    this.builtAt = performance.now() - this.created;
+    this.mark('built');
+    try {
+      paintArt(this.artCanvas, this.tier.artSize);
+      await pause();
+      paintExterior(this.exteriorCanvas, this.tier.artSize);
+      await pause();
+      if (this.disposed) return;
+      const parts = this.assemble(gen);
+      this.mark('assembled');
+      await pause();
+      if (this.disposed) return;
+      this.events.onBuilt(parts);
+      this.mark('wired');
+    } catch (error) {
+      this.fail(error);
+    }
   }
 
-  /** The generated CD player, once its light is baked and it is on screen; the deck then moves its parts. */
+  get stats(): GeneratedStats | null {
+    const { gen, timings } = this;
+    if (!gen || !this.shown) return null;
+    const pages = gen.pages.map(({ width, height }) => [width, height] as const);
+    return {
+      builtIn: this.builtIn,
+      buildMs: gen.buildMs,
+      builtAtMs: this.builtAt,
+      views: timings.views,
+      bakeCpuMs: timings.cpu,
+      longestUnitMs: timings.longest,
+      shownWallMs: timings.shown ? timings.shown - timings.started : 0,
+      bakeWallMs: timings.baked ? timings.baked - timings.started : 0,
+      openingShare: this.opening?.share ?? 1,
+      longestGpuMs: timings.gpu,
+      deferred: timings.deferred,
+      complete: this.complete,
+      triangles: gen.props.reduce((sum, prop) => sum + prop.triangles, 0),
+      pages,
+      pageBytes: Math.round(pages.reduce((sum, [w, h]) => sum + w * h * 4, 0) * (4 / 3)),
+      transientBytes: this.transientBytes,
+      halfFloat: this.halfFloat,
+      marks: this.marks,
+    };
+  }
+
+  /** The generated CD player, once its light is baked; the deck then moves its parts. */
   get radio(): GeneratedRadio | null {
-    return this.lastStats ? this.radioParts : null;
+    return this.shown ? this.radioParts : null;
   }
 
   /** Whether the lava lamp's wax is moving. */
@@ -204,28 +242,94 @@ export class GeneratedRoom {
     return this.lava?.running ?? false;
   }
 
+  /** Whether everything a view away from the TV shows is baked. */
+  get whole(): boolean {
+    return this.complete;
+  }
+
+  /** Starts the bake; call once the room's nodes are wired (onBuilt) and the camera stands where the page opens. */
+  bake(request: BakeRequest): void {
+    this.request = request;
+    // In a task of its own: the caller has just wired the room.
+    void pause().then(() => this.startBake());
+  }
+
+  /**
+   * The visitor wants to see the rest of the room: its bake stops waiting for quiet moments and takes most of each
+   * frame. Resolves once the whole room is baked (at once when it is).
+   */
+  whenWhole(): Promise<void> {
+    if (this.complete || this.failed) return Promise.resolve();
+    if (!this.hurried) {
+      this.hurried = true;
+      // A unit queued behind the room's frames runs now instead; one whose fence is being waited for goes on by itself.
+      if (this.dropTask && this.baker) {
+        const baker = this.baker;
+        this.dropTask();
+        this.dropTask = null;
+        soon(() => this.unit(baker));
+      } else if (this.timer !== null && this.waited) {
+        clearTimeout(this.timer);
+        soon(this.waited);
+      }
+    }
+    return new Promise((resolve) => this.waiting.push(resolve));
+  }
+
+  /**
+   * The opening view changed (a resize, new framing insets) while the rest of the room is still on its way: if it now
+   * shows cells its own pass left out, the rest is hurried so they are not seen without their light for long.
+   */
+  reframed(): void {
+    const clip = this.request?.opening();
+    if (this.complete || !this.shown || !this.opening || !clip || this.hurried) return;
+    if (!inside(clip, this.opening.clip, this.kit)) void this.whenWhole();
+  }
+
   dispose(): void {
     this.disposed = true;
     const canvas = this.context.stage.canvas;
     canvas.removeEventListener('webglcontextlost', this.onLost);
     canvas.removeEventListener('webglcontextrestored', this.onRestored);
-    this.dropTask?.();
+    this.stopWork();
+    this.stopFrames?.();
     this.stopCanvas?.();
     this.stopLava?.();
     this.lava?.dispose();
-    this.show(false);
     this.baker?.dispose(true);
+    this.warm?.dispose(true);
     this.art?.dispose();
     this.exterior?.dispose();
-    this.group.traverse((object) => {
-      const mesh = object as Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry.dispose();
-      (mesh.material as Material).dispose();
-    });
-    this.group.removeFromParent();
-    this.displays?.tv.removeFromParent();
+    this.blank?.dispose();
+    for (const group of this.groups) {
+      group.traverse((object) => {
+        const mesh = object as Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.dispose();
+        (mesh.material as Material).dispose();
+      });
+      group.removeFromParent();
+    }
     this.radioParts?.dispose();
+    for (const resolve of this.waiting.splice(0)) resolve();
+  }
+
+  private get halfFloat(): boolean {
+    const { extensions } = this.context.stage.renderer;
+    return extensions.has('EXT_color_buffer_half_float') || extensions.has('EXT_color_buffer_float');
+  }
+
+  /** Compiles the bake's programs while the worker builds the room. */
+  private warmUp(): void {
+    const { kit: k, context } = this;
+    try {
+      this.art = new k.CanvasTexture(this.artCanvas);
+      const warm = new Baker(k, context.stage.renderer, context.stage.scene, tinyScene(), this.art, this.bakeOptions());
+      this.warm = warm;
+      warm.compile().catch(() => {});
+    } catch {
+      // The real bake says what is wrong.
+    }
   }
 
   /** The geometry, from the worker; on the main thread where a worker cannot be had. */
@@ -257,44 +361,67 @@ export class GeneratedRoom {
     });
   }
 
-  /** The meshes a frame draws, without their light yet: hidden until the bake has filled them in. */
-  private assemble(gen: GenScene): void {
+  /** The meshes a frame draws, in the scene without their light: nothing shows them until the bake has filled it in. */
+  private assemble(gen: GenScene): GeneratedParts {
     const { kit: k, context } = this;
-    const lights = { lamp: glowOf(context.room, 'tv-lamp'), robot: glowOf(context.room, 'toy-robot') };
-    this.lamp = lights.lamp?.color ?? null;
-    const vertexLit = (data: GenScene['meshes']['tv'], name: string): Mesh => {
+    const group = (name: string): Group => {
+      const made = new k.Group();
+      made.name = name;
+      this.groups.push(made);
+      context.stage.scene.add(made);
+      return made;
+    };
+    const room = group('GeneratedRoom');
+    const tvSet = group('GeneratedTv');
+    const pc = group('GeneratedPc');
+    const desk = group('GeneratedDesk');
+
+    const vertexLit = (mesh: MeshName, name: string): Mesh => {
+      const data = gen.meshes[mesh];
       const geometry = new k.BufferGeometry();
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       geometry.setAttribute('color', new k.BufferAttribute(new Float32Array(data.positions.length), 3));
       const material = new k.MeshBasicMaterial({ vertexColors: true });
-      // The finish knows a baked surface by its material's name (its sheen, its varnish); GENERATED tells its shader
-      // the static lights are already in the surface (RoomGloss).
+      // The finish knows a baked surface by its material's name (its sheen, its varnish: RoomGloss).
       material.name = name;
-      material.defines = { GENERATED: '' };
-      const mesh = new k.Mesh(geometry, material);
-      mesh.name = `Generated ${name}`;
-      mesh.layers.enable(CASTERS_ALL);
-      mesh.layers.enable(CASTERS_LOCAL);
-      return mesh;
+      const made = new k.Mesh(geometry, material);
+      made.name = `Generated ${mesh}`;
+      made.layers.enable(CASTERS_ALL);
+      made.layers.enable(CASTERS_LOCAL);
+      this.vertexLit[mesh] = made;
+      return made;
     };
-    const tv = vertexLit(gen.meshes.tv, 'device_tv_front_BAKED_UNLIT');
-    const props = vertexLit(gen.meshes.props, '01_TV_props_BAKED_UNLIT');
+    const tv = vertexLit('tv', 'device_tv_front_BAKED_UNLIT');
+    const monitor = vertexLit('monitor', 'device_pc_BAKED_UNLIT');
+    const props = vertexLit('props', '01_TV_props_BAKED_UNLIT');
     // The desk corner's props: their own mesh, culled by the frustum of a view that looks away from the desk.
-    const desk = vertexLit(gen.meshes.desk, '02_Desk_props_BAKED_UNLIT');
-    // Light itself: the globe and the eyes are drawn as the shipped ones were, in the colour the room's lamp carries.
-    const emitter = (data: GenScene['meshes']['tv'], name: string, color: readonly number[] | null): Mesh => {
+    const deskProps = vertexLit('desk', '02_Desk_props_BAKED_UNLIT');
+    // Light itself: the globe and the eyes are drawn in the lamp's colour, pushed past white so the finish's
+    // highlights bloom around them.
+    const emitter = (mesh: MeshName, name: string, light: { color: readonly number[]; glow: number }): Mesh => {
+      const data = gen.meshes[mesh];
       const geometry = new k.BufferGeometry();
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       const material = new k.MeshBasicMaterial();
       material.name = name;
-      if (color) material.color.setRGB(color[0] ?? 1, color[1] ?? 1, color[2] ?? 1);
-      return new k.Mesh(geometry, material);
+      material.color.setRGB(
+        (light.color[0] ?? 1) * light.glow,
+        (light.color[1] ?? 1) * light.glow,
+        (light.color[2] ?? 1) * light.glow,
+      );
+      const made = new k.Mesh(geometry, material);
+      made.name = `Generated ${mesh}`;
+      return made;
     };
-    const globe = emitter(gen.meshes.globe, '01_TV_lamp_opaline_BAKED_UNLIT', lights.lamp?.glowing ?? null);
-    const eyes = emitter(gen.meshes.eyes, '01_TV_robot_eyes_BAKED_UNLIT', lights.robot?.glowing ?? null);
+    const globe = emitter('globe', '01_TV_lamp_opaline_BAKED_UNLIT', TV_LAMP_SPEC);
+    const eyes = emitter('eyes', '01_TV_robot_eyes_BAKED_UNLIT', ROBOT_SPEC);
 
+    const blankCanvas = document.createElement('canvas');
+    blankCanvas.width = blankCanvas.height = 1;
+    this.blank = new k.CanvasTexture(blankCanvas);
+    this.blank.colorSpace = k.SRGBColorSpace;
     const names: Record<number, string> = {
       [GROUP.cabinet]: '01_TV_surfaces_BAKED_UNLIT',
       [GROUP.wall]: '03_Room_surfaces_BAKED_UNLIT',
@@ -304,59 +431,69 @@ export class GeneratedRoom {
       // Wool: baked like the floor it lies on, but no varnish (RoomGloss gives a name it does not list none).
       [GROUP.rug]: '03_Room_rug_BAKED_UNLIT',
     };
-    const charts = new Map<number, Mesh>();
     for (const data of gen.charts.display) {
       const geometry = new k.BufferGeometry();
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       geometry.setAttribute('uv', new k.BufferAttribute(data.uvs, 2));
-      const material = new k.MeshBasicMaterial();
+      const material = new k.MeshBasicMaterial({ map: this.blank });
       material.name = names[data.group] ?? '01_TV_surfaces_BAKED_UNLIT';
-      material.defines = { GENERATED: '' };
       material.userData.page = data.page;
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated charts ${data.group}`;
+      // The shell does not shadow the room's lights: they stand inside it.
       if (data.group !== GROUP.wall && data.group !== GROUP.floor && data.group !== GROUP.rug) {
         mesh.layers.enable(CASTERS_ALL);
         mesh.layers.enable(CASTERS_LOCAL);
       }
-      charts.set(data.group, mesh);
+      this.charts.set(data.group, mesh);
     }
 
-    this.art = new k.CanvasTexture(this.artCanvas);
+    this.art ??= new k.CanvasTexture(this.artCanvas);
     this.art.colorSpace = k.SRGBColorSpace;
     this.art.flipY = false;
     this.art.anisotropy = context.anisotropy;
-    this.paint();
-    this.stopCanvas = k.onCanvasRestored(this.artCanvas, () => this.paint());
-    const decalGeometry = new k.BufferGeometry();
-    decalGeometry.setAttribute('position', new k.BufferAttribute(gen.decals.positions, 3));
-    decalGeometry.setAttribute('uv', new k.BufferAttribute(gen.decals.uvs, 2));
-    decalGeometry.setAttribute('color', new k.BufferAttribute(gen.decals.tints, 3));
-    const decals = new k.Mesh(
-      decalGeometry,
-      new k.MeshBasicMaterial({
-        map: this.art,
-        vertexColors: true,
-        transparent: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
-      }),
-    );
-    decals.name = 'Generated prints';
-
     // The view outside: a plate behind the window, which the rain's refraction samples (userData.exterior).
     this.exterior = new k.CanvasTexture(this.exteriorCanvas);
     this.exterior.colorSpace = k.SRGBColorSpace;
+    this.stopCanvas = k.onCanvasRestored(this.artCanvas, () => this.paint());
+    // The prints: the set's own (its legends and wordmark go where the set goes), and everything else's.
+    const printsOf = (tvOnly: boolean): Mesh => {
+      const [start, count] = gen.props.find((prop) => prop.name === 'tv-set')?.decals ?? [0, 0];
+      const pick = (array: Float32Array, size: number): Float32Array => {
+        const [from, to] = [start * 6 * size, (start + count) * 6 * size];
+        if (tvOnly) return array.subarray(from, to);
+        const rest = new Float32Array(array.length - (to - from));
+        rest.set(array.subarray(0, from));
+        rest.set(array.subarray(to), from);
+        return rest;
+      };
+      const geometry = new k.BufferGeometry();
+      geometry.setAttribute('position', new k.BufferAttribute(pick(gen.decals.positions, 3), 3));
+      geometry.setAttribute('uv', new k.BufferAttribute(pick(gen.decals.uvs, 2), 2));
+      geometry.setAttribute('color', new k.BufferAttribute(pick(gen.decals.tints, 3), 3));
+      const mesh = new k.Mesh(
+        geometry,
+        new k.MeshBasicMaterial({
+          map: this.art,
+          vertexColors: true,
+          transparent: true,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        }),
+      );
+      mesh.name = tvOnly ? 'Generated TV prints' : 'Generated prints';
+      return mesh;
+    };
+
+    const { minX, maxX, minY, maxY, z } = EXTERIOR_PLATE;
     const plate = new k.BufferGeometry();
     plate.setAttribute(
       'position',
       new k.BufferAttribute(
-        new Float32Array([
-          -3.7, 0.1, -4.5, 1.1, 0.1, -4.5, 1.1, 3.7, -4.5, -3.7, 0.1, -4.5, 1.1, 3.7, -4.5, -3.7, 3.7, -4.5,
-        ]),
+        new Float32Array([minX, minY, z, maxX, minY, z, maxX, maxY, z, minX, minY, z, maxX, maxY, z, minX, maxY, z]),
         3,
       ),
     );
@@ -364,9 +501,8 @@ export class GeneratedRoom {
     const outside = new k.Mesh(plate, new k.MeshBasicMaterial({ map: this.exterior }));
     outside.name = 'Generated view outside';
     outside.userData.exterior = true;
-    this.group.add(outside);
 
-    // The lava lamp's wax and bottle: the wax moves, by the clock, while the generated room is what is drawn.
+    // The lava lamp's wax and bottle: the wax moves, by the clock, while the room is what is drawn.
     this.lava = new LavaWax(k, gen.meshes.glass, {
       camera: context.stage.camera,
       isVisible: () => this.shown && context.stage.visible,
@@ -374,23 +510,53 @@ export class GeneratedRoom {
       invalidate: () => context.stage.loop.invalidate(),
     });
     this.stopLava = context.stage.onRender(this.lava.sync);
-    this.group.add(...this.lava.meshes);
 
-    // The CD player, part by part on its pivots; it joins the shipped radio's node, as the set does below.
+    // The CD player, part by part on its pivots.
     this.radioParts = new GeneratedRadio(k, gen);
-    this.radioParts.group.visible = false;
-    if (context.radio) this.radioParts.attach(context.radio);
-    else this.group.add(this.radioParts.group);
+    context.stage.scene.add(this.radioParts.group);
 
-    // The set joins the shipped set's own node: the spotlight glows and bounces what is under it.
-    tv.visible = false;
-    context.tv.add(tv);
-    this.group.add(props, desk, globe, eyes, decals, ...charts.values());
-    context.stage.scene.add(this.group);
-    this.displays = { tv, props, desk, charts };
-    this.tagCasters();
-    // The finish takes the new materials in (RoomGloss.attach); nothing is drawn with them yet.
-    context.stage.attachAtmosphere();
+    tvSet.add(tv, printsOf(true));
+    pc.add(monitor, this.pickMesh(gen, deskProps, PICK_PROPS.pc, 'desk'));
+    const deskCharts = this.charts.get(GROUP.desk);
+    if (deskCharts) desk.add(deskCharts);
+    desk.add(this.pickMesh(gen, deskProps, PICK_PROPS.desk, 'desk'));
+    room.add(props, deskProps, globe, eyes, printsOf(false), outside, ...this.lava.meshes);
+    for (const [index, mesh] of this.charts) if (index !== GROUP.desk) room.add(mesh);
+    return { tv: tvSet, pc, monitor, desk, dresser: this.charts.get(GROUP.dresser) ?? null, radio: this.radioParts };
+  }
+
+  /**
+   * The named props' triangles of the merged props mesh as a mesh of their own, for pointer rays only: it shares the
+   * props' vertices, holds an index and its own bounds, and is never drawn.
+   */
+  private pickMesh(gen: GenScene, props: Mesh, names: readonly string[], from: MeshName = 'props'): Mesh {
+    const { kit: k } = this;
+    const ranges = gen.props.flatMap((prop) =>
+      names.includes(prop.name) && prop.ranges[from] ? [prop.ranges[from] as readonly [number, number]] : [],
+    );
+    const index = new Uint32Array(ranges.reduce((sum, [, count]) => sum + count, 0));
+    const positions = gen.meshes[from].positions;
+    const low = [Infinity, Infinity, Infinity];
+    const high = [-Infinity, -Infinity, -Infinity];
+    let at = 0;
+    for (const [start, count] of ranges)
+      for (let vertex = start; vertex < start + count; vertex++) {
+        index[at++] = vertex;
+        for (let c = 0; c < 3; c++) {
+          const value = positions[vertex * 3 + c] as number;
+          low[c] = Math.min(low[c] as number, value);
+          high[c] = Math.max(high[c] as number, value);
+        }
+      }
+    const geometry = new k.BufferGeometry();
+    geometry.setAttribute('position', props.geometry.getAttribute('position'));
+    geometry.setIndex(new k.BufferAttribute(index, 1));
+    geometry.boundingBox = new k.Box3(new k.Vector3(...low), new k.Vector3(...high));
+    geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new k.Sphere());
+    const mesh = new k.Mesh(geometry, props.material);
+    mesh.name = `Pick ${names.join(' ')}`;
+    mesh.visible = false;
+    return mesh;
   }
 
   private paint(): void {
@@ -400,120 +566,147 @@ export class GeneratedRoom {
     if (this.exterior) this.exterior.needsUpdate = true;
   }
 
-  /** Marks the shipped meshes that cast shadows in the bake: opaque ones, the shell only for lights it can shadow. */
-  private tagCasters(): void {
-    const replaced = new Set<Object3D>(this.replaced);
-    this.context.stage.scene.traverse((object) => {
-      const mesh = object as Mesh;
-      if (!mesh.isMesh || replaced.has(mesh) || mesh.layers.isEnabled(CASTERS_ALL)) return;
-      let inside = false;
-      for (let parent: Object3D | null = mesh; parent; parent = parent.parent) if (parent === this.group) inside = true;
-      if (inside || mesh.name.startsWith('Generated')) return;
-      const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as
-        | MeshBasicMaterial
-        | undefined;
-      if (!material || material.transparent || !material.depthWrite || !material.colorWrite || material.blending !== 1)
-        return;
-      const name = nameOf(mesh);
-      if (mesh.userData.exterior || /Night_tree|Glow|Halo|Fade|Dust/i.test(name)) return;
-      mesh.layers.enable(CASTERS_ALL);
-      let shell = false;
-      for (let parent: Object3D | null = mesh; parent; parent = parent.parent)
-        if (SHELL.test(nameOf(parent))) shell = true;
-      if (!shell) mesh.layers.enable(CASTERS_LOCAL);
-    });
-  }
-
-  private startBake(): void {
-    const { gen, art, context, kit } = this;
-    if (!gen || !art || this.disposed) return;
-    const { stage } = context;
+  private bakeOptions(): ConstructorParameters<typeof Baker>[5] {
+    const { stage } = this.context;
     const tier = this.tier;
     // The finish's static lights as the room sets them for this mood (none without a finish).
     const lit = stage.mood !== 'original';
-    const lamp = lit ? this.lamp : null;
-    const halfFloat =
-      stage.renderer.extensions.has('EXT_color_buffer_half_float') ||
-      stage.renderer.extensions.has('EXT_color_buffer_float');
-    this.baker?.dispose(true);
-    const baker = new Baker(kit, stage.renderer, stage.scene, gen, art, {
+    return {
       shadowSize: tier.shadowSize,
       lightScale: tier.lightScale,
       sampleSet: tier.sampleSet,
-      halfFloat,
+      halfFloat: this.halfFloat,
       exposure: 1,
-      staticColor: lamp
-        ? [lamp[0] * TV_LAMP_INTENSITY, lamp[1] * TV_LAMP_INTENSITY, lamp[2] * TV_LAMP_INTENSITY]
-        : [0, 0, 0],
+      staticColor: TV_LAMP_SPEC.color.map((value) => (lit ? value * TV_LAMP_INTENSITY : 0)) as [number, number, number],
       warmth: POOL_WARMTH[stage.mood],
-      anisotropy: context.anisotropy,
-    });
-    this.baker = baker;
-    this.timings = {
-      cpu: 0,
-      longest: 0,
-      started: 0,
-      gpu: 0,
-      deferred: false,
-      units: 0,
-      compiled: 0,
-      baked: 0,
-      created: performance.now(),
+      anisotropy: this.context.anisotropy,
     };
-    // The bake's programs link off the main thread; its first unit waits for them.
-    this.show(true);
-    const compiled = baker.compile();
-    this.show(false);
-    compiled.then(
+  }
+
+  private startBake(): void {
+    const { gen, art, context, kit, request } = this;
+    if (!gen || !art || !request || this.disposed || this.failed) return;
+    const { stage } = context;
+    let baker: Baker;
+    try {
+      baker = new Baker(kit, stage.renderer, stage.scene, gen, art, this.bakeOptions());
+    } catch (error) {
+      this.fail(error);
+      return;
+    }
+    this.baker = baker;
+    this.mark('baker');
+    this.transientBytes = baker.transientBytes;
+    this.timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
+    this.viewGpuMs = UNIT_GPU_TARGET_MS.rest;
+    this.slowUnits = 0;
+    // The display's programs and the bake's link off the main thread; the first unit waits for the bake's. In the
+    // next task: making the bake's buffers and the programs' sources are each a slow phone's whole frame or two.
+    void pause().then(() => {
+      if (this.disposed || this.baker !== baker) return;
+      // What the opening view shows goes first; without one (the camera is elsewhere) the whole room is one pass.
+      const clip = request.opening();
+      const parts = clip ? openingParts(gen, clip, kit) : null;
+      this.opening = clip && parts ? { clip: clip.clone(), share: parts.share } : null;
+      this.late = parts && parts.share < 1 ? parts.late : null;
+      if (parts && this.late) baker.begin(parts.early);
+      stage.prepare(stage.scene);
+      this.mark('prepared');
+      this.compile(baker);
+    });
+  }
+
+  private compile(baker: Baker): void {
+    baker.compile().then(
       () => {
         if (this.disposed || this.baker !== baker) return;
-        this.timings.compiled = performance.now();
-        this.queue(baker);
+        this.mark('compiled');
+        // The real bake holds the programs now.
+        this.warm?.dispose(true);
+        this.warm = null;
+        this.next(baker);
       },
       (error: unknown) => this.fail(error),
     );
   }
 
   /**
-   * Queues the bake's next unit: a few views, as many as the GPU has been seen to do in UNIT_GPU_TARGET_MS. IdleWork
-   * says when the main thread may run it (between a playing game's frames while a view is quick on this GPU, else only
-   * in a quiet moment); the unit after it is not queued until the GPU has this one's work behind it, so frames go in
-   * between and no two units ever pile up on one.
+   * Queues the bake's next unit: a few views, as many as the GPU has been seen to do in the time a unit may take.
+   * Until the opening view is baked nothing of the room is on screen and units follow each other as fast as the GPU
+   * takes them. After that IdleWork says when the main thread may run one (between a playing game's frames while a
+   * view is quick on this GPU, else only in a quiet moment, unless a visitor is waiting for the room). The unit after
+   * is never queued until the GPU has this one's work behind it, so frames go in between and no two pile up on one.
    */
-  private queue(baker: Baker): void {
-    this.dropTask?.();
-    this.dropTask = this.context.background.add(this.unit(baker), { estimateMs: UNIT_ESTIMATE_MS });
+  private next(baker: Baker): void {
+    if (this.paced) this.queue(baker);
+    else soon(() => this.unit(baker));
   }
 
-  private *unit(baker: Baker): IdleTask {
-    // Kept for a quiet moment once a single view has taken the GPU too long to hide between two frames.
-    if (this.timings.deferred) yield this.kit.quiet;
-    if (this.disposed || this.baker !== baker) return;
+  private queue(baker: Baker): void {
+    this.dropTask?.();
+    if (!this.request) return;
+    const run = this.unit.bind(this);
+    const kit = this.kit;
+    const deferred = (): boolean => this.timings.deferred;
+    this.dropTask = this.request.background.add(
+      (function* (): IdleTask {
+        // Kept for a quiet moment once a single view has taken the GPU too long to hide between two frames.
+        if (deferred()) yield kit.quiet;
+        run(baker);
+      })(),
+      { estimateMs: UNIT_ESTIMATE_MS, apart: true },
+    );
+  }
+
+  private unit(baker: Baker): void {
+    this.timer = null;
     this.dropTask = null;
-    const gl = this.context.stage.renderer.getContext() as WebGL2RenderingContext;
+    if (this.disposed || this.baker !== baker) return;
+    const { renderer } = this.context.stage;
+    const gl = renderer.getContext() as WebGL2RenderingContext;
     const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number } | null;
-    const query = timer ? gl.createQuery() : null;
+    // The opening pass does not wait for a timer's result (it follows the fence by a task or two): the wait for the
+    // fence is its measure.
+    const query = timer && this.paced ? gl.createQuery() : null;
     const started = performance.now();
     if (!this.timings.started) this.timings.started = started;
     if (timer && query) gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
-    const views = Math.max(1, Math.min(MAX_VIEWS_A_UNIT, Math.floor(UNIT_GPU_TARGET_MS / this.viewGpuMs)));
-    this.show(true);
+    const target = this.hurried
+      ? UNIT_GPU_TARGET_MS.hurried
+      : this.shown
+        ? UNIT_GPU_TARGET_MS.rest
+        : UNIT_GPU_TARGET_MS.opening;
+    const most = this.paced ? MAX_VIEWS_A_UNIT.rest : MAX_VIEWS_A_UNIT.opening;
+    // Behind the room's frames a unit is also short on the main thread: IdleWork judges every task's untimed units by
+    // the longest unit it has run, and a long one here would keep the monitor's still waiting for a quiet moment.
+    const cpu = this.paced ? Math.floor(UNIT_CPU_TARGET_MS / this.viewCpuMs) : most;
+    const views = Math.max(1, Math.min(most, cpu, Math.floor(target / this.viewGpuMs)));
+    // The bake clears with its own colour; the room's frames clear with theirs.
+    const clearAlpha = renderer.getClearAlpha();
+    const clearColor = renderer.getClearColor(new this.kit.Color());
     let more = true;
-    for (let i = 0; i < views && more; i++) more = baker.step();
-    if (!this.shown) this.show(false);
+    let stepped = 0;
+    try {
+      for (; stepped < views && more; stepped++) more = baker.step();
+    } catch (error) {
+      this.fail(error);
+      return;
+    } finally {
+      renderer.setClearColor(clearColor, clearAlpha);
+    }
+    this.timings.views += more ? stepped : Math.max(0, stepped - 2);
     if (timer && query) gl.endQuery(timer.TIME_ELAPSED_EXT);
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
     const took = performance.now() - started;
+    if (stepped > 0) this.viewCpuMs = Math.max(0.05, took / stepped);
     this.timings.cpu += took;
     this.timings.longest = Math.max(this.timings.longest, took);
-    this.timings.units++;
     if (!more) {
-      this.timings.baked = performance.now();
       if (query) gl.deleteQuery(query);
       if (sync) gl.deleteSync(sync);
       baker.result().then(
-        (result) => this.finish(baker, result),
+        (result) => this.passed(baker, result),
         (error: unknown) => this.fail(error),
       );
       return;
@@ -521,12 +714,15 @@ export class GeneratedRoom {
     // Wait for the GPU, off the frame's path, then judge the unit and queue the next.
     let polls = 0;
     const poll = (): void => {
+      this.timer = null;
+      this.waited = null;
       if (this.disposed || this.baker !== baker) return;
       const signalled = !sync || gl.clientWaitSync(sync, 0, 0) !== gl.TIMEOUT_EXPIRED;
       const measured = query ? (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) as boolean) : false;
       // The timer's result follows the fence by a task or two; without a timer the wait itself is the measure.
       if (!signalled || (query && !measured && ++polls < 6)) {
-        setTimeout(poll, GPU_POLL_MS);
+        if (this.paced) this.wait(poll, signalled ? 0 : GPU_POLL_MS);
+        else later(poll);
         return;
       }
       const gpuMs =
@@ -537,117 +733,120 @@ export class GeneratedRoom {
       if (sync) gl.deleteSync(sync);
       this.viewGpuMs = Math.max(0.05, gpuMs / views);
       this.timings.gpu = Math.max(this.timings.gpu, this.viewGpuMs);
-      if (this.viewGpuMs > UNIT_GPU_LIMIT_MS) this.timings.deferred = true;
-      this.queue(baker);
+      // One slow reading is the GPU busy with a frame; three in a row is this GPU.
+      this.slowUnits = this.viewGpuMs > UNIT_GPU_LIMIT_MS ? this.slowUnits + 1 : 0;
+      if (this.slowUnits >= 3) this.timings.deferred = true;
+      this.next(baker);
     };
-    setTimeout(poll, GPU_POLL_MS);
+    if (this.paced) this.wait(poll, GPU_POLL_MS);
+    else later(poll);
   }
 
-  /** The bake is back from the GPU: light the meshes, link their programs, and swap them in. */
-  private finish(baker: Baker, result: BakeResult): void {
-    const { displays, gen, context } = this;
-    if (this.disposed || this.baker !== baker || !displays || !gen) return;
-    let offset = 0;
-    for (const [name, mesh] of [
-      ['tv', displays.tv],
-      ['props', displays.props],
-    ] as const) {
-      const count = gen.meshes[name].positions.length;
-      const colors = mesh.geometry.getAttribute('color');
-      (colors.array as Float32Array).set(result.colors.subarray(offset, offset + count));
-      colors.needsUpdate = true;
-      offset += count;
-    }
-    this.radioParts?.light(result.colors);
-    // The desk's mesh is the last in the bake's colours (scene.ts › MESHES).
-    const deskColors = displays.desk.geometry.getAttribute('color');
-    (deskColors.array as Float32Array).set(
-      result.colors.subarray(result.colors.length - gen.meshes.desk.positions.length),
-    );
-    deskColors.needsUpdate = true;
-    for (const mesh of displays.charts.values()) {
-      const material = mesh.material as MeshBasicMaterial;
-      material.map = result.pages[material.userData.page as number] ?? null;
-      material.needsUpdate = true;
-    }
-    baker.dispose();
-    this.show(true);
-    context.stage.prepare(context.stage.scene);
-    this.show(false);
-    linked(context.stage.renderer).then(
-      () => {
-        if (this.disposed || this.baker !== baker) return;
-        this.show(true);
-        this.shown = true;
-        this.lava?.sync();
-        this.retire();
-        // Sixty frames a second in every view of the generated room, whether or not something moves.
-        this.stopFrames ??= sixtyFrames(context.stage.loop);
-        const pages = gen.pages.map(({ width, height }) => [width, height] as const);
-        this.lastStats = {
-          builtIn: this.builtIn,
-          buildMs: gen.buildMs,
-          views: result.views,
-          bakeCpuMs: this.timings.cpu,
-          longestUnitMs: this.timings.longest,
-          bakeWallMs: performance.now() - this.timings.started,
-          longestGpuMs: this.timings.gpu,
-          deferred: this.timings.deferred,
-          triangles: gen.props.reduce((sum, prop) => sum + prop.triangles, 0),
-          pages,
-          pageBytes: Math.round(pages.reduce((sum, [w, h]) => sum + w * h * 4, 0) * (4 / 3)),
-          transientBytes: baker.transientBytes,
-          halfFloat:
-            context.stage.renderer.extensions.has('EXT_color_buffer_half_float') ||
-            context.stage.renderer.extensions.has('EXT_color_buffer_float'),
-        };
-        this.events.onShown(this.lastStats);
-      },
-      (error: unknown) => this.fail(error),
-    );
-  }
-
-  /** The generated pieces in for the shipped ones, or back. */
-  private show(generated: boolean): void {
-    for (const mesh of this.replaced) {
-      mesh.visible = !generated;
-      mesh.userData.retired = generated;
-    }
-    this.group.visible = generated;
-    if (this.displays) this.displays.tv.visible = generated;
-    if (this.radioParts && this.context.radio) this.radioParts.group.visible = generated;
-  }
-
-  /** Frees the GPU's copy of every atlas only the replaced meshes drew with; a swap back uploads it again. */
-  private retire(): void {
-    const kept = new Set<Texture>();
-    const replaced = new Set<Object3D>(this.replaced);
-    const textures = (mesh: Mesh): Texture[] =>
-      (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).flatMap((material) =>
-        Object.values(material).filter((value): value is Texture => (value as Texture | null)?.isTexture === true),
-      );
-    this.context.stage.scene.traverse((object) => {
-      const mesh = object as Mesh;
-      if (mesh.isMesh && !replaced.has(mesh)) for (const texture of textures(mesh)) kept.add(texture);
-    });
-    for (const mesh of this.replaced)
-      for (const texture of textures(mesh))
-        if (!kept.has(texture)) {
-          this.retired.add(texture);
-          texture.dispose();
+  /** A pass is back from the GPU: light the meshes; after the opening view's, show the room and start on the rest. */
+  private passed(baker: Baker, result: BakeResult): void {
+    const { gen, context } = this;
+    if (this.disposed || this.baker !== baker || !gen) return;
+    this.mark('lit');
+    if (!this.shown) {
+      // A program the driver refused draws nothing and says nothing: a room without any light is not a room.
+      let light = 0;
+      for (let i = 0; i < result.colors.length && light === 0; i += 97) light += result.colors[i] as number;
+      if (light === 0) {
+        this.fail(new Error('The bake lit nothing'));
+        return;
+      }
+      let offset = 0;
+      for (const [name, data] of Object.entries(gen.meshes)) {
+        const count = data.positions.length;
+        const colors = this.vertexLit[name as MeshName]?.geometry.getAttribute('color') as BufferAttribute | undefined;
+        if (colors) {
+          (colors.array as Float32Array).set(result.colors.subarray(offset, offset + count));
+          colors.needsUpdate = true;
         }
+        offset += count;
+      }
+      this.radioParts?.light(result.colors);
+      for (const mesh of this.charts.values()) {
+        const material = mesh.material as MeshBasicMaterial;
+        material.map = result.pages[material.userData.page as number] ?? this.blank;
+      }
+    }
+    const late = this.late;
+    this.late = null;
+    if (!late) {
+      baker.dispose();
+      this.timings.baked = performance.now();
+    }
+    const done = (): void => {
+      if (!late) {
+        this.complete = true;
+        this.hurried = false;
+        this.events.onComplete(this.stats as GeneratedStats);
+        for (const resolve of this.waiting.splice(0)) resolve();
+        return;
+      }
+      baker.begin(late);
+      this.next(baker);
+    };
+    if (this.shown) {
+      done();
+      return;
+    }
+    linked(context.stage.renderer).then(() => {
+      if (this.disposed || this.baker !== baker) return;
+      this.shown = true;
+      this.timings.shown = performance.now();
+      this.mark('shown');
+      this.lava?.sync();
+      // Sixty frames a second in every view, whether or not something moves.
+      this.stopFrames ??= sixtyFrames(context.stage);
+      this.events.onShown(this.stats as GeneratedStats);
+      done();
+    });
+  }
+
+  private mark(name: string): void {
+    this.marks[name] ??= Math.round(performance.now() - this.created);
+  }
+
+  /**
+   * Whether the bake's units wait their turn behind the room's frames (IdleWork, timers): once the room is on screen,
+   * unless a visitor waits for the rest of it. Otherwise they follow each other as fast as the GPU takes them.
+   */
+  private get paced(): boolean {
+    return this.shown && !this.hurried;
+  }
+
+  /** A look at a unit's fence, later: on a timer, which a visitor's wait for the room cuts short (whenWhole). */
+  private wait(poll: () => void, ms: number): void {
+    this.waited = poll;
+    this.timer = setTimeout(poll, ms);
+  }
+
+  private stopWork(): void {
+    this.dropTask?.();
+    this.dropTask = null;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    this.waited = null;
   }
 
   private readonly onLost = (): void => {
-    // The pages are gone with the context: the shipped pieces, whose images three uploads again, stand in.
-    this.dropTask?.();
-    this.dropTask = null;
+    // The pages are gone with the context. Freed now, while the lost context takes every call in silence: after the
+    // restore the same calls would name objects of a context that no longer exists.
+    this.stopWork();
     this.stopFrames?.();
     this.stopFrames = null;
-    if (this.shown) this.events.onLost();
+    this.baker?.dispose(true);
+    this.baker = null;
+    this.warm?.dispose(true);
+    this.warm = null;
+    for (const mesh of this.charts.values()) (mesh.material as MeshBasicMaterial).map = this.blank;
+    const was = this.shown;
     this.shown = false;
+    this.complete = false;
     this.lava?.sync();
-    this.show(false);
+    if (was) this.events.onLost();
   };
 
   private readonly onRestored = (): void => {
@@ -657,33 +856,157 @@ export class GeneratedRoom {
   };
 
   private fail(error: unknown): void {
-    if (this.disposed) return;
-    this.dropTask?.();
-    this.show(false);
+    if (this.disposed || this.failed) return;
+    this.failed = true;
+    this.stopWork();
     this.events.onFailed(error);
+    for (const resolve of this.waiting.splice(0)) resolve();
   }
 }
 
-/** A light the shipped room records on one of its nodes (`userData.light`): its colour, and that colour × its glow. */
-function glowOf(
-  room: Object3D,
-  asset: string,
-): { color: readonly [number, number, number]; glowing: readonly number[] } | null {
-  let found: { color: readonly [number, number, number]; glowing: readonly number[] } | null = null;
-  room.traverse((object) => {
-    if (object.userData.supplied_asset !== asset) return;
-    const light = object.userData.light as { color: [number, number, number]; glow: number };
-    found = { color: light.color, glowing: light.color.map((value) => value * light.glow) };
-  });
-  return found;
+/**
+ * The chart cells (six vertices each, kit/charts.ts) a view shows, and the rest, as the two parts of a bake: a cell is
+ * the view's unless all its corners lie beyond one of the view's planes, pushed out by OPENING_MARGIN.
+ */
+function openingParts(
+  gen: GenScene,
+  clip: Matrix4,
+  kit: GenKit,
+): { readonly early: BakePart; readonly late: BakePart; readonly share: number } {
+  const corner = new kit.Vector4();
+  const reach = 1 + OPENING_MARGIN;
+  const early: Uint32Array[] = [];
+  const late: Uint32Array[] = [];
+  let [seen, all] = [0, 0];
+  for (const mesh of gen.charts.bake) {
+    const cells = mesh.positions.length / 18;
+    const first: number[] = [];
+    const rest: number[] = [];
+    for (let cell = 0; cell < cells; cell++) {
+      let outside = 63;
+      for (let vertex = 0; vertex < 6; vertex++) {
+        const at = (cell * 6 + vertex) * 3;
+        const p = corner
+          .set(mesh.positions[at] as number, mesh.positions[at + 1] as number, mesh.positions[at + 2] as number, 1)
+          .applyMatrix4(clip);
+        const w = p.w * reach;
+        outside &=
+          (p.x < -w ? 1 : 0) |
+          (p.x > w ? 2 : 0) |
+          (p.y < -w ? 4 : 0) |
+          (p.y > w ? 8 : 0) |
+          (p.z < -p.w ? 16 : 0) |
+          (p.z > p.w ? 32 : 0);
+      }
+      const list = outside === 0 ? first : rest;
+      for (let vertex = 0; vertex < 6; vertex++) list.push(cell * 6 + vertex);
+    }
+    early.push(new Uint32Array(first));
+    late.push(new Uint32Array(rest));
+    seen += first.length;
+    all += cells * 6;
+  }
+  return {
+    early: { charts: early, vertices: true },
+    late: { charts: late, vertices: false },
+    share: all ? seen / all : 1,
+  };
 }
 
-/** Longest the swap waits for its programs to link before drawing with them anyway (ms). */
+/** Whether the view `clip` shows nothing the view `within` (with its margin) did not: its corners, near and far. */
+function inside(clip: Matrix4, within: Matrix4, kit: GenKit): boolean {
+  const unproject = clip.clone().invert();
+  const corner = new kit.Vector4();
+  const reach = 1 + OPENING_MARGIN;
+  for (let i = 0; i < 8; i++) {
+    corner.set(i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 0.999 : -1, 1).applyMatrix4(unproject);
+    corner.multiplyScalar(1 / corner.w).applyMatrix4(within);
+    if (Math.abs(corner.x) > corner.w * reach || Math.abs(corner.y) > corner.w * reach) return false;
+  }
+  return true;
+}
+
+/**
+ * Runs `task` as the next task, without a timer's clamp (4 ms once timers nest): the opening pass's units and the
+ * looks at their fences follow each other with frames and input in between, and no time lost.
+ */
+/** Longest a slice of the room's raising waits for the page to be idle (ms). */
+const PAUSE_MS = 120;
+
+/**
+ * Ends a task of the room's raising. The next starts when the page is idle, so whatever else is starting (the game, on
+ * the startup still) goes first; on an idle page that is at once, and on a busy one within PAUSE_MS.
+ */
+const pause = (): Promise<void> =>
+  new Promise((resolve) => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: PAUSE_MS });
+    else soon(resolve);
+  });
+
+function soon(task: () => void): void {
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => {
+    channel.port1.close();
+    task();
+  };
+  channel.port2.postMessage(null);
+}
+
+/**
+ * Runs `task` once nothing more urgent is queued, without a timer: a look at a fence the GPU has yet to reach. Polling
+ * it as the very next task would keep the page from ever being idle, and the app's own idle work (the computer's
+ * wallpaper) waiting for the whole bake.
+ */
+function later(task: () => void): void {
+  const tasks = (globalThis as { scheduler?: { postTask?(task: () => void, options: { priority: string }): unknown } })
+    .scheduler;
+  if (typeof tasks?.postTask === 'function') void tasks.postTask(task, { priority: 'background' });
+  else soon(task);
+}
+
+/**
+ * The smallest scene a Baker takes: one chart cell and one triangle. Its programs are the bake's, so compiling them
+ * while the worker still builds the room leaves the real bake nothing to wait for (three shares programs by source).
+ */
+function tinyScene(): GenScene {
+  const cell = (size: number): Float32Array => new Float32Array(6 * size);
+  const mesh = {
+    positions: new Float32Array(9),
+    normals: new Float32Array(9),
+    albedo: new Float32Array(9),
+    shade: new Float32Array(3),
+  };
+  return {
+    meshes: { tv: mesh },
+    pages: [{ width: 32, height: 32 }],
+    charts: {
+      display: [],
+      bake: [
+        {
+          page: 0,
+          positions: cell(3),
+          normals: cell(3),
+          uvs: cell(2),
+          local: cell(2),
+          st: cell(2),
+          material: cell(1),
+          params: cell(4),
+          shade: cell(1),
+        },
+      ],
+    },
+    decals: { positions: new Float32Array(0), uvs: new Float32Array(0), tints: new Float32Array(0) },
+    props: [],
+    buildMs: 0,
+  } as unknown as GenScene;
+}
+
+/** Longest the room waits for its programs to link before drawing with them anyway (ms). */
 const LINK_WAIT_MS = 4000;
 
 /**
- * Resolves once every program the renderer holds has linked, so the frame that first draws the generated pieces does
- * not wait on the driver. Where the GPU cannot say (no KHR_parallel_shader_compile) it resolves at once.
+ * Resolves once every program the renderer holds has linked, so the frame that first draws the room does not wait on
+ * the driver. Where the GPU cannot say (no KHR_parallel_shader_compile) it resolves at once.
  */
 function linked(renderer: RoomStage['renderer']): Promise<void> {
   const gl = renderer.getContext();
@@ -697,7 +1020,7 @@ function linked(renderer: RoomStage['renderer']): Promise<void> {
         ({ program }) => gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR) as boolean,
       );
       if (done || performance.now() - started > LINK_WAIT_MS) resolve();
-      else setTimeout(poll, 8);
+      else setTimeout(poll, 4);
     };
     poll();
   });
@@ -705,16 +1028,20 @@ function linked(renderer: RoomStage['renderer']): Promise<void> {
 
 /** Slightly under 1/60 s, as the game's own frames are paced (stage/FramePacer.ts). */
 const FRAME_INTERVAL_MS = 1000 / 60 - 2;
+/** How often a hidden room looks whether it is back (ms). */
+const HIDDEN_POLL_MS = 250;
 
 /**
  * Asks for a frame sixty times a second, as a run of frames (so the quality governor judges them), until the returned
- * function is called: a 60 Hz display draws every frame, a 120 Hz one every other.
+ * function is called: a 60 Hz display draws every frame, a 120 Hz one every other. It asks for none while the canvas
+ * is off screen or the tab hidden.
  */
-function sixtyFrames(loop: RoomStage['loop']): () => void {
+function sixtyFrames(stage: RoomStage): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const tick = (): void => {
-    loop.invalidate(true);
-    timer = setTimeout(tick, FRAME_INTERVAL_MS);
+    const visible = stage.visible;
+    if (visible) stage.loop.invalidate(true);
+    timer = setTimeout(tick, visible ? FRAME_INTERVAL_MS : HIDDEN_POLL_MS);
   };
   tick();
   return () => {
