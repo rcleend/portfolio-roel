@@ -98,10 +98,10 @@ export interface RadioLayout {
  * loads lazily (as the camera first leaves the TV, on a prefetch, or on the way to the radio).
  */
 export interface RadioDoor {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
+  /** False once the radio cannot work (its chunk failed, or the room could not be lit; warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
-  /** Starts loading the deck and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
+  /** Starts loading the deck and preparing the device; 'idle' does nothing under Save-Data. Idempotent. */
   prefetch(reason: 'idle' | 'intent'): void;
   /** The deck, importing its chunk on first call; rejects when the radio cannot work. */
   load(): Promise<RadioDeck>;
@@ -110,10 +110,10 @@ export interface RadioDoor {
 }
 
 export interface RadioDeck {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
+  /** False once the radio cannot work (its chunk failed, or the room could not be lit; warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
-  /** Starts loading and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
+  /** Starts loading and preparing the device; 'idle' does nothing under Save-Data. Idempotent. */
   prefetch(reason: 'idle' | 'intent'): void;
   /** Size to paint `DiscArt.label` at, fixed per page load once the room is ready. */
   readonly labelSize: 256 | 384 | 512;

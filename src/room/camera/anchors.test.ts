@@ -6,7 +6,7 @@ import { type AnchorTarget, EDGE_BAND, propAnchors } from './anchors';
 import type { Viewpoint } from './cameraPath';
 import { roomViewpoint } from './roomFraming';
 
-/** The middles of the two pictures in the attic (pc-base.glb and tv-high.glb, room revision 6). */
+/** The middles of the two pictures in the attic (gen/roomSpec.ts › TV_SPEC, PC_SPEC). */
 const PROPS: readonly AnchorTarget[] = [
   { target: 'tv', point: new Vector3(2.159, 0.836, -0.32) },
   { target: 'pc', point: new Vector3(-1.34, 1.071, -1.679) },

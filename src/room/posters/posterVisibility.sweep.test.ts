@@ -17,7 +17,7 @@ import { anyInView, decorBoxes } from './posterVisibility';
 import { ATLAS_HEIGHT, ATLAS_WIDTH, wallGeometry } from './wall/geometry';
 
 /*
- * The visibility rule against the walls' geometry (wall/geometry.ts) and the shipped framing: every resting pose the
+ * The visibility rule against the walls' geometry (wall/geometry.ts) and the room's framing: every resting pose the
  * camera can take and the first stretch of the TV-to-room flight, with the walls' polygons clipped exactly against the
  * frustum as the oracle. The rule may keep the node drawn where nothing shows (its boxes are conservative); it must
  * never hide it where a polygon does.
@@ -141,7 +141,7 @@ class Frames implements FrameScheduler {
   }
 }
 
-/** The shipped camera rig at `viewport` with `insets`, its radio framed for `discs` slots. */
+/** The room's camera rig at `viewport` with `insets`, its radio framed for `discs` slots. */
 function rigAt(viewport: Viewport, insets: FramingInsets, discs: number) {
   const frames = new Frames();
   const loop = new RenderLoop(() => undefined, frames);
@@ -312,7 +312,7 @@ describe('the visibility rule at rest', () => {
     expect(poses.some(({ camera }) => anyPolygonInView(camera))).toBe(true);
   });
 
-  it('hides the node in every resting pose of the shipped composition up to 21:9', () => {
+  it('hides the node in every resting pose of the composition up to 21:9', () => {
     // The composition was checked with five discs; more albums move the radio's framing, so re-check it then.
     expect(ALBUMS.length).toBe(5);
     const shown: string[] = [];

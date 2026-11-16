@@ -303,7 +303,7 @@ export class RadioDeckHandle implements RadioDeck {
     );
   }
 
-  /** The radio cannot work (its asset or its code failed): it is scenery again, warned once. */
+  /** The radio cannot work (its code failed, or the room could not be lit): it is scenery again, warned once. */
   unavailable(error: unknown): void {
     if (!this.#isAvailable) return;
     console.warn(UNAVAILABLE_WARNING, error);

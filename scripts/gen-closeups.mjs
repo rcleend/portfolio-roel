@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// Development-only: close-range pictures of the room's props, the shipped models or the generated ones, from the same
-// fixed cameras (docs/ROOM.md › The generated room › Close inspection). A prop is judged at arm's length, from several
-// sides, before and after its generator changes.
+// Development-only: close-range pictures of the room's props from fixed cameras (docs/ROOM.md › The generated room ›
+// Close inspection). A prop is judged at arm's length, from several sides, before and after its generator changes.
 //
-//   node scripts/gen-closeups.mjs --label <name> [--mode shipped|generated] [--tier high|medium|low]
-//                                 [--only asset,asset/angle] [--out dir] [--full] [--studio] [--mood rose|original]
+//   node scripts/gen-closeups.mjs --label <name> [--tier high|medium|low] [--only asset,asset/angle] [--out dir]
+//                                 [--full] [--studio] [--still] [--mood rose|original]
 //
-// Writes <out>/<label>/<asset>-<angle>.jpg. `--studio` lights the generated props with a plain key and fill instead of
-// the room's bake (their form and albedo, whatever the rig says). `--full` keeps the drawing buffer's own pixels (2176 × 1360) instead of
-// 1600 wide. `node scripts/gen-closeups.mjs --sheet a,b,c [--only ...]` lays the pictures of labels a, b and c side by
+// Writes <out>/<label>/<asset>-<angle>.jpg. `--studio` lights the props with a plain key and fill instead of the room's
+// bake (their form and albedo, whatever the rig says). `--full` keeps the drawing buffer's own pixels (2176 × 1360)
+// instead of 1600 wide. `--still` asks for reduced motion, so the lava lamp's wax stands still and two runs can be
+// compared pixel by pixel. `node scripts/gen-closeups.mjs --sheet a,b,c [--only ...]` lays the pictures of labels a, b and c side by
 // side into <out>/sheets/<asset>-<angle>.jpg.
 // Its own vite server on a free port, without hot reload; headless Chromium on the GPU (ANGLE/Metal).
 import { existsSync } from 'node:fs';
@@ -24,14 +24,15 @@ const option = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : fallback;
 };
-const mode = option('mode', 'generated');
 const tier = option('tier', 'high');
 const mood = option('mood', 'rose');
-const label = option('label', mode);
+const label = option('label', 'closeups');
 const only = option('only', '')?.split(',').filter(Boolean) ?? [];
 const full = args.includes('--full');
-/** The generated props under a plain key and fill instead of the room's bake: their form and albedo, whatever the rig. */
+/** The props under a plain key and fill instead of the room's bake: their form and albedo, whatever the rig. */
 const studio = args.includes('--studio');
+/** Reduced motion: nothing moves by the clock (the lava lamp's wax). */
+const still = args.includes('--still');
 const out = resolve(option('out', '.shots/closeups'));
 const sheet = option('sheet', '');
 
@@ -101,6 +102,9 @@ export const CLOSEUPS = {
     guitar: { position: [1.35, 0.95, -0.95], target: [2.02, 0.62, -1.8], fov: 42 },
     'tv-corner': { position: [1.15, 0.95, 0.55], target: [2.4, 0.62, -0.45], fov: 44 },
     console: { position: [1.45, 0.38, 0.45], target: [1.9, 0.05, -0.1], fov: 40 },
+    'console-foot': { position: [1.55, 0.035, 0.3], target: [1.9, 0.03, -0.05], fov: 30 },
+    'console-front': { position: [1.45, 0.05, -0.05], target: [1.9, 0.04, -0.05], fov: 30 },
+    lava: { position: [0.3, 1.32, -1.45], target: [0.49, 1.2, -1.97], fov: 30 },
     window: { position: [-1.25, 1.55, -0.95], target: [-1.3, 1.75, -2.4], fov: 52 },
     basket: { position: [-1.95, 0.55, -0.75], target: [-2.45, 0.16, -1.45], fov: 42 },
     door: { position: [-0.5, 1.4, 0.4], target: [-0.8, 1.1, 2.4], fov: 55 },
@@ -227,7 +231,7 @@ async function frames(page, count = 4) {
   for (let tries = 0; tries < 40; tries++) {
     await sleep(100);
     if ((await page.evaluate(() => window.__roomLab.room.stats.framesRendered)) >= start + count) return;
-    // The shipped room draws on demand: the paused game's frame, shown again, asks for one without moving anything.
+    // The paused game's frame, shown again, asks for a frame without moving anything.
     await page.evaluate(() => window.__roomLab.surface.showFrame(120));
   }
 }
@@ -236,10 +240,11 @@ try {
   const page = await browser.newPage({
     viewport: { width: VIEWPORT.width, height: VIEWPORT.height },
     deviceScaleFactor: VIEWPORT.dpr,
+    reducedMotion: still ? 'reduce' : 'no-preference',
   });
   page.on('pageerror', (error) => console.log(`[page error] ${error.message}`));
   page.on('console', (msg) => msg.type() === 'error' && console.log(`[page error] ${msg.text()}`));
-  const query = `clean&mood=${mood}&quality=${tier}&autopower=0&mockpc=1&mockradio=1${mode === 'generated' ? '&room=generated' : ''}`;
+  const query = `clean&mood=${mood}&quality=${tier}&autopower=0&mockpc=1&mockradio=1`;
   await page.goto(`${base}/room-lab.html?${query}`);
   await page.waitForFunction(() => window.__roomLab !== undefined);
   await page.evaluate(() => window.__roomLab.room.ready);
@@ -269,12 +274,11 @@ try {
   });
   await page.evaluate(() => window.__roomLab.room.setAir({ haze: 0.7, dust: 0.3 }));
   await page.evaluate(() => window.__roomLab.room.postersReady);
-  if (mode === 'generated') {
-    const ok = await page.evaluate(() => window.__roomLab.room.generatedReady ?? true);
-    const stats = await page.evaluate(() => window.__roomLab.room.stats.generatedStats);
-    console.log(`generated ${ok}:`, JSON.stringify(stats));
-  }
-  if (studio && mode === 'generated')
+  // The whole room lit, not only what the opening view shows.
+  const lit = await page.evaluate(() => window.__roomLab.room.generatedReady);
+  const stats = await page.evaluate(() => window.__roomLab.room.stats.generatedStats);
+  console.log(`generated ${lit}:`, JSON.stringify(stats));
+  if (studio)
     await page.evaluate(() => {
       const room = globalThis.__generatedRoom;
       const curve = (v) => {

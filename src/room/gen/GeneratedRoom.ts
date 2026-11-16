@@ -149,6 +149,8 @@ export class GeneratedRoom {
   private opening: { readonly clip: Matrix4; readonly share: number } | null = null;
   private late: BakePart | null = null;
   private lava: LavaWax | null = null;
+  /** The meshes pointer rays hit and no frame draws (pickMesh). */
+  private readonly picks: Mesh[] = [];
   private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
   private timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
@@ -577,6 +579,7 @@ export class GeneratedRoom {
     const mesh = new k.Mesh(geometry, props.material);
     mesh.name = `Pick ${names.join(' ')}`;
     mesh.visible = false;
+    this.picks.push(mesh);
     return mesh;
   }
 
@@ -631,7 +634,12 @@ export class GeneratedRoom {
       this.opening = clip && parts ? { clip: clip.clone(), share: parts.share } : null;
       this.late = parts && parts.share < 1 ? parts.late : null;
       if (parts && this.late) baker.begin(parts.early);
+      // The pick meshes are never drawn, so they stay out of the compile: `renderer.compile` prepares invisible
+      // meshes too, and the props' material on their geometry without normals is a program of its own under a finish.
+      const parents = this.picks.map((pick) => pick.parent);
+      for (const pick of this.picks) pick.removeFromParent();
       stage.prepare(stage.scene);
+      this.picks.forEach((pick, i) => void parents[i]?.add(pick));
       this.mark('prepared');
       this.compile(baker);
     });

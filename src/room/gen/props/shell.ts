@@ -13,7 +13,7 @@ const DOOR = { x0: -1.4, x1: -0.2, y1: 2.26 };
 const WALL: Rgb = [0.15, 0.195, 0.225];
 const CEILING: Rgb = [0.36, 0.31, 0.32];
 const TRIM: Rgb = [0.46, 0.41, 0.38];
-/** The window's layered ivory enamel (tools/room/restyle.py › palette). */
+/** The window's layered ivory enamel. */
 const FRAME: Rgb = [0.38, 0.36, 0.345];
 /** The sill is a stained board, not painted. */
 const SILL: Rgb = [0.3, 0.14, 0.085];
@@ -157,7 +157,7 @@ const slatHeight = (i: number, s: number): number =>
   BLIND.top - (i * (BLIND.top - BLIND.bottom)) / (BLIND.slats - 1) + (BLIND.skew * i * s) / (BLIND.slats - 1);
 
 /**
- * The window in the back wall (the shipped one's parts and measures): a wide casing with a bead at its inner edge and
+ * The window in the back wall (the modelled room's parts and measures): a wide casing with a bead at its inner edge and
  * a band at its outer one under a head board and its cap, a stained sill with a rounded nose over its apron, the jamb
  * with its stops, and two sashes, the lower in front of the upper, meeting at 1.65 m where their fasteners show under
  * the blind. The venetian blind hangs in front of the casing, let two thirds down and drawn up crooked: a head rail and

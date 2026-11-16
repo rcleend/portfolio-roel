@@ -127,7 +127,8 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     const playing = (views.atTv && power === 'on' && !surface.paused) || overlay.live || radio.prepared?.ambient;
     return playing ? 'playing' : 'quiet';
   });
-  // The TV view's own textures are on the GPU with the first frame; the rest (about 120 MB) go up a while after the
+  // The TV view's own textures are on the GPU with the first frame, and the baked pages are made there; any canvas
+  // no frame at the TV has drawn (the view outside the window) goes up a while after the
   // TV turns on (`prewarm`), between the game's frames where an idle period can hold one and else in a quiet moment,
   // so the first look around no longer uploads them in its flight (on a phone that flight lagged: round six, item 32);
   // or, at the latest, once the visitor first looks around.
@@ -234,7 +235,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const spotlit = [
     inTheLight('tv', [tvModel.root], [tvModel.root], tvModel.bounds),
     inTheLight('pc', monitor3d, monitor3d, pcModel.shellBounds),
-    // The radio's device hangs the cut lid, the keys, the well and the discs in the scene beside it once prepared:
+    // The radio's device hangs its discs and its LCD in the scene beside it once prepared:
     // the prop takes them in, so it lights and bounces whole.
     inTheLight(
       'radio',

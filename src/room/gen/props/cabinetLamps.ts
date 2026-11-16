@@ -13,7 +13,7 @@ import {
   sub,
   type Vec3,
 } from '../kit/builder';
-import { BULB, TV_LAMP } from '../rig';
+import { BULB_SPEC as BULB, TV_LAMP_SPEC as TV_LAMP } from '../roomSpec';
 import { circle, lid, mottled, segments, skin, smooth, type Tone, tint, turned } from './form';
 import { FLOOR, type Prop } from './types';
 

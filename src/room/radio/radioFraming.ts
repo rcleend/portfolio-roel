@@ -3,7 +3,7 @@ import type { Viewpoint } from '../camera/cameraPath';
 import { boxCorners, frameSubject, regionFromInsets } from '../camera/framing';
 import { DISC_RADIUS, type DiscSlot, discSlots, STACK_BELOW_ASPECT } from './discLayout';
 
-/** The radio's lid in world space (glTF metres), the close-up build's measurement (tools/room/radio-closeup.json). */
+/** The radio's lid in world metres; the generator is held to it (gen/props/radioSpec.ts, gen/props/radio.test.ts). */
 export const LID_FRAMING = {
   /** The lid swings about an x-parallel axis along its lower back edge. */
   hinge: { y: 1.044, z: -2.161 },

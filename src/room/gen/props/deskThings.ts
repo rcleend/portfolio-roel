@@ -9,7 +9,7 @@ const STONEWARE: Rgb = [0.55, 0.54, 0.5];
 const BISCUIT: Rgb = [0.36, 0.2, 0.08];
 
 /**
- * What lies on the desk (each where the shipped room had it): the mouse's mat, a sheet
+ * What lies on the desk (each where the modelled room had it): the mouse's mat, a sheet
  * of paper, a mug of coffee with its handle, a cup of pencils behind the books, and a plate of three biscuits.
  */
 export function deskThings(sink: PropSink): void {
@@ -200,7 +200,7 @@ export function pull(sink: PropSink, x0: number, x1: number, y: number, face: nu
   const pieces = segments(6, sink.detail, 3);
   for (let i = 0; i <= pieces; i++) {
     const x = lerp(x0, x1, i / pieces);
-    // Its ends run out to nothing, as the shipped pulls' blades do.
+    // Its ends run out to nothing, as a cast pull's blades do.
     const end = Math.min(1, Math.min(i, pieces - i) / 1.2);
     const out = lerp(0.006, 0.0255, end);
     sections.push([

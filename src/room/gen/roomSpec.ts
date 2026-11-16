@@ -57,10 +57,11 @@ export const TV_LAMP_SPEC = {
 } as const;
 
 /**
- * The bare-bulb lamp on the cabinet's other end, dimmed: the middle of its filament, and the colour and glow the
- * filament itself is drawn in (a dimmed lamp burns more orange than the opal globe).
+ * The bare-bulb lamp on the cabinet's other end, dimmed: where its base stands, the middle of its filament, and the
+ * colour and glow the filament itself is drawn in (a dimmed lamp burns more orange than the opal globe).
  */
 export const BULB_SPEC = {
+  origin: [2.31, 0.486, -0.84] as Vec3,
   filament: [2.31, 0.666, -0.84] as Vec3,
   color: [1, 0.5, 0.2] as Vec3,
   glow: 1.5,

@@ -121,8 +121,8 @@ uniform float uExposure;
 uniform float uWarmth;
 uniform vec3 uStatic;
 
-// Scene-linear light under a filmic curve with a little toe: the display values the room's surfaces hold (the Blender
-// bake held AgX medium-high contrast), then the finish's static lights in the finish's own terms (RoomGloss).
+// Scene-linear light under a filmic curve with a little toe: the display values the room's surfaces hold (the modelled
+// room's bake held AgX at medium-high contrast, which this curve stands in for), then the finish's static lights in the finish's own terms (RoomGloss).
 vec3 display(vec3 albedo, vec4 light, vec3 world) {
   vec3 c = albedo * light.rgb * uDecode.rgb * uExposure;
   c = pow(max(c, vec3(0.0)), vec3(1.4));

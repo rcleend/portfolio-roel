@@ -11,7 +11,7 @@ describe('the layout', () => {
   });
 
   it('tapes a corner across its diagonal, 4 mm onto the sheet', () => {
-    // The retail poster (58 × 79 cm), as the Blender stage laid its tape.
+    // The retail poster (58 × 79 cm), as the walls' first, modelled node laid its tape.
     const poster = ITEMS.find((item) => item.key === 'B1');
     if (!poster) throw new Error('No B1');
     const [bottomLeft, , , topLeft] = tapesOf(poster);
@@ -53,27 +53,27 @@ describe('the atlas plan', () => {
 describe("the walls' geometry", () => {
   const wall = wallGeometry();
 
-  it('is the shipped node, triangle for triangle', () => {
-    // posters.glb as tools/room/posters.py built it: 1,343 card and 192 skirt triangles on 1,801 and 384 vertices.
+  it('is the modelled node it replaced, triangle for triangle', () => {
+    // The walls were first a model (posters.glb): 1,343 card and 192 skirt triangles on 1,801 and 384 vertices.
     expect(wall.cards.indices.length / 3).toBe(1343);
     expect(wall.cards.positions.length / 3).toBe(1801);
     expect(wall.skirts.indices.length / 3).toBe(192);
     expect(wall.skirts.positions.length / 3).toBe(384);
   });
 
-  it("puts each piece where the shipped node's boxes had it", () => {
+  it("puts each piece where the modelled node's boxes had it", () => {
     const box = (key: string) => {
       const found = wall.boxes.find((each) => each.key === key);
       if (!found) throw new Error(`No box for ${key}`);
       return [...found.min, ...found.max];
     };
-    // posters.glb's `decor` extras, to the tenth of a millimetre they were written at.
-    const shipped: Record<string, number[]> = {
+    // That model's `decor` boxes, to the tenth of a millimetre they were written at.
+    const modelled: Record<string, number[]> = {
       A1: [-1.9017, 2.6744, -2.4049, -1.4979, 3.2456, -2.3872],
       B1: [-0.3164, 1.7115, -2.4049, 0.3359, 2.5884, -2.3906],
       B3: [-0.8569, 2.7156, -2.4049, -0.3831, 3.2044, -2.4032],
     };
-    for (const [key, numbers] of Object.entries(shipped)) {
+    for (const [key, numbers] of Object.entries(modelled)) {
       box(key).forEach((value, i) => {
         expect(value, `${key} ${i}`).toBeCloseTo(numbers[i] as number, 3);
       });

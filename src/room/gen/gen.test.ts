@@ -6,9 +6,9 @@ import { QUALITY_TIERS } from '../stage/quality';
 import { rigViews } from './bake/Baker';
 import { BAKE_CELL, BLEED, chartMeshes, packCharts } from './kit/charts';
 import { hash2, hash32, seeded } from './kit/hash';
-import { LAVA } from './props/lavaLamp';
+import { LAVA } from './props/lavaWax';
 import { FLOOR, type MeshName } from './props/types';
-import { BULB, RIG, TV_LAMP } from './rig';
+import { RIG } from './rig';
 import { BULB_SPEC, LAVA_BOUNDS, PC_SPEC, PICK_PROPS, TV_LAMP_SPEC, TV_SPEC } from './roomSpec';
 import { buildScene, PROPS } from './scene';
 import { GENERATED_TIERS, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
@@ -208,9 +208,8 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
   });
 
   it('has the lamps where the rig lights from, and the lava lamp where it is built', () => {
-    expect(TV_LAMP_SPEC.center).toEqual(TV_LAMP.center);
-    expect(TV_LAMP_SPEC.radius).toBe(TV_LAMP.radius);
-    expect(BULB_SPEC.filament).toEqual(BULB.filament);
+    expect(RIG.find((light) => light.name === 'opal')?.position).toEqual(TV_LAMP_SPEC.center);
+    expect(RIG.find((light) => light.name === 'bulb')?.position).toEqual(BULB_SPEC.filament);
     expect(LAVA_BOUNDS).toEqual(LAVA.bounds);
     const globe = boundsOf(scene.meshes.globe.positions);
     for (let axis = 0; axis < 3; axis++)
@@ -250,13 +249,13 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
         continue;
       }
       foot = Math.min(foot, y);
-      expect(y, `${x}, ${y}, ${z}`).toBeGreaterThanOrEqual(BULB.origin[1]);
+      expect(y, `${x}, ${y}, ${z}`).toBeGreaterThanOrEqual(BULB_SPEC.origin[1]);
       expect(x).toBeGreaterThan(2.12);
       expect(z).toBeGreaterThan(-1.125);
       expect(z).toBeLessThan(TV_SPEC.bounds.min[2]);
     }
     // Its base rests on the top, and its glass ends under the set's own top.
-    expect(foot - BULB.origin[1]).toBeLessThan(0.001);
+    expect(foot - BULB_SPEC.origin[1]).toBeLessThan(0.001);
     expect(boundsOf(scene.meshes.bulb.positions).max[1] as number).toBeLessThan(TV_SPEC.bounds.max[1]);
   });
 

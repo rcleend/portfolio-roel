@@ -2,7 +2,7 @@
 import type { BufferAttribute, Camera, Mesh } from 'three';
 import type { GenKit } from './genKit';
 import type { MeshData } from './kit/builder';
-import { createWaxPose, LAVA, poseWax, WAX, waxIndices, waxPositions } from './props/lavaLamp';
+import { createWaxPose, LAVA, poseWax, WAX, waxIndices, waxPositions } from './props/lavaWax';
 
 /** How often a moving lamp asks for a frame when nothing else does: its wax moves a pixel in a second. */
 const TICK_MS = 1000 / 24;
@@ -80,6 +80,16 @@ export class LavaWax {
     }
     glassGeometry.setAttribute('position', new kit.BufferAttribute(glassData.positions, 3));
     glassGeometry.setAttribute('color', new kit.BufferAttribute(glassColors, 3));
+    // Both walls of the bottle show, the far one through the near one. Each triangle is in the index twice, once
+    // wound each way, so one front-faced draw adds both: a double-sided blended material draws in two passes with a
+    // program each, and this one shares the bare bulb's glass's (GeneratedRoom). Added light does not care for order.
+    const corners = glassData.positions.length / 3;
+    const both = new Uint16Array(corners * 2);
+    for (let i = 0; i < corners; i += 3) {
+      both.set([i, i + 1, i + 2], i);
+      both.set([i, i + 2, i + 1], corners + i);
+    }
+    glassGeometry.setIndex(new kit.BufferAttribute(both, 1));
     const glass = new kit.Mesh(
       glassGeometry,
       new kit.MeshBasicMaterial({
@@ -92,7 +102,6 @@ export class LavaWax {
         blendSrcAlpha: kit.ZeroFactor,
         blendDstAlpha: kit.OneFactor,
         depthWrite: false,
-        side: kit.DoubleSide,
       }),
     );
     glass.name = 'Generated lava glass';

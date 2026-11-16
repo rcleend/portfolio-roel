@@ -14,8 +14,9 @@ const FRONT = 1.848;
 const BACK = 2.032;
 const LEFT = -0.202;
 const RIGHT = 0.102;
-const TOP = 0.085;
-const WAIST = 0.034;
+/** Heights are from the boards it stands on: its base rests on them. */
+const TOP = FLOOR + 0.085;
+const WAIST = FLOOR + 0.034;
 const RIB = 0.0016;
 
 const SHELL: Rgb = [0.016, 0.018, 0.04];
@@ -28,7 +29,7 @@ const CASE: Rgb = [0.035, 0.04, 0.075];
 
 /** The pad ports' middles along the front, and their height. */
 const PORTS = [-0.157, -0.105] as const;
-const PORT_Y = 0.05;
+const PORT_Y = FLOOR + 0.05;
 const CABLE_RADIUS = 0.003;
 
 const plain = (color: Rgb, density: number): Omit<Chart, 'origin' | 'u' | 'v'> => ({
@@ -47,7 +48,7 @@ export const gameConsole: Prop = {
     const b = sink.mesh('props');
     // The base, the shadow gap of the waist, and the deck over them.
     b.roundedBox(
-      [FRONT + 0.013, 0, LEFT + 0.011],
+      [FRONT + 0.013, FLOOR, LEFT + 0.011],
       [BACK - 0.007, WAIST - 0.004, RIGHT - 0.011],
       0.004,
       SHELL,
@@ -83,20 +84,21 @@ export const gameConsole: Prop = {
     }
     // Two card slots beside them, their doors a shade lighter than the dark around them.
     for (const z of [-0.06, -0.022]) {
-      b.box([face - 0.0002, 0.0445, z - 0.0165], [FRONT, 0.0555, z + 0.0165], RECESS, 0.35, ['+x']);
-      b.box([face - 0.0005, 0.0465, z - 0.0145], [FRONT, 0.0535, z + 0.0145], TRAY, 0.8, ['+x']);
+      b.box([face - 0.0002, FLOOR + 0.0445, z - 0.0165], [FRONT, FLOOR + 0.0555, z + 0.0165], RECESS, 0.35, ['+x']);
+      b.box([face - 0.0005, FLOOR + 0.0465, z - 0.0145], [FRONT, FLOOR + 0.0535, z + 0.0145], TRAY, 0.8, ['+x']);
     }
     // The tray: a door a hair proud of the face over a dark gap.
-    b.box([face - 0.0004, 0.0635, -0.082], [FRONT, 0.0775, 0.09], TRAY, 1, ['+x']);
-    b.box([face, 0.0618, -0.083], [FRONT, 0.0635, 0.091], RECESS, 0.3, ['+x']);
+    b.box([face - 0.0004, FLOOR + 0.0635, -0.082], [FRONT, FLOOR + 0.0775, 0.09], TRAY, 1, ['+x']);
+    b.box([face, FLOOR + 0.0618, -0.083], [FRONT, FLOOR + 0.0635, 0.091], RECESS, 0.3, ['+x']);
     // Open and reset, round keys under the tray's right end.
+    const keyY = FLOOR + 0.049;
     for (const z of [0.082, 0.066]) {
-      b.cylinder([FRONT, 0.049, z], [face - 0.0012, 0.049, z], 0.0048, 0.0044, 10, TRAY, 1);
-      b.cylinder([FRONT + 0.0002, 0.049, z], [face, 0.049, z], 0.006, 0.0058, 10, RECESS, 0.4);
+      b.cylinder([FRONT, keyY, z], [face - 0.0012, keyY, z], 0.0048, 0.0044, 10, TRAY, 1);
+      b.cylinder([FRONT + 0.0002, keyY, z], [face, keyY, z], 0.006, 0.0058, 10, RECESS, 0.4);
     }
     // The standby lamp and the wordmark are prints: the lamp shines whatever the room's light.
     sink.decal({
-      origin: [face - 0.0003, 0.045, 0.045],
+      origin: [face - 0.0003, FLOOR + 0.045, 0.045],
       u: [0, 0, 0.008],
       v: [0, 0.008, 0],
       art: ART.consoleLamp,
@@ -110,8 +112,8 @@ export const gameConsole: Prop = {
       tint: [0.17, 0.18, 0.26],
     });
     // The back: the fan's grille and the row of sockets, as dark recesses.
-    b.box([BACK, 0.04, -0.14], [BACK + 0.0006, 0.079, -0.07], RECESS, 0.4, ['-x']);
-    b.box([BACK, 0.04, -0.02], [BACK + 0.0006, 0.058, 0.08], RECESS, 0.4, ['-x']);
+    b.box([BACK, FLOOR + 0.04, -0.14], [BACK + 0.0006, FLOOR + 0.079, -0.07], RECESS, 0.4, ['-x']);
+    b.box([BACK, FLOOR + 0.04, -0.02], [BACK + 0.0006, FLOOR + 0.058, 0.08], RECESS, 0.4, ['-x']);
 
     // The memory card lying on the lid.
     b.placed(place([1.912, TOP, 0.04], -0.6), () => {
@@ -333,8 +335,8 @@ export const consoleCables: Prop = {
       [1.747, floor, -0.01],
       [1.76, floor, -0.07],
       [1.782, floor, -0.108],
-      [1.792, 0.012, -0.133],
-      [1.796, 0.034, -0.15],
+      [1.792, 0.015, -0.133],
+      [1.796, FLOOR + 0.034, -0.15],
       [1.805, PORT_Y, -0.156],
       plugs[0],
     ];
@@ -363,11 +365,11 @@ export const consoleCables: Prop = {
       [
         end,
         [end[0] - 0.006, end[1] + 0.017, end[2] - 0.006],
-        [1.862, 0.136, -0.127],
-        [1.834, 0.124, -0.119],
-        [1.811, 0.098, -0.111],
-        [1.803, 0.07, -0.106],
-        [1.806, 0.054, -0.105],
+        [1.862, FLOOR + 0.136, -0.127],
+        [1.834, FLOOR + 0.124, -0.119],
+        [1.811, FLOOR + 0.098, -0.111],
+        [1.803, FLOOR + 0.07, -0.106],
+        [1.806, FLOOR + 0.054, -0.105],
         plugs[1],
       ],
       4,

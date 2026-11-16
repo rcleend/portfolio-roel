@@ -28,7 +28,7 @@ const at = (across: number, depth: number, up: number): Vec3 => [X + across, DES
 const LEAN = [-0.13, -0.085, -0.03, 0.03, 0.085, 0.085] as const;
 
 /**
- * The keyboard (the shipped board's size and slope): a sloped case with eased
+ * The keyboard (the modelled room's size and slope): a sloped case with eased
  * edges and a sunk well, 104 sculpted caps at a true 19 mm pitch — tapered, bevelled at the rim, dished across, each
  * row leaning its own way — with their legends printed on them, and the three lock lamps over the number pad.
  */

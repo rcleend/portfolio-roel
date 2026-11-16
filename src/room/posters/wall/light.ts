@@ -1,13 +1,13 @@
 import type { Surface } from './layout';
 
 /*
- * The night on the walls. The shipped atlas carried the Blender bake's light on every sheet; here it is a small
- * analytic model matched to that bake by eye and by sampled values (white paper read about (0.62, 0.48, 0.58) of full
+ * The night on the walls. The walls' first atlas was a path-traced bake with the night's light on every sheet; here
+ * it is a small analytic model matched to that bake by eye and by sampled values (white paper read about (0.62, 0.48, 0.58) of full
  * over the radio and (0.36, 0.28, 0.35) on the slope): a dim mauve fill that turns bluer and darker towards the
  * window's far side, the lava lamp's amber pool under the cluster, and the slope fading from the ridge down. It is
  * multiplied into each island as it is painted, so the cards keep the room's unlit program and cost nothing per frame.
- * The generated room's rig (gen/rig.ts) is not used: it is baked on the GPU into that room's own charts, and its
- * tables live in another lazy chunk.
+ * The room's rig (gen/rig.ts) is not used: it is baked on the GPU into the room's own charts, and the posters are
+ * painted in their own worker.
  */
 export type Rgb = readonly [number, number, number];
 

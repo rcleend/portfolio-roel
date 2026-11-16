@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { textureTier } from './textureTier';
 
-/** pc-base.glb's glass, 0.356 × 0.284 m. */
+/** The monitor's glass, 0.356 × 0.284 m (gen/roomSpec.ts › PC_SPEC). */
 const ASPECT = 1.2535;
 
 describe('textureTier', () => {

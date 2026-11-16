@@ -10,10 +10,6 @@ in `src/room/gen/materials.ts`, the light a table in `src/room/gen/rig.ts` that 
 posters are paintings in `src/room/posters/paint/`. No model, texture or image is shipped. A change to the look is a
 change to that code.
 
-| The TV as the room first shipped it (left) and as it is generated (right) |
-| --- |
-| ![Two captures of the CRT on its cabinet at night with a plant at its right: the shipped room's, a toy robot with glowing eyes and a game case at its left, and the generated room's, a dimmed bare-bulb lamp in their place and the site's own wordmark on the set](gen/tv-high.jpg) |
-
 The pictures under `docs/room/` (`after.webp`, `pc.webp`, `radio.webp`, `desktop-detail.webp`, `basket.webp`) were
 captured from the room with shipped models (§ History). The composition, the palette and the light are what the
 generated room was matched to, so they still show the intent; the props in them are not the ones a visitor sees now.

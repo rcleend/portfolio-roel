@@ -144,7 +144,6 @@ export interface RoomStats {
   readonly rainReady: boolean;
   readonly rainPlaying: boolean;
   readonly framesRendered: number;
-  readonly renderLoopIdle: boolean;
   readonly lavaRunning: boolean;
   readonly drawCalls: number;
   readonly triangles: number;
@@ -157,9 +156,9 @@ export interface RoomStats {
   readonly pcTexturePixels: number;
   /** True while work ahead of need (texture uploads, pick chunks, the monitor's still) waits for idle moments. */
   readonly backgroundPending: boolean;
-  /** The radio's close-up is loaded, cut and prepared (the lid will not wait for it). */
+  /** The radio's device is loaded and prepared on the lit radio's parts (the lid will not wait for it). */
   readonly radioReady: boolean;
-  /** Pixels of the radio's lazy textures on the GPU: labels, close-up atlas, LCD, 2K skin. */
+  /** Pixels of the radio's lazy textures on the GPU: the discs' labels and the LCD. */
   readonly radioTexturePixels: number;
   /** Current lid angle in degrees (0 closed). */
   readonly radioLidDegrees: number;
@@ -463,7 +462,6 @@ export function createRoom(options: CreateRoomOptions): Room {
         rainReady: rain.ready,
         rainPlaying: rain.playing,
         framesRendered: stage.loop.framesRendered,
-        renderLoopIdle: stage.loop.idle,
         lavaRunning: generated.lavaRunning,
         drawCalls: calls,
         triangles,

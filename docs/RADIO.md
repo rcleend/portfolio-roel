@@ -160,7 +160,7 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 | First-load JavaScript, entry and room chunk together | + 0.60 kB | + 0.46 kB |
 | `RadioSlot`, lazy | 1.2 kB | 1.09 kB |
 | `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.93 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader and LCD | 31.2 kB (`bundle-budgets.json`; the first design said 16) | 30.79 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader and LCD | 31.2 kB (`bundle-budgets.json`; the first design said 16) | 30.9 kB |
 | The shelf's audio (only the track that plays is fetched, streamed) | 16 MB, 5 MB a track | 15.2 MB, ≤ 4.7 MB |
 | Covers / prints | 40 kB / 60 kB each | ≤ 15.7 kB / ≤ 29.5 kB |
 

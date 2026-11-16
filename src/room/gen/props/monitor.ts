@@ -29,10 +29,10 @@ const GLASS = 1.071;
 const at = (across: number, up: number, back: number): Vec3 => [X + across, up, FACE - back];
 
 /**
- * The CRT monitor (the shipped one's measurements): a thick bezel plate with a
+ * The CRT monitor (the modelled room's measurements): a thick bezel plate with a
  * rounded rim and a deep eased recess down to the glass, a seam, the shell stepping in and tapering back to the tube's
  * neck, a louvred skirt under it on a tilt cradle and a swivel foot, and under the chin a shelf with six adjusters and
- * the power key. It faces +z; its glass keeps the shipped screen's contract (the aperture is 0.356 m × 0.284 m).
+ * the power key. It faces +z; its glass is roomSpec.ts › PC_SPEC's (the aperture is 0.356 m × 0.284 m).
  */
 export function monitor(sink: PropSink): void {
   const b = sink.mesh('desk');

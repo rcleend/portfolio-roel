@@ -35,8 +35,9 @@ import { onCanvasRestored } from '../stage/canvasRestore';
 import { QUIET } from '../stage/IdleWork';
 
 /**
- * The three.js the lazy generated room builds and bakes with, all of it already in the room's chunk, handed over
- * rather than imported (posterKit.ts says why). Everything under gen/ but this file imports types
+ * The three.js the room is built and baked with, handed over rather than imported: the generators also run in a
+ * worker and in the lazy roomBuilder chunk, and a runtime import of three.js anywhere under gen/ would carry it there
+ * (posterKit.ts says the same of the posters). Everything under gen/ but this file imports types
  * only; scripts/bundle-report.mjs holds the worker and the roomBuilder chunk to that (no three.js in either).
  */
 export const genKit = {

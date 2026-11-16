@@ -1,7 +1,7 @@
 import type { RoomMood } from '../atmosphere/moods';
 import type { QualityTier } from '../stage/quality';
 
-/** What the generated room is built and baked at; read once, from the tier the device starts on. */
+/** What the room is built and baked at; read once, from the tier the device starts on. */
 export interface GeneratedTier {
   /** Chart texels a metre as a fraction of full quality, and the largest page side. */
   readonly density: number;
@@ -17,9 +17,8 @@ export interface GeneratedTier {
 }
 
 /**
- * The generated room's share of the quality tiers (stage/quality.ts, docs/ROOM.md › Quality): every tier gets the same
- * room, a lower one smaller pages and a shorter bake. It lives here, not in the room's tier table, so a visitor without
- * the generated room downloads none of it.
+ * The room's making by quality tier (stage/quality.ts, docs/ROOM.md › Quality): every tier gets the same room, a lower
+ * one smaller pages, coarser props and a shorter bake.
  */
 export const GENERATED_TIERS: Readonly<Record<QualityTier, GeneratedTier>> = {
   high: { density: 1, pageSize: 2048, artSize: 1024, shadowSize: 1024, lightScale: 0.5, sampleSet: 0, detail: 1 },
@@ -30,7 +29,7 @@ export const GENERATED_TIERS: Readonly<Record<QualityTier, GeneratedTier>> = {
 /**
  * The finish's static lights, as the room's own code sets them (gen.test.ts holds these to atmosphere/tvLamp.ts,
  * bulbLamp.ts and moods.ts): the opal lamp's intensity on its colour, and each mood's warmth on the lamps' pools.
- * Copies, because a runtime import of the room's modules from this lazy chunk would split them out of the room's.
+ * Copies, so that nothing under gen/ imports the room's own modules at run time (genKit.ts says why).
  */
 export const TV_LAMP_INTENSITY = 0.14;
 export const POOL_WARMTH: Readonly<Record<RoomMood, number>> = { original: 0, honey: 1.7, rose: 1.5, midnight: 2.1 };

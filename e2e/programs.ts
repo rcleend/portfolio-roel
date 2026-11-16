@@ -13,16 +13,19 @@ import type { RoomStats } from '../src/room/createRoom';
  *  3. plain colour: the opal lamp's globe and the bare bulb's filament, the TV's dark glass and the LEDs' lenses;
  *  4. its prints (a map tinted by vertex colours, blended);
  *  5. the view outside the window (a map on a plate without normals, so not program 2);
- *  6. the lava lamp's wax (vertex colours, no normals; the desk's pick meshes, never drawn, land on it too);
- *  7. the lava lamp's glass, back faces, and
- *  8. its front faces (a double-sided blended material draws in two passes, a program each); the bare bulb's glass, a
- *     film of light of the same kind with front faces only, draws with this one;
- *  9. the CRT;
- * 10. the TV's light on the surfaces around it (ScreenGlow);
- * 11. the LEDs' halo;
- * 12. the reduced-motion cut's black veil (in the scene from the start, so compiled with it whether or not it shows).
+ *  6. the lava lamp's wax (vertex colours, no normals);
+ *  7. the lava lamp's glass and the bare bulb's, films of light: front faces only, the bottle's far wall being the
+ *     same triangles wound the other way (LavaWax), where a double-sided blended material would draw in two passes
+ *     with a program each;
+ *  8. the CRT;
+ *  9. the TV's light on the surfaces around it (ScreenGlow);
+ * 10. the LEDs' halo;
+ * 11. the reduced-motion cut's black veil (in the scene from the start, so compiled with it whether or not it shows).
+ *
+ * The pick meshes of the desk corner are never drawn and never compiled (GeneratedRoom keeps them out of
+ * `stage.prepare`, since `renderer.compile` prepares invisible meshes too).
  */
-export const BASE_PROGRAMS = 12;
+export const BASE_PROGRAMS = 11;
 
 /**
  * The path the decorated walls take on the suites' GPU (RoomStats.postersPath): the suites run on Metal ANGLE by
@@ -51,12 +54,10 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
  *
  *  - four of its own: the lamps' halation, the highlight extraction, the composition and the dust;
  *  - the monitor's display mask (its picture drawn with alpha 0, so no longer the charts' program);
- *  - the varnish splits two of the room's programs, since only surfaces named for the finish take it (RoomGloss):
- *    the globe and the filament leave the glass and the lenses (program 3), and the desk's pick meshes, which share the
- *    desk props' varnished material but have no normals, leave the wax (program 6). The second is a program nothing ever
- *    draws: `renderer.compile` prepares invisible meshes too.
+ *  - the varnish splits one of the room's programs, since only surfaces named for the finish take it (RoomGloss):
+ *    the globe and the filament leave the glass and the lenses (program 3).
  */
-const FINISH_PROGRAMS = 4 + 1 + 2;
+const FINISH_PROGRAMS = 4 + 1 + 1;
 
 /**
  * Under a finish the full poster path holds four programs, not one: the cards no longer share the charts' varnished
@@ -70,7 +71,7 @@ export const ATMOSPHERE_PROGRAMS = FINISH_PROGRAMS + FINISHED_POSTERS_PROGRAMS -
 
 /**
  * Production uses Velvet dusk; the lab retains the original bake for isolated device tests. Reduced motion adds none:
- * the cut's veil is compiled with the scene (program 12).
+ * the cut's veil is compiled with the scene (program 11).
  */
 export const FINISHED_ROOM_PROGRAMS = ROOM_PROGRAMS + ATMOSPHERE_PROGRAMS;
 /** The CD's one material prewarms in screen output (compileAsync), then draws into the finish's linear target. */

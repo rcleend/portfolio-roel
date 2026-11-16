@@ -20,10 +20,10 @@ export function meshesOf(root: Object3D): Mesh[] {
 
 /**
  * What the pointer ray tests for an interactable: its meshes, with every mesh of more than
- * PICK_CUT_TRIANGLES triangles cut into compact chunks. The baked room merges whole groups into
- * one mesh (the desk with its drawers, chair, lamp, tower and basket is 54 k triangles), and
- * three.js tests every triangle of a mesh whose bounds a ray crosses: about 3 ms per pointer event
- * on a laptop and 20 ms on a phone six times slower. A chunk shares its mesh's attributes, material
+ * PICK_CUT_TRIANGLES triangles cut into compact chunks. The room merges whole groups into one mesh
+ * (the desk corner's props are one, tens of thousands of triangles), and three.js tests every
+ * triangle of a mesh whose bounds a ray crosses: on a mesh of 54 k that measured about 3 ms per
+ * pointer event on a laptop and 20 ms on a phone six times slower. A chunk shares its mesh's attributes, material
  * and world matrix and has its own tight bounds, so a ray only tests the few chunks it crosses and
  * finds exactly the same hits. Chunks are never rendered and hold nothing but an index.
  */

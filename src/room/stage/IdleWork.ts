@@ -77,7 +77,7 @@ export interface IdleTaskOptions {
   /**
    * While this says so the task may also run while something moves, as it may while something plays (only units
    * that fit the idle period), and its units kept for a quiet moment are not kept: work a flight or a visit is
-   * waiting for, such as the radio's device, its prints and its skin on the way to the radio and there, small
+   * waiting for, such as the radio's device and its discs' prints on the way to the radio and there, small
    * uploads that then go between the frames of the flight or of the discs' float rather than after them.
    */
   readonly urgent?: () => boolean;

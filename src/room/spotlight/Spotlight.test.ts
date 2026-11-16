@@ -63,8 +63,8 @@ function setup({
   device?: boolean;
 } = {}) {
   const tv = prop('tv', 0);
-  // Built after the spotlight, as the radio's device is: a part cut from the radio's own mesh, on its material (as
-  // closeUpAsset's lid and well floor are), and one with a material of its own (as its keys have).
+  // Built after the spotlight, as the radio's device is: a part on the radio's own material, and one with a material
+  // of its own.
   const built = new Group();
   let arrived = false;
   const radio = prop('radio', 3, device ? () => (arrived ? built : null) : undefined);
@@ -264,8 +264,8 @@ describe('the spotlight', () => {
     expect((device.mesh.material as MeshBasicMaterial).color.r).toBeCloseTo(0.5, 6);
   });
 
-  // closeUpAsset cuts the lid and the well floor from the radio's own meshes and leaves them on its material: a join
-  // while the light is still fading must not take the brightened colour for that material's baked one.
+  // A part that joins late may be on the prop's own material: a join while the light is still fading must not take
+  // the brightened colour for that material's baked one.
   it('keeps the baked colour it first took when a joined part is on the prop’s own material', () => {
     const { spotlight, radio, device, frame, settle } = setup({ device: true });
     const shared = radio.mesh.material as MeshBasicMaterial;

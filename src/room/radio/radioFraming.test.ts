@@ -116,7 +116,7 @@ describe('radioViewpoint', () => {
     expect(pose.fov).toBeGreaterThanOrEqual(30);
   });
 
-  // Measured with the shipped geometry (docs/ROOM.md › The CD player): ±3 px, ±1°.
+  // Measured with the radio's geometry (docs/ROOM.md › The CD player): ±3 px, ±1°.
   it.each(RADIO_VIEWPORTS)('frames $width × $height as pinned', (viewport) => {
     const key = `${viewport.width}x${viewport.height}`;
     const actual = measure(viewport);

@@ -8,7 +8,7 @@
   "budgets": {
     "entryJs": 215.0,
     "entryCss": 5.65,
-    "room": 192.4,
+    "room": 190.5,
     "pcStill": 6.7,
     "PcExperience": 25,
     "radioDevice": 31.2,
@@ -20,9 +20,9 @@
     "RainSound": 1.2,
     "mousePlay": 5.1,
     "levelArt": 154.5,
-    "roomBuilder": 22.6,
-    "roomWorker": 28.4,
+    "roomBuilder": 46.4,
+    "roomWorker": 49.0,
     "posterPainter": 18.5
   },
-  "notes": "Velvet dusk is fixed at 70% haze and 30% dust. Room measured 196.47 kB gzip, including 2.3 kB for refracting wet glass, storm illumination and its audio slot over the previous finish. Rain reuses the composite: no new program, target or draw call. RainSound is a separate 1.11 kB lazy chunk loaded after power-on; the supplied 3.79 MB recording decodes at 24 kHz (~23 MB PCM). Entry JS remains 210.47 kB. The rug replaces its existing atlas and saves 20 kB with unchanged geometry and texture resolution. The generated room is the only room (docs/ROOM.md › The generated room): room measured 191.72 kB (201.61 before: GLTFLoader, the meshopt decoder and the shipped-asset lookups left, 9.5 kB of bake, prints, wax and radio parts joined it from the former generatedRoom chunk, now on the room's critical path, so in its chunk). radioDevice 30.79 (33.55: the close-up's cutting, skin and loader gone). roomWorker 27.87 is the generators as the worker the room chunk starts when created; roomBuilder 22.15 the same for the main thread, fetched only where a worker cannot be had; posterPainter 18.06 is the posters' worker, measured for the first time. Entry JS 214.97 (+0.11: the still's return after a lost context and the framing insets at creation)."
+  "notes": "Velvet dusk is fixed at 70% haze and 30% dust. Room measured 196.47 kB gzip, including 2.3 kB for refracting wet glass, storm illumination and its audio slot over the previous finish. Rain reuses the composite: no new program, target or draw call. RainSound is a separate 1.11 kB lazy chunk loaded after power-on; the supplied 3.79 MB recording decodes at 24 kHz (~23 MB PCM). Entry JS remains 210.47 kB. The rug replaces its existing atlas and saves 20 kB with unchanged geometry and texture resolution. The generated room is the only room (docs/ROOM.md › The generated room): room measured 191.72 kB (201.61 before: GLTFLoader, the meshopt decoder and the shipped-asset lookups left, 9.5 kB of bake, prints, wax and radio parts joined it from the former generatedRoom chunk, now on the room's critical path, so in its chunk). radioDevice 30.79 (33.55: the close-up's cutting, skin and loader gone). roomWorker 27.87 is the generators as the worker the room chunk starts when created; roomBuilder 22.15 the same for the main thread, fetched only where a worker cannot be had; posterPainter 18.06 is the posters' worker, measured for the first time. Entry JS 214.97 (+0.11: the still's return after a lost context and the framing insets at creation). The finishing pass of that conversion, after the props were rebuilt finely (the CD player, the window, the rug, the wire basket, the chair, the computer and its keyboard and mouse, the desk lamp, the plant, the bare-bulb lamp): the generators are 115 kB of minified arithmetic, so roomWorker measures 48.44 (27.87 before the rebuilt props; budget 28.4 → 49.0) and roomBuilder 45.85 (22.15; 22.6 → 46.4): the worker is fetched beside the room chunk and builds off the main thread, the builder only where a worker cannot be had. Neither carries three.js, the rig, the surface shaders or the prints' painter (checked in the built files). Room measures 189.87 (194.20 with the rebuilt props before this pass, 191.72 before them; budget 192.4 → 190.5): the bake imported five vector helpers from the generators' builder (gen/kit/builder.ts), which put the whole MeshBuilder in the room's chunk for the builder chunk to import back; the helpers are a module of their own now (gen/kit/vec.ts) and the lava lamp's generator is apart from its wax's arithmetic (gen/props/lavaLamp.ts, lavaWax.ts), so 4.4 kB left the critical path for roomBuilder (41.81 → 45.85). Entry JS 214.96, the game's mousePlay 4.74 and levelArt 154.23 are untouched by the pass."
 }

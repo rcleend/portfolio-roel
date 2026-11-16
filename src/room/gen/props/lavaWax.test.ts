@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWaxPose, LAVA, poseWax, WAX, WAX_TRIANGLES, waxIndices, waxPositions } from './lavaLamp';
+import { createWaxPose, LAVA, poseWax, WAX, WAX_TRIANGLES, waxIndices, waxPositions } from './lavaWax';
 
 const height = LAVA.top - LAVA.bottom;
 const glassAt = (y: number): number => LAVA.radius[0] + (LAVA.radius[1] - LAVA.radius[0]) * (y / height);

@@ -1,6 +1,6 @@
 /**
  * The decorated attic's layout (docs/ROOM.md › Posters): twenty-nine printed pieces and a corkboard on the back wall
- * and the sloped ceiling. Blender's Z-up metres, as the room was designed: `back` is (a: x, b: z) on the wall
+ * and the sloped ceiling. Z-up metres, as the room was first designed: `back` is (a: x, b: z) on the wall
  * y = 2.405; `slope` is (a: y, b: metres down the slope from the ridge). `rot` in degrees, counter-clockwise as seen
  * from the room. Layer n sits 1 + 0.75 n mm off its surface; cork pieces (layer ≥ 11) lie on the cork.
  */

@@ -8,15 +8,15 @@ import { FLOOR, type PropSink } from './types';
 const FACE = -1.741;
 const X = -1.95;
 /**
- * The shipped tower hung 19 mm over the boards (its feet's soles at y = 0.0246): this one stands on them, so every
- * height measured off the shipped one comes down by that much.
+ * The modelled room's tower hung 19 mm over the boards (its feet's soles at y = 0.0246): this one stands on them, so
+ * every height measured off that one comes down by that much.
  */
 const DROP = 0.0246 - FLOOR;
 /** A point of the tower's front: across from its middle, up from the floor, and out from the bezel's face. */
 const at = (across: number, up: number, out: number): Vec3 => [X + across, up - DROP, FACE + out];
 
 /**
- * The tower under the desk (the shipped one's measurements): a steel case behind a
+ * The tower under the desk (the modelled room's measurements): a steel case behind a
  * thicker moulded bezel, a disc drive and a blank bay, the floppy drive with its slot and eject key, the power key in
  * its ring, two lamps, a louvred grille and four feet. It faces +z.
  */

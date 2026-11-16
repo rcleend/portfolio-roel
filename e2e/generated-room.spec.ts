@@ -46,7 +46,7 @@ test('the room builds in a worker and lights what the TV view shows before the r
   expect(built?.complete).toBe(true);
   // Every light from every point of its emitter, on the top tier (rig.ts), once for each pass.
   expect(built?.views).toBeGreaterThan(200);
-  // The whole room at full detail (the shipped one: 353 k); a view draws less of it (the next expectation). 118 k
+  // The whole room at full detail (the modelled room it replaced: 353 k); a view draws less of it (the next expectation). 118 k
   // with the window, the wire basket and the bulb lamp finely made: measured, the same frame times as at 104 k.
   expect(built?.triangles).toBeLessThan(125_000);
   await page.evaluate(() => window.__roomLab?.room.powerOn());

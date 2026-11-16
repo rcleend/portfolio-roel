@@ -12,9 +12,9 @@ import type { DeckState, DiscArt, RadioCueEvent, RadioIntent, RadioKey, RadioLay
 import type { RadioModel } from './radioModel';
 
 /**
- * The seam between the radio's deck (RadioDeckHandle, the lazy `radioDeck` chunk, which the room chunk's RadioDoor
- * loads) and its lazy device (device/RadioDevice.ts, the `radioDevice` chunk). Types only: the device receives everything it uses from the
- * room through the host and the link, so the chunk imports no room state of its own.
+ * The seam between the radio's deck (RadioDeckHandle, which the room chunk's RadioDoor loads) and its device
+ * (device/RadioDevice.ts); both are the one lazy `radioDevice` chunk (deckChunk.ts). Types only: the device receives
+ * everything it uses from the room through the host and the link, so the chunk imports no room state of its own.
  */
 
 /** What the room gives the radio once it is assembled. */

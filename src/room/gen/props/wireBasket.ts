@@ -31,7 +31,7 @@ const WELD: readonly (readonly [number, number])[] = [
 ];
 
 /**
- * The wire wastepaper basket (the shipped one's measure: 24 wires, three hoops, a rim, a solid base): a pressed
+ * The wire wastepaper basket (the modelled room's measure: 24 wires, three hoops, a rim, a solid base): a pressed
  * steel pan with a rolled lip standing on the boards, the wires welded round its outside and cut off just clear of the
  * floor, three hoops welded round the wires, and a heavier rim the wires' ends are welded inside. It has been kicked:
  * the rim is a little out of round, and no hoop hangs quite level. All of it one dark blue enamel.

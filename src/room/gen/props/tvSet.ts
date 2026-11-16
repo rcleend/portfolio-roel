@@ -3,8 +3,8 @@ import { type Rgb, type Ring, roundedRect, type Vec3 } from '../kit/builder';
 import type { Prop } from './types';
 
 /**
- * The CRT television set, facing -x on the cabinet top, around the glass (which keeps the shipped set's contract:
- * docs/ROOM.md › Original TV geometry contract). Slate ABS: a front frame with a lip sloping in to the glass, a rounded
+ * The CRT television set, facing -x on the cabinet top, around the glass (roomSpec.ts › TV_SPEC;
+ * docs/ROOM.md › TV geometry contract). Slate ABS: a front frame with a lip sloping in to the glass, a rounded
  * shoulder, a rear shell stepping in and tapering to the back plate, cooling slots, a plinth, the button strip and the
  * front jacks. The legends and the wordmark are a print (art.ts); the wordmark is the site's own, not a maker's.
  */
@@ -80,7 +80,7 @@ export const tvSet: Prop = {
     // The plinth the set stands on, set back from the face and narrower.
     b.box([2.176, BASE_Y, -0.585], [2.4, y0 + 0.012, -0.055], RECESS, 0.5, ['+y']);
 
-    // POWER, then VOLUME - +, CHANNEL - +, ACTION, TV/VIDEO, as on the shipped strip (z -0.477 to -0.348).
+    // POWER, then VOLUME - +, CHANNEL - +, ACTION, TV/VIDEO, along the strip (z -0.477 to -0.348).
     const button = (z: number, radius: number) => {
       b.cylinder([FRONT + 0.001, 0.5535, z], [FRONT - PROUD, 0.5535, z], radius, radius * 0.9, 18, BUTTON, 1);
       b.cylinder(

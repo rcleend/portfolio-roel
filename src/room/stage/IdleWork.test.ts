@@ -565,8 +565,8 @@ describe('IdleWork', () => {
     });
 
     it('puts urgent work ahead of a task nobody waits on, even one that has not started', () => {
-      // The skin's last strip with its mipmaps, between the float's frames: the longest unit so far.
-      work.add(logging(log, 'skin', 1, 13.5), { urgent: () => true });
+      // An atlas's last strip with its mipmaps, between the float's frames: the longest unit so far.
+      work.add(logging(log, 'strip', 1, 13.5), { urgent: () => true });
       idle.idle(50);
       // The room's own uploads, queued as the camera left the TV: never stepped, so judged by that 13.5 ms.
       work.add(logging(log, 'room', 1, 1));
@@ -580,12 +580,12 @@ describe('IdleWork', () => {
         vi.advanceTimersByTime(16);
         if (idle.waiting > 0) idle.idle(8);
       }
-      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1']);
+      expect(log).toEqual(['strip:1', 'print1:1', 'print2:1', 'print3:1']);
       // The room's own work waits for a quiet moment that can hold it, as before.
       moment = 'quiet';
       vi.advanceTimersByTime(250);
       idle.idle(50);
-      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1', 'room:1']);
+      expect(log).toEqual(['strip:1', 'print1:1', 'print2:1', 'print3:1', 'room:1']);
     });
   });
 

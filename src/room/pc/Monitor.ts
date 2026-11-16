@@ -147,7 +147,9 @@ export class Monitor {
     const placement = screenPlacement(model.picture, PC_PICTURE_RADIUS, pose, viewport, window.devicePixelRatio || 1);
     if (import.meta.env.DEV && placement.skew > MAX_SKEW_PX && !this.warnedSkew) {
       this.warnedSkew = true;
-      console.warn(`The PC picture projects ${placement.skew.toFixed(2)} px off a rectangle; did pc-base.glb turn?`);
+      console.warn(
+        `The PC picture projects ${placement.skew.toFixed(2)} px off a rectangle; did the monitor's glass (gen/roomSpec.ts › PC_SPEC) turn?`,
+      );
     }
     overlay.setPlacement(placement.rect, placement.radius);
     const glassWidth = placement.rect.width * (planeWidth(model.rim) / planeWidth(model.picture));

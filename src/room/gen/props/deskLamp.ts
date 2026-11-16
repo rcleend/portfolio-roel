@@ -28,7 +28,7 @@ const cast: Tone = (point) => mottled(CAST, point, 0.09, 0.006, 44);
 const zinc: Tone = (point) => mottled(ZINC, point, 0.12, 0.004, 42);
 
 /**
- * The desk lamp, a spring-balanced arm lamp in black enamel (the shipped one's pose and measurements): a weighted
+ * The desk lamp, a spring-balanced arm lamp in black enamel (the modelled room's pose and measurements): a weighted
  * foot with a dished top, a post with its wing screw, two arms of paired bars on a shoulder, an elbow and a wrist,
  * four coil springs on cross pins, the flex looping over elbow and wrist, and a bell shade with a rolled rim, lit
  * inside, over its bulb.

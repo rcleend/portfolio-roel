@@ -19,7 +19,8 @@ export interface TierSettings {
 export const QUALITY_TIERS: Readonly<Record<QualityTier, TierSettings>> = {
   // 3 MP keeps the CRT's scanlines crisp on retina laptops while bounding fill cost on 4K.
   high: { maxPixelRatio: 2, maxPixels: 3_000_000, samples: 2, wideBloom: true },
-  // A phone at 2×: the picture `high` draws there, from smaller atlases; a laptop that dropped here draws half its pixels.
+  // A phone at 2×: the picture `high` draws there, from smaller baked pages (gen/tiers.ts); a laptop that dropped here
+  // draws half its pixels.
   medium: { maxPixelRatio: 2, maxPixels: 1_600_000, samples: 2, wideBloom: true },
   low: { maxPixelRatio: 1.5, maxPixels: 900_000, samples: 0, wideBloom: false },
 };

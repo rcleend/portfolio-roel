@@ -4,7 +4,7 @@ import { circle, clamp01, lerp, mix, mottled, noise3, segments, skin, smooth, ty
 import type { Prop } from './types';
 
 /**
- * The desk plant to the right of the set, 21 cm tall (the shipped one's pot and spread): a croton in a straight ivory
+ * The desk plant to the right of the set, 21 cm tall (the modelled room's pot and spread): a croton in a straight ivory
  * pot. Sixteen lance-shaped leaves leave a short stem in a spiral, the young ones standing, the old ones arching out
  * and down; each is folded along its midrib, ruffled at its margin, and veined in yellow on dark green, paler
  * underneath. It is grown from a seed, so it is the same plant on every visit, and no leaf reaches the set beside it.

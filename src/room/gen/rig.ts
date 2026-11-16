@@ -1,8 +1,9 @@
-import type { Rgb, Vec3 } from './kit/builder';
+import type { Rgb, Vec3 } from './kit/vec';
+import { BULB_SPEC, TV_LAMP_SPEC } from './roomSpec';
 
 /**
- * The night's light, as a table. The colours are the Blender rig's (tools/room/restyle.py › lighting); the places are
- * read off the room. Every light is static, so each is rendered once, at load, from several points of its emitter
+ * The night's light, as a table. The colours began as those of the modelled room's rig (its lights' names are quoted
+ * below; docs/gen/reference is that room's record); the places are read off the room. Every light is static, so each is rendered once, at load, from several points of its emitter
  * (soft shadows by accumulation), into the room's light maps and vertex colours (bake/Baker.ts).
  *
  * `scene` lights are the room's own, in scene-linear light under the bake's display curve. `finish` lights are the two
@@ -55,11 +56,6 @@ export interface RigLight {
   readonly through?: number;
 }
 
-/** The opal lamp's globe, as the shipped room places it (room.glb › userData.light). */
-export const TV_LAMP = { center: [2.33, 0.6014, 0.46] as Vec3, radius: 0.08 };
-/** The bare-bulb lamp on the cabinet's left-hand end: where its base stands, and the middle of its filament. */
-export const BULB = { origin: [2.31, 0.486, -0.84] as Vec3, filament: [2.31, 0.666, -0.84] as Vec3 };
-
 /** Where the night's light comes from: outside the window, above it and a little to its right. */
 const MOON: Vec3 = [-1.25, 2.65, -3.4];
 
@@ -100,8 +96,8 @@ export const RIG: readonly RigLight[] = [
     casters: 'all',
   },
   // What that pool sends back up: the lit oak as a wide, low emitter. It is the pink on the cabinet's drawer fronts and
-  // inside its shelves, and most of the light the wall behind the set gets. (The Blender bake traced this bounce; here
-  // it is one more light, as that rig's own fill lights were.)
+  // inside its shelves, and most of the light the wall behind the set gets. (A path tracer would trace this bounce; here
+  // it is one more light.)
   {
     name: 'bounce',
     kind: 'spot',
@@ -259,8 +255,7 @@ export const RIG: readonly RigLight[] = [
     casters: 'local',
     clear: 0.14,
   },
-  // What the task light's pool on the white desk, the wall and the blind sends back down ("Task light tungsten", traced
-  // by the Blender bake): a broad warm emitter over the desk's front, so the keyboard, the mouse and the mug are lit from
+  // What the task light's pool on the white desk, the wall and the blind sends back down ("Task light tungsten"): a broad warm emitter over the desk's front, so the keyboard, the mouse and the mug are lit from
   // above and the monitor's moon shadow is filled. It ends within the desk's own length.
   {
     name: 'desk-fill',
@@ -354,8 +349,8 @@ export const RIG: readonly RigLight[] = [
     name: 'opal',
     kind: 'omni',
     space: 'finish',
-    position: TV_LAMP.center,
-    target: TV_LAMP.center,
+    position: TV_LAMP_SPEC.center,
+    target: TV_LAMP_SPEC.center,
     color: [1, 1, 1],
     size: 0.075,
     samples: [3, 1],
@@ -372,8 +367,8 @@ export const RIG: readonly RigLight[] = [
     name: 'bulb',
     kind: 'omni',
     space: 'finish',
-    position: BULB.filament,
-    target: BULB.filament,
+    position: BULB_SPEC.filament,
+    target: BULB_SPEC.filament,
     // Its intensity against the opal lamp's (BULB_LAMP_INTENSITY / TV_LAMP_INTENSITY): they share its colour.
     color: [0.6, 0.6, 0.6],
     size: 0.006,

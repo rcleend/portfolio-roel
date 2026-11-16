@@ -62,5 +62,8 @@ export const PAGE = { corner: 0, floor: 1, shell: 2, furniture: 3 } as const;
 /** The chart groups: each draws with its own material, named for the room's finish. */
 export const GROUP = { cabinet: 0, wall: 1, floor: 2, desk: 3, dresser: 4, rug: 5 } as const;
 
-/** The boards' top: 6 mm, where the shipped floor's is and where everything that stands on it was measured to stand. */
+/**
+ * The boards' top: 6 mm, where the modelled room's floor was (docs/gen/reference is that room's record) and where
+ * everything that stands on it was measured to stand.
+ */
 export const FLOOR = 0.006;

@@ -11,8 +11,7 @@ import type {
   WebGLRenderTarget,
 } from 'three';
 import type { GenKit } from '../genKit';
-import type { Vec3 } from '../kit/builder';
-import { add, basis, normalize, scale, sub } from '../kit/builder';
+import { add, basis, normalize, scale, sub, type Vec3 } from '../kit/vec';
 import { AMBIENT, RIG, type RigLight } from '../rig';
 import type { GenScene } from '../scene';
 import {

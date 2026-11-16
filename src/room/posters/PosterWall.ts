@@ -499,8 +499,7 @@ export class PosterWall {
    */
   readonly #onContextRestored = (): void => {
     if (this.#disposed || this.#failed) return;
-    // Its GPU copy went with the old context: disposing it would ask the new one to delete a texture it never had
-    // (the radio's skin keeps the same rule).
+    // Its GPU copy went with the old context: disposing it would ask the new one to delete a texture it never had.
     this.#target = null;
     this.#restart();
   };

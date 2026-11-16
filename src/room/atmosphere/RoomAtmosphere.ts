@@ -135,7 +135,7 @@ void main() {
   vec3 original = scene.a > 0.95 ? wetWindow(scene.rgb, eye, ray, reach) : scene.rgb;
   vec3 color = original;
   float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
-  // Split-tone in linear light. No lifted grey blacks and no second tone mapping of the Blender bake.
+  // Split-tone in linear light. No lifted grey blacks and no second tone mapping of the bake.
   color *= mix(uShadows, uLights, smoothstep(0.015, 0.35, luminance));
   color = mix(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), color, uSaturation) * uExposure;
   // Text and game graphics keep their contrast, without a second layer of bloom over the CRT's own finish.

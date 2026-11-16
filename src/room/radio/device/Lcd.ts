@@ -14,7 +14,7 @@ import { onCanvasRestored } from '../../stage/canvasRestore';
 import type { LcdReadout } from '../RadioDeck';
 import { BLANK, type LcdFrame, lcdFrame, SEGMENT, sameFrame } from './lcdSegments';
 
-/** The LCD's rectangle on the dial glass, from the close-up's extras (glTF metres). */
+/** The LCD's rectangle on the dial glass, in world metres (gen/props/radioSpec.ts › lcd). */
 export interface LcdPlacement {
   readonly min: readonly [number, number];
   readonly max: readonly [number, number];

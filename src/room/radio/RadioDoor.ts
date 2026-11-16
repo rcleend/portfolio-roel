@@ -24,7 +24,7 @@ export class RadioDoorHandle implements RadioDoor {
   #deck: RadioDeckHandle | null = null;
   #loading: Promise<RadioDeckHandle> | null = null;
   #host: RadioHost | null = null;
-  /** The radio cannot work and its deck never came (its assets lack it, or its chunk failed). */
+  /** The radio cannot work and its deck never came (its chunk failed, or the room could not be lit). */
   #failed = false;
   #disposed = false;
   readonly #availability = new Set<(available: boolean) => void>();
@@ -102,7 +102,7 @@ export class RadioDoorHandle implements RadioDoor {
     this.#deck?.attach(host);
   }
 
-  /** The radio cannot work (its asset or its code failed): it is scenery again, warned once. */
+  /** The radio cannot work (its code failed, or the room could not be lit): it is scenery again, warned once. */
   unavailable(error: unknown): void {
     if (this.#deck) {
       this.#deck.unavailable(error);

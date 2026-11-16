@@ -51,7 +51,7 @@ function oblong(halfX: number, front: number, back: number, power: number, count
 }
 
 /**
- * The swivel chair, turned a little from the desk (the shipped one's measurements): a cloth seat with a soft rolled
+ * The swivel chair, turned a little from the desk (the modelled room's measurements): a cloth seat with a soft rolled
  * edge and piping on a black pan, a shield-shaped back on a flared stem, the mechanism with its two levers, a
  * telescoping lift over its steel piston, and a five-star base on twin-wheel casters.
  */

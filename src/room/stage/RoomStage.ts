@@ -58,8 +58,8 @@ export class RoomStage {
     // straight onto it.
     const antialias = (options.mood ?? 'original') === 'original';
     this.renderer = new WebGLRenderer({ antialias, powerPreference: 'high-performance' });
-    // Baked room surfaces already contain Blender's display transform; tone mapping them
-    // again would wash them out.
+    // Baked room surfaces already hold display values (the bake's own curve, gen/bake/shaders.ts); tone mapping
+    // them again would wash them out.
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = NoToneMapping;
     this.renderer.shadowMap.enabled = false;

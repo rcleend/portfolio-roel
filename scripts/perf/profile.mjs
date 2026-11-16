@@ -53,7 +53,6 @@ const TYPES = {
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
-  '.glb': 'model/gltf-binary',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain',
   '.m4a': 'audio/mp4',

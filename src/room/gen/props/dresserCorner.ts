@@ -7,8 +7,8 @@ import { GROUP, PAGE, type Prop } from './types';
 /**
  * The dresser corner's furniture that stands still: the pine dresser against the back wall with its drawer and two
  * panelled doors, the three books on the floor beside it and the radio's mains lead; and the guitar on its stand
- * between the dresser and the TV. Every place and size is read off the shipped room (room.glb › 04_Drawer_surfaces,
- * 04_Drawer_guitar).
+ * between the dresser and the TV. Every place and size is read off the modelled room this one
+ * replaced (docs/gen/reference is its record).
  */
 
 const PINE: Rgb = [0.3, 0.175, 0.155];
@@ -300,8 +300,8 @@ const mm = (points: readonly (readonly [number, number])[]): [number, number][] 
 
 /**
  * The guitar's own frame: x across the body towards the treble side, y up the strings from the body's middle to the
- * head, z out of its face; the origin is on the strings' centre line, in the body's mid plane. As it stands in the
- * shipped room: leaning back on its stand and turned a little towards the door.
+ * head, z out of its face; the origin is on the strings' centre line, in the body's mid plane. As it stood in the
+ * modelled room: leaning back on its stand and turned a little towards the door.
  */
 const GUITAR: Placement = {
   rotation: [0.9606063, 0.061697, -0.2709779, 0.0020623, 0.9734371, 0.2289454, 0.2779051, -0.2204852, 0.9349626],
@@ -318,7 +318,7 @@ const inRoom = (p: Vec3): Vec3 => {
   ) as unknown as Vec3;
 };
 
-/** Outlines traced off the shipped guitar, in millimetres of its frame, counter-clockwise. */
+/** Outlines traced off the modelled room's guitar, in millimetres of its frame, counter-clockwise. */
 // biome-ignore format: a table of points
 const BODY = mm([
   [-20.8, -295], [24.3, -295.3], [69.3, -293.9], [113.3, -285], [144.3, -268], [164.1, -247.3], [178, -219.3],
@@ -370,7 +370,7 @@ const BLACK: Rgb = [0.018, 0.018, 0.021];
 /** The neck's centre line: 1.5 mm to the treble side of the strings'. */
 const AXIS = 0.0015;
 const NUT = 0.5925;
-/** The scale as the shipped model has it (longer than a real one's 648 mm). */
+/** The scale as the modelled guitar had it (longer than a real one's 648 mm). */
 const SCALE = 0.74;
 const fret = (k: number): number => NUT - SCALE * (1 - 2 ** (-k / 12));
 /** Half the neck's width at a height: 24 mm at the nut to 30.8 mm at the heel's end. */

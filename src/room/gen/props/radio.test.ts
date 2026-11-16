@@ -54,7 +54,7 @@ describe('the generated CD player', () => {
     });
   });
 
-  it('fills the shipped radio’s outline and never leaves it', () => {
+  it('fills the radio’s outline (radioSpec.ts) and never leaves it', () => {
     const body = bounds(scene.meshes.radio);
     const { min, max } = RADIO_SPEC.bodyBounds;
     for (let i = 0; i < 3; i++) {

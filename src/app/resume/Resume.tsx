@@ -77,7 +77,7 @@ export function Resume() {
         </aside>
 
         <footer className="resume__footer">
-          <a href={`${import.meta.env.BASE_URL}CREDITS.txt`}>3D room credits</a>
+          <a href={`${import.meta.env.BASE_URL}CREDITS.txt`}>Credits</a>
         </footer>
       </div>
     </main>

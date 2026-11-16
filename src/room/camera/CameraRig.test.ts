@@ -9,7 +9,7 @@ import { CameraRig, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './Camera
 import { regionFromInsets } from './framing';
 import type { ScreenFade } from './ScreenFade';
 
-/** pc-base.glb's glass and shell as the model finds them, and a TV set with a 4:3 picture on its front. */
+/** The monitor's glass and a shell about its own (gen/roomSpec.ts › PC_SPEC), and a TV set with a 4:3 picture on its front. */
 const PC: PcFramingModel = {
   facing: new Vector3(0, 0, 1),
   rim: { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 },
