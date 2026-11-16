@@ -240,9 +240,12 @@ test('the keyboard alone reaches the radio, plays a CD, pauses it and gets back 
   await page.keyboard.press('ArrowRight');
   await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toBeFocused();
   // Chosen the moment the camera lands, before it is out of the radio: it comes up and over to its column first (no
-  // disc passes through another), then flies in. Heard within 1.5 s, against 1 s for a disc already out.
+  // disc passes through another), then flies in: 1.2–1.6 s by the choreography (docs/ROOM.md › Known gaps), against
+  // 1 s for a disc already out. Measured alone at 0e275c7, eight runs: 1395–1420 ms (the room of models before it:
+  // 1225–1419 ms, the same ceiling), so the old 1.5 s left a loaded machine 80 ms and the bound is the storyboard's.
   const elapsed = await timePickToSound(page, () => page.keyboard.press('Enter'));
-  expect(elapsed).toBeLessThanOrEqual(1500);
+  test.info().annotations.push({ type: 'keyboard pick to sound', description: `${Math.round(elapsed)} ms` });
+  expect(elapsed).toBeLessThanOrEqual(1600);
   expect((await sound(page))?.src).toMatch(/drop-the-bombs\/drop-the-bombs/);
   await expect(cds.getByRole('button', { name: /^DROP THE BOMBS by Roel Leenders/ })).toHaveAttribute(
     'aria-current',
@@ -396,16 +399,20 @@ test.describe('performance', () => {
     expect((await stats(page))?.radioAmbient).toBe(false);
     expect(await apart(1000), 'pixels moving at the resting radio').toBe(0);
     await expectSixtyFrames(page, 'at the resting radio');
-    // Playing: the seated disc is its radial average, the same image every frame; only the LCD's clock changes
-    // (103 × 29 CSS px of it here).
+    // Playing: the seated disc is its radial average, the same image every frame; only the LCD's clock changes.
     const lowTide = await disc(page, 'drop-the-bombs');
     await page.mouse.click(lowTide.x, lowTide.y);
     await waitAudible(page);
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(1000);
-    const ticking = await apart(2100);
-    expect(ticking, 'the playing clock ticks').toBeGreaterThan(0);
-    expect(ticking, 'and nothing but the LCD changes').toBeLessThan(4000);
+    // The clock ticks once a second: looked for over a few of them, and then small (some 2–4 thousand pixels around
+    // the readout, measured; under 1 % of the frame's 1.3 million).
+    const before = await shot();
+    let ticking = 0;
+    await expect
+      .poll(async () => (ticking = await differingPixels(before, await shot())), { timeout: 6000, intervals: [500] })
+      .toBeGreaterThan(0);
+    expect(ticking, 'nothing but the readout changes').toBeLessThan(12_000);
     // Paused: under reduced motion the time does not blink (it would, twice a second, for a visitor who is there).
     await pressModelKey(page, 'play-pause');
     await expect.poll(async () => (await sound(page))?.paused).toBe(true);

@@ -526,9 +526,11 @@ test.describe('on a retina screen', () => {
     // reaches the computer; the paused clock hands idle moments out one every 50 ms with no time left in them, and at
     // the computer's live screen the room takes none of those. So the picture would land on the live desktop while
     // the glass under it kept the bands until the camera next set off: wait here, in the room view, for both.
-    const painted = await advanceUntil(page, () => wallpaperPainted(page), 20_000);
-    test.info().annotations.push({ type: 'wallpaper painted', description: `${painted} ms after the room view` });
-    await advanceUntil(page, async () => (await stats(page))?.backgroundPending === false, 20_000);
+    // (In tenths of a second: nothing here is timed, and a frame a step would be a thousand round trips.)
+    for (let waited = 0; !(await wallpaperPainted(page)) || (await stats(page))?.backgroundPending; waited += 100) {
+      if (waited > 30_000) throw new Error('The wallpaper is still not on the glass after 30 s of the page clock');
+      await step(page, 100);
+    }
     await sitDown(page);
     await untilReader(page);
     await reader(page).getByRole('button', { name: 'Close the résumé' }).click();

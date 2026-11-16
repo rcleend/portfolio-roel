@@ -1,4 +1,4 @@
-import { place, type Rgb, type Vec3 } from '../kit/builder';
+import { type MeshBuilder, place, type Rgb, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
 import { FLOOR, GROUP, PAGE, type Prop } from './types';
@@ -186,8 +186,221 @@ export const windowFrame: Prop = {
     b.beam([left, 1.735, -2.355], [right, 1.755, -2.33], slat);
     for (const x of [x0 + 0.27, x1 - 0.27])
       b.box([x - 0.0012, 1.755, -2.3235], [x + 0.0012, y1 - 0.045, -2.3225], [0.4, 0.38, 0.36], 1);
+    windowFittings(b, sink.detail);
   },
 };
+
+/** The window's brass, the blind's clear wand and its cords. */
+const BRASS: Rgb = [0.46, 0.33, 0.13];
+const BRASS_WORN: Rgb = [0.56, 0.43, 0.2];
+const WAND: Rgb = [0.5, 0.5, 0.48];
+const CORD: Rgb = [0.5, 0.47, 0.42];
+
+/**
+ * What a hand touches at the window. The meeting rail stands behind the lowered blind, so the brass is on the lower
+ * sash's bottom rail: two cam fasteners on its top (a plate, the cam on its pivot under the keeper's lip, a thumb
+ * lever) and two hook lifts on its face. On the blind: the tilt wand, a clear hexagonal rod hooked to the head rail at
+ * the left, and at the right the two lift cords out of their lock, joined in a tassel under the blind. All of it
+ * stands on the room's side of the slats (z > -2.32) or on the rail, touching nothing else.
+ */
+function windowFittings(b: MeshBuilder, detail: number): void {
+  const { x0, x1, y0 } = WINDOW;
+  const [left, right] = [x0 + 0.035, x1 - 0.035];
+  const fine = detail >= 0.8;
+  const round = fine ? 8 : 6;
+  /** A screw's head, standing along +y of wherever it is placed. */
+  const screw = (x: number, z: number, y: number): void => {
+    if (detail < 0.55) return;
+    b.lathe(
+      [x, y, z],
+      [0, 1, 0],
+      [
+        [0.0027, 0],
+        [0.0021, 0.0008],
+        [0, 0.001],
+      ],
+      6,
+      BRASS_WORN,
+      0.9,
+    );
+  };
+
+  // The fasteners, on the bottom rail's top (y0 + 0.09, 30 mm deep). Each is turned shut: its lever lies along the rail.
+  const railTop = y0 + 0.09;
+  for (const [x, turn] of [
+    [x0 + 0.43, 0.45],
+    [x1 - 0.4, 0.38],
+  ] as const)
+    b.placed(place([x, railTop, -2.385]), () => {
+      b.roundedBox([-0.027, 0, -0.011], [0.027, 0.0022, 0.011], 0.004, BRASS, 1, 1, 1);
+      screw(-0.0215, 0.004, 0.0022);
+      screw(0.0215, -0.004, 0.0022);
+      // The keeper at the glass side: a lug and the lip the cam turns under.
+      b.box([-0.016, 0.0022, -0.011], [0.004, 0.0085, -0.0075], BRASS, 1, ['-y']);
+      b.box([-0.016, 0.0062, -0.0075], [0.004, 0.0085, -0.004], BRASS, 0.9, ['-z']);
+      // The cam and its pivot.
+      const pivot: Vec3 = [-0.006, 0.0022, 0.002];
+      b.lathe(
+        pivot,
+        [0, 1, 0],
+        [
+          [0.0085, 0],
+          [0.0085, 0.003],
+          [0.0075, 0.0036],
+          [0.0034, 0.0036],
+          [0.003, 0.0052],
+          [0, 0.0056],
+        ],
+        round,
+        BRASS_WORN,
+        0.95,
+      );
+      // The lever: a flat arm from the cam, rising to a round thumb pad past the plate's end.
+      const [dx, dz] = [Math.cos(turn), Math.sin(turn)];
+      const section = (along: number, half: number, low: number, high: number): Vec3[] => {
+        const [cx, cz] = [pivot[0] + dx * along, pivot[2] + dz * along];
+        return [
+          [cx + dz * half, low, cz - dx * half],
+          [cx - dz * half, low, cz + dx * half],
+          [cx - dz * half, high, cz + dx * half],
+          [cx + dz * half, high, cz - dx * half],
+        ];
+      };
+      b.skin(
+        [
+          section(0.002, 0.0032, 0.0058, 0.0079),
+          section(0.016, 0.0027, 0.0061, 0.0081),
+          section(0.0275, 0.0023, 0.0074, 0.0092),
+        ],
+        BRASS_WORN,
+      );
+      b.lathe(
+        [pivot[0] + dx * 0.03, 0.0071, pivot[2] + dz * 0.03],
+        [0, 1, 0],
+        [
+          [0, 0],
+          [0.0042, 0.0006],
+          [0.005, 0.0021],
+          [0.0042, 0.0036],
+          [0, 0.0042],
+        ],
+        round,
+        BRASS_WORN,
+      );
+    });
+
+  // The lifts, on the bottom rail's face (z = -2.37): a plate, two screws, and a finger hook curling out and down.
+  for (const x of [x0 + 0.24, x1 - 0.24])
+    b.placed(place([x, y0 + 0.0625, -2.37]), () => {
+      b.roundedBox([-0.021, -0.015, 0], [0.021, 0.015, 0.002], 0.004, BRASS, 1, 2, 1);
+      // Screws stand along +y: turned to stand out of the plate.
+      b.placed(place([0, 0, 0.002], 0, Math.PI / 2), () => {
+        screw(-0.015, 0.009, 0);
+        screw(0.015, 0.009, 0);
+      });
+      const hook: readonly (readonly [number, number, number])[] = [
+        [0.0075, 0.0015, 0.0013],
+        [0.0085, 0.0095, 0.0013],
+        [0.0055, 0.0165, 0.0012],
+        [-0.001, 0.0195, 0.0011],
+        [-0.0065, 0.0175, 0.001],
+      ];
+      b.skin(
+        hook.map(([y, z, half], i): Vec3[] => {
+          const [py, pz] = hook[Math.max(0, i - 1)] as readonly [number, number, number];
+          const [ny, nz] = hook[Math.min(hook.length - 1, i + 1)] as readonly [number, number, number];
+          const l = Math.hypot(ny - py, nz - pz);
+          // Across the hook's own run: its thickness.
+          const [ty, tz] = [(-(nz - pz) / l) * half, ((ny - py) / l) * half];
+          return [
+            [-0.014, y - ty, z - tz],
+            [0.014, y - ty, z - tz],
+            [0.014, y + ty, z + tz],
+            [-0.014, y + ty, z + tz],
+          ];
+        }),
+        BRASS_WORN,
+      );
+    });
+
+  // The tilt wand: a stub out of the head rail's face, a wire hook, the coupler, and the rod with its grip. It hangs
+  // a hand's breadth in from the blind's left end, 8 mm clear of the slats, leaning as it was last let go.
+  const wandX = left + 0.085;
+  const hung: Vec3 = [wandX, 2.488, -2.3115];
+  b.cylinder([wandX, 2.488, -2.32], [wandX, 2.488, -2.3095], 0.0042, 0.0042, 6, WAND, 0.9);
+  b.cylinder(hung, [wandX, 2.462, -2.3115], 0.0012, 0.0012, 4, [0.3, 0.3, 0.31], 1, false);
+  const foot: Vec3 = [wandX + 0.006, 1.868, -2.31];
+  const down = (t: number): Vec3 => [
+    hung[0] + (foot[0] - hung[0]) * t,
+    2.466 + (foot[1] - 2.466) * t,
+    hung[2] + (foot[2] - hung[2]) * t,
+  ];
+  b.cylinder(down(0), down(0.03), 0.0048, 0.0048, 6, WAND, 0.9);
+  // The rod in lengths, so the light on it can change down the blind.
+  const lengths = fine ? 6 : 3;
+  for (let i = 0; i < lengths; i++)
+    b.cylinder(
+      down(0.03 + (0.87 * i) / lengths),
+      down(0.03 + (0.87 * (i + 1)) / lengths),
+      0.0034,
+      0.0034,
+      6,
+      WAND,
+      1,
+      false,
+    );
+  const axis: Vec3 = [foot[0] - hung[0], foot[1] - 2.466, foot[2] - hung[2]];
+  b.lathe(
+    down(0.9),
+    axis,
+    [
+      [0.0034, 0],
+      [0.0056, 0.006],
+      [0.0062, 0.03],
+      [0.0056, 0.054],
+      [0.0038, 0.06],
+      [0, 0.06],
+    ],
+    6,
+    WAND,
+  );
+
+  // The lift cords: out of the lock on the head rail's face, down in front of the slats, and joined in a tassel
+  // under the blind, in front of the lower sash's glass.
+  const cordX = right - 0.09;
+  b.box([cordX - 0.012, 2.476, -2.32], [cordX + 0.012, 2.494, -2.313], [0.55, 0.52, 0.5], 1, ['-z']);
+  const tassel: Vec3 = [cordX + 0.004, 1.47, -2.3145];
+  const steps = fine ? 11 : 6;
+  for (const side of [-1, 1]) {
+    const path: Vec3[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      // Apart at the lock, together at the tassel, with the slack of a cord that hangs free.
+      const apart = side * 0.0045 * (1 - t) ** 0.6;
+      const slack = Math.sin(t * Math.PI) * 0.004 * side;
+      path.push([
+        cordX + (tassel[0] - cordX) * t + apart + slack,
+        2.476 + (tassel[1] - 2.476) * t,
+        -2.3165 + (tassel[2] + 2.3165) * t,
+      ]);
+    }
+    b.tube(path, 0.0011, 3, CORD, 1, false);
+  }
+  b.lathe(
+    tassel,
+    [0, -1, 0],
+    [
+      [0.0018, -0.002],
+      [0.0045, 0.004],
+      [0.0058, 0.02],
+      [0.0062, 0.034],
+      [0.0042, 0.04],
+      [0, 0.04],
+    ],
+    round,
+    [0.55, 0.52, 0.5],
+  );
+}
 
 /** The rug's side, its thickness, and the height of its pile over the room's origin. */
 const RUG = 2.3514;

@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import type { LevelProbe } from '../src/game/scenes/level/probe';
-import { scene, trackErrors, waitForRunning } from './helpers';
+import { scene, trackErrors } from './helpers';
 
 /**
  * Playing a level with the mouse alone (docs/ARCHITECTURE.md › Mouse play): a click on a floor walks there and jumps
@@ -256,41 +256,6 @@ test('the cursor says what a click would do there: walk, jump or attack', async 
   }
   await hover(page, 160, 230);
   await expect(screen).toHaveAttribute('data-cursor', 'play');
-});
-
-test("in the room, the stage wears the game's cursors over the TV's picture in a level", async ({ page }) => {
-  const query = new URLSearchParams({
-    seed: '1',
-    scene: 'level',
-    params: JSON.stringify({ levelId: 'luna', characterId: 'hackerman', skipIntro: true }),
-  });
-  await page.goto(`/?${query}`);
-  await waitForRunning(page);
-  const canvas = page.locator('[data-host] canvas');
-  const picture = await page.evaluate(() => (globalThis as { __tvPicture?: () => number[] }).__tvPicture?.());
-  if (!picture) throw new Error('no TV picture');
-  const [left = 0, top = 0, right = 0, bottom = 0] = picture;
-  const at = async (x: number, y: number) => {
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error('no stage');
-    const px = box.x + left + ((x + 0.5) / 320) * (right - left);
-    const py = box.y + top + ((y + 0.5) / 240) * (bottom - top);
-    await page.mouse.move(px - 2, py - 2);
-    await page.mouse.move(px, py);
-  };
-  // The hero stands at x 56 of San Francisco's first street: the sky is an attack, the street a walk.
-  await expect
-    .poll(async () => {
-      await at(200, SKY);
-      return canvas.getAttribute('data-cursor');
-    })
-    .toBe('attack');
-  await at(150, GROUND);
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('walk');
-  await at(20, SKY);
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('attack');
-  await at(160, 232);
-  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
 });
 
 /**

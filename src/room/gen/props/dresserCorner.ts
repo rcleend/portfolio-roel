@@ -146,7 +146,7 @@ export const dresser: Prop = {
     for (const x of [0.378, 1.259])
       for (const z of [-2.306, -1.783])
         sink.chart(
-          ...faces([x, 0, z], [x + 0.063, y0, z + 0.049], z > -2 ? ['-x', '+x', '+z'] : ['-x', '+x'], pine(true)),
+          ...faces([x, 0.006, z], [x + 0.063, y0, z + 0.049], z > -2 ? ['-x', '+x', '+z'] : ['-x', '+x'], pine(true)),
         );
     // The front: the top rail, the drawer in its opening, the rail under it, and the dark of the carcass in the gaps.
     sink.chart(...faces([0.441, 0.802, -1.765], [1.259, y0, FRONT], ['+z'], pine()));
@@ -256,9 +256,9 @@ export const dresserBooksAndLead: Prop = {
     const b = sink.mesh('props');
     // Each a block under a thick cover that stands 3 mm proud of it.
     const books: readonly { at: Vec3; size: Vec3; yaw: number; color: Rgb }[] = [
-      { at: [0.02, 0, -1.96], size: [0.41, 0.06, 0.29], yaw: 0.05, color: [0.022, 0.045, 0.125] },
-      { at: [0.02, 0.06, -1.96], size: [0.37, 0.052, 0.275], yaw: -0.08, color: [0.21, 0.062, 0.036] },
-      { at: [0.02, 0.112, -1.96], size: [0.35, 0.047, 0.25], yaw: 0.04, color: [0.055, 0.062, 0.088] },
+      { at: [0.02, 0.006, -1.96], size: [0.41, 0.06, 0.29], yaw: 0.05, color: [0.022, 0.045, 0.125] },
+      { at: [0.02, 0.066, -1.96], size: [0.37, 0.052, 0.275], yaw: -0.08, color: [0.21, 0.062, 0.036] },
+      { at: [0.02, 0.118, -1.96], size: [0.35, 0.047, 0.25], yaw: 0.04, color: [0.055, 0.062, 0.088] },
     ];
     for (const { at, size, yaw, color } of books) {
       const [hx, h, hz] = [size[0] / 2, size[1], size[2] / 2];
@@ -673,9 +673,9 @@ function standLegs(b: MeshBuilder): void {
   const hub = inRoom([0, -0.318, -0.1455]);
   b.sphere(hub, 0.021, 8, BLACK);
   for (const foot of [
-    [2.186, 0.0115, -2.041],
-    [2.328, 0.0115, -1.487],
-    [1.778, 0.0115, -1.645],
+    [2.186, 0.0175, -2.041],
+    [2.328, 0.0175, -1.487],
+    [1.778, 0.0175, -1.645],
   ] as const) {
     const at = (t: number): Vec3 => [
       hub[0] + (foot[0] - hub[0]) * t,

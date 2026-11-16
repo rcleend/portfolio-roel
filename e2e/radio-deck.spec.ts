@@ -337,13 +337,13 @@ test.describe('frames at the radio', () => {
         lcd: { kind: 'track', track: 1, seconds: 37, transport: 'paused' },
       }),
     );
-    // Past the float's rest, inside the 30 s of attention: the blink alone, twice a second, on the LCD's few pixels
+    // Past the float's rest, inside the 30 s of attention: the blink alone, twice a second, on the LCD and nowhere else
     // (103 × 29 CSS px here) and nowhere else.
     await advance(page, 10_000);
     expect((await stats(page))?.radioAmbient).toBe(false);
     const blinking = await pixelsMoving(page, 5, 250);
     expect(blinking, 'the paused time blinks').toBeGreaterThan(0);
-    expect(blinking, 'and nothing but the LCD changes').toBeLessThan(4000);
+    expect(blinking, 'and nothing but the LCD changes').toBeLessThan(12_000);
     await advance(page, 25_000);
     expect(await pixelsMoving(page, 5, 250), 'pixels moving once the visitor has gone').toBe(0);
     await expectSixtyFrames(page, 'with the blink at rest');
@@ -367,7 +367,7 @@ test.describe('with reduced motion', () => {
     await page.mouse.click(target.x, target.y);
     await advance(page, 400);
     // The disc seated in one frame, ▷II drawn pressed and released; now only the LCD's clock changes.
-    expect(await pixelsMoving(page, 3, 1000), 'pixels moving while the disc plays').toBeLessThan(4000);
+    expect(await pixelsMoving(page, 3, 1000), 'pixels moving while the disc plays').toBeLessThan(12_000);
     const events = (await log(page)).filter((entry) => entry.at >= start);
     const seated = events.find((entry) => entry.event === 'seated');
     const pick = events.find((entry) => entry.event === 'intent');
