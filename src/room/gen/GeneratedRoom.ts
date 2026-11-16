@@ -69,6 +69,10 @@ const REPLACED_IN_ROOM = new Set([
   '03_Room_window',
   'Woven_geometric_rug',
   'Night_tree_exterior_view',
+  '02_Desk_surfaces',
+  'PC_Imported_CRT_base',
+  'PC_Imported_Keyboard_base',
+  'PC_Imported_Mouse_base',
 ]);
 /** The shell's cutaway pieces (ceilings, front wall, door). */
 const REPLACED_CUTAWAY = /^Cutaway_/;
@@ -140,7 +144,7 @@ export class GeneratedRoom {
     this.group = new kit.Group();
     this.group.name = 'GeneratedRoom';
     this.group.visible = false;
-    context.room.traverse((object) => {
+    context.stage.scene.traverse((object) => {
       if ((object as Mesh).isMesh && (REPLACED_IN_ROOM.has(nameOf(object)) || REPLACED_CUTAWAY.test(nameOf(object))))
         this.replaced.push(object as Mesh);
     });
@@ -255,6 +259,8 @@ export class GeneratedRoom {
       [GROUP.cabinet]: '01_TV_surfaces_BAKED_UNLIT',
       [GROUP.wall]: '03_Room_surfaces_BAKED_UNLIT',
       [GROUP.floor]: '03_Room_floor_BAKED_UNLIT',
+      [GROUP.desk]: '02_Desk_surfaces_BAKED_UNLIT',
+      [GROUP.dresser]: '04_Drawer_surfaces_BAKED_UNLIT',
     };
     const charts = new Map<number, Mesh>();
     for (const data of gen.charts.display) {
@@ -268,7 +274,7 @@ export class GeneratedRoom {
       material.userData.page = data.page;
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated charts ${data.group}`;
-      if (data.group === GROUP.cabinet) {
+      if (data.group !== GROUP.wall && data.group !== GROUP.floor) {
         mesh.layers.enable(CASTERS_ALL);
         mesh.layers.enable(CASTERS_LOCAL);
       }

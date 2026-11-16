@@ -2,6 +2,7 @@ import { ART_SIZE, artUv } from './art';
 import { MeshBuilder, type MeshData } from './kit/builder';
 import { type Chart, type ChartMeshes, chartMeshes, type PackedPage, packCharts } from './kit/charts';
 import { cabinet } from './props/cabinet';
+import { basket, chair, desk, desktop, towerAndLamp } from './props/deskCorner';
 import { opalLamp, toyRobot } from './props/lampAndRobot';
 import { plant } from './props/plant';
 import { ceilings, door, floor, rug, walls, windowFrame } from './props/shell';
@@ -21,6 +22,11 @@ export const PROPS: readonly Prop[] = [
   ceilings,
   door,
   windowFrame,
+  desk,
+  chair,
+  basket,
+  towerAndLamp,
+  desktop,
 ];
 
 export interface GenRequest {

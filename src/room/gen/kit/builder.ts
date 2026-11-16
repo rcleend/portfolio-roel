@@ -308,6 +308,33 @@ export class MeshBuilder {
       this.loft(rings[i] as Ring, rings[i + 1] as Ring, { from: centre }, color, shade);
   }
 
+  /** A crumpled ball: a sphere whose surface is pushed in and out by a seeded amount at every vertex. */
+  blob(centre: Vec3, radius: number, segments: number, roughness: number, seed: number, color: Rgb, shade = 1): void {
+    const stacks = Math.max(3, Math.round(segments / 2));
+    const bump = (i: number, j: number): number => {
+      const pole = i === 0 || i === stacks ? 0 : j % segments;
+      let h = (Math.imul(i + 1, 73856093) ^ Math.imul(pole + 1, 19349663) ^ Math.imul(seed + 1, 83492791)) >>> 0;
+      h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+      return 1 + (((h ^ (h >>> 13)) >>> 0) / 4294967296 - 0.5) * 2 * roughness;
+    };
+    const rings: Ring[] = [];
+    for (let i = 0; i <= stacks; i++) {
+      const polar = (i / stacks) * Math.PI;
+      rings.push(
+        Array.from({ length: segments }, (_, j): Vec3 => {
+          const around = (j / segments) * Math.PI * 2;
+          const r = radius * bump(i, j);
+          return [
+            centre[0] + Math.sin(polar) * Math.cos(around) * r,
+            centre[1] - Math.cos(polar) * r,
+            centre[2] + Math.sin(polar) * Math.sin(around) * r,
+          ];
+        }),
+      );
+    }
+    for (let i = 0; i < stacks; i++) this.loft(rings[i] as Ring, rings[i + 1] as Ring, { from: centre }, color, shade);
+  }
+
   /** The finished mesh, its normals smoothed across edges shallower than `creaseDegrees`. */
   finish(creaseDegrees = 38): MeshData {
     const positions = new Float32Array(this.positions);

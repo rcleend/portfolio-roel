@@ -31,6 +31,6 @@ export interface Prop {
 }
 
 /** The chart pages: the TV corner's surfaces; the floor and its rug; the walls and ceilings. */
-export const PAGE = { corner: 0, floor: 1, shell: 2 } as const;
+export const PAGE = { corner: 0, floor: 1, shell: 2, furniture: 3 } as const;
 /** The chart groups: each draws with its own material, named for the room's finish. */
-export const GROUP = { cabinet: 0, wall: 1, floor: 2 } as const;
+export const GROUP = { cabinet: 0, wall: 1, floor: 2, desk: 3, dresser: 4 } as const;
