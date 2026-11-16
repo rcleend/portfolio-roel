@@ -152,4 +152,31 @@ describe('AmbientPacer', () => {
     expect(never.running).toBe(false);
     expect(idle.drawn).toHaveLength(0);
   });
+  // Why the device does not use this pacer beside a loop that draws by itself (RadioDevice › #syncAmbient): every frame
+  // of that loop is a frame "drawn for something else", which restarts the grid a full interval on, so the pacer's
+  // own frame never comes due. The room drew sixty frames a second and the discs stood still in all of them.
+  it('never asks for a frame beside a loop that draws every display frame by itself', () => {
+    const screen = display(60);
+    let asked = 0;
+    const pacer = new AmbientPacer({
+      wanted: () => true,
+      lastFrame: screen.lastFrame,
+      frame: () => {
+        asked++;
+        screen.invalidate();
+      },
+      request: screen.request,
+      cancel: screen.cancel,
+    });
+    // The paced room: a frame on every display frame, whoever asks.
+    const room = (): void => {
+      screen.invalidate();
+      screen.request(room);
+    };
+    room();
+    pacer.sync();
+    screen.run(3000);
+    expect(fps(screen.drawn, 1000, 3000)).toBeCloseTo(60, 0);
+    expect(asked).toBe(0);
+  });
 });

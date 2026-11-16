@@ -397,12 +397,20 @@ which the generated one was matched to (§ The generated room › Comparing it).
 
 - **Frames.** `RenderLoop` draws only when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power
   animations, the lava's and the air's ticks, resizes. Since the room is generated it is asked all the time: once the
-  room is lit, `GeneratedRoom` asks for a frame sixty times a second in every view, whether or not anything moves, as
-  a run of frames the quality governor judges (§ The generated room › Sixty frames a second), and for none while the
-  canvas is off screen or the tab hidden. So a resting room draws about sixty frames a second at the TV with the game
+  room is lit, `GeneratedRoom` has the loop draw all the time in every view (`RenderLoop.pace`), whether or not anything
+  moves, as a run of frames the quality governor judges (§ The generated room › Sixty frames a second), and not while
+  the canvas is off screen or the tab hidden. The paced loop follows the display's own frames
+  (`requestAnimationFrame`) and draws on every one of them, or on every second or third of a display faster than
+  95 Hz: sixty a second on a 60 Hz and on a 120 Hz display, 72 at 144 Hz, 80 at 240 Hz, 75 and 90 on displays of those
+  rates, and always a whole number of display frames apart, so the frames are evenly spaced. (A timer asking sixty
+  times a second drew a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) A one-off request (the
+  lava's tick, a pointer move, the game's own frame) is drawn by the next of those frames, not by one of its own in
+  between; only an animation (a flight, the radio's choreography, the tube's turn-on) draws on every display frame.
+  So a resting room draws sixty frames a second at the TV with the game
   paused, in the room view, at the computer and at the radio, under reduced motion too (`node scripts/room-shots.mjs
-  --only perf` prints them). The slower clocks (the lava's 24 a second, the air's, the radio's float at 30) decide
-  what moves in those frames, not how many are drawn. The room with shipped files drew no frame at rest; the frame
+  --only perf` prints them). The slower clocks (the lava's 24 a second, the air's) decide
+  what moves in those frames, not how many are drawn; the radio's floating discs move in every one (`RenderLoop.ride`:
+  a step run before each frame drawn that asks for none). The room with shipped files drew no frame at rest; the frame
   counts at rest that these docs quoted from that time are gone (§ Known gaps).
 
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
@@ -599,9 +607,10 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   2048² (four pages, 89 MB with mips) and bakes light at half the pages' size; `medium` and `low` use half the
   density in 1024² pages (22 MB); `low` also halves the shadow map and the samples. The bake's own targets peak at
   44 MB and are freed when it ends.
-- **Sixty frames a second.** While the room is lit it asks for a frame sixty times a second in every view, as a run
-  the quality governor judges (§ Quality), whether or not anything moves; none while the canvas is off screen or the
-  tab hidden (it looks again four times a second).
+- **Sixty frames a second.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
+  Frames): it draws on the display's own frames, evenly spaced and sixty a second on 60 and 120 Hz displays, in every
+  view, as a run the quality governor judges (§ Quality), whether or not anything moves; none while the canvas is off
+  screen or the tab hidden (it looks again four times a second).
 - **The lava lamp** (`gen/props/lavaLamp.ts`, `gen/LavaWax.ts`): a lathed foot and
   cap in the baked props, the bottle as a film of added light, and wax that is a function of the clock. Six blobs ride
   the bottle's axis on periods that share no multiple (23 to 79 s), each a soft kernel stretched along its way; the
@@ -940,14 +949,24 @@ Reduced motion: the existing fade-cut-fade lands on the open lid with the discs 
 
 - **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries three of the room's sources by name (the lilac ambient, the lava lamp as a point light, the moon from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark lilac room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp across the varnish says the disc spins. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise, the flip, the leave) reads as a silver disc, never a flat grey: a mirror brightening towards grazing, the lamp's spoke and the room's sheen across its tracks, the lamp and the moon diffracted in the first two orders (the rainbow spoke stays put while the disc turns), softly shouldered so a disc right by the lamp flashes but never burns out; a polished rim catches the room and the lamp, so overlapping discs keep their outlines. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
 - **Labels**: the app's prints at `labelSize` (256, 384 or 512 from the discs' size at the radio; 256 with little memory or software GL), uploaded one per idle unit; the discs never wait for them: they show together once the last is up, fading in over the bare silver (260 ms) when the visitor is watching.
-- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the charts' own program; painted only when the readout or the blink phase changes, and asks for a frame only at the radio. The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
+- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the charts' own program; painted only when the readout or the blink phase changes, and asks for a frame only at the radio. The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. Its material's colour is its backlight level and nobody else's to set: the mesh says so (`userData.ownColour`) and the prop spotlight, which brightens a lit prop's textured materials by writing their colours back every frame, leaves it out (it took the black of a display that was off and wrote it over the warm-up: a radio lit by the pointer, the menu or the first look around once its device was made showed a black display at the radio, lamp on; `Lcd.spotlight.test.ts`). The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
 - **Well and lid**: generated parts (the well with its turntable and pickup, the lid's ribbed underside), lit by the bake as the open lid shows them (§ The generated room › The CD player); dark at night, so the lamp-lit seated disc is the bright subject.
 
 ### Frames and budgets
 
 The room draws its steady sixty frames a second at the radio as everywhere (§ Rendering and performance › Frames).
-The device's own requests sit inside them: the choreography's step while something moves, `AmbientPacer` for the
-discs' float, one a second for a playing disc's clock.
+The device's own motion sits inside them: the choreography's step while something moves (every display frame), and
+the discs' float, which rides the room's frames (`RenderLoop.ride`): the discs are posed in every frame the room
+draws and the float asks for none. Beside a room that draws by itself the float must not pace frames of its own:
+`AmbientPacer`, below, restarts its grid at every frame drawn for another cause, so next to sixty of those a second
+its own never came due, and the discs stood still in 95–100 % of the frames and jumped (up to 175° for a playing
+disc) whenever something else posed them (`e2e/radio-spin.spec.ts` holds the float to every frame). The pacer is kept
+for a loop that draws on demand only.
+
+Events are stamped with the time of the last frame drawn rather than `performance.now()` (`monotonicClock.ts` ›
+`eventTime`): the browser hands a pointer move over a millisecond or so into a frame, and the frame held to that time
+by the device's clock was drawn late against the next, so everything moving under a moving pointer stepped unevenly
+(7–9 % at the median on a 120 Hz display, under 0.5 % now).
 
 `AmbientPacer` watches the display's own frames and asks for one whenever the next would reach a slot of a 30-a-second grid, so a 60 Hz display draws every second frame, a 120 Hz one every fourth, and one in between (75 Hz, or Playwright's 62.5 Hz fake clock) mixes gaps of one and two frames and still averages 30, never more in any second (`AmbientPacer.test.ts`); a frame drawn for another cause restarts the grid a full interval after it, and a stall is followed by one interval, not a burst.
 

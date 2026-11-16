@@ -54,7 +54,7 @@ export interface RadioDeviceContext {
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
   readonly renderer: WebGLRenderer;
-  readonly loop: Pick<RenderLoop, 'animate' | 'invalidate' | 'lastFrameTime'>;
+  readonly loop: Pick<RenderLoop, 'animate' | 'invalidate' | 'lastFrameTime' | 'ride' | 'paced'>;
   /** Work ahead of need, never while anything moves (the radio's own motion included). */
   readonly background: Pick<IdleWork, 'add'>;
   readonly anisotropy: number;

@@ -1026,25 +1026,11 @@ function linked(renderer: RoomStage['renderer']): Promise<void> {
   });
 }
 
-/** Slightly under 1/60 s, as the game's own frames are paced (stage/FramePacer.ts). */
-const FRAME_INTERVAL_MS = 1000 / 60 - 2;
-/** How often a hidden room looks whether it is back (ms). */
-const HIDDEN_POLL_MS = 250;
-
 /**
- * Asks for a frame sixty times a second, as a run of frames (so the quality governor judges them), until the returned
- * function is called: a 60 Hz display draws every frame, a 120 Hz one every other. It asks for none while the canvas
- * is off screen or the tab hidden.
+ * Asks for frames all the time, as a run of frames (so the quality governor judges them), until the returned function
+ * is called: on the display's own frames (`RenderLoop.pace`), so a 60 Hz display draws every frame and a 120 Hz one
+ * every other, evenly spaced. None while the canvas is off screen or the tab hidden.
  */
 function sixtyFrames(stage: RoomStage): () => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const tick = (): void => {
-    const visible = stage.visible;
-    if (visible) stage.loop.invalidate(true);
-    timer = setTimeout(tick, visible ? FRAME_INTERVAL_MS : HIDDEN_POLL_MS);
-  };
-  tick();
-  return () => {
-    if (timer !== null) clearTimeout(timer);
-  };
+  return stage.loop.pace(() => stage.visible);
 }

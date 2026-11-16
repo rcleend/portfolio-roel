@@ -16,13 +16,13 @@ import { keyShade, rockerDegrees, sideKeyTravel } from './keyMotion';
 import { Lcd } from './Lcd';
 import { blinks } from './lcdSegments';
 import { LID } from './lidMotion';
-import { MonotonicClock } from './monotonicClock';
+import { eventTime, MonotonicClock } from './monotonicClock';
 
 /**
  * The CD player as a device (docs/ROOM.md › The CD player): the lazy `radioDevice` chunk. It takes the generated
  * radio's parts on their pivots (partsProvider.ts), hangs the discs, lights the LCD and the OPR lamp, and runs the
- * choreography: one `loop.animate` step that lives only while something moves, and an ambient pacer for the idle
- * float (≤ 30 frames a second, resting after 6 s). At rest nothing runs: the radio view draws no frames.
+ * choreography: one `loop.animate` step that lives only while something moves, and the idle float, which rides the
+ * frames the room draws anyway (posed in every one of them, resting after 6 s). At rest nothing of the device runs.
  */
 
 /** The paused time blinks 500 ms on, 500 off, until 30 s without input, then stays on. */
@@ -137,6 +137,8 @@ class Device implements RadioDevice {
   readonly #pacer: AmbientPacer;
   readonly #sideHolders: Readonly<Record<'previous' | 'next', Object3D>>;
   #stopStep: (() => void) | null = null;
+  /** The float rides the room's frames (a paced loop): stops it. */
+  #stopRide: (() => void) | null = null;
   #state: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
   #keyboardAttention: string | null = null;
   #pointerAttention: string | null = null;
@@ -220,7 +222,7 @@ class Device implements RadioDevice {
   }
 
   get ambient(): boolean {
-    return this.#pacer.running;
+    return this.#pacer.running || this.#stopRide !== null;
   }
 
   get moving(): boolean {
@@ -266,7 +268,7 @@ class Device implements RadioDevice {
     // function of time, so the next visit samples where this change left it, and the clock the player ticks every
     // second costs no frame at the computer or in the room. A step already running carries on regardless.
     if (this.#context.views.view === 'radio') this.#kick();
-    else this.#pacer.sync();
+    else this.#syncAmbient();
   }
 
   press(key: RadioKey): void {
@@ -475,6 +477,8 @@ class Device implements RadioDevice {
     this.#stopStep?.();
     this.#stopStep = null;
     this.#pacer.stop();
+    this.#stopRide?.();
+    this.#stopRide = null;
     if (this.#blinkTimer !== null) clearTimeout(this.#blinkTimer);
     if (this.#momentTimer !== null) clearTimeout(this.#momentTimer);
     this.#context.reducedMotion.removeEventListener('change', this.#onMotionPreference);
@@ -510,9 +514,12 @@ class Device implements RadioDevice {
     );
   }
 
-  /** performance.now() through the device's clock: a frame never draws earlier than an event already handled. */
-  #clock(at = performance.now()): number {
-    return this.#time.at(at);
+  /**
+   * A frame's time, or with none given the time of an event handled now (`eventTime`), through the device's clock: a
+   * frame never draws earlier than an event already handled.
+   */
+  #clock(frame?: number): number {
+    return this.#time.at(frame ?? eventTime(performance.now(), this.#context.loop.lastFrameTime));
   }
 
   /** Keeps the frame step alive while anything moves; it stops itself when everything rests. */
@@ -526,7 +533,7 @@ class Device implements RadioDevice {
       };
       this.#stopStep = this.#context.loop.animate(step);
     }
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#armMoments();
   }
 
@@ -554,13 +561,44 @@ class Device implements RadioDevice {
     return false;
   };
 
+  /**
+   * Starts or stops the float to match `#ambientWanted()`. A room that draws frames of its own accord (the generated
+   * room's sixty a second, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn and no frame is
+   * asked for. The pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames
+   * would never come due (every frame of the room's restarts its grid), and the discs would stand still in sixty
+   * frames a second and jump whenever something else moved them.
+   */
+  #syncAmbient(): void {
+    const { loop } = this.#context;
+    if (!loop.paced) {
+      this.#stopRide?.();
+      this.#stopRide = null;
+      this.#pacer.sync();
+      return;
+    }
+    this.#pacer.stop();
+    if (this.#ambientWanted()) this.#stopRide ??= loop.ride(this.#rideFrame);
+    else {
+      this.#stopRide?.();
+      this.#stopRide = null;
+    }
+  }
+
+  /** A frame the room draws while the discs float: their pose at its time, unless the choreography's step set it. */
+  readonly #rideFrame = (now: number): boolean => {
+    // The step runs first and poses everything (and looks after the float itself, `#frame`).
+    if (this.#stopStep === null) this.#frame(this.#clock(now));
+    else this.#syncAmbient();
+    return this.#stopRide !== null;
+  };
+
   /** One frame: fire the moments that came due, then pose every part. Returns whether anything still moves. */
   #frame(now: number): boolean {
     for (const moment of this.#choreography.advance(now)) this.#fire(moment);
     const sample = this.#choreography.sample(now);
     this.#apply(sample.lid, sample.discs, sample.keys);
     this.#updateLcd(now);
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#reportShelf(now);
     return sample.moving;
   }
@@ -672,7 +710,7 @@ class Device implements RadioDevice {
   #input(now: number): void {
     this.#lastInput = now;
     this.#choreography.activity(now);
-    this.#pacer.sync();
+    this.#syncAmbient();
   }
 
   #updateAttention(): void {
@@ -769,7 +807,7 @@ class Device implements RadioDevice {
       if (now < end && this.#context.views.moving) return true;
       if (isSlow(false, frames)) {
         this.#slow = true;
-        this.#pacer.sync();
+        this.#syncAmbient();
       }
       return false;
     });
@@ -781,7 +819,7 @@ class Device implements RadioDevice {
   };
 
   readonly #onMotionPreference = (): void => {
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#kick();
   };
 

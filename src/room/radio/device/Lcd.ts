@@ -90,6 +90,9 @@ export class Lcd {
     this.#texture.anisotropy = anisotropy;
     this.mesh = new Mesh(lcdQuad(placement), new MeshBasicMaterial({ map: this.#texture }));
     this.mesh.name = 'RadioLcd';
+    // Its colour is its brightness, set here alone: the prop's spotlight leaves it be (Spotlight › liftable). Stored
+    // while the display was off and written back as the light faded, it left a display lit by a cut black for good.
+    this.mesh.userData.ownColour = true;
     this.mesh.visible = false;
     this.#applyLevel(0);
     parent.add(this.mesh);

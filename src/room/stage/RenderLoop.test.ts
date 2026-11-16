@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { type FrameScheduler, RenderLoop } from './RenderLoop';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type FrameScheduler, PACED_MIN_INTERVAL_MS, RenderLoop } from './RenderLoop';
 
 function fakeScheduler() {
   const queue = new Map<number, (now: number) => void>();
@@ -123,5 +123,195 @@ describe('RenderLoop', () => {
     loop.invalidate(true);
     frame(416);
     expect(intervals).toEqual([null, 16, 16, null, null, 34, null]);
+  });
+});
+
+/** A display of `hz` frames a second: `frames(n)` runs its next n frames, each calling back whoever asked for it. */
+function display(hz: number) {
+  const queue = new Map<number, (now: number) => void>();
+  let next = 1;
+  let count = 0;
+  const scheduler: FrameScheduler = {
+    request: (callback) => {
+      queue.set(next, callback);
+      return next++;
+    },
+    cancel: (handle) => {
+      queue.delete(handle);
+    },
+  };
+  const state = { now: 0 };
+  const frames = (n: number, between?: () => void): void => {
+    for (let i = 0; i < n; i++) {
+      between?.();
+      count++;
+      state.now = (count * 1000) / hz;
+      const callbacks = [...queue.values()];
+      queue.clear();
+      for (const callback of callbacks) callback(state.now);
+    }
+  };
+  return { scheduler, frames, state, pending: () => queue.size };
+}
+
+/** The gaps between the times in `drawn`, in tenths of a millisecond. */
+function gaps(drawn: readonly number[]): number[] {
+  return drawn.slice(1).map((at, i) => Math.round((at - (drawn[i] ?? 0)) * 10) / 10);
+}
+
+describe('RenderLoop, paced', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function paced(hz: number, wanted: () => boolean = () => true) {
+    const screen = display(hz);
+    const drawn: number[] = [];
+    const intervals: (number | null)[] = [];
+    const loop: RenderLoop = new RenderLoop(
+      (now) => {
+        drawn.push(now);
+        intervals.push(loop.runInterval);
+      },
+      screen.scheduler,
+      () => screen.state.now,
+    );
+    const stop = loop.pace(wanted);
+    return { ...screen, loop, drawn, intervals, stop };
+  }
+
+  it('draws every frame of a 60 Hz display, as one run', () => {
+    const { frames, drawn, intervals, loop } = paced(60);
+    frames(60);
+    expect(drawn).toHaveLength(60);
+    expect(new Set(gaps(drawn))).toEqual(new Set([16.7]));
+    expect(intervals.slice(1).every((interval) => interval !== null && Math.abs(interval - 1000 / 60) < 0.01)).toBe(
+      true,
+    );
+    expect(loop.paced).toBe(true);
+    // Nothing asked for those frames: the room is at rest, however many it draws.
+    expect(loop.idle).toBe(true);
+  });
+
+  it('draws every other frame of a 120 Hz display, evenly: never a gap of one frame among gaps of two', () => {
+    const { frames, drawn } = paced(120);
+    frames(240);
+    // The first frames are drawn before the display's rate is known.
+    const settled = drawn.filter((at) => at > 200);
+    expect(settled.length).toBeGreaterThanOrEqual(107);
+    expect(settled.length).toBeLessThanOrEqual(109);
+    expect(new Set(gaps(settled))).toEqual(new Set([16.7]));
+  });
+
+  it.each([
+    [75, 75],
+    [90, 90],
+    [144, 72],
+    [240, 80],
+  ])('draws a %i Hz display at an even %i frames a second', (hz, rate) => {
+    const { frames, drawn } = paced(hz);
+    frames(hz * 3);
+    const settled = drawn.filter((at) => at > 1000);
+    expect(Math.abs(settled.length - rate * 2)).toBeLessThanOrEqual(1);
+    const gap = Math.round((1000 / rate) * 10) / 10;
+    expect(gaps(settled).every((value) => Math.abs(value - gap) <= 0.1)).toBe(true);
+    expect(1000 / rate).toBeGreaterThanOrEqual(PACED_MIN_INTERVAL_MS);
+  });
+
+  it('draws a one-off request with the next paced frame, not in a frame of its own between two', () => {
+    const { frames, drawn, loop } = paced(120);
+    frames(120);
+    const before = drawn.length;
+    // The lava, the air, a pointer move, the game's own frames: asked for at every display frame.
+    frames(120, () => {
+      loop.invalidate();
+      loop.invalidate(true);
+    });
+    expect(drawn.length - before).toBe(60);
+    expect(new Set(gaps(drawn.slice(before)))).toEqual(new Set([16.7]));
+  });
+
+  it('draws every display frame while an animation runs, and falls back into step after it', () => {
+    const { frames, drawn, loop } = paced(120);
+    frames(120);
+    let left = 30;
+    const from = drawn.length;
+    loop.animate(() => --left > 0);
+    frames(30);
+    expect(drawn.length - from).toBe(30);
+    const after = drawn.length;
+    frames(60);
+    expect(new Set(gaps(drawn.slice(after - 1)))).toEqual(new Set([16.7]));
+  });
+
+  it('runs the riders in every frame drawn, and never draws one for them', () => {
+    const { frames, drawn, loop } = paced(120);
+    const rode: number[] = [];
+    const stop = loop.ride((now) => {
+      rode.push(now);
+      return true;
+    });
+    frames(120);
+    expect(rode).toEqual(drawn);
+    stop();
+    frames(12);
+    expect(rode.length).toBeLessThan(drawn.length);
+
+    // On a loop that only draws on demand a rider asks for nothing, and rides what comes.
+    const idle = display(60);
+    const quiet = new RenderLoop(() => {}, idle.scheduler);
+    let rides = 0;
+    quiet.ride(() => ++rides < 2);
+    idle.frames(5);
+    expect(quiet.framesRendered).toBe(0);
+    quiet.invalidate();
+    idle.frames(1);
+    quiet.invalidate();
+    idle.frames(1);
+    quiet.invalidate();
+    idle.frames(1);
+    // It rode two frames and left with the second (it returned false).
+    expect(rides).toBe(2);
+  });
+
+  it('draws nothing while it is not wanted but what is asked for, and looks again four times a second', () => {
+    vi.useFakeTimers();
+    let visible = true;
+    const { frames, drawn, loop, pending } = paced(60, () => visible);
+    frames(10);
+    expect(drawn).toHaveLength(10);
+    visible = false;
+    frames(10);
+    // The frame already asked for found the room hidden and drew nothing; no display frame is watched after it.
+    expect(drawn).toHaveLength(10);
+    expect(pending()).toBe(0);
+    // A resize, a context restored: drawn on demand, as a loop that is not paced draws.
+    loop.invalidate();
+    frames(1);
+    expect(drawn).toHaveLength(11);
+    frames(5);
+    expect(drawn).toHaveLength(11);
+    vi.advanceTimersByTime(600);
+    expect(pending()).toBe(0);
+    visible = true;
+    vi.advanceTimersByTime(250);
+    frames(10);
+    expect(drawn.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it('stops pacing when told to, and on dispose', () => {
+    vi.useFakeTimers();
+    const { frames, drawn, loop, stop, pending } = paced(60);
+    frames(5);
+    stop();
+    frames(5);
+    expect(drawn).toHaveLength(5);
+    expect(loop.paced).toBe(false);
+    expect(pending()).toBe(0);
+    const other = paced(60, () => false);
+    other.frames(2);
+    other.loop.dispose();
+    vi.advanceTimersByTime(1000);
+    expect(other.pending()).toBe(0);
   });
 });
