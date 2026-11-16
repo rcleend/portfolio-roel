@@ -48,7 +48,11 @@ function legends(c: Context, rect: ArtRect): void {
     c.fillText('▾ VOLUME ▴', u(-0.437), 104);
     c.fillText('▾ CHANNEL ▴', u(-0.405), 104);
     c.fillText('ACTION  TV/VIDEO', u(-0.366), 104);
-    c.fillText('VIDEO IN      L – AUDIO – R', u(-0.228), 104);
+    // Over the three jacks in their well (props/tvSet.ts › WELL): video, left and right.
+    c.fillText('VIDEO IN', u(-0.2506), 104);
+    c.fillText('L', u(-0.228), 104);
+    c.fillText('– AUDIO –', u(-0.2167), 104);
+    c.fillText('R', u(-0.2054), 104);
     c.fillStyle = '#d6d6de';
     c.font = `600 40px ${SANS}`;
     c.fillText('reo·leo', u(-0.32), 42);

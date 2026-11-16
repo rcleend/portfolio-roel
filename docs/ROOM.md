@@ -388,11 +388,12 @@ which the generated one was matched to (§ The generated room › Comparing it).
   16 × 12 grid, curved as a parabola each way: the centre is at x 2.159, the corners 2.5 cm further back.
   Its 0–1 UV square is a planar projection spanning z -0.611 to -0.029 and y 1.058 to 0.614 (0.583 × 0.444 m, aspect 1.31).
   **Orientation:** u runs left → right as seen by the viewer (+Z), **v = 0 is the top edge**; with `flipY = false` the canvas maps upright and unmirrored (verified with the lab's corner labels).
-- The bezel's lip (gen/props/tvSet.ts) covers the UV square's rim. The straight-on visible aperture is u 0.058–0.942, v 0.050–0.950 with rounded corners (`TV_SCREEN_APERTURE`).
+- The bezel's lip (gen/props/tvSet.ts) covers the UV square's rim: a steep wall, 8 mm wider than the aperture where it turns onto the face over a 1.6 mm radius, its inner ring behind the glass all round (the glass crosses the wall, 3–5 mm outside the aperture at the sides' middles, where the tube bulges nearest). The straight-on visible aperture is u 0.058–0.942, v 0.050–0.950 with rounded corners (`TV_SCREEN_APERTURE`).
   The 4:3 picture is fitted inside it with a 2 % inset (`fitContentRect`), leaving a thin dark tube border like a real set; pointer mapping uses the same rect, and so does the TV view's framing.
 - The TV view (`tvFraming.ts`) looks along −facing pitched 4° down through a 28° lens, widened 2° at a time up to 60° while the eye would stand more than 1.75 m back from the set's middle (it would back into the desk), into the viewport minus the framing insets. It frames the whole set with a 6 % margin, unless the viewport is portrait or the whole set would show the picture under 300 CSS px tall (1.25 px per game row: a phone on its side, a very short window); then it frames the picture alone, the content rect's outline on the curved glass (its corners and every crossing with the glass's triangle edges, so no column or row is ever cut), with a 0.1 % hairline. A portrait picture spans the width, centred in the space above the touch pad, with the bezel cropped at the sides: at 390 × 844 (40° lens) its top row covers 389.2 of 390 px and, keystoned by the pitch, its bottom row 382.5. A phone on its side is limited by its height, between the pad's clusters: at 844 × 390 (28°) the picture is 389.2 px tall and 521 px wide, and the room stays in shot beside the set above the clusters (x < 69 and > 737) to tap out of the TV, as it does past the safe areas of a notched phone. Desktops and tablets in landscape keep the whole set (1440 × 900: the picture 662 × 496 px).
-- Controls: the generated strip of round buttons under the printed legends POWER, VOLUME, CHANNEL, ACTION, TV/VIDEO (z -0.477 to -0.348, y ≈ 0.55). The large POWER button is its leftmost element.
-  There is **no LED in the set**, so `PowerLed` mounts a 2.4 mm emissive lens with an additive halo at `TV_SPEC.led`, 2.2 cm left of the strip.
+- Controls: the generated strip of round keys under the printed legends POWER, VOLUME, CHANNEL, ACTION, TV/VIDEO (z -0.477 to -0.348, y ≈ 0.55), each through the face in its own dark gap. The large POWER key is its leftmost element. Right of them the remote's smoked window, the wordmark's badge above it at the set's middle, and the three front jacks in a well 9 mm deep (z -0.262 to -0.194).
+  The set's lamp is a 5 mm lamp's body through the face, unlit plastic: `PowerLed` mounts its light, a 2.4 mm emissive lens with an additive halo, at `TV_SPEC.led`, a millimetre off the body's tip and 2.2 cm left of the strip.
+- The face is not a plane: it is crowned across (5 mm further back at its sides than at its middle, where it is on x = 2.1542) and leans back 1–2 mm under the keys, and the chin's bottom edge hangs 16 mm lower at the middle than at the corners. What stands on the face is placed on it by `face(across, up)`; the prints are five strips of the legends' rectangle laid along it.
 - Around the TV: cabinet top y = 0.486, cabinet front face x = 2.144 (the TV stands flush with it), floor/rug top y ≈ 0.035, wall x = 2.80.
 
 ## Rendering and performance
@@ -550,7 +551,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
 
 - **Who builds what, when.** `createRoom` makes the stage and, at once, a `GeneratedRoom` (in the room's chunk: it is
   on the room's critical path), which starts the worker and, while that builds, compiles the bake's programs on a
-  bake of nothing. The worker hands back every prop as flat arrays (0.12–0.2 s for the tiers' 71–118 k triangles in the lab's
+  bake of nothing. The worker hands back every prop as flat arrays (0.12–0.2 s for the tiers' 73–126 k triangles in the lab's
   development build on an Apple M4; `generatedStats.buildMs`).
   The main thread then, a task at a time so the game starting on the still is not held up (each slice yields to an idle
   page, at most 120 ms on a busy one): paints the prints, makes the meshes, wires the room to them (`assembleRoom`:
@@ -672,8 +673,8 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
   whether the rest was deferred, and `marks`, the way to the first shown frame in ms since the room's creation.
   `e2e/generated-room.spec.ts` covers it.
-- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the wire basket, the rug, the plant and the bare-bulb lamp are built to be seen
-  at arm's length (`gen/props/monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
+- **Finely made props.** The TV set, the desk set, the chair, the desk lamp, the tower, the wire basket, the rug, the plant and the bare-bulb lamp are built to be seen
+  at arm's length (`gen/props/tvSet.ts`, `monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
   `deskThings.ts`, `wireBasket.ts`, `plant.ts`, `cabinetLamps.ts`, the rug in `shell.ts`), to measurements read off the shipped room's models before they were removed. `gen/props/form.ts` is what they share: skins and
   patches toned a vertex at a time (`MeshBuilder.gradient`), outlines cut along their sides so the light baked at the
   vertices can change across a face, mouldings with eased edges, turned parts, slabs. A tone finer than the mesh shows
@@ -681,10 +682,20 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   words and the lamps' glow are prints on the art page (`gen/deskArt.ts`, laid out by `props/keyboardLayout.ts`).
 - **Detail by tier.** A prop builds to `PropSink.detail` (`gen/tiers.ts`: 1 on `high`, 0.6 on `medium`, 0.45 on
   `low`): `form.segments` turns it into segments, and the smallest parts go first (a spring's coils become a striped
-  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 118 k triangles at full detail, 81 k and
-  71 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
+  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 126 k triangles at full detail, 84 k and
+  73 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
+- **The TV set** (`gen/props/tvSet.ts`; 11.0 k triangles at full detail, 5.6 k and 4.9 k below it, against 15.9 k for
+  the model it stands for) is built to that model's sections: a front shell whose outline is a squircle (superellipse
+  corners 6 cm long), its face crowned and its chin's edge a smile, a steep lip to the glass, a soft shoulder, a seam,
+  and the rear cover: a tray, the chassis' drum round in plan with the neck's housing, the tube's hood with its
+  cooling slots. It stands on a plinth with a bowed toe and four pads. The shell and the tray are one skin of loops
+  that are all cut at the same places (`loop`, `cutsAt`), so its lines run straight and a block of the face's quads
+  can be left out for the jacks' well, which a collar (`collar`) joins to the block's rim: a real hole, its wall and
+  floor behind the face. Keys, jacks and the lamp's body are turned parts; the speakers' louvres and the hood's slots
+  are dark strips a hair proud. Nothing is built that no view can see: the connectors on the wall under the neck face
+  the room's wall 14 cm away. The startup still's lip, chin edge and plinth are drawn to this set (§ Startup).
 - **Two prop meshes.** The desk corner's props are a mesh of their own (`MeshName` `desk`), small enough about the
-  desk that the TV view's frustum leaves it out: on the top tier the opening view draws 56 k triangles, the computer's
+  desk that the TV view's frustum leaves it out: on the top tier the opening view draws 64 k triangles, the computer's
   84 k, the room's 120 k (§ Rendering and performance › Cost). Anything new at the desk joins it; anything that would stretch its bounds across the room does not.
 - **Relief.** A chart may be a sheet that does not lie flat (`Chart.relief`, `gen/kit/charts.ts`): cut into cells and
   lifted off its rectangle's plane by a height function, its texels still the flat rectangle's and its light baked on
@@ -699,9 +710,10 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
 - **The bake's vertices are points**: a prop vertex is lit as one point on its texel (a third of the triangle it
   used to be, to build and to upload), so the bake's longest main-thread unit is 11–14 ms for the top tier's 118 k
   triangles on an Apple M4 (`generatedStats.longestUnitMs`).
-- **Close inspection.** `node scripts/gen-closeups.mjs --label <name> [--tier low] [--only monitor,keyboard/macro] [--studio] [--still]`
+- **Close inspection.** `node scripts/gen-closeups.mjs --label <name> [--tier low] [--only monitor,keyboard/macro] [--studio [--gain 10]] [--still]`
   shoots a prop from fixed cameras at arm's length (front, three-quarter, top, low, details); `--studio` lights the
-  props with a plain key and fill instead of the room's bake, to judge form and albedo whatever the rig; `--still`
+  props with a plain key and fill instead of the room's bake, to judge form and albedo whatever the rig (`--gain`
+  times as bright: the set's black plastic shows its form at 10); `--still`
   asks for reduced motion, so the wax stands still and two runs compare pixel for pixel; `--sheet a,b,c` lays labels
   side by side. A changed prop is held to its own pictures from before the change.
 
@@ -760,8 +772,8 @@ values, as the tube outshines the dim baked room more than an 8-bit display can 
   bezel's lip takes the colour of the picture's edge beside it, and the floor a metre away the picture's mean.
 - **Specular.** The set's own plastic (`device_tv_front_BAKED_UNLIT`) mirrors the picture through a satin lobe about 25°
   wide: where its mirror ray meets the picture, blurred over the lobe's footprint and weighted by Fresnel and by how
-  much of the lobe the picture fills. Its steep inner lip above and below the picture shows a blurred band of the
-  picture's edge, as on a real set; the shallower side lips mirror the room.
+  much of the lobe the picture fills. Its steep lip round the picture shows a blurred band of the picture's edge, as
+  on a real set, brightest where the lip turns onto the face (the wall beside the glass sees the picture edge on).
 - **Haze.** The composite adds single scattering of the picture's mean colour in the air in front of the set: a
   Lambertian point 25 cm behind the glass, its cos / r² intensity integrated in closed form along the view ray, over the
   cone within 1.2 m in front of the glass and from 2 m from the eye on. Across the room it hangs in front of the set;

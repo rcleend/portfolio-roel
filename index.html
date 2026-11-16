@@ -147,19 +147,21 @@
         top: calc(var(--picture-top) - var(--picture-height) * 0.148);
         left: calc(var(--picture-left) - var(--picture-width) * 0.115);
         width: calc(var(--picture-width) * 1.23);
-        height: calc(var(--picture-height) * 1.451);
-        border-radius: calc(var(--picture-width) * 0.03);
+        height: calc(var(--picture-height) * 1.499);
+        /* The chin's bottom edge hangs lowest at its middle. */
+        border-radius: calc(var(--picture-width) * 0.03) calc(var(--picture-width) * 0.03) 50% 50% /
+          calc(var(--picture-width) * 0.03) calc(var(--picture-width) * 0.03) 6.7% 6.7%;
         background: #080409;
-        box-shadow: 0 calc(var(--picture-height) * 0.24) 0 calc(var(--picture-width) * -0.0937) #030103;
+        box-shadow: 0 calc(var(--picture-height) * 0.194) 0 calc(var(--picture-width) * -0.0937) #030103;
       }
       .tv-still i::before {
-        top: 6.25%;
-        left: 6.76%;
-        width: 86.5%;
-        height: 76.9%;
-        border-radius: calc(var(--picture-width) * 0.03);
+        top: 6.89%;
+        left: 7.14%;
+        width: 85.72%;
+        height: 72.7%;
+        border-radius: calc(var(--picture-width) * 0.015);
         background: #0d0f11;
-        box-shadow: 0 0 0 calc(var(--picture-width) * 0.0106) #362836;
+        box-shadow: 0 0 0 calc(var(--picture-width) * 0.015) #1a111b;
       }
       .tv-still {
         position: fixed;
