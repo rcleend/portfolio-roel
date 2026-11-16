@@ -1,6 +1,6 @@
 import { NoToneMapping, type Object3D, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
-import { RoomAtmosphere, type StaticLights } from '../atmosphere/RoomAtmosphere';
+import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
 import { pixelRatioFor, QUALITY_TIERS, type Quality, QualityGovernor, type QualityTier, startingTier } from './quality';
 import { RenderLoop } from './RenderLoop';
 import { isSoftwareGpu } from './softwareGpu';
@@ -178,17 +178,6 @@ export class RoomStage {
   prepare(object: Object3D): void {
     if (this.atmosphere) this.atmosphere.prepare(this.scene, object, this.camera);
     else this.renderer.compile(object, this.camera, this.scene);
-  }
-
-  /** As `prepare`, without waiting on the driver: resolves once the programs have linked. */
-  prepareAsync(object: Object3D): Promise<unknown> {
-    if (this.atmosphere) return this.atmosphere.prepareAsync(this.scene, object, this.camera);
-    return this.renderer.compileAsync(object, this.camera, this.scene);
-  }
-
-  /** The finish's static lights as they are now (zero without a finish): what the generated room bakes in. */
-  get staticLights(): StaticLights {
-    return this.atmosphere?.staticLights ?? { lamp: [0, 0, 0], eyes: [0, 0, 0], warmth: 0 };
   }
 
   onResize(listener: (size: ViewportSize) => void): () => void {

@@ -1,13 +1,14 @@
 // Types only: every runtime dependency the room's chunk also carries arrives through the GenKit (genKit.ts).
-import type { BufferGeometry, CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D, Texture } from 'three';
+import type { CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D, Texture } from 'three';
 import type { IdleTask, IdleWork } from '../stage/IdleWork';
-import type { GeneratedTier } from '../stage/quality';
+import type { QualityTier } from '../stage/quality';
 import type { RoomStage } from '../stage/RoomStage';
 import { paintArt } from './artPaint';
 import { type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
 import type { GenKit } from './genKit';
 import { GROUP } from './props/types';
 import type { GenRequest, GenScene } from './scene';
+import { GENERATED_TIERS, type GeneratedTier, POOL_WARMTH, TV_LAMP_INTENSITY } from './tiers';
 
 export interface GeneratedContext {
   readonly stage: RoomStage;
@@ -16,8 +17,8 @@ export interface GeneratedContext {
   readonly room: Object3D;
   readonly tv: Object3D;
   readonly anisotropy: number;
-  /** What to generate at and bake with, from the tier the device started on. */
-  readonly tier: GeneratedTier;
+  /** The tier the device started on: what to generate at and bake with (tiers.ts). */
+  readonly tier: QualityTier;
 }
 
 export interface GeneratedStats {
@@ -116,6 +117,9 @@ export class GeneratedRoom {
   /** What one view was last seen to take of the GPU (ms); a cautious guess before any has been timed. */
   private viewGpuMs = UNIT_GPU_TARGET_MS;
   private lastStats: GeneratedStats | null = null;
+  private readonly tier: GeneratedTier;
+  /** The opal lamp's colour, from the shipped room's own record of it. */
+  private lamp: readonly [number, number, number] | null = null;
 
   constructor(
     private readonly context: GeneratedContext,
@@ -124,6 +128,7 @@ export class GeneratedRoom {
   ) {
     // Development only: tests and the bake's tuning read the instance (its scene, its timings).
     if (import.meta.env.DEV) (globalThis as { __generatedRoom?: GeneratedRoom }).__generatedRoom = this;
+    this.tier = GENERATED_TIERS[context.tier];
     this.group = new kit.Group();
     this.group.name = 'GeneratedRoom';
     this.group.visible = false;
@@ -173,7 +178,7 @@ export class GeneratedRoom {
 
   /** The geometry, from the worker; on the main thread where a worker cannot be had. */
   private build(): Promise<GenScene> {
-    const { tier } = this.context;
+    const tier = this.tier;
     const request: GenRequest = { densityScale: tier.density, maxPageSize: tier.pageSize };
     const onMain = async (): Promise<GenScene> => {
       this.builtIn = 'main';
@@ -203,17 +208,18 @@ export class GeneratedRoom {
   /** The meshes a frame draws, without their light yet: hidden until the bake has filled them in. */
   private assemble(gen: GenScene): void {
     const { kit: k, context } = this;
-    const lights = { lamp: lampOf(context.room), robot: robotOf(context.room) };
+    const lights = { lamp: glowOf(context.room, 'tv-lamp'), robot: glowOf(context.room, 'toy-robot') };
+    this.lamp = lights.lamp?.color ?? null;
     const vertexLit = (data: GenScene['meshes']['tv'], name: string): Mesh => {
       const geometry = new k.BufferGeometry();
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       geometry.setAttribute('color', new k.BufferAttribute(new Float32Array(data.positions.length), 3));
       const material = new k.MeshBasicMaterial({ vertexColors: true });
-      // The finish knows a baked surface by its material's name (its sheen, its varnish); `generated` tells it the
-      // static lights are already in the surface.
+      // The finish knows a baked surface by its material's name (its sheen, its varnish); GENERATED tells its shader
+      // the static lights are already in the surface (RoomGloss).
       material.name = name;
-      material.userData.generated = true;
+      material.defines = { GENERATED: '' };
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated ${name}`;
       mesh.layers.enable(CASTERS_ALL);
@@ -232,8 +238,8 @@ export class GeneratedRoom {
       if (color) material.color.setRGB(color[0] ?? 1, color[1] ?? 1, color[2] ?? 1);
       return new k.Mesh(geometry, material);
     };
-    const globe = emitter(gen.meshes.globe, '01_TV_lamp_opaline_BAKED_UNLIT', lights.lamp);
-    const eyes = emitter(gen.meshes.eyes, '01_TV_robot_eyes_BAKED_UNLIT', lights.robot);
+    const globe = emitter(gen.meshes.globe, '01_TV_lamp_opaline_BAKED_UNLIT', lights.lamp?.glowing ?? null);
+    const eyes = emitter(gen.meshes.eyes, '01_TV_robot_eyes_BAKED_UNLIT', lights.robot?.glowing ?? null);
 
     const names: Record<number, string> = {
       [GROUP.cabinet]: '01_TV_surfaces_BAKED_UNLIT',
@@ -248,7 +254,7 @@ export class GeneratedRoom {
       geometry.setAttribute('uv', new k.BufferAttribute(data.uvs, 2));
       const material = new k.MeshBasicMaterial();
       material.name = names[data.group] ?? '01_TV_surfaces_BAKED_UNLIT';
-      material.userData.generated = true;
+      material.defines = { GENERATED: '' };
       material.userData.page = data.page;
       const mesh = new k.Mesh(geometry, material);
       mesh.name = `Generated charts ${data.group}`;
@@ -295,7 +301,7 @@ export class GeneratedRoom {
   }
 
   private paint(): void {
-    paintArt(this.artCanvas, this.context.tier.artSize);
+    paintArt(this.artCanvas, this.tier.artSize);
     if (this.art) this.art.needsUpdate = true;
   }
 
@@ -326,8 +332,11 @@ export class GeneratedRoom {
   private startBake(): void {
     const { gen, art, context, kit } = this;
     if (!gen || !art || this.disposed) return;
-    const { stage, tier } = context;
-    const statics = stage.staticLights;
+    const { stage } = context;
+    const tier = this.tier;
+    // The finish's static lights as the room sets them for this mood (none without a finish).
+    const lit = stage.mood !== 'original';
+    const lamp = lit ? this.lamp : null;
     const halfFloat =
       stage.renderer.extensions.has('EXT_color_buffer_half_float') ||
       stage.renderer.extensions.has('EXT_color_buffer_float');
@@ -338,8 +347,10 @@ export class GeneratedRoom {
       sampleSet: tier.sampleSet,
       halfFloat,
       exposure: 1,
-      staticColor: statics.lamp,
-      warmth: statics.warmth,
+      staticColor: lamp
+        ? [lamp[0] * TV_LAMP_INTENSITY, lamp[1] * TV_LAMP_INTENSITY, lamp[2] * TV_LAMP_INTENSITY]
+        : [0, 0, 0],
+      warmth: POOL_WARMTH[stage.mood],
       anisotropy: context.anisotropy,
     });
     this.baker = baker;
@@ -459,16 +470,16 @@ export class GeneratedRoom {
     }
     baker.dispose();
     this.show(true);
-    const linked = context.stage.prepareAsync(context.stage.scene);
+    context.stage.prepare(context.stage.scene);
     this.show(false);
-    linked.then(
+    linked(context.stage.renderer).then(
       () => {
         if (this.disposed || this.baker !== baker) return;
         this.show(true);
         this.shown = true;
         this.retire();
         // Sixty frames a second in every view of the generated room, whether or not something moves.
-        this.stopFrames ??= context.stage.loop.animate(() => true);
+        this.stopFrames ??= sixtyFrames(context.stage.loop);
         const pages = gen.pages.map(({ width, height }) => [width, height] as const);
         this.lastStats = {
           builtIn: this.builtIn,
@@ -548,29 +559,60 @@ export class GeneratedRoom {
   }
 }
 
-/** The opal lamp's globe colour (its light's colour × glow), from the shipped room's own record of it. */
-function lampOf(room: Object3D): readonly number[] | null {
-  let color: readonly number[] | null = null;
+/** A light the shipped room records on one of its nodes (`userData.light`): its colour, and that colour × its glow. */
+function glowOf(
+  room: Object3D,
+  asset: string,
+): { color: readonly [number, number, number]; glowing: readonly number[] } | null {
+  let found: { color: readonly [number, number, number]; glowing: readonly number[] } | null = null;
   room.traverse((object) => {
-    const light =
-      object.userData.supplied_asset === 'tv-lamp'
-        ? (object.userData.light as { color: number[]; glow: number })
-        : null;
-    if (light) color = light.color.map((value) => value * light.glow);
+    if (object.userData.supplied_asset !== asset) return;
+    const light = object.userData.light as { color: [number, number, number]; glow: number };
+    found = { color: light.color, glowing: light.color.map((value) => value * light.glow) };
   });
-  return color;
+  return found;
 }
 
-function robotOf(room: Object3D): readonly number[] | null {
-  let color: readonly number[] | null = null;
-  room.traverse((object) => {
-    const light =
-      object.userData.supplied_asset === 'toy-robot'
-        ? (object.userData.light as { color: number[]; glow: number })
-        : null;
-    if (light) color = light.color.map((value) => value * light.glow);
+/** Longest the swap waits for its programs to link before drawing with them anyway (ms). */
+const LINK_WAIT_MS = 4000;
+
+/**
+ * Resolves once every program the renderer holds has linked, so the frame that first draws the generated pieces does
+ * not wait on the driver. Where the GPU cannot say (no KHR_parallel_shader_compile) it resolves at once.
+ */
+function linked(renderer: RoomStage['renderer']): Promise<void> {
+  const gl = renderer.getContext();
+  const parallel = gl.getExtension('KHR_parallel_shader_compile') as { COMPLETION_STATUS_KHR: number } | null;
+  if (!parallel) return Promise.resolve();
+  const started = performance.now();
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      const programs = (renderer.info.programs ?? []) as unknown as { program: WebGLProgram }[];
+      const done = programs.every(
+        ({ program }) => gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR) as boolean,
+      );
+      if (done || performance.now() - started > LINK_WAIT_MS) resolve();
+      else setTimeout(poll, 8);
+    };
+    poll();
   });
-  return color;
 }
 
-export type { BufferGeometry };
+/** Slightly under 1/60 s, as the game's own frames are paced (stage/FramePacer.ts). */
+const FRAME_INTERVAL_MS = 1000 / 60 - 2;
+
+/**
+ * Asks for a frame sixty times a second, as a run of frames (so the quality governor judges them), until the returned
+ * function is called: a 60 Hz display draws every frame, a 120 Hz one every other.
+ */
+function sixtyFrames(loop: RoomStage['loop']): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const tick = (): void => {
+    loop.invalidate(true);
+    timer = setTimeout(tick, FRAME_INTERVAL_MS);
+  };
+  tick();
+  return () => {
+    if (timer !== null) clearTimeout(timer);
+  };
+}

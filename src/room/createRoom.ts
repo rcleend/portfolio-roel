@@ -328,7 +328,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         room: assets.room.scene,
         tv: assets.tv,
         anisotropy,
-        tier: QUALITY_TIERS[stage.quality.tier].generated,
+        tier: stage.quality.tier,
       });
     });
   });

@@ -19,49 +19,14 @@ export interface TierSettings {
    * from the tier the device starts on.
    */
   readonly smallAtlases: boolean;
-  readonly generated: GeneratedTier;
-}
-
-/** What the generated room (gen/) is built and baked at; read once, from the tier the device starts on. */
-export interface GeneratedTier {
-  /** Chart texels a metre as a fraction of full quality, and the largest page side. */
-  readonly density: number;
-  readonly pageSize: number;
-  /** The art page's side (the prints). */
-  readonly artSize: number;
-  /** The bake's shadow map side, its light pages as a fraction of the chart pages, and which sample counts (rig.ts). */
-  readonly shadowSize: number;
-  readonly lightScale: number;
-  readonly sampleSet: 0 | 1;
 }
 
 export const QUALITY_TIERS: Readonly<Record<QualityTier, TierSettings>> = {
   // 3 MP keeps the CRT's scanlines crisp on retina laptops while bounding fill cost on 4K.
-  high: {
-    maxPixelRatio: 2,
-    maxPixels: 3_000_000,
-    samples: 2,
-    wideBloom: true,
-    smallAtlases: false,
-    generated: { density: 1, pageSize: 2048, artSize: 1024, shadowSize: 1024, lightScale: 0.5, sampleSet: 0 },
-  },
+  high: { maxPixelRatio: 2, maxPixels: 3_000_000, samples: 2, wideBloom: true, smallAtlases: false },
   // A phone at 2×: the picture `high` draws there, from smaller atlases; a laptop that dropped here draws half its pixels.
-  medium: {
-    maxPixelRatio: 2,
-    maxPixels: 1_600_000,
-    samples: 2,
-    wideBloom: true,
-    smallAtlases: true,
-    generated: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 1024, lightScale: 1, sampleSet: 0 },
-  },
-  low: {
-    maxPixelRatio: 1.5,
-    maxPixels: 900_000,
-    samples: 0,
-    wideBloom: false,
-    smallAtlases: true,
-    generated: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 512, lightScale: 1, sampleSet: 1 },
-  },
+  medium: { maxPixelRatio: 2, maxPixels: 1_600_000, samples: 2, wideBloom: true, smallAtlases: true },
+  low: { maxPixelRatio: 1.5, maxPixels: 900_000, samples: 0, wideBloom: false, smallAtlases: true },
 };
 
 /** The scales a tier is drawn at, as fractions of its pixel ratio. The last is the floor. */

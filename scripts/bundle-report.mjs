@@ -10,7 +10,8 @@
 // - pcStill / PcExperience / RadioSlot / RadioExperience: the closure of each dynamic entry minus what the entry already
 //   loaded (their own chunks plus the chunks only they share), JS and CSS together;
 // - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
-//   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce) and posterWall;
+//   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce), posterWall and
+//   generatedRoom (the generated room behind ?room=generated: its bake, its prints and its door to the worker);
 // - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
 // - mousePlay: a level's mouse play (docs/ARCHITECTURE.md › Mouse play), the route planner and walker with it, fetched
 //   from the mission select.
@@ -42,6 +43,7 @@ const LAZY_CHUNKS = {
   posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
   RoomGuide: { source: 'src/app/guide/RoomGuide.tsx', three: 'none' },
   propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
+  generatedRoom: { source: 'src/room/gen/GeneratedRoom.ts', three: 'room' },
   mousePlay: { source: 'src/game/scenes/level/mouse/MousePlay.ts', three: 'none', standalone: true },
 };
 

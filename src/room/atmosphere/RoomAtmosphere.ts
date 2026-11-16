@@ -173,12 +173,6 @@ void main() {
 }
 `;
 
-export interface StaticLights {
-  readonly lamp: readonly [number, number, number];
-  readonly eyes: readonly [number, number, number];
-  readonly warmth: number;
-}
-
 /** Two post passes over one room render, followed by one draw of fine dust. No additional assets or scene renders. */
 export class RoomAtmosphere {
   private readonly frame: WebGLRenderTarget;
@@ -313,27 +307,6 @@ export class RoomAtmosphere {
     if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
     this.renderer.compile(object, camera, scene);
     this.renderer.setRenderTarget(previous);
-  }
-
-  /** As `prepare`, resolving once the programs have linked (never blocking a frame on the driver). */
-  prepareAsync(scene: Scene, object: Object3D, camera: PerspectiveCamera): Promise<unknown> {
-    const previous = this.renderer.getRenderTarget();
-    if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
-    const compiled = this.renderer.compileAsync(object, camera, scene);
-    this.renderer.setRenderTarget(previous);
-    return compiled;
-  }
-
-  /**
-   * The lights the finish adds that never change: the opal lamp's and the robot's eyes' colour × intensity and the
-   * lamps' warm pools, as they are now. The generated room bakes them in (gen/rig.ts).
-   */
-  get staticLights(): StaticLights {
-    return {
-      lamp: this.lamp.uTvLampColor.value.toArray(),
-      eyes: this.robot.uRobotEyeColor.value.toArray(),
-      warmth: this.gloss.warmthNow,
-    };
   }
 
   setMood(mood: RoomMood): void {
