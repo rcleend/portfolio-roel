@@ -49,6 +49,7 @@ export function useRoom(
           mood: 'rose',
           air: { haze: 0.7, dust: 0.3 },
           quality: fixedQuality(),
+          generated: generatedRoom(),
         });
       } catch (error) {
         fail(error);
@@ -79,4 +80,12 @@ function fixedQuality(): 'high' | 'medium' | 'low' | 'auto' {
   const value = query.get('quality');
   const allowed = import.meta.env.DEV || query.has('debug');
   return allowed && (value === 'high' || value === 'medium' || value === 'low') ? value : 'auto';
+}
+
+/**
+ * `?room=generated`: the opening view's models and textures generated in code and lit in the browser instead of
+ * fetched (docs/ROOM.md › The generated room). A hidden flag while the room is converted; without it nothing changes.
+ */
+function generatedRoom(): boolean {
+  return new URLSearchParams(window.location.search).get('room') === 'generated';
 }

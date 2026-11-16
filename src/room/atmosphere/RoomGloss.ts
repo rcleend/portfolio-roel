@@ -66,9 +66,13 @@ vec3 finishNormal = normalize(vFinishNormal);
 vec3 finishView = normalize(cameraPosition - vFinishPosition);
 float lavaDistance = length(vFinishPosition - vec3(0.49, 1.28, -1.97));
 float deskDistance = length(vFinishPosition - vec3(-2.05, 1.03, -1.88));
+// A generated surface (gen/) has every static light baked into it at load: the lamps' warm pools here, the opal lamp
+// and the robot's eyes below. Only what changes from frame to frame is left for it.
+#ifndef GENERATED
 float pool = exp(-lavaDistance * lavaDistance * 0.85) + exp(-deskDistance * deskDistance * 1.8) * 0.65;
 // Multiply the baked light, retaining its contact shadows and occlusion.
 outgoingLight *= vec3(1.0) + vec3(0.9, 0.26, 0.025) * pool * uWarmth;
+#endif
 // A broad storm outside the opening. Project the incoming light onto the real pane, so the blind/sash
 // bands fall across the floor and desk. A soft indirect bounce reaches the rest of the room.
 if (uStorm > 0.001) {
@@ -102,11 +106,13 @@ outgoingLight += uVarnish * grain * fresnel * (vec3(0.8, 0.29, 0.055) * (amber +
 // room's dim night light, about 4 % of full light where the TV stands.
 vec3 albedo = min(diffuseColor.rgb * 25.0, vec3(0.85));
 outgoingLight += screenLight(vFinishPosition, finishNormal, finishView, albedo, uSheen);
+#ifndef GENERATED
 // So does the opal lamp beside it (tvLamp.ts), past the set and the cabinet that shadow it.
 outgoingLight += tvLampLight(vFinishPosition, finishNormal, albedo);
 // And the toy robot's eyes on the cabinet's other end (toyRobot.ts), on everything but light itself (its eyes, the globe).
 if (max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b)) <= 1.0)
   outgoingLight += toyRobotLight(vFinishPosition, finishNormal, albedo);
+#endif
 `;
 
 /** Extends the existing unlit program, retaining the bake and each material's identity for the prop spotlight. */
@@ -131,7 +137,8 @@ export class RoomGloss {
       if (!(object instanceof Mesh)) return;
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
         const basic = material as MeshBasicMaterial;
-        if (!basic.isMeshBasicMaterial || !isBaked(basic.name) || this.materials.has(basic)) continue;
+        const generated = basic.userData.generated === true;
+        if (!basic.isMeshBasicMaterial || !(isBaked(basic.name) || generated) || this.materials.has(basic)) continue;
         const original = { compile: basic.onBeforeCompile, key: basic.customProgramCacheKey };
         const varnish = { value: (this.finish?.gloss ?? 0) * (VARNISH[basic.name] ?? 0) };
         basic.onBeforeCompile = (shader, renderer) => {
@@ -151,17 +158,23 @@ export class RoomGloss {
             vFinishNormal = normalize(mat3(modelMatrix) * normal);`,
             );
           shader.fragmentShader =
+            (generated ? '#define GENERATED\n' : '') +
             FRAGMENT_DECLARATIONS +
             shader.fragmentShader.replace(
               '#include <opaque_fragment>',
               `${FINISH}\n#include <opaque_fragment>\ngl_FragColor.a *= 1.0 - uEmitter;`,
             );
         };
-        basic.customProgramCacheKey = () => 'room-varnish-v1';
+        basic.customProgramCacheKey = () => (generated ? 'room-varnish-gen-v1' : 'room-varnish-v1');
         basic.needsUpdate = true;
         this.materials.set(basic, { ...original, varnish });
       }
     });
+  }
+
+  /** The lamps' warm pools as the finish scales them now: what a generated surface bakes in. */
+  get warmthNow(): number {
+    return this.warmth.value;
   }
 
   setLightning(value: number): void {

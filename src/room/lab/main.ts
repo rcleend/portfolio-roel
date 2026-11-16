@@ -31,6 +31,7 @@ const room = createRoom({
   surface,
   mood: readRoomMood(params.get('mood')),
   posters: params.get('posters') !== '0',
+  generated: params.get('room') === 'generated',
   quality: readQuality(params.get('quality')),
   onProgress: (fraction) => {
     status.textContent = `loading ${Math.round(fraction * 100)}%`;

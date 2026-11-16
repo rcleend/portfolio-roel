@@ -127,7 +127,51 @@
         <img class="tv-still__image" src="/startup/tv-desktop.webp" alt="" fetchpriority="high" />
       </picture>
     </div>
+    <script>
+      // The generated room (docs/ROOM.md › The generated room): its startup still is drawn below, not fetched.
+      if (/[?&]room=generated(&|$)/.test(location.search)) {
+        const still = document.getElementById("tv-still");
+        still.className += " tv-still--drawn";
+        still.innerHTML = "<i></i>";
+      }
+    </script>
     <style>
+      /* The set at night as three boxes around the picture: its casing, the lip round the glass, the cabinet's top. */
+      .tv-still--drawn {
+        background: linear-gradient(#130e1a 60%, #181019);
+      }
+      .tv-still--drawn i,
+      .tv-still--drawn i::before,
+      .tv-still--drawn::after {
+        position: absolute;
+        content: "";
+      }
+      .tv-still--drawn::after {
+        top: calc(var(--picture-top) + var(--picture-height) * 1.16);
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: linear-gradient(#22161f, #2e1d28 70%, #1a1118 71%);
+      }
+      .tv-still--drawn i {
+        z-index: 1;
+        top: calc(var(--picture-top) - var(--picture-height) * 0.152);
+        left: calc(var(--picture-left) - var(--picture-width) * 0.111);
+        width: calc(var(--picture-width) * 1.231);
+        height: calc(var(--picture-height) * 1.465);
+        border-radius: calc(var(--picture-width) * 0.03);
+        background: #050408;
+        box-shadow: 0 calc(var(--picture-height) * 0.08) 0 calc(var(--picture-width) * -0.085) #030305;
+      }
+      .tv-still--drawn i::before {
+        top: 7.4%;
+        left: 7.1%;
+        width: 85.2%;
+        height: 74.8%;
+        border-radius: calc(var(--picture-width) * 0.035);
+        background: #000;
+        box-shadow: 0 0 0 calc(var(--picture-width) * 0.004) #16131d;
+      }
       .tv-still {
         position: fixed;
         inset: 0;

@@ -26,7 +26,9 @@ export function forEachTexture(material: Material | Material[], visit: (texture:
 export function* uploadTextures(root: Object3D, renderer: TextureUploader): IdleTask {
   const textures = new Set<Texture>();
   root.traverse((object) => {
-    if (object instanceof Mesh) forEachTexture(object.material, (texture) => textures.add(texture));
+    // A mesh the generated room has replaced (gen/GeneratedRoom.ts) is never drawn again: its atlas stays off the GPU.
+    if (object instanceof Mesh && !object.userData.retired)
+      forEachTexture(object.material, (texture) => textures.add(texture));
   });
   for (const texture of textures) {
     yield QUIET;

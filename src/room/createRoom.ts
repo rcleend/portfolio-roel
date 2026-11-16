@@ -6,6 +6,8 @@ import { LiveScreenMood } from './atmosphere/LiveScreenMood';
 import type { RoomAir, RoomMood } from './atmosphere/moods';
 import type { PropAnchor } from './camera/anchors';
 import type { FramingInsets } from './camera/CameraRig';
+import type { GeneratedStats } from './gen/GeneratedRoom';
+import { GeneratedSlot, type GeneratedState } from './gen/GeneratedSlot';
 import type { Interactable } from './interaction/Interactable';
 import { type PcMonitor, PcMonitorHandle } from './pc/PcMonitor';
 import { ScreenOverlay } from './pc/ScreenOverlay';
@@ -49,6 +51,11 @@ export interface CreateRoomOptions {
   readonly quality?: QualityTier | 'auto';
   /** The decorated walls (docs/ROOM.md › Posters); false keeps them bare, so tests can measure what they add. */
   readonly posters?: boolean;
+  /**
+   * Replaces the opening view's shipped models and textures with ones generated in code and lit in the browser
+   * (docs/ROOM.md › The generated room). Off by default: nothing of it is loaded.
+   */
+  readonly generated?: boolean;
   /** Optional night-time finish; original keeps the unprocessed bake for comparison. */
   readonly mood?: RoomMood;
   readonly air?: RoomAir;
@@ -115,6 +122,8 @@ export interface Room {
   readonly stats: RoomStats;
   /** Resolves true once the decorated walls are shown, false when they will not be this page load. */
   readonly postersReady: Promise<boolean>;
+  /** Resolves true once the generated room is on screen, false when it was not asked for or could not be built. */
+  readonly generatedReady: Promise<boolean>;
   dispose(): void;
 }
 
@@ -157,6 +166,9 @@ export interface RoomStats {
   readonly screenFade: number;
   /** The props' spotlight is in (from the first flight away from the TV): its two programs exist. */
   readonly spotlight: boolean;
+  /** The generated room (docs/ROOM.md › The generated room): where it is, and what building and baking it took. */
+  readonly generated: GeneratedState;
+  readonly generatedStats: GeneratedStats | null;
 }
 
 /**
@@ -173,6 +185,7 @@ export function createRoom(options: CreateRoomOptions): Room {
   const pc = new PcMonitorHandle(overlay);
   const radio = new RadioDoorHandle(options.overlayContainer ?? options.container, reducedMotion);
   const posters = new PostersSlot(options.posters ?? true);
+  const generated = new GeneratedSlot(options.generated === true);
   const spotlight = new SpotlightDoor();
   const rain = new RainSoundSlot();
   const assetBaseUrl = options.assetBaseUrl ?? defaultAssetBaseUrl();
@@ -304,14 +317,26 @@ export function createRoom(options: CreateRoomOptions): Room {
       still: (target) => target === 'radio' && radio.prepared === null,
       onRender: (listener) => stage.onRender(listener),
     }));
-    const { background } = scene;
+    const { background, anisotropy } = scene;
     // Work ahead of need never delays the first frame.
-    return firstFrame(stage).then(() => background.start());
+    return firstFrame(stage).then(() => {
+      background.start();
+      if (disposed) return;
+      generated.attach({
+        stage,
+        background,
+        room: assets.room.scene,
+        tv: assets.tv,
+        anisotropy,
+        tier: QUALITY_TIERS[stage.quality.tier].generated,
+      });
+    });
   });
 
   return {
     ready,
     postersReady: posters.ready,
+    generatedReady: generated.ready,
     get mood() {
       return stage.mood;
     },
@@ -404,6 +429,8 @@ export function createRoom(options: CreateRoomOptions): Room {
         postersFading: posters.fading,
         screenFade: scene?.fade.opacity ?? 0,
         spotlight: spotlight.loaded,
+        generated: generated.state,
+        generatedStats: generated.stats,
       };
     },
     dispose() {
@@ -414,6 +441,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       pc.detach();
       radio.dispose();
       posters.dispose();
+      generated.dispose();
       spotlight.dispose();
       scene?.dispose();
       scene = null;
