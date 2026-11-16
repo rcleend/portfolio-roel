@@ -231,7 +231,7 @@ export class GeneratedRoom {
   /** The geometry, from the worker; on the main thread where a worker cannot be had. */
   private build(): Promise<GenScene> {
     const tier = this.tier;
-    const request: GenRequest = { densityScale: tier.density, maxPageSize: tier.pageSize };
+    const request: GenRequest = { densityScale: tier.density, maxPageSize: tier.pageSize, detail: tier.detail };
     const onMain = async (): Promise<GenScene> => {
       this.builtIn = 'main';
       return (await import('./scene')).buildScene(request);

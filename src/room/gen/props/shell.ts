@@ -253,7 +253,13 @@ export const rug: Prop = {
       facing(p1, q1, p2, [0.4, 1, -0.4]);
       facing(q1, q2, p2, [0.4, 1, -0.4]);
       facing(p2, q2, tip, [0, 1, 0]);
-      b.tri([cx - fold, top + 0.0015, cz], [cx, top + 0.0015, cz + fold], [cx, top + 0.0015, cz], [0.42, 0.2, 0.11], 0.6);
+      b.tri(
+        [cx - fold, top + 0.0015, cz],
+        [cx, top + 0.0015, cz + fold],
+        [cx, top + 0.0015, cz],
+        [0.42, 0.2, 0.11],
+        0.6,
+      );
     });
   },
 };

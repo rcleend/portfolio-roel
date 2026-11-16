@@ -136,6 +136,28 @@ export class MeshBuilder {
     }
   }
 
+  /**
+   * A triangle with its own colour (and shade) at each corner: a tone that changes across one surface (a leaf's
+   * midrib, a worn edge, cloth), which one colour a triangle would cut into facets.
+   */
+  gradient(
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+    colors: readonly [Rgb, Rgb, Rgb],
+    shades: readonly [number, number, number] = [1, 1, 1],
+  ): void {
+    if (length(cross(sub(b, a), sub(c, a))) < 1e-12) return;
+    [a, b, c].forEach((point, corner) => {
+      const p = apply(this.placement, point);
+      const color = colors[corner] as Rgb;
+      const shade = shades[corner] as number;
+      this.positions.push(p[0], p[1], p[2]);
+      this.albedo.push(color[0], color[1], color[2]);
+      this.shade.push(this.occlusion ? shade * this.occlusion(point) : shade);
+    });
+  }
+
   /** a, b, c, d counter-clockwise seen from the side the quad faces. */
   quad(a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Rgb, shade = 1): void {
     this.tri(a, b, c, color, shade);

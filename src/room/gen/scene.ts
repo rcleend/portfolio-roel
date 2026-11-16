@@ -47,6 +47,8 @@ export interface GenRequest {
   /** Chart texels a metre, as a fraction of full quality, and the largest page side (the quality tier's). */
   readonly densityScale: number;
   readonly maxPageSize: number;
+  /** How finely the props are built, 0–1 (PropSink.detail); full where it is left out. */
+  readonly detail?: number;
 }
 
 export interface PropStats {
@@ -80,6 +82,7 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
     const before =
       MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
     prop.build({
+      detail: request.detail ?? 1,
       mesh: (name) => builders[name],
       chart: (...added) => void charts.push(...added),
       decal: (decal) => void decals.push(decal),

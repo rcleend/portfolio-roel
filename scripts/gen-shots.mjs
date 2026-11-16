@@ -32,7 +32,10 @@ const format = option('format', 'jpg');
 /** The app's finish; `original` is the bake as it is, without one. */
 const mood = option('mood', 'rose');
 const compare = option('compare', '');
-const outDir = join(resolve(option('out', mode === 'shipped' ? 'docs/gen/reference' : '.shots/gen/final')), `${viewportName}-${tier}`);
+const outDir = join(
+  resolve(option('out', mode === 'shipped' ? 'docs/gen/reference' : '.shots/gen/final')),
+  `${viewportName}-${tier}`,
+);
 const compareDir = compare ? join(resolve(compare), `${viewportName}-${tier}`) : '';
 
 /** CSS size, device pixels a CSS pixel, and how wide a view's and a crop's file is. */
@@ -48,23 +51,113 @@ if (!viewport) throw new Error(`--viewport is desktop or phone, not ${viewportNa
  * of its own (`pose`) for what no view shows.
  */
 const CROPS = {
-  'desk-top': { view: 'room', box: [[-2.3, 0.72, -2.35], [-0.35, 1.4, -1.35]] },
-  chair: { view: 'room', box: [[-1.7, 0, -1.35], [-0.85, 1.12, -0.55]] },
-  basket: { view: 'room', box: [[-2.75, 0, -1.75], [-1.8, 0.42, -0.45]] },
-  window: { view: 'room', box: [[-2.35, 0.95, -2.45], [-0.25, 2.7, -2.2]] },
+  'desk-top': {
+    view: 'room',
+    box: [
+      [-2.3, 0.72, -2.35],
+      [-0.35, 1.4, -1.35],
+    ],
+  },
+  chair: {
+    view: 'room',
+    box: [
+      [-1.7, 0, -1.35],
+      [-0.85, 1.12, -0.55],
+    ],
+  },
+  basket: {
+    view: 'room',
+    box: [
+      [-2.75, 0, -1.75],
+      [-1.8, 0.42, -0.45],
+    ],
+  },
+  window: {
+    view: 'room',
+    box: [
+      [-2.35, 0.95, -2.45],
+      [-0.25, 2.7, -2.2],
+    ],
+  },
   door: { pose: { position: [0.9, 1.5, -1.3], target: [-0.8, 1.1, 2.4], fov: 50 } },
-  rug: { view: 'room', box: [[-1.5, 0, -0.95], [1.6, 0.05, 1.2]] },
-  floor: { view: 'room', box: [[-2.8, 0, -1.4], [2.0, 0.02, 0.2]] },
-  dresser: { view: 'room', box: [[0.3, 0, -2.4], [1.4, 1.42, -1.7]] },
-  guitar: { view: 'room', box: [[1.4, 0, -2.4], [2.05, 1.5, -1.85]] },
-  'lava-lamp': { view: 'room', box: [[0.3, 0.84, -2.2], [0.7, 1.42, -1.85]] },
-  console: { view: 'room', box: [[1.55, 0, -0.45], [2.15, 0.12, 0.7]] },
-  'tv-cabinet': { view: 'room', box: [[2.0, 0, -1.3], [2.8, 1.2, 1.1]] },
-  plant: { view: 'tv', box: [[2.1, 0.48, -0.04], [2.42, 0.72, 0.28]] },
-  robot: { view: 'tv', box: [[2.45, 0.48, -1.0], [2.7, 0.8, -0.75]] },
-  posters: { view: 'room', box: [[-2.7, 1.25, -2.4], [2.8, 3.2, -1.2]] },
+  rug: {
+    view: 'room',
+    box: [
+      [-1.5, 0, -0.95],
+      [1.6, 0.05, 1.2],
+    ],
+  },
+  floor: {
+    view: 'room',
+    box: [
+      [-2.8, 0, -1.4],
+      [2.0, 0.02, 0.2],
+    ],
+  },
+  dresser: {
+    view: 'room',
+    box: [
+      [0.3, 0, -2.4],
+      [1.4, 1.42, -1.7],
+    ],
+  },
+  guitar: {
+    view: 'room',
+    box: [
+      [1.4, 0, -2.4],
+      [2.05, 1.5, -1.85],
+    ],
+  },
+  'lava-lamp': {
+    view: 'room',
+    box: [
+      [0.3, 0.84, -2.2],
+      [0.7, 1.42, -1.85],
+    ],
+  },
+  console: {
+    view: 'room',
+    box: [
+      [1.55, 0, -0.45],
+      [2.15, 0.12, 0.7],
+    ],
+  },
+  'tv-cabinet': {
+    view: 'room',
+    box: [
+      [2.0, 0, -1.3],
+      [2.8, 1.2, 1.1],
+    ],
+  },
+  plant: {
+    view: 'tv',
+    box: [
+      [2.1, 0.48, -0.04],
+      [2.42, 0.72, 0.28],
+    ],
+  },
+  robot: {
+    view: 'tv',
+    box: [
+      [2.45, 0.48, -1.0],
+      [2.7, 0.8, -0.75],
+    ],
+  },
+  posters: {
+    view: 'room',
+    box: [
+      [-2.7, 1.25, -2.4],
+      [2.8, 3.2, -1.2],
+    ],
+  },
   slope: { pose: { position: [-1.6, 1.3, 1.6], target: [1.9, 2.2, -0.6], fov: 60 } },
-  'radio-lid': { view: 'radio', box: [[0.94, 1.04, -2.2], [1.22, 1.28, -2.0]] },
+  'radio-lid': {
+    view: 'radio',
+    box: [
+      [0.94, 1.04, -2.2],
+      [1.22, 1.28, -2.0],
+    ],
+  },
 };
 const VIEWS = ['tv', 'room', 'pc', 'radio'];
 const wanted = (name) => only.length === 0 || only.includes(name);
@@ -143,7 +236,10 @@ async function zoom(page, crop) {
       if (!crop) return;
       if (crop.pose) {
         const rest = new Map(
-          live.map((cam) => [cam, { position: cam.position.clone(), quaternion: cam.quaternion.clone(), fov: cam.fov }]),
+          live.map((cam) => [
+            cam,
+            { position: cam.position.clone(), quaternion: cam.quaternion.clone(), fov: cam.fov },
+          ]),
         );
         window.__pose = { ...crop.pose, cams: new Set(live), rest };
         return;
@@ -153,14 +249,15 @@ async function zoom(page, crop) {
       cam.updateMatrixWorld(true);
       const view = cam.matrixWorldInverse.elements;
       const projection = cam.projectionMatrix.elements;
-      const apply = (m, [x, y, z, w]) => [0, 1, 2, 3].map((i) => m[i] * x + m[4 + i] * y + m[8 + i] * z + m[12 + i] * w);
+      const apply = (m, [x, y, z, w]) =>
+        [0, 1, 2, 3].map((i) => m[i] * x + m[4 + i] * y + m[8 + i] * z + m[12 + i] * w);
       let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
       const [lo, hi] = crop.box;
       for (let corner = 0; corner < 8; corner++) {
         const point = [corner & 1 ? hi[0] : lo[0], corner & 2 ? hi[1] : lo[1], corner & 4 ? hi[2] : lo[2], 1];
         const clip = apply(projection, apply(view, point));
         if (clip[3] <= 0) continue;
-        const [px, py] = [(clip[0] / clip[3] * 0.5 + 0.5) * width, (0.5 - clip[1] / clip[3] * 0.5) * height];
+        const [px, py] = [((clip[0] / clip[3]) * 0.5 + 0.5) * width, (0.5 - (clip[1] / clip[3]) * 0.5) * height];
         [x0, y0, x1, y1] = [Math.min(x0, px), Math.min(y0, py), Math.max(x1, px), Math.max(y1, py)];
       }
       // A margin, then out to the viewport's shape about the box's middle.
@@ -171,13 +268,19 @@ async function zoom(page, crop) {
       if (w > width) [w, h] = [width, height];
       const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2];
       for (const each of live) each.setViewOffset(width, height, cx - w / 2, cy - h / 2, w, h);
-      return { cams: window.__cams.size, live: live.map((c) => [c.position.toArray().map((v) => +v.toFixed(2)), c.fov, c.aspect]), rect: [cx - w / 2, cy - h / 2, w, h], frames: window.__roomLab.room.stats.framesRendered };
+      return {
+        cams: window.__cams.size,
+        live: live.map((c) => [c.position.toArray().map((v) => +v.toFixed(2)), c.fov, c.aspect]),
+        rect: [cx - w / 2, cy - h / 2, w, h],
+        frames: window.__roomLab.room.stats.framesRendered,
+      };
     },
     { crop, width: viewport.width, height: viewport.height },
   );
   if (process.env.SHOT_DEBUG) console.log(JSON.stringify(info));
   await frames(page);
-  if (process.env.SHOT_DEBUG) console.log('frames', await page.evaluate(() => window.__roomLab.room.stats.framesRendered));
+  if (process.env.SHOT_DEBUG)
+    console.log('frames', await page.evaluate(() => window.__roomLab.room.stats.framesRendered));
 }
 
 const go = {

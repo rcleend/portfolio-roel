@@ -32,6 +32,11 @@ export type MeshName =
   | 'radioWellCover';
 
 export interface PropSink {
+  /**
+   * How finely to build, 0–1: 1 on the top quality tier, less on the lower ones (tiers.ts). A prop turns it into
+   * segments and into the small parts it leaves out; its budget is for 1.
+   */
+  readonly detail: number;
   /** The vertex-lit mesh `name`'s builder. */
   mesh(name: MeshName): MeshBuilder;
   chart(...charts: Chart[]): void;

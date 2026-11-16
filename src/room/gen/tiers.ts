@@ -12,6 +12,8 @@ export interface GeneratedTier {
   readonly shadowSize: number;
   readonly lightScale: number;
   readonly sampleSet: 0 | 1;
+  /** How finely the props are built, 0–1 (PropSink.detail): fewer segments and no smallest parts on a phone. */
+  readonly detail: number;
 }
 
 /**
@@ -20,9 +22,9 @@ export interface GeneratedTier {
  * the generated room downloads none of it.
  */
 export const GENERATED_TIERS: Readonly<Record<QualityTier, GeneratedTier>> = {
-  high: { density: 1, pageSize: 2048, artSize: 1024, shadowSize: 1024, lightScale: 0.5, sampleSet: 0 },
-  medium: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 1024, lightScale: 1, sampleSet: 0 },
-  low: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 512, lightScale: 1, sampleSet: 1 },
+  high: { density: 1, pageSize: 2048, artSize: 1024, shadowSize: 1024, lightScale: 0.5, sampleSet: 0, detail: 1 },
+  medium: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 1024, lightScale: 1, sampleSet: 0, detail: 0.6 },
+  low: { density: 0.5, pageSize: 1024, artSize: 512, shadowSize: 512, lightScale: 1, sampleSet: 1, detail: 0.45 },
 };
 
 /**
