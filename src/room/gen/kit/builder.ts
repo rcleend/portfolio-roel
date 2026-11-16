@@ -182,6 +182,25 @@ export class MeshBuilder {
   }
 
   /**
+   * A long box cut into lengths of about `segment` metres along its longest side, so light baked at its vertices can
+   * change along it (a window bar crossed by a blind's shadow, a table leg in a lamp's pool).
+   */
+  beam(min: Vec3, max: Vec3, color: Rgb, shade = 1, segment = 0.1): void {
+    const size = sub(max, min);
+    const axis = size[0] >= size[1] && size[0] >= size[2] ? 0 : size[1] >= size[2] ? 1 : 2;
+    const pieces = Math.max(1, Math.round(size[axis] / segment));
+    const name = ['x', 'y', 'z'][axis];
+    for (let i = 0; i < pieces; i++) {
+      const low = [min[0], min[1], min[2]] as [number, number, number];
+      const high = [max[0], max[1], max[2]] as [number, number, number];
+      low[axis] = min[axis] + (size[axis] * i) / pieces;
+      high[axis] = min[axis] + (size[axis] * (i + 1)) / pieces;
+      const skip = [...(i > 0 ? [`-${name}`] : []), ...(i < pieces - 1 ? [`+${name}`] : [])];
+      this.box(low, high, color, shade, skip);
+    }
+  }
+
+  /**
    * A box with rounded edges: a rounded rectangle in the plane across `axis`, lofted along it with a bevel of `radius`
    * at both ends.
    */

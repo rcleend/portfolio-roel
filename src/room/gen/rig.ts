@@ -60,7 +60,7 @@ export const ROBOT = {
 };
 
 /** The colour of the room's ambient light from above and from below (bounce off the oak). */
-export const AMBIENT = { sky: [0.008, 0.009, 0.014] as Rgb, ground: [0.014, 0.01, 0.01] as Rgb };
+export const AMBIENT = { sky: [0.016, 0.018, 0.03] as Rgb, ground: [0.028, 0.026, 0.036] as Rgb };
 
 export const RIG: readonly RigLight[] = [
   // What reaches a surface from all around: the dim blue world through the window and the room's own bounce, as a dome
@@ -128,36 +128,66 @@ export const RIG: readonly RigLight[] = [
     extent: 3.6,
     portal: { center: [-1.3, 1.81, -2.43], u: [0.86, 0, 0], v: [0, 0.74, 0] },
   },
-  // The lava lamp's amber on the dresser side ("Lava lamp amber spill").
+  // The lava lamp ("Lava lamp amber spill"): a small amber glow on the dresser's top and the wall behind it.
   {
     name: 'lava',
-    kind: 'spot',
+    kind: 'omni',
     space: 'scene',
-    position: [0.49, 1.3, -1.9],
-    target: [0.6, 0, -0.9],
-    color: [0.5, 0.1, 0.02],
-    size: 0.08,
-    samples: [8, 4],
-    cone: [0.8, 1.25],
+    position: [0.49, 1.3, -1.95],
+    target: [0.49, 1.3, -1.95],
+    color: [0.4, 0.07, 0.03],
+    size: 0.03,
+    samples: [4, 2],
     soften: 0.05,
     reach: [1.2, 2.6],
-    wrap: 0,
-    casters: 'all',
+    wrap: 0.1,
+    casters: 'local',
   },
-  // The desk lamp's tungsten under its shade ("Task light tungsten").
+  // The desk lamp ("Task light tungsten"): under its shade, down onto the desk and out onto the wall beside it.
   {
     name: 'desk',
     kind: 'spot',
     space: 'scene',
-    position: [-1.98, 1.2, -1.8],
-    target: [-1.75, 0, -1.1],
-    color: [1.7, 1.1, 0.53],
-    size: 0.06,
+    position: [-2.1, 1.25, -1.95],
+    target: [-2.3, 0.6, -1.7],
+    color: [0.3, 0.2, 0.1],
+    size: 0.05,
     samples: [8, 4],
-    cone: [0.6, 0.98],
+    cone: [0.9, 1.35],
     soften: 0.05,
     wrap: 0,
-    casters: 'all',
+    casters: 'local',
+  },
+  // The practical's wash up the sloped ceiling, which is what makes the slope read mauve.
+  {
+    name: 'slope',
+    kind: 'spot',
+    space: 'scene',
+    position: [0.6, 1.2, 0],
+    target: [1.9, 2.6, 0],
+    color: [0.73, 0.44, 0.48],
+    size: 0.6,
+    samples: [6, 3],
+    cone: [0.8, 1.3],
+    soften: 1.0,
+    wrap: 0,
+    casters: 'local',
+  },
+  // The night sky on the blind ("Blue hour window fill"): the slats glow, the rest of the wall does not.
+  {
+    name: 'blind',
+    kind: 'sun',
+    space: 'scene',
+    position: [-1.3, 2.1, 0.4],
+    target: [-1.3, 2.12, -2.4],
+    color: [0.52, 0.58, 0.64],
+    size: 0.2,
+    samples: [4, 2],
+    soften: 0,
+    wrap: 0.3,
+    casters: 'local',
+    extent: 1.6,
+    portal: { center: [-1.3, 2.12, -2.2], u: [0.82, 0, 0], v: [0, 0.4, 0] },
   },
   // The opal lamp beside the TV: a sphere light, as atmosphere/tvLamp.ts drew it every frame.
   {

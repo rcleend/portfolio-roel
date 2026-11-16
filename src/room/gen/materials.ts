@@ -15,6 +15,10 @@ export const MATERIAL = {
   oak: 3,
   /** A print from the art page: `params` is its rectangle there. */
   print: 4,
+  /** Matte paint over smooth plaster (the ceilings): `params.rgb`. */
+  plaster: 5,
+  /** The rug's pile: navy and ivory squares, `params.x` metres a square, with the pile's own soft mottle. */
+  rug: 6,
 } as const;
 
 /** `vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity)`; needs `uArt`. */
@@ -69,9 +73,15 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     cavity = mix(0.3, 1.0, wood.a);
     return wood.rgb;
   }
-  // The art page's rows run downwards; a print's own t runs up.
-  vec2 at = clamp(st, 0.0, 1.0);
-  vec4 ink = texture(uArt, params.xy + vec2(at.x, 1.0 - at.y) * params.zw);
-  return ink.rgb;
+  if (material < 4.5) {
+    // The art page's rows run downwards; a print's own t runs up.
+    vec2 at = clamp(st, 0.0, 1.0);
+    return texture(uArt, params.xy + vec2(at.x, 1.0 - at.y) * params.zw).rgb;
+  }
+  if (material < 5.5) return params.rgb * (0.95 + 0.04 * vnoise(metres * 380.0) + 0.08 * fbm(metres * 1.3 + 9.0));
+  vec2 square = floor(metres / params.x);
+  float navy = mod(square.x + square.y, 2.0);
+  float pile = 0.82 + 0.3 * vnoise(metres * 900.0) * vnoise(metres * 140.0 + 5.0) + 0.1 * fbm(metres * 22.0);
+  return mix(vec3(0.62, 0.6, 0.6), vec3(0.03, 0.055, 0.2), navy) * pile;
 }
 `;

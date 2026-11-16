@@ -270,3 +270,65 @@ function chest(c: Context, rect: ArtRect): void {
     }
   });
 }
+
+/**
+ * The view outside the window: a tree's crown against the night sky, as the rain on the glass refracts it
+ * (atmosphere/WindowRain.ts). Leaves are a few thousand seeded dabs, darkest in the crown's depth, a few catching the
+ * street's light; it is seen through wet glass and a blind, so it wants masses and glints, not botany.
+ */
+export function paintExterior(canvas: HTMLCanvasElement, width: number): void {
+  const height = Math.round(width * 0.75);
+  canvas.width = width;
+  canvas.height = height;
+  const c = canvas.getContext('2d');
+  if (!c) throw new Error('No 2D canvas for the view outside');
+  const sky = c.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#0a0f2c');
+  sky.addColorStop(0.6, '#141c46');
+  sky.addColorStop(1, '#1b2350');
+  c.fillStyle = sky;
+  c.fillRect(0, 0, width, height);
+  let seed = 20071;
+  const random = (): number => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  // Boughs first, then leaves over them in three depths.
+  c.strokeStyle = '#05080f';
+  c.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    c.lineWidth = width * (0.004 + random() * 0.01);
+    c.beginPath();
+    c.moveTo(width * (0.45 + random() * 0.2), height);
+    c.quadraticCurveTo(width * random(), height * (0.4 + random() * 0.4), width * random(), height * random() * 0.5);
+    c.stroke();
+  }
+  const depths = [
+    { count: 2600, color: [6, 16, 22], size: 0.02 },
+    { count: 2200, color: [12, 34, 40], size: 0.014 },
+    { count: 700, color: [40, 84, 92], size: 0.009 },
+  ];
+  for (const depth of depths) {
+    for (let i = 0; i < depth.count; i++) {
+      // Clumps: a leaf lands near one of forty cluster centres, the crown thinning towards the top right.
+      const cluster = Math.floor(random() * 40);
+      const cx = ((cluster * 0.618) % 1) * width;
+      const cy = (0.12 + ((cluster * 0.381) % 1) * 0.85) * height;
+      const x = cx + (random() - 0.5) * width * 0.22;
+      const y = cy + (random() - 0.5) * height * 0.2;
+      const shade = 0.7 + random() * 0.6;
+      c.fillStyle = `rgb(${depth.color.map((v) => Math.round(v * shade)).join(',')})`;
+      c.beginPath();
+      c.ellipse(
+        x,
+        y,
+        width * depth.size * (0.6 + random()),
+        width * depth.size * 0.45,
+        random() * Math.PI,
+        0,
+        Math.PI * 2,
+      );
+      c.fill();
+    }
+  }
+}

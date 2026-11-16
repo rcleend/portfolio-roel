@@ -3,7 +3,7 @@ import type { CanvasTexture, Group, Material, Mesh, MeshBasicMaterial, Object3D,
 import type { IdleTask, IdleWork } from '../stage/IdleWork';
 import type { QualityTier } from '../stage/quality';
 import type { RoomStage } from '../stage/RoomStage';
-import { paintArt } from './artPaint';
+import { paintArt, paintExterior } from './artPaint';
 import { type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
 import type { GenKit } from './genKit';
 import { GROUP } from './props/types';
@@ -65,7 +65,13 @@ const REPLACED_IN_ROOM = new Set([
   'PS2_printed_cover_LEGO_Star_Wars',
   '03_Room_floor',
   'Right_knee_wall',
+  '03_Room_surfaces',
+  '03_Room_window',
+  'Woven_geometric_rug',
+  'Night_tree_exterior_view',
 ]);
+/** The shell's cutaway pieces (ceilings, front wall, door). */
+const REPLACED_CUTAWAY = /^Cutaway_/;
 /** Every part of the shipped set but its glass, which keeps the screen's contract (docs/ROOM.md). */
 const REPLACED_IN_TV = /^TV_Imported_/;
 /** The room's shell: it cannot shadow the ambient dome, which stands for the light it bounces. */
@@ -96,6 +102,8 @@ export class GeneratedRoom {
   private readonly retired = new Set<Texture>();
   private readonly artCanvas = document.createElement('canvas');
   private art: CanvasTexture | null = null;
+  private readonly exteriorCanvas = document.createElement('canvas');
+  private exterior: CanvasTexture | null = null;
   private baker: Baker | null = null;
   private dropTask: (() => void) | null = null;
   private shown = false;
@@ -133,7 +141,8 @@ export class GeneratedRoom {
     this.group.name = 'GeneratedRoom';
     this.group.visible = false;
     context.room.traverse((object) => {
-      if ((object as Mesh).isMesh && REPLACED_IN_ROOM.has(nameOf(object))) this.replaced.push(object as Mesh);
+      if ((object as Mesh).isMesh && (REPLACED_IN_ROOM.has(nameOf(object)) || REPLACED_CUTAWAY.test(nameOf(object))))
+        this.replaced.push(object as Mesh);
     });
     context.tv.traverse((object) => {
       if ((object as Mesh).isMesh && REPLACED_IN_TV.test(nameOf(object))) this.replaced.push(object as Mesh);
@@ -166,6 +175,7 @@ export class GeneratedRoom {
     this.show(false);
     this.baker?.dispose(true);
     this.art?.dispose();
+    this.exterior?.dispose();
     this.group.traverse((object) => {
       const mesh = object as Mesh;
       if (!mesh.isMesh) return;
@@ -289,6 +299,25 @@ export class GeneratedRoom {
     );
     decals.name = 'Generated prints';
 
+    // The view outside: a plate behind the window, which the rain's refraction samples (userData.exterior).
+    this.exterior = new k.CanvasTexture(this.exteriorCanvas);
+    this.exterior.colorSpace = k.SRGBColorSpace;
+    const plate = new k.BufferGeometry();
+    plate.setAttribute(
+      'position',
+      new k.BufferAttribute(
+        new Float32Array([
+          -3.7, 0.1, -4.5, 1.1, 0.1, -4.5, 1.1, 3.7, -4.5, -3.7, 0.1, -4.5, 1.1, 3.7, -4.5, -3.7, 3.7, -4.5,
+        ]),
+        3,
+      ),
+    );
+    plate.setAttribute('uv', new k.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), 2));
+    const outside = new k.Mesh(plate, new k.MeshBasicMaterial({ map: this.exterior }));
+    outside.name = 'Generated view outside';
+    outside.userData.exterior = true;
+    this.group.add(outside);
+
     // The set joins the shipped set's own node: the spotlight glows and bounces what is under it.
     tv.visible = false;
     context.tv.add(tv);
@@ -303,6 +332,8 @@ export class GeneratedRoom {
   private paint(): void {
     paintArt(this.artCanvas, this.tier.artSize);
     if (this.art) this.art.needsUpdate = true;
+    paintExterior(this.exteriorCanvas, this.tier.artSize);
+    if (this.exterior) this.exterior.needsUpdate = true;
   }
 
   /** Marks the shipped meshes that cast shadows in the bake: opaque ones, the shell only for lights it can shadow. */

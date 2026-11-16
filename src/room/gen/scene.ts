@@ -4,12 +4,24 @@ import { type Chart, type ChartMeshes, chartMeshes, type PackedPage, packCharts 
 import { cabinet } from './props/cabinet';
 import { opalLamp, toyRobot } from './props/lampAndRobot';
 import { plant } from './props/plant';
-import { floor, kneeWall } from './props/shell';
+import { ceilings, door, floor, rug, walls, windowFrame } from './props/shell';
 import { tvSet } from './props/tvSet';
 import type { Decal, MeshName, Prop } from './props/types';
 
-/** Everything this stage generates: the opening TV view's props, the floor and the wall behind the set. */
-export const PROPS: readonly Prop[] = [tvSet, cabinet, opalLamp, toyRobot, plant, floor, kneeWall];
+/** Everything generated so far: the opening TV view's props and the room's shell. */
+export const PROPS: readonly Prop[] = [
+  tvSet,
+  cabinet,
+  opalLamp,
+  toyRobot,
+  plant,
+  floor,
+  rug,
+  walls,
+  ceilings,
+  door,
+  windowFrame,
+];
 
 export interface GenRequest {
   /** Chart texels a metre, as a fraction of full quality, and the largest page side (the quality tier's). */

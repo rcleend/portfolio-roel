@@ -30,7 +30,7 @@ export interface Prop {
   build(sink: PropSink): void;
 }
 
-/** The chart pages: the TV corner's surfaces and the wall behind it; the floor has its own. */
-export const PAGE = { corner: 0, floor: 1 } as const;
+/** The chart pages: the TV corner's surfaces; the floor and its rug; the walls and ceilings. */
+export const PAGE = { corner: 0, floor: 1, shell: 2 } as const;
 /** The chart groups: each draws with its own material, named for the room's finish. */
 export const GROUP = { cabinet: 0, wall: 1, floor: 2 } as const;
