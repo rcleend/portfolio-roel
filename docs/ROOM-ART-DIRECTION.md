@@ -78,9 +78,11 @@ What the room takes from it:
 - **Desktop.** A beige CRT monitor on a swivel foot, a two-tone full-size keyboard with every key and a wheel mouse
   on a mat; a beige tower with two drive bays under the desk and a jointed arm lamp. The screen is a separate glass
   the app paints ([PC.md](PC.md)).
-- **Television.** A slate ABS set: a front frame whose lip slopes in to the glass, a rounded shoulder, a rear shell
-  stepping in to the back plate, a plinth, a strip of round buttons under printed legends and front jacks. Its
-  wordmark is the site's own. The glass is a separate mesh with the CRT shader.
+- **Television.** A slate ABS set of its years: a front shell with soft squared corners and a face crowned a few
+  millimetres, a steep lip down to the glass, a chin whose lower edge hangs in a shallow smile, domed keys under
+  printed legends, a smoked remote window, three front jacks standing in a well, speaker louvres in the sides, a
+  plinth on rubber pads, and behind the seam a rear cover that narrows to the tube's neck under a slotted hood. Its
+  wordmark is the site's own, on a low badge. The glass is a separate mesh with the CRT shader.
 - **TV cabinet top.** At the set's right an opal globe lamp on a round metal foot and a 21 cm plant in an ivory
   pot, broad dark leaves with a paler midrib; at its left a bare-bulb lamp of today turned most of the way down (a
   plain cast concrete cylinder, a smooth matte black socket, a clear bulb whose cage filament glows orange, a grey
