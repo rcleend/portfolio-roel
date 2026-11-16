@@ -106,6 +106,13 @@ export const CLOSEUPS = {
     door: { position: [-0.5, 1.4, 0.4], target: [-0.8, 1.1, 2.4], fov: 55 },
     sheets: { position: [-1.15, 1.9, 0.55], target: [-2.15, 0, -0.65], fov: 52 },
   },
+  basket: {
+    'three-quarter': { position: [-2.0, 0.62, -0.92], target: [-2.47, 0.17, -1.48], fov: 34 },
+    low: { position: [-2.3, 0.07, -0.85], target: [-2.47, 0.15, -1.48], fov: 36 },
+    top: { position: [-2.38, 0.95, -1.3], target: [-2.47, 0.1, -1.48], fov: 34 },
+    rim: { position: [-2.2, 0.45, -1.1], target: [-2.38, 0.3, -1.36], fov: 30 },
+    foot: { position: [-2.22, 0.12, -1.14], target: [-2.4, 0.03, -1.38], fov: 30 },
+  },
   rug: {
     corner: { position: [0.95, 0.5, 0.2], target: [1.4, 0.04, -0.3], fov: 40 },
     'corner-low': { position: [0.9, 0.1, -0.78], target: [1.42, 0.045, -0.33], fov: 36 },

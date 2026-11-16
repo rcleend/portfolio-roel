@@ -641,9 +641,9 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
   whether the rest was deferred, and `marks`, the way to the first shown frame in ms since the room's creation.
   `e2e/generated-room.spec.ts` covers it.
-- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the rug and the plant are built to be seen
+- **Finely made props.** The desk set, the chair, the desk lamp, the tower, the wire basket, the rug and the plant are built to be seen
   at arm's length (`gen/props/monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
-  `deskThings.ts`, `plant.ts`, the rug in `shell.ts`), from the shipped models' measurements (read off the shipped room's models before they were removed). `gen/props/form.ts` is what they share: skins and
+  `deskThings.ts`, `wireBasket.ts`, `plant.ts`, the rug in `shell.ts`), from the shipped models' measurements (read off the shipped room's models before they were removed). `gen/props/form.ts` is what they share: skins and
   patches toned a vertex at a time (`MeshBuilder.gradient`), outlines cut along their sides so the light baked at the
   vertices can change across a face, mouldings with eased edges, turned parts, slabs. A tone finer than the mesh shows
   as specks a vertex wide: unevenness is kept slower than the vertices. The keyboard's 104 legends, the lock lamps'
