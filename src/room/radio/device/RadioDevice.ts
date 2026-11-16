@@ -12,13 +12,15 @@ import {
   type DeviceTarget,
   type RadioDevice,
   type RadioDeviceContext,
+  type RadioLink,
 } from '../deviceContract';
 import { deviceMemory, saveData } from '../deviceFacts';
 import { discSlots } from '../discLayout';
+import type { DeviceParts, DeviceSpec } from '../partsProvider';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
 import { AmbientPacer } from './AmbientPacer';
 import { Choreography, type DiscSample, discHeirs, type Moment } from './choreography';
-import { assembleParts, type CloseUpExtras, type RadioParts } from './closeUpAsset';
+import { assembleParts, type CloseUpExtras } from './closeUpAsset';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
 import { wantsSkin } from './deviceTier';
@@ -127,6 +129,46 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     slots: () => discSlots(link.discCount(), stage.size.width / stage.size.height),
     events: link.events,
   };
+  const root = new Group();
+  root.name = 'RadioDevice';
+  context.scene.add(root);
+  let source: PartsSource | null = null;
+  let device: Device | null = null;
+  try {
+    // The generated room's radio where there is one on screen; the shipped close-up otherwise.
+    const generated = host.generated && (await host.generated.ready) ? host.generated.radio() : null;
+    source = generated
+      ? { parts: generated.parts, spec: generated.spec, skinUrl: null }
+      : await shippedParts(context, link, root);
+    const from = source;
+    device = await inIdle(context.background, () => new Device(context, root, from.parts, from.spec, from.skinUrl));
+    const { atlas } = from.parts;
+    // 512², a millisecond: it may go between frames.
+    if (atlas) {
+      await inIdle(context.background, () => context.renderer.initTexture(atlas), uploadUnit);
+    }
+    return device;
+  } catch (error) {
+    // Whatever step failed, the room's radio goes back to exactly what it was: scenery, never broken.
+    if (device) device.dispose();
+    else source?.parts.restore();
+    root.removeFromParent();
+    throw error;
+  }
+};
+
+/** The parts the device moves, where its display and lamp go, and the 2K skin's address where there is one. */
+interface PartsSource {
+  readonly parts: DeviceParts;
+  readonly spec: DeviceSpec;
+  readonly skinUrl: string | null;
+}
+
+/**
+ * The shipped radio's parts: radio-closeup.glb parsed and checked, and the lid, keys and tub floor cut out of
+ * radio-base.glb's meshes (closeUpAsset.ts). It goes when the model files do.
+ */
+async function shippedParts(context: RadioDeviceContext, link: RadioLink, root: Group): Promise<PartsSource> {
   const base = context.assetBaseUrl;
   const skinWanted = wantsSkin({
     bodyWidthCss: bodyWidthAtRadio(context),
@@ -141,39 +183,13 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
   const parsing = await inIdle(context.background, () => context.loader.parseAsync(buffer, base));
   const gltf = await parsing;
   const meshes = new Map(context.model.meshes.map((mesh) => [mesh.name, mesh]));
-  const root = new Group();
-  root.name = 'RadioDevice';
-  context.scene.add(root);
-  let parts: RadioParts | null = null;
-  let device: Device | null = null;
-  try {
-    parts = await inIdle(context.background, () => assembleParts(gltf, meshes, root));
-    const assembled = parts;
-    device = await inIdle(
-      context.background,
-      () =>
-        new Device(
-          context,
-          root,
-          assembled,
-          gltf.scene.userData as CloseUpExtras,
-          skinWanted ? new URL(SKIN_FILE, base).href : null,
-        ),
-    );
-    const { atlas } = assembled;
-    // 512², a millisecond: it may go between frames.
-    if (atlas) {
-      await inIdle(context.background, () => context.renderer.initTexture(atlas), uploadUnit);
-    }
-    return device;
-  } catch (error) {
-    // Whatever step failed, the room's radio goes back to exactly what was baked: scenery, never broken.
-    if (device) device.dispose();
-    else parts?.restore();
-    root.removeFromParent();
-    throw error;
-  }
-};
+  const parts = await inIdle(context.background, () => assembleParts(gltf, meshes, root));
+  return {
+    parts,
+    spec: gltf.scene.userData as CloseUpExtras,
+    skinUrl: skinWanted ? new URL(SKIN_FILE, base).href : null,
+  };
+}
 
 /** The radio body's width on the page at the radio pose (CSS px). */
 function bodyWidthAtRadio(context: RadioDeviceContext): number {
@@ -230,13 +246,13 @@ class Device implements RadioDevice {
   #pointerAttentionReported: string | null = null;
 
   readonly #context: RadioDeviceContext;
-  readonly #parts: RadioParts;
+  readonly #parts: DeviceParts;
 
   constructor(
     context: RadioDeviceContext,
     root: Group,
-    parts: RadioParts,
-    extras: CloseUpExtras,
+    parts: DeviceParts,
+    extras: DeviceSpec,
     skinUrl: string | null,
   ) {
     this.#context = context;
@@ -873,7 +889,7 @@ class Device implements RadioDevice {
     this.#kick();
   };
 
-  #lcdRenderWidth(extras: CloseUpExtras): number {
+  #lcdRenderWidth(extras: DeviceSpec): number {
     const { lcd } = extras;
     const page = projectToPage(
       [new Vector3(lcd.min[0], lcd.min[1], lcd.z), new Vector3(lcd.max[0], lcd.max[1], lcd.z)],

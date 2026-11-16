@@ -1,3 +1,4 @@
+import type { GeneratedRadioSource } from '../radio/partsProvider';
 import type { GeneratedContext, GeneratedRoom, GeneratedStats } from './GeneratedRoom';
 import { genKit } from './genKit';
 
@@ -29,6 +30,11 @@ export class GeneratedSlot {
 
   get stats(): GeneratedStats | null {
     return this.#room?.stats ?? null;
+  }
+
+  /** The generated CD player once it is on screen (the radio's device then moves its parts), else null. */
+  get radio(): GeneratedRadioSource | null {
+    return this.#room?.radio ?? null;
   }
 
   /** Whether the generated lava lamp's wax is moving. */

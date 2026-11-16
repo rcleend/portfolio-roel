@@ -38,12 +38,17 @@ export interface RigLight {
     readonly floor: number;
     readonly facing: Vec3;
   };
-  /** What shadows it: everything, or only furniture and props (the shell cannot shadow a light inside it). */
-  readonly casters: 'all' | 'local';
+  /**
+   * What shadows it: everything, only furniture and props (the shell cannot shadow a light inside it), or nothing (a
+   * fill, which needs no shadow map).
+   */
+  readonly casters: 'all' | 'local' | 'none';
   /** An opening its light must pass through: the centre and the two half edges of a rectangle (the window's sashes). */
   readonly portal?: { readonly center: Vec3; readonly u: Vec3; readonly v: Vec3 };
   /** The half extent (metres) a sun's or a dome's shadow map covers around `target`. */
   readonly extent?: number;
+  /** Nothing nearer the emitter than this (metres) shadows it: its own housing. */
+  readonly clear?: number;
 }
 
 /** The opal lamp's globe and the robot's eyes, as the shipped room places them (room.glb › userData.light). */
@@ -60,7 +65,7 @@ export const ROBOT = {
 };
 
 /** The colour of the room's ambient light from above and from below (bounce off the oak). */
-export const AMBIENT = { sky: [0.016, 0.018, 0.03] as Rgb, ground: [0.028, 0.026, 0.036] as Rgb };
+export const AMBIENT = { sky: [0.03, 0.034, 0.05] as Rgb, ground: [0.07, 0.06, 0.07] as Rgb };
 
 export const RIG: readonly RigLight[] = [
   // What reaches a surface from all around: the dim blue world through the window and the room's own bounce, as a dome
@@ -85,12 +90,12 @@ export const RIG: readonly RigLight[] = [
     name: 'pool',
     kind: 'spot',
     space: 'scene',
-    position: [0.8, 3.0, -0.5],
-    target: [0.8, 0, -0.5],
-    color: [4.6, 2.7, 3.6],
+    position: [0.4, 3.0, -0.5],
+    target: [1.1, 0, -0.1],
+    color: [5.6, 4.3, 6.0],
     size: 0.9,
-    samples: [16, 8],
-    cone: [0.55, 0.85],
+    samples: [12, 6],
+    cone: [0.3, 0.66],
     soften: 1.5,
     wrap: 0,
     casters: 'all',
@@ -102,74 +107,95 @@ export const RIG: readonly RigLight[] = [
     name: 'bounce',
     kind: 'spot',
     space: 'scene',
-    position: [0.8, 0.02, -0.5],
-    target: [0.8, 1, -0.5],
-    color: [0.3, 0.14, 0.16],
-    size: 1.2,
-    samples: [12, 6],
-    cone: [1.2, 1.5],
-    soften: 1.0,
+    position: [-1.3, 0.85, -1.7],
+    target: [-1.3, 2, -1.7],
+    color: [0.75, 0.72, 0.8],
+    size: 0.8,
+    samples: [8, 4],
+    cone: [1.1, 1.45],
+    soften: 1.5,
     wrap: 0,
     casters: 'local',
   },
-  // Moonlight through the lower sash ("Blue hour window fill").
+  // And what the lit boards send back up at the furniture standing round them: the pink on the drawer fronts, the
+  // dresser's doors and the guitar.
+  {
+    name: 'floor',
+    kind: 'spot',
+    space: 'scene',
+    position: [0.0, 0.05, -0.3],
+    target: [0.0, 1, -0.3],
+    color: [0.28, 0.17, 0.2],
+    size: 1.0,
+    samples: [8, 4],
+    cone: [1.2, 1.5],
+    soften: 1.5,
+    wrap: 0,
+    casters: 'local',
+  },
+  // The night through the window ("Blue hour window fill"): a small emitter outside and above it, so what it sends in
+  // fans out, down onto the desk, past the desk's end onto the floor, and through the blind's slats across the rug.
   {
     name: 'moon',
-    kind: 'sun',
+    kind: 'spot',
     space: 'scene',
-    position: [-2.56, 4.5, -4.29],
-    target: [-0.04, -1.5, -0.57],
-    color: [0.2, 0.27, 0.5],
-    size: 0.25,
+    position: [-1.25, 2.65, -3.4],
+    target: [-0.6, 0.2, -0.9],
+    color: [8, 8.4, 9.7],
+    size: 0.3,
     samples: [12, 6],
+    cone: [0.45, 0.62],
     soften: 0,
+    reach: [5.4, 6.4],
     wrap: 0,
-    casters: 'all',
-    extent: 3.6,
-    portal: { center: [-1.3, 1.81, -2.43], u: [0.86, 0, 0], v: [0, 0.74, 0] },
+    casters: 'local',
+    portal: { center: [-1.3, 1.82, -2.405], u: [0.8, 0, 0], v: [0, 0.7, 0] },
+  },
+  // The room's own blue bounce on the left wall, which faces the set and the lit floor ("TV screen reflected blue",
+  // "Window reflected corner fill"): a fill, so nothing shadows it. The picture's light of the moment is the finish's,
+  // every frame (docs/ROOM.md › The TV's light).
+  {
+    name: 'fill',
+    kind: 'spot',
+    space: 'scene',
+    position: [-1.6, 0.1, 0.3],
+    target: [-2.8, 0.9, 0.0],
+    color: [1.1, 1.5, 1.8],
+    size: 0,
+    samples: [1, 1],
+    cone: [0.9, 1.3],
+    soften: 3,
+    wrap: 0,
+    casters: 'none',
   },
   // The lava lamp ("Lava lamp amber spill"): a small amber glow on the dresser's top and the wall behind it.
   {
     name: 'lava',
     kind: 'omni',
     space: 'scene',
-    position: [0.49, 1.3, -1.95],
-    target: [0.49, 1.3, -1.95],
-    color: [0.4, 0.07, 0.03],
-    size: 0.03,
-    samples: [4, 2],
-    soften: 0.05,
-    reach: [1.2, 2.6],
+    position: [0.49, 1.21, -1.97],
+    target: [0.49, 1.21, -1.97],
+    color: [0.19, 0.028, 0.009],
+    size: 0.04,
+    samples: [3, 2],
+    soften: 0.03,
+    reach: [0.35, 0.78],
+    clear: 0.3,
     wrap: 0.1,
     casters: 'local',
   },
   // The desk lamp ("Task light tungsten"): under its shade, down onto the desk and out onto the wall beside it.
   {
     name: 'desk',
-    kind: 'spot',
+    kind: 'omni',
     space: 'scene',
-    position: [-2.1, 1.25, -1.95],
-    target: [-2.3, 0.6, -1.7],
-    color: [0.3, 0.2, 0.1],
-    size: 0.05,
-    samples: [8, 4],
-    cone: [0.9, 1.35],
-    soften: 0.05,
-    wrap: 0,
-    casters: 'local',
-  },
-  // The practical's wash up the sloped ceiling, which is what makes the slope read mauve.
-  {
-    name: 'slope',
-    kind: 'spot',
-    space: 'scene',
-    position: [0.6, 1.2, 0],
-    target: [1.9, 2.6, 0],
-    color: [0.73, 0.44, 0.48],
-    size: 0.6,
-    samples: [6, 3],
-    cone: [0.8, 1.3],
-    soften: 1.0,
+    position: [-1.94, 1.03, -2.12],
+    target: [-1.94, 1.03, -2.12],
+    color: [0.5, 0.17, 0.04],
+    size: 0.03,
+    samples: [3, 2],
+    soften: 0.03,
+    reach: [0.35, 1.2],
     wrap: 0,
     casters: 'local',
   },
@@ -180,14 +206,14 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.3, 2.1, 0.4],
     target: [-1.3, 2.12, -2.4],
-    color: [0.52, 0.58, 0.64],
+    color: [0.62, 0.6, 0.63],
     size: 0.2,
-    samples: [4, 2],
+    samples: [2, 2],
     soften: 0,
     wrap: 0.3,
     casters: 'local',
     extent: 1.6,
-    portal: { center: [-1.3, 2.12, -2.2], u: [0.82, 0, 0], v: [0, 0.4, 0] },
+    portal: { center: [-1.3, 1.811, -2.17], u: [0.87, 0, 0], v: [0, 0.78, 0] },
   },
   // The opal lamp beside the TV: a sphere light, as atmosphere/tvLamp.ts drew it every frame.
   {
@@ -197,7 +223,7 @@ export const RIG: readonly RigLight[] = [
     position: TV_LAMP.center,
     target: TV_LAMP.center,
     color: [1, 1, 1],
-    size: 0.05,
+    size: 0.075,
     samples: [4, 2],
     soften: 0.04,
     reach: [1.4, 2.0],

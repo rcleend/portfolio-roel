@@ -8,6 +8,8 @@ import { dresser, dresserBooksAndLead, guitar } from './props/dresserCorner';
 import { opalLamp, toyRobot } from './props/lampAndRobot';
 import { lavaLamp } from './props/lavaLamp';
 import { plant } from './props/plant';
+import { radio } from './props/radio';
+import { RADIO_MESHES } from './props/radioSpec';
 import { ceilings, door, floor, rug, walls, windowFrame } from './props/shell';
 import { tvSet } from './props/tvSet';
 import type { Decal, MeshName, Prop } from './props/types';
@@ -38,6 +40,7 @@ export const PROPS: readonly Prop[] = [
   consoleCables,
   floorGame,
   lavaLamp,
+  radio,
 ];
 
 export interface GenRequest {
@@ -64,7 +67,7 @@ export interface GenScene {
   readonly buildMs: number;
 }
 
-const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass'];
+const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES];
 
 /** Runs every prop's generator; pure, so it runs the same in a worker, on the main thread and in tests. */
 export function buildScene(request: GenRequest, now: () => number = () => performance.now()): GenScene {

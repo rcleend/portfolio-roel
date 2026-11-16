@@ -11,9 +11,9 @@ const POT: Vec3 = [2.256, 0.486, 0.117];
 const CERAMIC: Rgb = [0.42, 0.4, 0.37];
 const SOIL: Rgb = [0.03, 0.022, 0.016];
 const STEM: Rgb = [0.07, 0.11, 0.04];
-const LEAF: Rgb = [0.02, 0.05, 0.026];
-const MARGIN: Rgb = [0.06, 0.1, 0.045];
-const MIDRIB: Rgb = [0.07, 0.11, 0.05];
+const LEAF: Rgb = [0.032, 0.058, 0.02];
+const MARGIN: Rgb = [0.085, 0.105, 0.04];
+const MIDRIB: Rgb = [0.1, 0.12, 0.05];
 
 const mix = (a: Rgb, b: Rgb, t: number): Rgb => [
   a[0] + (b[0] - a[0]) * t,

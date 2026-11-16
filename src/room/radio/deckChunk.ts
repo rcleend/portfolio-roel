@@ -16,6 +16,8 @@ export function createRadioDeck(container: HTMLElement, reducedMotion: MediaQuer
 
 /** The device, its close-up downloading as it starts. */
 const loadDevice: DeviceLoader = (host, link) => {
+  // The generated radio needs no file: its parts are built with the room.
+  if (host.generated) return createRadioDevice(host, link);
   const closeUp = fetchCloseUp(new URL(CLOSEUP_FILE, host.assetBaseUrl).href);
   // Its failure is the device's to report, once it asks for it.
   closeUp.catch(() => undefined);

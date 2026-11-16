@@ -6,10 +6,10 @@ import {
   Mesh,
   type MeshBasicMaterial,
   type Object3D,
-  type Texture,
   Vector3,
 } from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type { DeviceParts } from '../partsProvider';
 import { cutTriangles, indexedBounds, type TriangleCut } from './cutParts';
 
 /**
@@ -106,38 +106,8 @@ function sameBounds(box: Box3, bounds: Bounds): boolean {
   );
 }
 
-/** The radio's moving parts once cut, each hung on its pivot. */
-export interface RadioParts {
-  /** Turns about the hinge: rotation.x = −angle opens it. Holds the cut lid and the close-up's underside. */
-  readonly lidPivot: Group;
-  readonly lid: Mesh;
-  readonly lidInner: Mesh;
-  /** Tilts about the rocker's pivot: rotation.x = −angle leans ▷II in. */
-  readonly rockerPivot: Group;
-  readonly rockerTop: Mesh;
-  readonly rockerBottom: Mesh;
-  /** Translated along `keyTravel` as the side keys go in. */
-  readonly previous: Mesh;
-  readonly next: Mesh;
-  readonly keyAxis: Vector3;
-  readonly well: Mesh;
-  /**
-   * The shipped radio's own tub floor, which the well's liner covers and its pickup pocket and magazine slit go
-   * down through: show it only while the well is hidden.
-   */
-  readonly wellFloor: Mesh;
-  /** The materials that carry the radio's skin (the shared baked one and the key faces' shaded clones). */
-  readonly skinMaterials: readonly MeshBasicMaterial[];
-  /** The key faces' own materials (for their shading). */
-  readonly keyMaterials: Readonly<Record<'rockerTop' | 'rockerBottom' | 'previous' | 'next', MeshBasicMaterial>>;
-  /** The close-up's atlas (512²). */
-  readonly atlas: Texture | null;
-  /**
-   * Gives the shipped radio back every triangle the parts took and takes the parts down: the room view is again
-   * exactly as baked. Idempotent.
-   */
-  restore(): void;
-}
+/** The radio's moving parts once cut, each hung on its pivot (partsProvider.ts › DeviceParts). */
+export type RadioParts = DeviceParts;
 
 /** A mesh drawn under `parent` exactly where `world` puts it. */
 function hang(mesh: Mesh, parent: Object3D, world: Matrix4): void {

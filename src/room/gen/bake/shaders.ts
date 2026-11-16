@@ -50,8 +50,9 @@ uniform vec3 uPortalU;
 uniform vec3 uPortalV;
 uniform mat4 uShadow;
 uniform sampler2D uShadowMap;
-// 1 / the map's size, and a texel's size in metres one metre from the light (a sun: anywhere)
-uniform vec2 uShadowTexel;
+// 1 / the map's size, a texel's size in metres one metre from the light (a sun: anywhere), and 1 for a light
+// nothing shadows (a fill)
+uniform vec3 uShadowTexel;
 uniform vec4 uEncode;
 
 float lit(vec3 point) {
@@ -82,7 +83,7 @@ void main() {
       light *= mix(uBeam.w, 1.0, smoothstep(uBeamCos.x, uBeamCos.y, dot(-direction, uBeam.xyz)))
         * smoothstep(-0.05, 0.2, dot(-direction, uFacing));
   }
-  if (light > 0.0) {
+  if (light > 0.0 && uShadowTexel.z < 0.5) {
     // Off the surface by a shadow texel's width, so a surface never shadows itself.
     float texel = uShadowTexel.y * (uDirectional > 0.5 ? 1.0 : sqrt(distance2));
     float seen = lit(vWorld + normal * texel * 2.0 + direction * texel);

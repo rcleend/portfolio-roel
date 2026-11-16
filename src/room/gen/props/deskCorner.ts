@@ -4,10 +4,10 @@ import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
 import { GROUP, PAGE, type Prop } from './types';
 
-const WHITE: Rgb = [0.5, 0.48, 0.46];
+const WHITE: Rgb = [0.62, 0.6, 0.57];
 const STEEL: Rgb = [0.28, 0.29, 0.3];
-const BEIGE: Rgb = [0.44, 0.41, 0.34];
-const BEIGE_DARK: Rgb = [0.3, 0.28, 0.24];
+const BEIGE: Rgb = [0.6, 0.555, 0.46];
+const BEIGE_DARK: Rgb = [0.38, 0.355, 0.3];
 
 let seed = 0;
 const enamel = (color: Rgb = WHITE, density = 380): Omit<Chart, 'origin' | 'u' | 'v'> => ({
@@ -83,14 +83,33 @@ export const chair: Prop = {
   budget: 2600,
   build(sink) {
     const b = sink.mesh('props');
-    const cloth: Rgb = [0.03, 0.11, 0.16];
+    const cloth: Rgb = [0.07, 0.17, 0.24];
     const plastic: Rgb = [0.02, 0.022, 0.026];
     const centre: Vec3 = [-1.28, 0, -0.99];
     b.roundedBox([-1.599, 0.481, -1.27], [-0.959, 0.568, -0.714], 0.04, cloth, 1, 1, 4);
-    b.roundedBox([-1.606, 0.65, -0.734], [-1.1, 1.075, -0.64], 0.045, cloth, 1, 2, 4);
+    // The back: a shield, narrow at the lumbar and round at the shoulders, leaning away and turned a little.
+    b.placed(place([-1.353, 0, -0.655], -0.178), () => {
+      const section = (y: number, half: number, lean: number, depth: number): Ring =>
+        roundedRect(-half, half, lean - depth / 2, lean + depth / 2, depth * 0.48, 4).map(([x, z]): Vec3 => [x, y, z]);
+      b.skin(
+        [
+          section(0.648, 0.1, -0.02, 0.05),
+          section(0.665, 0.14, -0.018, 0.075),
+          section(0.71, 0.205, -0.012, 0.09),
+          section(0.77, 0.24, -0.004, 0.095),
+          section(0.84, 0.252, 0.006, 0.095),
+          section(0.93, 0.255, 0.018, 0.09),
+          section(1.0, 0.253, 0.028, 0.085),
+          section(1.045, 0.24, 0.034, 0.075),
+          section(1.068, 0.215, 0.037, 0.055),
+          section(1.076, 0.17, 0.038, 0.03),
+        ],
+        cloth,
+      );
+    });
     // The back's spine, the lift and the base.
     b.beam([-1.4, 0.44, -0.72], [-1.3, 0.9, -0.66], plastic, 1, 0.12);
-    b.cylinder([centre[0], 0.15, centre[2]], [centre[0], 0.48, centre[2]], 0.03, 0.026, 12, STEEL, 1);
+    b.cylinder([centre[0], 0.15, centre[2]], [centre[0], 0.48, centre[2]], 0.03, 0.026, 12, plastic, 1);
     b.cylinder([centre[0], 0.12, centre[2]], [centre[0], 0.2, centre[2]], 0.045, 0.04, 12, plastic, 1);
     for (let i = 0; i < 5; i++) {
       const angle = (i / 5) * Math.PI * 2 + 0.3;
@@ -118,7 +137,7 @@ export const basket: Prop = {
   build(sink) {
     const b = sink.mesh('props');
     const wire: Rgb = [0.1, 0.13, 0.2];
-    const paper: Rgb = [0.5, 0.5, 0.48];
+    const paper: Rgb = [0.3, 0.3, 0.29];
     const centre: Vec3 = [-2.47, 0.006, -1.48];
     const radius = (y: number) => 0.132 + (y / 0.34) * 0.03;
     b.cylinder(centre, [centre[0], 0.031, centre[2]], 0.13, 0.132, 24, wire, 1);
@@ -169,6 +188,24 @@ export const basket: Prop = {
       [-1.95, -0.6, 17],
     ] as const)
       b.blob([x, 0.042, z], 0.042, 10, 0.22, i, paper);
+    // Four printed sheets lying on the boards (room.glb › 02_Desk_surfaces), a chart each so the blind's stripes cross them.
+    for (const [x, z] of [
+      [-2.41, -0.97],
+      [-2.08, -0.36],
+      [-1.77, -0.12],
+      [-2.44, -0.09],
+    ] as const)
+      sink.chart({
+        page: PAGE.floor,
+        group: GROUP.floor,
+        material: MATERIAL.paper,
+        params: [0.74, 0.74, 0.72, 0],
+        density: 365,
+        shade: 1,
+        origin: [x, 0.007, z],
+        u: [0.24, 0, 0],
+        v: [0, 0, -0.3],
+      });
   },
 };
 
@@ -188,7 +225,7 @@ export const towerAndLamp: Prop = {
     const foot: Vec3 = [-2.085, 0.785, -2.035];
     const elbow: Vec3 = [-2.165, 1.09, -2.035];
     const wrist: Vec3 = [-1.975, 1.235, -2.035];
-    const mouth: Vec3 = [-1.875, 1.13, -2.035];
+    const mouth: Vec3 = [-1.945, 1.095, -2.02];
     b.cylinder(foot, [foot[0], 0.81, foot[2]], 0.07, 0.062, 20, metal, 1);
     for (const dz of [-0.012, 0.012]) {
       b.cylinder([foot[0], 0.81, foot[2] + dz], [elbow[0], elbow[1], elbow[2] + dz], 0.005, 0.005, 6, metal, 1);
@@ -196,9 +233,25 @@ export const towerAndLamp: Prop = {
     }
     b.sphere(elbow, 0.016, 10, metal);
     b.sphere(wrist, 0.016, 10, metal);
-    b.cylinder(wrist, mouth, 0.03, 0.085, 20, metal, 1, false);
-    // Inside the shade: the lit reflector.
-    b.cylinder([mouth[0] - 0.012, mouth[1] + 0.012, mouth[2]], mouth, 0.03, 0.08, 20, [0.9, 0.62, 0.3], 3, false);
+    // The shade: a bell of dark enamelled steel, its mouth down at the desk.
+    const down: Vec3 = [mouth[0] - wrist[0], mouth[1] - wrist[1], mouth[2] - wrist[2]];
+    b.lathe(
+      wrist,
+      down,
+      [
+        [0, 0],
+        [0.024, 0],
+        [0.05, 0.022],
+        [0.072, 0.06],
+        [0.083, 0.105],
+        [0.086, 0.144],
+      ],
+      20,
+      [0.05, 0.03, 0.035],
+    );
+    // Inside it, the lit reflector and the bulb just proud of the mouth.
+    b.cylinder([mouth[0] - 0.005, mouth[1] + 0.03, mouth[2]], mouth, 0.045, 0.082, 20, [0.9, 0.62, 0.3], 3, false);
+    b.sphere([mouth[0], mouth[1] + 0.004, mouth[2]], 0.03, 10, [1, 0.8, 0.5], 3);
   },
 };
 

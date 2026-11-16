@@ -1,4 +1,5 @@
 import { ART, ART_SIZE, type ArtRect } from './art';
+import { paintRadioPrints } from './radioArt';
 
 /**
  * Paints the art page (art.ts): every print in the generated room, drawn with the 2D canvas. The covers are
@@ -19,6 +20,7 @@ export function paintArt(canvas: HTMLCanvasElement, size: number): void {
   powder(c, ART.coverPowder);
   consoleMark(c, ART.consoleMark);
   consoleLamp(c, ART.consoleLamp);
+  paintRadioPrints(c);
 }
 
 type Context = CanvasRenderingContext2D;

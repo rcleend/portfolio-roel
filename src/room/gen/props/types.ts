@@ -14,7 +14,22 @@ export interface Decal {
 }
 
 /** Which mesh a prop's vertex-lit geometry joins: each is one draw call with one material. */
-export type MeshName = 'tv' | 'props' | 'globe' | 'eyes' | 'glass';
+export type MeshName =
+  | 'tv'
+  | 'props'
+  | 'globe'
+  | 'eyes'
+  | 'glass'
+  // The CD player's body and the parts its deck moves or hides (props/radio.ts).
+  | 'radio'
+  | 'radioLid'
+  | 'radioLidInner'
+  | 'radioRockerTop'
+  | 'radioRockerBottom'
+  | 'radioPrevious'
+  | 'radioNext'
+  | 'radioWell'
+  | 'radioWellCover';
 
 export interface PropSink {
   /** The vertex-lit mesh `name`'s builder. */

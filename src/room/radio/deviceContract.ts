@@ -8,6 +8,7 @@ import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { RoomView } from '../viewState';
 import type { DiscSlot } from './discLayout';
+import type { GeneratedRadioDoor } from './partsProvider';
 import type { DeckState, DiscArt, RadioCueEvent, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
 import type { RadioModel } from './radioModel';
 
@@ -39,6 +40,8 @@ export interface RadioHost {
   readonly loader: GLTFLoader;
   readonly assetBaseUrl: string;
   readonly anisotropy: number;
+  /** The generated room's radio (docs/ROOM.md › The generated room): the device takes its parts from it. */
+  readonly generated?: GeneratedRadioDoor;
 }
 
 /** The close-up the device is made from, in the room's asset folder. */

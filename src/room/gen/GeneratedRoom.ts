@@ -5,6 +5,7 @@ import type { QualityTier } from '../stage/quality';
 import type { RoomStage } from '../stage/RoomStage';
 import { paintArt, paintExterior } from './artPaint';
 import { type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
+import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
 import { LavaWax } from './LavaWax';
 import { GROUP } from './props/types';
@@ -17,6 +18,8 @@ export interface GeneratedContext {
   /** The shipped room and TV set: the generated pieces replace some of their meshes. */
   readonly room: Object3D;
   readonly tv: Object3D;
+  /** The shipped CD player's node, where there is one: the generated radio replaces its meshes and joins it. */
+  readonly radio?: Object3D | null;
   readonly anisotropy: number;
   /** The tier the device started on: what to generate at and bake with (tiers.ts). */
   readonly tier: QualityTier;
@@ -89,6 +92,8 @@ const isShippedLava = (object: Object3D): boolean =>
 const REPLACED_CUTAWAY = /^Cutaway_/;
 /** Every part of the shipped set but its glass, which keeps the screen's contract (docs/ROOM.md). */
 const REPLACED_IN_TV = /^TV_Imported_/;
+/** The shipped CD player's seven baked meshes (not the parts its device may have cut from them). */
+const REPLACED_IN_RADIO = /^Radio_Imported_Part_\d+_base$/;
 /** The room's shell: it cannot shadow the ambient dome, which stands for the light it bounces. */
 const SHELL = /^03_Room_|^Cutaway|knee_wall|geometric_rug/;
 
@@ -127,6 +132,7 @@ export class GeneratedRoom {
   private stopCanvas: (() => void) | null = null;
   private displays: { tv: Mesh; props: Mesh; charts: Map<number, Mesh> } | null = null;
   private lava: LavaWax | null = null;
+  private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
   private timings = {
     cpu: 0,
@@ -167,6 +173,9 @@ export class GeneratedRoom {
     context.tv.traverse((object) => {
       if ((object as Mesh).isMesh && REPLACED_IN_TV.test(nameOf(object))) this.replaced.push(object as Mesh);
     });
+    context.radio?.traverse((object) => {
+      if ((object as Mesh).isMesh && REPLACED_IN_RADIO.test(nameOf(object))) this.replaced.push(object as Mesh);
+    });
     const canvas = context.stage.canvas;
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
@@ -183,6 +192,11 @@ export class GeneratedRoom {
 
   get stats(): GeneratedStats | null {
     return this.lastStats;
+  }
+
+  /** The generated CD player, once its light is baked and it is on screen; the deck then moves its parts. */
+  get radio(): GeneratedRadio | null {
+    return this.lastStats ? this.radioParts : null;
   }
 
   /** Whether the lava lamp's wax is moving. */
@@ -211,6 +225,7 @@ export class GeneratedRoom {
     });
     this.group.removeFromParent();
     this.displays?.tv.removeFromParent();
+    this.radioParts?.dispose();
   }
 
   /** The geometry, from the worker; on the main thread where a worker cannot be had. */
@@ -356,6 +371,12 @@ export class GeneratedRoom {
     });
     this.stopLava = context.stage.onRender(this.lava.sync);
     this.group.add(...this.lava.meshes);
+
+    // The CD player, part by part on its pivots; it joins the shipped radio's node, as the set does below.
+    this.radioParts = new GeneratedRadio(k, gen);
+    this.radioParts.group.visible = false;
+    if (context.radio) this.radioParts.attach(context.radio);
+    else this.group.add(this.radioParts.group);
 
     // The set joins the shipped set's own node: the spotlight glows and bounces what is under it.
     tv.visible = false;
@@ -533,6 +554,7 @@ export class GeneratedRoom {
       colors.needsUpdate = true;
       offset += count;
     }
+    this.radioParts?.light(result.colors);
     for (const mesh of displays.charts.values()) {
       const material = mesh.material as MeshBasicMaterial;
       material.map = result.pages[material.userData.page as number] ?? null;
@@ -583,6 +605,7 @@ export class GeneratedRoom {
     }
     this.group.visible = generated;
     if (this.displays) this.displays.tv.visible = generated;
+    if (this.radioParts && this.context.radio) this.radioParts.group.visible = generated;
   }
 
   /** Frees the GPU's copy of every atlas only the replaced meshes drew with; a swap back uploads it again. */

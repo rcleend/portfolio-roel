@@ -31,9 +31,9 @@ export const opalLamp: Prop = {
   },
 };
 
-const TIN: Rgb = [0.14, 0.016, 0.012];
-const TIN_DARK: Rgb = [0.085, 0.011, 0.009];
-const STEEL: Rgb = [0.3, 0.32, 0.32];
+const TIN: Rgb = [0.04, 0.006, 0.005];
+const TIN_DARK: Rgb = [0.025, 0.005, 0.004];
+const STEEL: Rgb = [0.08, 0.085, 0.085];
 const YELLOW: Rgb = [0.5, 0.33, 0.03];
 
 /**

@@ -156,7 +156,7 @@ export function rigViews(sampleSet: 0 | 1, rig: readonly RigLight[] = RIG): View
           target: add(position, axis),
           up: Math.abs(axis[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0],
           fov: Math.min(2.7, outer * 2 + 0.1),
-          near: 0.03,
+          near: light.clear ?? 0.03,
           far: 9,
           color,
         });
@@ -168,7 +168,7 @@ export function rigViews(sampleSet: 0 | 1, rig: readonly RigLight[] = RIG): View
             target: add(position, direction),
             up: faceUp,
             fov: Math.PI / 2,
-            near: 0.02,
+            near: light.clear ?? 0.02,
             far: (light.reach?.[1] ?? 6) + 0.5,
             color,
           });
@@ -510,13 +510,15 @@ export class Baker {
       texel = (2 * Math.tan((view.fov ?? 1) / 2)) / this.options.shadowSize;
     }
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
-    camera.layers.set(light.casters === 'all' ? CASTERS_ALL : CASTERS_LOCAL);
-    const override = this.world.overrideMaterial;
-    this.world.overrideMaterial = this.depthMaterial;
-    renderer.autoClear = true;
-    renderer.setRenderTarget(this.shadow);
-    renderer.render(this.world, camera);
-    this.world.overrideMaterial = override;
+    if (light.casters !== 'none') {
+      camera.layers.set(light.casters === 'all' ? CASTERS_ALL : CASTERS_LOCAL);
+      const override = this.world.overrideMaterial;
+      this.world.overrideMaterial = this.depthMaterial;
+      renderer.autoClear = true;
+      renderer.setRenderTarget(this.shadow);
+      renderer.render(this.world, camera);
+      this.world.overrideMaterial = override;
+    }
 
     const uniforms = this.lightMaterial.uniforms;
     const uniform = (name: string): { value: unknown } => {
@@ -554,7 +556,7 @@ export class Baker {
       set('uPortalV', ...portal.v);
     } else set('uPortal', 0, 0, 0, 0);
     (uniform('uShadow').value as Matrix4).multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    set('uShadowTexel', 1 / this.options.shadowSize, texel, 0, 0);
+    set('uShadowTexel', 1 / this.options.shadowSize, texel, light.casters === 'none' ? 1 : 0, 0);
 
     renderer.autoClear = false;
     this.receivers.clear();

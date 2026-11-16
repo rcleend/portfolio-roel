@@ -9,9 +9,11 @@ const ROOM = { x0: -2.8, x1: 2.8, z0: -2.405, z1: 2.4, height: 3.28, ridge: 0.95
 export const WINDOW = { x0: -2.1, x1: -0.5, y0: 1.127, y1: 2.52 };
 const DOOR = { x0: -1.4, x1: -0.2, y1: 2.26 };
 
-const WALL: Rgb = [0.1, 0.125, 0.175];
+const WALL: Rgb = [0.115, 0.15, 0.165];
 const CEILING: Rgb = [0.36, 0.31, 0.32];
 const TRIM: Rgb = [0.46, 0.41, 0.38];
+/** The window's layered ivory enamel (tools/room/restyle.py › palette). */
+const FRAME: Rgb = [0.22, 0.208, 0.19];
 
 const wall = (density = 190): Omit<Chart, 'origin' | 'u' | 'v'> => ({
   page: PAGE.shell,
@@ -26,7 +28,7 @@ const trim = (density = 160): Omit<Chart, 'origin' | 'u' | 'v'> => ({
   group: GROUP.wall,
   material: MATERIAL.enamel,
   // The skirting sits in the wall's own shade.
-  params: [0.17, 0.155, 0.15, 0.3],
+  params: [0.4, 0.385, 0.375, 0.3],
   density,
   shade: 1,
 });
@@ -69,7 +71,8 @@ export const walls: Prop = {
     piece([WINDOW.x0, WINDOW.y1, z0], [WINDOW.x1 - WINDOW.x0, 0, 0], height - WINDOW.y1);
     // Left wall (faces +x) and the knee wall on the right (faces -x).
     piece([x0, 0, z1], [0, 0, z0 - z1], height);
-    piece([x1, 0, z0], [0, 0, z1 - z0], knee);
+    // The knee wall stands under the slope and sees half the room's sky.
+    sink.chart({ ...wall(), shade: 0.45, origin: [x1, 0, z0], u: [0, 0, z1 - z0], v: [0, knee, 0] });
     // Front wall (faces -z), about the door.
     piece([x1, 0, z1], [DOOR.x1 - x1, 0, 0], height);
     piece([DOOR.x0, 0, z1], [x0 - DOOR.x0, 0, 0], height);
@@ -124,7 +127,7 @@ export const door: Prop = {
   budget: 400,
   build(sink) {
     const b = sink.mesh('props');
-    b.beam([-1.36, 0, 2.423], [-0.24, 2.2, 2.477], TRIM, 1, 0.3);
+    b.beam([-1.36, 0, 2.423], [-0.24, 2.2, 2.477], [0.11, 0.05, 0.034], 1, 0.3);
     b.beam([-1.437, 0, 2.32], [-1.363, 2.24, 2.4], TRIM, 1, 0.3);
     b.beam([-0.237, 0, 2.32], [-0.163, 2.24, 2.4], TRIM, 1, 0.3);
     b.sphere([-0.35, 1.05, 2.39], 0.034, 14, [0.3, 0.26, 0.16]);
@@ -132,9 +135,9 @@ export const door: Prop = {
 };
 
 /**
- * The window in the back wall: casing, sill, two sashes with their meeting rail and a glazing bar each, and a venetian
- * blind let halfway down, twenty slats tilted a third open. Every bar is cut into short lengths so the moon's and the
- * blind's shadows can cross it.
+ * The window in the back wall: a narrow casing, the deep sill, two sashes (the lower one's stiles and rails, the
+ * meeting rail, a glazing bar) and a venetian blind hung inside the reveal and let halfway down, twenty-four slats
+ * tilted nearly shut. Every bar is cut into short lengths so the lamp's pool and the blind's shadows can cross it.
  */
 export const windowFrame: Prop = {
   name: 'window',
@@ -142,33 +145,42 @@ export const windowFrame: Prop = {
   build(sink) {
     const b = sink.mesh('props');
     const { x0, x1, y0, y1 } = WINDOW;
-    const [zOut, zIn] = [-2.45, -2.31];
-    // The casing round the opening, proud of the wall, and the deep sill.
-    b.beam([x0 - 0.13, y0 - 0.1, ROOM.z0], [x0, y1 + 0.09, zIn], TRIM);
-    b.beam([x1, y0 - 0.1, ROOM.z0], [x1 + 0.13, y1 + 0.09, zIn], TRIM);
-    b.beam([x0, y1, ROOM.z0], [x1, y1 + 0.09, zIn], TRIM);
-    b.beam([x0 - 0.2, y0 - 0.08, -2.43], [x1 + 0.2, y0 - 0.014, -2.19], TRIM);
+    const [zOut, zIn] = [-2.45, -2.36];
+    const casing = 0.075;
+    // The casing round the opening, proud of the wall, with a bead along its inner edge, and the deep sill.
+    b.beam([x0 - casing, y0 - 0.1, ROOM.z0], [x0, y1 + casing, zIn], FRAME);
+    b.beam([x1, y0 - 0.1, ROOM.z0], [x1 + casing, y1 + casing, zIn], FRAME);
+    b.beam([x0, y1, ROOM.z0], [x1, y1 + casing, zIn], FRAME);
+    b.beam([x0 - 0.012, y0, zIn], [x0 + 0.01, y1 + 0.012, zIn + 0.012], FRAME);
+    b.beam([x1 - 0.01, y0, zIn], [x1 + 0.012, y1 + 0.012, zIn + 0.012], FRAME);
+    b.beam([x0 + 0.01, y1 - 0.01, zIn], [x1 - 0.01, y1 + 0.012, zIn + 0.012], FRAME);
+    b.beam([x0 - 0.16, y0 - 0.08, -2.43], [x1 + 0.16, y0 - 0.014, -2.19], FRAME);
     // The reveal's inside faces.
-    b.beam([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], TRIM);
-    b.beam([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], TRIM);
-    b.beam([x0, y0, zOut], [x1, y0 + 0.035, ROOM.z0], TRIM);
-    b.beam([x0, y1 - 0.03, zOut], [x1, y1, ROOM.z0], TRIM);
+    b.beam([x0, y0, zOut], [x0 + 0.03, y1, ROOM.z0], FRAME);
+    b.beam([x1 - 0.03, y0, zOut], [x1, y1, ROOM.z0], FRAME);
+    b.beam([x0, y0, zOut], [x1, y0 + 0.035, ROOM.z0], FRAME);
+    b.beam([x0, y1 - 0.03, zOut], [x1, y1, ROOM.z0], FRAME);
     // Sashes: the meeting rail at mid height and one upright bar.
     const mid = (y0 + y1) / 2;
-    b.beam([x0 + 0.03, mid - 0.025, -2.41], [x1 - 0.03, mid + 0.025, -2.37], TRIM);
-    b.beam([(x0 + x1) / 2 - 0.018, y0 + 0.035, -2.41], [(x0 + x1) / 2 + 0.018, y1 - 0.03, -2.38], TRIM);
-    // The blind: a head rail, twenty slats from the top down to 1.74 m, tilted, and its bottom rail.
-    const slat: Rgb = [0.85, 0.85, 0.85];
-    b.beam([x0 + 0.005, y1 - 0.06, -2.31], [x1 - 0.005, y1 - 0.02, -2.25], slat);
-    for (let i = 0; i < 20; i++) {
-      const y = 2.475 - i * 0.0387;
-      b.placed(place([0, y, -2.279], 0, 0.6), () =>
-        b.beam([x0 + 0.005, -0.0012, -0.03], [x1 - 0.005, 0.0012, 0.03], slat, 0.9, 0.2),
+    b.beam([x0 + 0.03, mid - 0.025, -2.41], [x1 - 0.03, mid + 0.025, -2.37], FRAME);
+    b.beam([(x0 + x1) / 2 - 0.016, y0 + 0.035, -2.41], [(x0 + x1) / 2 + 0.016, y1 - 0.03, -2.38], FRAME);
+    // The lower sash's own frame: two stiles and the bottom rail.
+    for (const x of [x0 + 0.03, x1 - 0.075]) b.beam([x, y0 + 0.035, -2.4], [x + 0.045, mid - 0.025, -2.37], FRAME);
+    b.beam([x0 + 0.075, y0 + 0.035, -2.4], [x1 - 0.075, y0 + 0.09, -2.37], FRAME);
+    // The blind, inside the casing: a head rail, the slats from the top down to 1.76 m, and its bottom rail.
+    const slat: Rgb = [0.62, 0.6, 0.57];
+    const [left, right] = [x0 + 0.035, x1 - 0.035];
+    b.beam([left, y1 - 0.045, -2.365], [right, y1 - 0.005, -2.32], slat);
+    const slats = 24;
+    for (let i = 0; i < slats; i++) {
+      const y = 2.462 - (i * (2.462 - 1.775)) / (slats - 1);
+      b.placed(place([0, y, -2.342], 0, 0.95), () =>
+        b.beam([left, -0.001, -0.022], [right, 0.001, 0.022], slat, 0.9, 0.2),
       );
     }
-    b.beam([x0 + 0.005, 1.7, -2.3], [x1 - 0.005, 1.722, -2.26], slat);
-    for (const x of [x0 + 0.25, x1 - 0.25])
-      b.box([x - 0.001, 1.72, -2.281], [x + 0.001, y1 - 0.06, -2.279], [0.4, 0.38, 0.36], 1);
+    b.beam([left, 1.735, -2.355], [right, 1.755, -2.33], slat);
+    for (const x of [x0 + 0.27, x1 - 0.27])
+      b.box([x - 0.0012, 1.755, -2.3235], [x + 0.0012, y1 - 0.045, -2.3225], [0.4, 0.38, 0.36], 1);
   },
 };
 
@@ -197,7 +209,7 @@ export const rug: Prop = {
       page: PAGE.floor,
       group: GROUP.floor,
       material: MATERIAL.rug,
-      params: [2.3514 / 6, 0, 0, 0],
+      params: [2.3514 / 5, 0, 0, 0],
       density: 420,
       shade: 1,
       origin: o,
@@ -208,25 +220,40 @@ export const rug: Prop = {
     const edge: Rgb = [0.2, 0.2, 0.24];
     b.placed(turn, () => {
       b.beam([-half, 0.004, -half], [half, top - 0.001, half - 0.0001], edge, 0.8, 3);
-      // The folded corner (+x, -z): the backing, lying back over the pile.
+      // The folded corner (+x, -z): the backing, rolled over along the diagonal and lying back on the pile, and the
+      // boards where the corner was.
       const fold = 0.3;
       const [cx, cz] = [half, -half];
-      const backing: Rgb = [0.3, 0.3, 0.31];
-      b.quad(
-        [cx - fold, top + 0.002, cz],
-        [cx, top + 0.002, cz + fold],
-        [cx - fold * 0.45, top + 0.02, cz + fold * 0.55],
-        [cx - fold * 0.55, top + 0.02, cz + fold * 0.45],
-        backing,
-        1,
-      );
-      b.tri(
-        [cx - fold * 0.55, top + 0.02, cz + fold * 0.45],
-        [cx - fold * 0.45, top + 0.02, cz + fold * 0.55],
-        [cx - fold * 0.9, top + 0.012, cz + fold * 0.9],
-        backing,
-        1,
-      );
+      const backing: Rgb = [0.22, 0.22, 0.26];
+      const facing = (a: Vec3, c: Vec3, d: Vec3, towards: Vec3): void => {
+        const nx = (c[1] - a[1]) * (d[2] - a[2]) - (c[2] - a[2]) * (d[1] - a[1]);
+        const ny = (c[2] - a[2]) * (d[0] - a[0]) - (c[0] - a[0]) * (d[2] - a[2]);
+        const nz = (c[0] - a[0]) * (d[1] - a[1]) - (c[1] - a[1]) * (d[0] - a[0]);
+        if (nx * towards[0] + ny * towards[1] + nz * towards[2] >= 0) b.tri(a, c, d, backing, 1);
+        else b.tri(a, d, c, backing, 1);
+      };
+      const lift = 0.03;
+      const [p, q]: [Vec3, Vec3] = [
+        [cx - fold, top, cz],
+        [cx, top, cz + fold],
+      ];
+      // The roll: up from the crease, a little out over where the corner was, then back in.
+      const [p1, q1]: [Vec3, Vec3] = [
+        [p[0] + 0.012, top + lift * 0.6, p[2] - 0.012],
+        [q[0] + 0.012, top + lift * 0.6, q[2] - 0.012],
+      ];
+      const [p2, q2]: [Vec3, Vec3] = [
+        [p[0] - 0.012, top + lift, p[2] + 0.012],
+        [q[0] - 0.012, top + lift, q[2] + 0.012],
+      ];
+      const tip: Vec3 = [cx - fold * 0.96, top + 0.006, cz + fold * 0.96];
+      const out: Vec3 = [1, 0.3, -1];
+      facing(p, q, p1, out);
+      facing(q, q1, p1, out);
+      facing(p1, q1, p2, [0.4, 1, -0.4]);
+      facing(q1, q2, p2, [0.4, 1, -0.4]);
+      facing(p2, q2, tip, [0, 1, 0]);
+      b.tri([cx - fold, top + 0.0015, cz], [cx, top + 0.0015, cz + fold], [cx, top + 0.0015, cz], [0.42, 0.2, 0.11], 0.6);
     });
   },
 };
