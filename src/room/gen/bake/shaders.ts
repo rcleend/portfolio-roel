@@ -1,3 +1,4 @@
+import { HASH_GLSL } from '../kit/hash';
 import { SURFACE_GLSL } from '../materials';
 
 /**
@@ -54,6 +55,9 @@ uniform sampler2D uShadowMap;
 // nothing shadows (a fill)
 uniform vec3 uShadowTexel;
 uniform vec4 uEncode;
+// Eight-bit pages: this pass's number, from 1 (0: half-float pages, which need no dither).
+uniform float uDither;
+${HASH_GLSL}
 
 float lit(vec3 point) {
   vec4 projected = uShadow * vec4(point, 1.0);
@@ -100,6 +104,12 @@ void main() {
   if (uDome > 0.5) light *= vShade;
   vec4 added = uFinish > 0.5 ? vec4(0.0, 0.0, 0.0, light * uColor.r) : vec4(uColor * light, 0.0);
   gl_FragColor = added * uEncode;
+  // One pass of a weak light is less than a level of eight bits, and a hundred of them rounded away is a black wall.
+  // Rounded up or down by a hash instead, each pass is right on average and their sum has the light's own mean.
+  if (uDither > 0.5) {
+    ivec2 at = ivec2(gl_FragCoord.xy) + ivec2(int(uDither) * 61, int(uDither) * 37);
+    gl_FragColor += (hash2(at) - 0.5) / 255.0;
+  }
 }
 `;
 
@@ -157,12 +167,21 @@ varying vec2 vSt;
 varying float vMaterial;
 varying vec4 vParams;
 uniform sampler2D uLight;
+// A light texel and a half, where the light pages are eight bits; zero otherwise.
+uniform vec2 uSoften;
 ${SURFACE_GLSL}
 ${DISPLAY}
 void main() {
   float cavity;
   vec3 albedo = surface(vMaterial, vLocal, vSt, vParams, cavity);
-  vec3 c = display(albedo * cavity, texture2D(uLight, vPage), vWorld);
+  vec4 light = texture2D(uLight, vPage);
+  // Eight-bit light pages carry their dither's grain: light is soft, so its neighbours' mean stands in for it.
+  if (uSoften.x > 0.0) {
+    light *= 0.2;
+    for (int i = 0; i < 4; i++)
+      light += 0.2 * texture2D(uLight, vPage + vec2(float(i & 1) * 2.0 - 1.0, float(i >> 1) * 2.0 - 1.0) * uSoften);
+  }
+  vec3 c = display(albedo * cavity, light, vWorld);
   // Half a level of noise in display space: a dark wall's slow gradient must not band in eight bits.
   float noise = hash2(ivec2(gl_FragCoord.xy)) - 0.5;
   c += noise * (2.0 * sqrt(max(c, vec3(0.0))) + 0.01) / 255.0;

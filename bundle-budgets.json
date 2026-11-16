@@ -8,10 +8,10 @@
   "budgets": {
     "entryJs": 215.0,
     "entryCss": 5.65,
-    "room": 202.3,
+    "room": 192.4,
     "pcStill": 6.7,
     "PcExperience": 25,
-    "radioDevice": 33.6,
+    "radioDevice": 31.2,
     "RadioSlot": 1.2,
     "RadioExperience": 15,
     "posterWall": 6.7,
@@ -19,8 +19,10 @@
     "propSpotlight": 3.2,
     "RainSound": 1.2,
     "mousePlay": 5.1,
-    "generatedRoom": 14.6,
-    "levelArt": 154.5
+    "levelArt": 154.5,
+    "roomBuilder": 22.6,
+    "roomWorker": 28.4,
+    "posterPainter": 18.5
   },
-  "notes": "Velvet dusk is fixed at 70% haze and 30% dust. Room measured 196.47 kB gzip, including 2.3 kB for refracting wet glass, storm illumination and its audio slot over the previous finish. Rain reuses the composite: no new program, target or draw call. RainSound is a separate 1.11 kB lazy chunk loaded after power-on; the supplied 3.79 MB recording decodes at 24 kHz (~23 MB PCM). Entry JS remains 210.47 kB. The rug replaces its existing atlas and saves 20 kB with unchanged geometry and texture resolution."
+  "notes": "Velvet dusk is fixed at 70% haze and 30% dust. Room measured 196.47 kB gzip, including 2.3 kB for refracting wet glass, storm illumination and its audio slot over the previous finish. Rain reuses the composite: no new program, target or draw call. RainSound is a separate 1.11 kB lazy chunk loaded after power-on; the supplied 3.79 MB recording decodes at 24 kHz (~23 MB PCM). Entry JS remains 210.47 kB. The rug replaces its existing atlas and saves 20 kB with unchanged geometry and texture resolution. The generated room is the only room (docs/ROOM.md › The generated room): room measured 191.72 kB (201.61 before: GLTFLoader, the meshopt decoder and the shipped-asset lookups left, 9.5 kB of bake, prints, wax and radio parts joined it from the former generatedRoom chunk, now on the room's critical path, so in its chunk). radioDevice 30.79 (33.55: the close-up's cutting, skin and loader gone). roomWorker 27.87 is the generators as the worker the room chunk starts when created; roomBuilder 22.15 the same for the main thread, fetched only where a worker cannot be had; posterPainter 18.06 is the posters' worker, measured for the first time. Entry JS 214.97 (+0.11: the still's return after a lost context and the framing insets at creation)."
 }

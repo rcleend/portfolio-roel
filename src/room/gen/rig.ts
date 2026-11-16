@@ -64,6 +64,9 @@ export const ROBOT = {
   yaw: 0.5236,
 };
 
+/** Where the night's light comes from: outside the window, above it and a little to its right. */
+const MOON: Vec3 = [-1.25, 2.65, -3.4];
+
 /** The colour of the room's ambient light from above and from below (bounce off the oak). */
 export const AMBIENT = { sky: [0.03, 0.034, 0.05] as Rgb, ground: [0.07, 0.06, 0.07] as Rgb };
 
@@ -134,22 +137,43 @@ export const RIG: readonly RigLight[] = [
     casters: 'local',
   },
   // The night through the window ("Blue hour window fill"): a small emitter outside and above it, so what it sends in
-  // fans out, down onto the desk, past the desk's end onto the floor, and through the blind's slats across the rug.
+  // fans out, down onto the desk and past the desk's end onto the floor. This is what comes under the blind, through
+  // the lower sash: the bright patch with an edge.
   {
     name: 'moon',
     kind: 'spot',
     space: 'scene',
-    position: [-1.25, 2.65, -3.4],
+    position: MOON,
     target: [-0.6, 0.2, -0.9],
     color: [8, 8.4, 9.7],
     size: 0.3,
-    samples: [12, 6],
+    samples: [8, 4],
     cone: [0.45, 0.62],
     soften: 0,
     reach: [5.4, 6.4],
     wrap: 0,
     casters: 'local',
-    portal: { center: [-1.3, 1.82, -2.405], u: [0.8, 0, 0], v: [0, 0.7, 0] },
+    portal: { center: [-1.3, 1.431, -2.405], u: [0.8, 0, 0], v: [0, 0.304, 0] },
+  },
+  // And what comes through the blind: the same light, a third of it, spread by the slats over the rug and the far
+  // floor. The slats themselves do not shadow it (`clear` ends past them): their stripes, a few centimetres apart,
+  // cannot be told apart by a handful of emitter points, and the room shows none.
+  {
+    name: 'moon-through-blind',
+    kind: 'spot',
+    space: 'scene',
+    position: MOON,
+    target: [-0.6, 0.2, -0.9],
+    color: [2.9, 3.05, 3.5],
+    size: 0.3,
+    samples: [8, 4],
+    cone: [0.45, 0.62],
+    soften: 0,
+    reach: [5.4, 6.4],
+    wrap: 0,
+    casters: 'local',
+    clear: 1.56,
+    portal: { center: [-1.3, 2.128, -2.405], u: [0.8, 0, 0], v: [0, 0.392, 0] },
   },
   // The room's own blue bounce on the left wall, which faces the set and the lit floor ("TV screen reflected blue",
   // "Window reflected corner fill"): a fill, so nothing shadows it. The picture's light of the moment is the finish's,
@@ -177,7 +201,7 @@ export const RIG: readonly RigLight[] = [
     target: [0.49, 1.21, -1.97],
     color: [0.19, 0.028, 0.009],
     size: 0.04,
-    samples: [3, 2],
+    samples: [2, 1],
     soften: 0.03,
     reach: [0.35, 0.78],
     clear: 0.3,
@@ -193,7 +217,7 @@ export const RIG: readonly RigLight[] = [
     target: [-1.94, 1.03, -2.12],
     color: [0.5, 0.17, 0.04],
     size: 0.03,
-    samples: [3, 2],
+    samples: [2, 1],
     soften: 0.03,
     reach: [0.35, 1.2],
     wrap: 0,
@@ -206,7 +230,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.3, 2.1, 0.4],
     target: [-1.3, 2.12, -2.4],
-    color: [0.62, 0.6, 0.63],
+    color: [0.34, 0.33, 0.35],
     size: 0.2,
     samples: [2, 2],
     soften: 0,

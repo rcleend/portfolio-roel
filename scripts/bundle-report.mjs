@@ -10,8 +10,11 @@
 // - pcStill / PcExperience / RadioSlot / RadioExperience: the closure of each dynamic entry minus what the entry already
 //   loaded (their own chunks plus the chunks only they share), JS and CSS together;
 // - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
-//   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce), posterWall and
-//   generatedRoom (the generated room behind ?room=generated: its bake, its prints and its door to the worker);
+//   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce) and posterWall;
+// - roomWorker: the worker that builds the room's geometry (src/room/gen/worker.ts: the generators, no three.js),
+//   which the room chunk starts as it is created; roomBuilder is the same generators as a chunk for the main thread,
+//   fetched only where a worker cannot be had. posterPainter is the posters' worker. Everything under src/room/gen but
+//   genKit.ts imports three's types only, so neither worker nor the builder carries three.js (checked here);
 // - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
 // - mousePlay: a level's mouse play (docs/ARCHITECTURE.md › Mouse play), the route planner and walker with it, fetched
 //   from the mission select.
@@ -25,7 +28,7 @@
 // game through src/game/world/nav/kit.ts instead).
 // A lazy row whose source file does not exist (yet: another branch adds it) is reported as absent, not failed.
 // Exits non-zero on any overrun, or when something it must measure is missing.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -45,7 +48,7 @@ const LAZY_CHUNKS = {
   posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
   RoomGuide: { source: 'src/app/guide/RoomGuide.tsx', three: 'none' },
   propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
-  generatedRoom: { source: 'src/room/gen/GeneratedRoom.ts', three: 'room' },
+  roomBuilder: { source: 'src/room/gen/scene.ts', three: 'room' },
   mousePlay: { source: 'src/game/scenes/level/mouse/MousePlay.ts', three: 'none', standalone: true },
   levelArt: { source: 'src/game/levels/art/pictures.ts', three: 'none', standalone: true },
 };
@@ -87,6 +90,21 @@ for (const [name, { source, three, standalone }] of Object.entries(LAZY_CHUNKS))
   }
   const imports = manifest[source].imports ?? [];
   if (standalone && imports.length > 0) problems.push(`${name} imports ${imports.join(', ')} at runtime`);
+}
+
+// Workers are emitted as assets, outside the manifest: each is named by the chunk that starts it.
+const WORKERS = { roomWorker: room?.file, posterPainter: manifest['src/room/posters/PosterWall.ts']?.file };
+const workerFiles = readdirSync(join(DIST, 'assets')).filter((file) => /^worker-.*\.js$/.test(file));
+for (const [name, starter] of Object.entries(WORKERS)) {
+  const code = starter ? await readFile(join(DIST, starter), 'utf8') : '';
+  const file = workerFiles.find((candidate) => code.includes(candidate));
+  if (!file) {
+    problems.push(`${name}: no worker is started by ${starter ?? 'a chunk missing from the build'}`);
+    continue;
+  }
+  rows.push(row(name, await gzipped([`assets/${file}`]), budgets[name]));
+  if ((await readFile(join(DIST, 'assets', file), 'utf8')).includes('THREE.'))
+    problems.push(`${name} contains three.js`);
 }
 
 console.table(Object.fromEntries(rows.map(({ name, ...rest }) => [name, rest])));

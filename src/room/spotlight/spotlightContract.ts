@@ -34,8 +34,7 @@ export interface SpotlightHost {
   /** The viewport in CSS px. */
   size(): ViewportSize;
   /**
-   * The prop must not move now: the radio until its device has hung its cut parts from the radio's world pose
-   * (closeUpAsset.ts). It still glows and has its label.
+   * The prop must not move now: the radio until its device is prepared. It still glows and has its label.
    */
   still(target: RoomTarget): boolean;
   /** Adds a listener called after every drawn frame; returns its removal. */

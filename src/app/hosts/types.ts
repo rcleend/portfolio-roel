@@ -16,6 +16,8 @@ export interface HostEvents {
   onViewChange(view: HostView): void;
   /** The live scene has taken over from the startup still (the room host; docs/ROOM.md › Startup). */
   onStillDone(): void;
+  /** The room lost its light at the TV (a lost WebGL context): the still covers it until `onStillDone` again. */
+  onStillBack(): void;
 }
 
 /** The game's scenes as the page sees them (the director): which one shows, and every switch. */

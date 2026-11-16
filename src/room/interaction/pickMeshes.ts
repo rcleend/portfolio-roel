@@ -1,5 +1,4 @@
 import { Box3, BufferAttribute, BufferGeometry, Mesh, type Object3D, Sphere, Vector3 } from 'three';
-import { meshesOf } from '../assets/modelQueries';
 
 /** Meshes with more triangles than this are cut into chunks; cutting smaller ones costs more at load than it saves. */
 export const PICK_CUT_TRIANGLES = 8192;
@@ -9,6 +8,15 @@ export const PICK_CHUNK_TRIANGLES = 1024;
 const TRIANGLES_PER_UNIT = 4096;
 
 const sources = new WeakMap<Object3D, Mesh>();
+
+/** Every mesh under `root`, in traversal order. */
+export function meshesOf(root: Object3D): Mesh[] {
+  const meshes: Mesh[] = [];
+  root.traverse((object) => {
+    if (object instanceof Mesh) meshes.push(object);
+  });
+  return meshes;
+}
 
 /**
  * What the pointer ray tests for an interactable: its meshes, with every mesh of more than

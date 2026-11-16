@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type IdleTask, QUIET } from '../stage/IdleWork';
 import { Monitor } from './Monitor';
 import { pcViewpoint } from './pcFraming';
-import { locatePc } from './pcModel';
+import { pcModelOf } from './pcModel';
 import { projectorUvs } from './projectorUvs';
 import { ScreenOverlay } from './ScreenOverlay';
 
@@ -100,7 +100,7 @@ function setup({ inView = false } = {}) {
   keyboard.name = 'PC_Imported_Keyboard_base';
   keyboard.position.set(-1.345, 0.805, -1.505);
   root.add(glass, crt, keyboard);
-  const model = locatePc(root, new Group());
+  const model = pcModelOf({ root, desk: new Group(), shell: crt, glass });
   const scene = new Scene();
   const loop = { invalidate: vi.fn(), animate: vi.fn() };
   const renderer = { initTexture: vi.fn() };
@@ -171,13 +171,6 @@ describe('Monitor', () => {
     ] as const;
     for (const key of keys) expect(material[key]).toBe(glassMaterial[key]);
     expect(material.customProgramCacheKey()).toBe(glassMaterial.customProgramCacheKey());
-  });
-
-  it('releases the baked desktop picture before it can ever be uploaded', () => {
-    const { disposeBaked, close, glassMaterial } = setup();
-    expect(disposeBaked).toHaveBeenCalledTimes(1);
-    expect(close).toHaveBeenCalledTimes(1);
-    expect(glassMaterial.map).toBeNull();
   });
 
   it('asks for nothing per frame', () => {

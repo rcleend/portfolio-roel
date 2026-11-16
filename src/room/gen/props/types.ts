@@ -16,6 +16,8 @@ export interface Decal {
 /** Which mesh a prop's vertex-lit geometry joins: each is one draw call with one material. */
 export type MeshName =
   | 'tv'
+  // The computer's monitor, a mesh of its own so the spotlight can light and bounce it.
+  | 'monitor'
   | 'props'
   | 'globe'
   | 'eyes'

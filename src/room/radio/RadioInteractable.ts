@@ -16,7 +16,7 @@ export interface RadioInteractableOptions {
   /** The radio's root: the interactable's object. */
   readonly root: Object3D;
   readonly bodyBounds: Box3;
-  /** The cabinet mesh, merged with the floor books and the mains cable: only hits in `CABINET_X` count. */
+  /** The dresser's flat faces (with whatever else shares their material): only hits in `CABINET_X` count. */
   readonly cabinet: Mesh | null;
   readonly views: { readonly view: RoomView; request(view: RoomView): void };
   readonly deck: RadioDeckTargets;
@@ -105,7 +105,7 @@ export class RadioInteractable implements Interactable {
 
   pointerMove(hit: InteractionHit | null): void {
     const { views, deck } = this.#options;
-    // Reaching for the radio in the room: get it ready (and its sharper skin) before the click.
+    // Reaching for the radio in the room: get it ready before the click.
     if (views.view === 'room' && hit) deck.prefetch('intent');
     if (views.view === 'radio') this.#parts?.pointerMove(hit && !this.#hits.has(hit) ? hit : null);
   }

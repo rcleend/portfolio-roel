@@ -6,7 +6,8 @@ import type { HostKind } from '../hosts/types';
  *   loading ──(game ready)──▶ powering ──(tube lit)──▶ running
  *
  * The room's startup still (docs/ROOM.md › Startup) is up from the first paint until the room host hands over to
- * the live scene (`stillDone`), or a flat host takes over (`hostReady` with `flat`): the game powers on and starts
+ * the live scene (`stillDone`), or a flat host takes over (`hostReady` with `flat`), and again while the room is
+ * without its light after a lost WebGL context (`stillBack`): the game powers on and starts
  * on it, so it waits for the game's own assets only, never the room's. Splitting it out of React keeps the ordering
  * rules testable: the game is never started before the tube is lit.
  */
@@ -25,7 +26,8 @@ export type StartupEvent =
   | { readonly type: 'gameFailed' }
   | { readonly type: 'hostReady'; readonly host: HostKind }
   | { readonly type: 'poweredOn' }
-  | { readonly type: 'stillDone' };
+  | { readonly type: 'stillDone' }
+  | { readonly type: 'stillBack' };
 
 export const INITIAL_STARTUP: StartupState = { phase: 'loading', host: null, still: true };
 
@@ -42,5 +44,8 @@ export function startupReducer(state: StartupState, event: StartupEvent): Startu
       return state.phase === 'powering' ? { ...state, phase: 'running' } : state;
     case 'stillDone':
       return state.still ? { ...state, still: false } : state;
+    case 'stillBack':
+      // The room lost its light (a lost WebGL context): the still covers it until it is lit again.
+      return state.host === 'room' && !state.still ? { ...state, still: true } : state;
   }
 }

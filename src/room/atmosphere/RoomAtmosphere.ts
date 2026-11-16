@@ -20,6 +20,7 @@ import {
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+import { ROBOT_SPEC, TV_LAMP_SPEC } from '../gen/roomSpec';
 import type { TierSettings } from '../stage/quality';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
@@ -29,14 +30,8 @@ import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
-import {
-  attachToyRobot,
-  createToyRobotUniforms,
-  TOY_ROBOT_EYE_HALO,
-  TOY_ROBOT_EYE_INTENSITY,
-  type ToyRobotLight,
-} from './toyRobot';
-import { attachTvLamp, createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
+import { TOY_ROBOT_EYE_HALO } from './toyRobot';
+import { createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
 const VERTEX = /* glsl */ `
@@ -187,13 +182,9 @@ export class RoomAtmosphere {
     ...createScreenLightUniforms(),
     uScreenGain: { value: 0 },
   };
-  /** The opal lamp beside the TV (tvLamp.ts): its light on the room and in the air, while the room has one. */
+  /** The opal lamp beside the TV (tvLamp.ts): its reflection in the varnish and the air it warms. */
   private readonly lamp = createTvLampUniforms();
-  private lampColor: readonly [number, number, number] | null = null;
-  /** The toy robot on the cabinet's other end (toyRobot.ts): its eyes' light on the room, while the room has one. */
-  private readonly robot = createToyRobotUniforms();
-  private robotLight: ToyRobotLight | null = null;
-  private readonly gloss = new RoomGloss(this.screenLight, this.lamp, this.robot);
+  private readonly gloss = new RoomGloss(this.screenLight, this.lamp);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -268,6 +259,11 @@ export class RoomAtmosphere {
     this.quad = new Mesh(this.geometry, this.extract);
     this.quad.frustumCulled = false;
     this.passScene.add(this.quad);
+    // The practicals beside the TV, where the room's spec has them: the opal lamp's halo and one over each robot eye.
+    this.lamp.uTvLamp.value.fromArray(TV_LAMP_SPEC.center);
+    this.halation.addLamp(TV_LAMP_SPEC.center, 0.32);
+    const tint = ROBOT_SPEC.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
+    for (const eye of ROBOT_SPEC.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
   }
 
   attach(scene: Scene): void {
@@ -284,17 +280,6 @@ export class RoomAtmosphere {
       )
         this.composite.uniforms.uExterior.value = object.material.map;
     });
-    const lamp = this.lampColor ? null : attachTvLamp(scene, this.lamp);
-    if (lamp) {
-      this.lampColor = lamp.color;
-      this.halation.addLamp(lamp.center, 0.32);
-    }
-    const robot = this.robotLight ? null : attachToyRobot(scene, this.robot);
-    if (robot) {
-      this.robotLight = robot;
-      const tint = robot.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
-      for (const eye of robot.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
-    }
     this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);
@@ -339,15 +324,11 @@ export class RoomAtmosphere {
     }
   }
 
-  /** The lamp and the robot's eyes light the room only in a finish: the unprocessed bake (original) shows it as baked. */
+  /** The lamp's reflection and its air are the finish's: the unprocessed bake (original) shows the room as baked. */
   private applyLamp(): void {
     const color = this.lamp.uTvLampColor.value;
-    if (this.lampColor && this.mood !== 'original') color.fromArray(this.lampColor).multiplyScalar(TV_LAMP_INTENSITY);
+    if (this.mood !== 'original') color.fromArray(TV_LAMP_SPEC.color).multiplyScalar(TV_LAMP_INTENSITY);
     else color.set(0, 0, 0);
-    const eyes = this.robot.uRobotEyeColor.value;
-    if (this.robotLight && this.mood !== 'original')
-      eyes.fromArray(this.robotLight.color).multiplyScalar(TOY_ROBOT_EYE_INTENSITY);
-    else eyes.set(0, 0, 0);
   }
 
   setAir(air: RoomAir): void {

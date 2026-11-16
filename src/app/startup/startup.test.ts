@@ -17,6 +17,17 @@ describe('startupReducer', () => {
     expect(run({ type: 'hostReady', host: 'flat' })).toMatchObject({ phase: 'loading', host: 'flat', still: false });
   });
 
+  it('puts the still back over a room that lost its light, never over a flat host', () => {
+    const room = run({ type: 'gameLoaded' }, { type: 'hostReady', host: 'room' }, { type: 'poweredOn' });
+    expect(startupReducer(room, { type: 'stillBack' })).toBe(room);
+    const live = startupReducer(room, { type: 'stillDone' });
+    const covered = startupReducer(live, { type: 'stillBack' });
+    expect(covered).toMatchObject({ phase: 'running', host: 'room', still: true });
+    expect(startupReducer(covered, { type: 'stillDone' })).toMatchObject({ still: false });
+    const flat = run({ type: 'hostReady', host: 'flat' });
+    expect(startupReducer(flat, { type: 'stillBack' })).toBe(flat);
+  });
+
   it('ignores power events that arrive out of order', () => {
     expect(run({ type: 'poweredOn' }).phase).toBe('loading');
     const running = run({ type: 'gameLoaded' }, { type: 'poweredOn' });

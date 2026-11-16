@@ -14,19 +14,14 @@ export interface TierSettings {
   readonly samples: number;
   /** The composite's bloom: five taps a level (true) or one for the near and far levels (false). */
   readonly wideBloom: boolean;
-  /**
-   * The room is fetched with its 2048² atlases at 1024² (assets/roomAssets.ts), a quarter of their memory. Read once,
-   * from the tier the device starts on.
-   */
-  readonly smallAtlases: boolean;
 }
 
 export const QUALITY_TIERS: Readonly<Record<QualityTier, TierSettings>> = {
   // 3 MP keeps the CRT's scanlines crisp on retina laptops while bounding fill cost on 4K.
-  high: { maxPixelRatio: 2, maxPixels: 3_000_000, samples: 2, wideBloom: true, smallAtlases: false },
+  high: { maxPixelRatio: 2, maxPixels: 3_000_000, samples: 2, wideBloom: true },
   // A phone at 2×: the picture `high` draws there, from smaller atlases; a laptop that dropped here draws half its pixels.
-  medium: { maxPixelRatio: 2, maxPixels: 1_600_000, samples: 2, wideBloom: true, smallAtlases: true },
-  low: { maxPixelRatio: 1.5, maxPixels: 900_000, samples: 0, wideBloom: false, smallAtlases: true },
+  medium: { maxPixelRatio: 2, maxPixels: 1_600_000, samples: 2, wideBloom: true },
+  low: { maxPixelRatio: 1.5, maxPixels: 900_000, samples: 0, wideBloom: false },
 };
 
 /** The scales a tier is drawn at, as fractions of its pixel ratio. The last is the floor. */

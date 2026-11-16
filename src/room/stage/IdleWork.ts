@@ -111,6 +111,12 @@ export interface IdleTaskOptions {
    * posters' 1 MB strips go up at the TV this way, so the first flight has nothing left to upload.
    */
   readonly smallUploads?: boolean;
+  /**
+   * Its units are unlike any other task's (the room's bake: a burst of WebGL calls, queued a unit at a time): how long
+   * they take says nothing about what another task's untimed unit will, so they do not count as the longest unit run
+   * so far, by which those are judged.
+   */
+  readonly apart?: boolean;
 }
 
 interface Queued {
@@ -128,6 +134,8 @@ interface Queued {
   lastUnit: number | null;
   /** Its last SLICE_SAMPLE timed units of each kind, in ms, oldest first: CPU work, and uploads (`QUIET`). */
   readonly recent: { readonly cpu: number[]; readonly upload: number[] };
+  /** Its units do not count as the longest unit run so far (IdleTaskOptions.apart). */
+  readonly apart: boolean;
   /** Its unit is running now. */
   running: boolean;
   /** Dropped while its unit ran: it is ended once that unit returns. */
@@ -183,6 +191,7 @@ export class IdleWork {
       estimateMs: options.estimateMs,
       sliceMs: options.sliceMs,
       smallUploads: options.smallUploads === true,
+      apart: options.apart === true,
       since: performance.now(),
       quiet: false,
       lastUnit: null,
@@ -336,7 +345,7 @@ export class IdleWork {
       else if (queued.dropped) queued.task.return();
       if (timed) {
         queued.lastUnit = performance.now() - start;
-        this.longestUnit = Math.max(this.longestUnit, queued.lastUnit);
+        if (!queued.apart) this.longestUnit = Math.max(this.longestUnit, queued.lastUnit);
         sample.push(queued.lastUnit);
         if (sample.length > SLICE_SAMPLE) sample.shift();
       }

@@ -105,6 +105,32 @@ export class MeshBuilder {
     return this.positions.length / 9;
   }
 
+  /**
+   * Moves into this builder every triangle of `from`, from its triangle `first` on, whose three corners `inside`
+   * holds: a part of a prop that must be a mesh of its own (the computer's monitor), whatever its generator added it to.
+   */
+  take(from: MeshBuilder, first: number, inside: (point: Vec3) => boolean): void {
+    const kept = { positions: [] as number[], albedo: [] as number[], shade: [] as number[] };
+    for (let triangle = first; triangle < from.triangles; triangle++) {
+      const at = triangle * 9;
+      let all = true;
+      for (let corner = 0; corner < 3; corner++)
+        all &&= inside(from.positions.slice(at + corner * 3, at + corner * 3 + 3) as unknown as Vec3);
+      const [positions, albedo, shade] = all
+        ? [this.positions, this.albedo, this.shade]
+        : [kept.positions, kept.albedo, kept.shade];
+      positions.push(...from.positions.slice(at, at + 9));
+      albedo.push(...from.albedo.slice(at, at + 9));
+      shade.push(...from.shade.slice(triangle * 3, triangle * 3 + 3));
+    }
+    from.positions.length = first * 9;
+    from.albedo.length = first * 9;
+    from.shade.length = first * 3;
+    from.positions.push(...kept.positions);
+    from.albedo.push(...kept.albedo);
+    from.shade.push(...kept.shade);
+  }
+
   /** Runs `build` with everything it adds placed by `placement` (nested placements compose). */
   placed(placement: Placement, build: () => void): void {
     const previous = this.placement;
@@ -645,34 +671,60 @@ export function creasedNormals(positions: Float32Array, creaseDegrees: number): 
     const n = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx] as const;
     for (let k = 0; k < 3; k++) faces.set(n, o + k * 3);
   }
-  // Vertices by position, on a 20 µm lattice.
-  const groups = new Map<string, number[]>();
+  // Vertices by position, on a 20 µm lattice: an open-addressed table of lattice points, each the head of a list of
+  // its vertices in order (a Map of strings took most of the build's time).
+  let size = 1024;
+  while (size < count * 2) size *= 2;
+  const slot = new Int32Array(size).fill(-1);
+  const lattice = new Int32Array(count * 3);
+  const tail = new Int32Array(count);
+  const following = new Int32Array(count).fill(-1);
+  const first = new Int32Array(count).fill(-1);
   for (let i = 0; i < count; i++) {
-    const key = `${Math.round((positions[i * 3] as number) * 5e4)},${Math.round((positions[i * 3 + 1] as number) * 5e4)},${Math.round((positions[i * 3 + 2] as number) * 5e4)}`;
-    const group = groups.get(key);
-    if (group) group.push(i);
-    else groups.set(key, [i]);
+    const x = Math.round((positions[i * 3] as number) * 5e4);
+    const y = Math.round((positions[i * 3 + 1] as number) * 5e4);
+    const z = Math.round((positions[i * 3 + 2] as number) * 5e4);
+    lattice[i * 3] = x;
+    lattice[i * 3 + 1] = y;
+    lattice[i * 3 + 2] = z;
+    let at = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) & (size - 1);
+    for (;;) {
+      const head = slot[at] as number;
+      if (head < 0) {
+        slot[at] = i;
+        tail[i] = i;
+        first[i] = i;
+        break;
+      }
+      if (lattice[head * 3] === x && lattice[head * 3 + 1] === y && lattice[head * 3 + 2] === z) {
+        following[tail[head] as number] = i;
+        tail[head] = i;
+        first[i] = head;
+        break;
+      }
+      at = (at + 1) & (size - 1);
+    }
   }
   const limit = Math.cos((creaseDegrees * Math.PI) / 180);
   const normals = new Float32Array(positions.length);
-  for (const group of groups.values()) {
-    for (const i of group) {
-      const [fx, fy, fz] = [faces[i * 3] as number, faces[i * 3 + 1] as number, faces[i * 3 + 2] as number];
-      const fl = Math.hypot(fx, fy, fz) || 1;
-      let [x, y, z] = [0, 0, 0];
-      for (const j of group) {
-        const [gx, gy, gz] = [faces[j * 3] as number, faces[j * 3 + 1] as number, faces[j * 3 + 2] as number];
-        const gl = Math.hypot(gx, gy, gz) || 1;
-        if ((fx * gx + fy * gy + fz * gz) / (fl * gl) < limit) continue;
-        x += gx;
-        y += gy;
-        z += gz;
-      }
-      const l = Math.hypot(x, y, z) || 1;
-      normals[i * 3] = x / l;
-      normals[i * 3 + 1] = y / l;
-      normals[i * 3 + 2] = z / l;
+  const lengths = new Float32Array(count);
+  for (let i = 0; i < count; i++)
+    lengths[i] = Math.hypot(faces[i * 3] as number, faces[i * 3 + 1] as number, faces[i * 3 + 2] as number) || 1;
+  for (let i = 0; i < count; i++) {
+    const [fx, fy, fz] = [faces[i * 3] as number, faces[i * 3 + 1] as number, faces[i * 3 + 2] as number];
+    const fl = lengths[i] as number;
+    let [x, y, z] = [0, 0, 0];
+    for (let j = first[i] as number; j >= 0; j = following[j] as number) {
+      const [gx, gy, gz] = [faces[j * 3] as number, faces[j * 3 + 1] as number, faces[j * 3 + 2] as number];
+      if ((fx * gx + fy * gy + fz * gz) / (fl * (lengths[j] as number)) < limit) continue;
+      x += gx;
+      y += gy;
+      z += gz;
     }
+    const l = Math.hypot(x, y, z) || 1;
+    normals[i * 3] = x / l;
+    normals[i * 3 + 1] = y / l;
+    normals[i * 3 + 2] = z / l;
   }
   return normals;
 }

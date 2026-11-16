@@ -168,15 +168,18 @@ export const windowFrame: Prop = {
     for (const x of [x0 + 0.03, x1 - 0.075]) b.beam([x, y0 + 0.035, -2.4], [x + 0.045, mid - 0.025, -2.37], FRAME);
     b.beam([x0 + 0.075, y0 + 0.035, -2.4], [x1 - 0.075, y0 + 0.09, -2.37], FRAME);
     // The blind, inside the casing: a head rail, the slats from the top down to 1.76 m, and its bottom rail.
-    const slat: Rgb = [0.62, 0.6, 0.57];
+    const slat: Rgb = [0.6, 0.56, 0.54];
+    const slatShade: Rgb = [0.3, 0.27, 0.27];
     const [left, right] = [x0 + 0.035, x1 - 0.035];
     b.beam([left, y1 - 0.045, -2.365], [right, y1 - 0.005, -2.32], slat);
     const slats = 24;
     for (let i = 0; i < slats; i++) {
       const y = 2.462 - (i * (2.462 - 1.775)) / (slats - 1);
-      b.placed(place([0, y, -2.342], 0, 0.95), () =>
-        b.beam([left, -0.001, -0.022], [right, 0.001, 0.022], slat, 0.9, 0.2),
-      );
+      // A slat is curved: its upper half faces the room, its lower half turns down into its own shade.
+      b.placed(place([0, y, -2.342], 0, 0.95), () => {
+        b.beam([left, -0.001, -0.026], [right, 0.001, 0.002], slat, 0.9, 0.4);
+        b.beam([left, -0.001, 0.002], [right, 0.001, 0.026], slatShade, 0.9, 0.4);
+      });
     }
     b.beam([left, 1.735, -2.355], [right, 1.755, -2.33], slat);
     for (const x of [x0 + 0.27, x1 - 0.27])
@@ -253,7 +256,13 @@ export const rug: Prop = {
       facing(p1, q1, p2, [0.4, 1, -0.4]);
       facing(q1, q2, p2, [0.4, 1, -0.4]);
       facing(p2, q2, tip, [0, 1, 0]);
-      b.tri([cx - fold, top + 0.0015, cz], [cx, top + 0.0015, cz + fold], [cx, top + 0.0015, cz], [0.42, 0.2, 0.11], 0.6);
+      b.tri(
+        [cx - fold, top + 0.0015, cz],
+        [cx, top + 0.0015, cz + fold],
+        [cx, top + 0.0015, cz],
+        [0.42, 0.2, 0.11],
+        0.6,
+      );
     });
   },
 };

@@ -1,9 +1,9 @@
-import { Box3, type Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, type Object3D } from 'three';
 import type { GameSurface } from '@/engine/core/GameSurface';
 import { boxCorners } from '../camera/framing';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { CrtScreen } from './CrtScreen';
-import { PowerLed, type PowerLedPlacement } from './PowerLed';
+import { PowerLed } from './PowerLed';
 import type { PowerState } from './powerTimeline';
 import { type ScreenLightUniforms, screenLight } from './screenLight';
 import type { UvRect } from './screenMapping';
@@ -19,8 +19,6 @@ export interface TelevisionOptions {
   readonly reducedMotion: MediaQueryList;
 }
 
-/** The LED sits just left of the front-panel buttons, beside the POWER button. */
-const LED_OFFSET_FROM_BUTTONS = new Vector3(-0.001, 0, -0.022);
 /** The LED lights this long before the tube starts to glow. */
 const LED_LEAD_MS = 140;
 
@@ -49,7 +47,7 @@ export class Television {
       this.crt.picture,
     );
     model.screen.userData.screenLight = this.light;
-    this.led = new PowerLed(scene, ledPlacement(model), loop);
+    this.led = new PowerLed(scene, { position: model.led, facing: model.facing }, loop);
   }
 
   /** Powering on from the moment the LED lights, before the tube itself reacts. */
@@ -100,18 +98,6 @@ export class Television {
     delete this.options.model.screen.userData.screenLight;
     this.crt.dispose();
   }
-}
-
-function ledPlacement(model: TvModel): PowerLedPlacement {
-  const buttons: Mesh | null = model.frontButtons;
-  if (buttons) {
-    const box = new Box3().setFromObject(buttons);
-    const position = new Vector3(box.min.x, (box.min.y + box.max.y) / 2, box.min.z).add(LED_OFFSET_FROM_BUTTONS);
-    return { position, facing: model.facing };
-  }
-  // No button strip in the asset: bottom-left corner of the front panel.
-  const { min } = model.bounds;
-  return { position: new Vector3(min.x - 0.001, min.y + 0.06, min.z + 0.1), facing: model.facing };
 }
 
 function delay(ms: number): Promise<void> {

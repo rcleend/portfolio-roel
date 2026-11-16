@@ -13,8 +13,9 @@ import { RADIO_MESHES } from './props/radioSpec';
 import { ceilings, door, floor, rug, walls, windowFrame } from './props/shell';
 import { tvSet } from './props/tvSet';
 import type { Decal, MeshName, Prop } from './props/types';
+import { PC_SPEC } from './roomSpec';
 
-/** Everything generated so far: the opening TV view's props and the room's shell. */
+/** The whole room, prop by prop. */
 export const PROPS: readonly Prop[] = [
   tvSet,
   cabinet,
@@ -53,6 +54,10 @@ export interface PropStats {
   readonly name: string;
   readonly triangles: number;
   readonly budget: number;
+  /** Where its vertex-lit geometry is in each mesh it added to: the first vertex and how many. */
+  readonly ranges: Readonly<Partial<Record<MeshName, readonly [start: number, count: number]>>>;
+  /** Its decals among the scene's: the first and how many. */
+  readonly decals: readonly [start: number, count: number];
 }
 
 /** The generated room as flat arrays: built in a worker, transferred, and turned into meshes by GeneratedRoom. */
@@ -67,7 +72,7 @@ export interface GenScene {
   readonly buildMs: number;
 }
 
-const MESHES: readonly MeshName[] = ['tv', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES];
+const MESHES: readonly MeshName[] = ['tv', 'monitor', 'props', 'globe', 'eyes', 'glass', ...RADIO_MESHES];
 
 /** Runs every prop's generator; pure, so it runs the same in a worker, on the main thread and in tests. */
 export function buildScene(request: GenRequest, now: () => number = () => performance.now()): GenScene {
@@ -77,15 +82,36 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
   const decals: Decal[] = [];
   const props: PropStats[] = [];
   for (const prop of PROPS) {
-    const before =
-      MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
+    const counts = MESHES.map((name) => builders[name].triangles);
+    const before = counts.reduce((sum, count) => sum + count, 0) + (charts.length + decals.length) * 2;
+    const firstDecal = decals.length;
     prop.build({
       mesh: (name) => builders[name],
       chart: (...added) => void charts.push(...added),
       decal: (decal) => void decals.push(decal),
     });
+    // The monitor is a mesh of its own (the spotlight lights and bounces it apart from the desk): whatever of the
+    // desktop set lies inside the monitor's outline, whichever mesh its generator added it to.
+    if (prop.name === 'desktop') {
+      const { min, max } = PC_SPEC.shell;
+      const slack = 0.004;
+      builders.monitor.take(builders.props, counts[MESHES.indexOf('props')] as number, (point) =>
+        point.every((value, axis) => value >= (min[axis] as number) - slack && value <= (max[axis] as number) + slack),
+      );
+    }
     const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + (charts.length + decals.length) * 2;
-    props.push({ name: prop.name, triangles: after - before, budget: prop.budget });
+    const ranges: Partial<Record<MeshName, readonly [number, number]>> = {};
+    MESHES.forEach((name, index) => {
+      const added = builders[name].triangles - (counts[index] as number);
+      if (added > 0) ranges[name] = [(counts[index] as number) * 3, added * 3];
+    });
+    props.push({
+      name: prop.name,
+      triangles: after - before,
+      budget: prop.budget,
+      ranges,
+      decals: [firstDecal, decals.length - firstDecal],
+    });
   }
   const pages: PackedPage[] = packCharts(charts, request.densityScale, request.maxPageSize);
   return {

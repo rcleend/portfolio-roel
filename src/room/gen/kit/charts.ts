@@ -131,9 +131,9 @@ export interface ChartMeshes {
     readonly uvs: Float32Array;
   }[];
   /**
-   * Per page: the quads the bake draws in the page's own space, each grown by BLEED texels with its surface
-   * extrapolated to match: world position, normal, page coordinates, chart coordinates in metres, material and
-   * parameters, shade.
+   * Per page: the quads the bake draws in the page's own space, each chart grown by BLEED texels with its surface
+   * extrapolated to match and cut into cells of at most BAKE_CELL a side (six vertices a cell): world position,
+   * normal, page coordinates, chart coordinates in metres, material and parameters, shade.
    */
   readonly bake: readonly {
     readonly page: number;
@@ -157,6 +157,15 @@ const CORNERS: readonly (readonly [number, number])[] = [
   [1, 1],
   [0, 1],
 ];
+
+/** A bake cell's longest side, in metres. */
+export const BAKE_CELL = 0.5;
+
+/** Where a chart side of `metres` is cut into cells, in the chart's 0–1 coordinate, `bleed` past both ends. */
+function cuts(metres: number, bleed: number): number[] {
+  const cells = Math.max(1, Math.ceil(metres / BAKE_CELL));
+  return Array.from({ length: cells + 1 }, (_, i) => (i === 0 ? -bleed : i === cells ? 1 + bleed : i / cells));
+}
 
 export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
   const display = new Map<
@@ -190,22 +199,28 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
         d.normals.push(...normal);
         // Texel centres of the chart's outermost texels: the rectangle's edge maps half a texel in.
         d.uvs.push((chart.x + 0.5 + s * (chart.w - 1)) / page.width, (chart.y + 0.5 + t * (chart.h - 1)) / page.height);
-        // The bake's quad: BLEED texels past the rectangle, on the same plane. A texel centre at 0.5 is the corner.
-        const bs = s === 0 ? -(BLEED - 0.5) / (chart.w - 1) : 1 + (BLEED - 0.5) / (chart.w - 1);
-        const bt = t === 0 ? -(BLEED - 0.5) / (chart.h - 1) : 1 + (BLEED - 0.5) / (chart.h - 1);
-        const q = add(chart.origin, add(scale(chart.u, bs), scale(chart.v, bt)));
-        b.positions.push(...q);
-        b.normals.push(...normal);
-        b.uvs.push(
-          (chart.x + 0.5 + bs * (chart.w - 1)) / page.width,
-          (chart.y + 0.5 + bt * (chart.h - 1)) / page.height,
-        );
-        b.local.push(bs * lu, bt * lv);
-        b.st.push(bs, bt);
-        b.material.push(chart.material);
-        b.params.push(...chart.params);
-        b.shade.push(chart.shade);
       }
+      // The bake's quads: the chart, BLEED texels past its rectangle on the same plane (a texel centre at 0.5 is the
+      // corner), cut into cells so the bake can light the part of a floor or a wall a view shows before the rest.
+      const across = cuts(lu, (BLEED - 0.5) / (chart.w - 1));
+      const up = cuts(lv, (BLEED - 0.5) / (chart.h - 1));
+      for (let j = 0; j + 1 < up.length; j++)
+        for (let i = 0; i + 1 < across.length; i++)
+          for (const [s, t] of CORNERS) {
+            const bs = across[i + s] as number;
+            const bt = up[j + t] as number;
+            b.positions.push(...add(chart.origin, add(scale(chart.u, bs), scale(chart.v, bt))));
+            b.normals.push(...normal);
+            b.uvs.push(
+              (chart.x + 0.5 + bs * (chart.w - 1)) / page.width,
+              (chart.y + 0.5 + bt * (chart.h - 1)) / page.height,
+            );
+            b.local.push(bs * lu, bt * lv);
+            b.st.push(bs, bt);
+            b.material.push(chart.material);
+            b.params.push(...chart.params);
+            b.shade.push(chart.shade);
+          }
     }
     bake.push({
       page: pageIndex,
