@@ -1,7 +1,7 @@
-import { type MeshBuilder, place, type Rgb, type Vec3 } from '../kit/builder';
+import { cross, dot, type MeshBuilder, place, type Rgb, sub, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
 import { MATERIAL } from '../materials';
-import { mottled, skin, slab, type Tone, tint } from './form';
+import { mottled, noise3, skin, slab, type Tone, tint } from './form';
 import { FLOOR, GROUP, PAGE, type Prop } from './types';
 
 /** The room: 5.6 m × 4.8 m, 3.28 m high on the left, sloping from x = 0.95 down to a 1.88 m knee wall on the right. */
@@ -507,7 +507,7 @@ function windowFittings(b: MeshBuilder, detail: number): void {
 
 /** The rug's side, its thickness, and the height of its pile over the room's origin. */
 const RUG = 2.3514;
-const THICK = 0.016;
+const THICK = 0.021;
 const PILE = FLOOR + THICK;
 /** A square of the pattern, the backing's jute, and the two yarns seen at the rug's edge. */
 const CHECK = RUG / 5;
@@ -528,7 +528,7 @@ const smooth = (a: number, b: number, t: number): number => {
  */
 export const rug: Prop = {
   name: 'rug',
-  budget: 15000,
+  budget: 15800,
   build(sink) {
     const half = RUG / 2;
     const centre: Vec3 = [0.0415, 0, 0.4265];
@@ -554,10 +554,10 @@ export const rug: Prop = {
       // Flat along the rim, and under the turned corner where the flap rests on it.
       const calm = smooth(0.02, 0.16, rim) * smooth(-0.32, -0.46, past(x, z));
       const ridgeAt = 0.2 - 0.07 * x + 0.03 * Math.sin(x * 2.3);
-      const ridge = (0.014 / broad ** 0.5) * Math.exp(-(((z - ridgeAt) / (0.05 * broad)) ** 2)) * smooth(0.75, 0.1, x);
+      const ridge = (0.018 / broad ** 0.5) * Math.exp(-(((z - ridgeAt) / (0.05 * broad)) ** 2)) * smooth(0.75, 0.1, x);
       const creaseAt = -0.38 + 0.035 * Math.sin(z * 3.1);
       const crease =
-        (0.0075 / broad ** 0.5) *
+        (0.0095 / broad ** 0.5) *
         Math.exp(-(((x - creaseAt) / (0.045 * broad)) ** 2)) *
         smooth(0.05, -0.3, z) *
         smooth(-1.1, -0.75, z);
@@ -567,9 +567,9 @@ export const rug: Prop = {
         return (high / broad ** 0.5) * fall * (0.5 + 0.5 * Math.cos((along / (pitch * broad)) * Math.PI * 2));
       };
       const rucks =
-        ruck(0.55, 0.62, 0.55, 0.2, 0.3, 0.0105) +
-        ruck(-0.55, -0.5, 2.2, 0.22, 0.28, 0.0085) +
-        ruck(0.35, -0.45, 1.2, 0.24, 0.22, 0.006);
+        ruck(0.55, 0.62, 0.55, 0.2, 0.3, 0.0135) +
+        ruck(-0.55, -0.5, 2.2, 0.22, 0.28, 0.011) +
+        ruck(0.35, -0.45, 1.2, 0.24, 0.22, 0.008);
       const slow = 0.0024 * (Math.sin(x * 4.1 + z * 2.3) + Math.sin(z * 5.2 - x * 1.7));
       return calm * (ridge + crease + rucks + slow);
     };
@@ -578,8 +578,8 @@ export const rug: Prop = {
       const [x, z] = [(s - 0.5) * RUG, (0.5 - t) * RUG];
       if (past(x, z) > cell * 0.2) return -0.05;
       const rim = Math.min(half - Math.abs(x), half - Math.abs(z));
-      // The pile rolls down to the rim.
-      return lie(x, z) - 0.0045 * (1 - smooth(0, 0.035, rim)) ** 2;
+      // The pile rolls down to the rim: a soft shoulder.
+      return lie(x, z) - 0.006 * (1 - smooth(0, 0.045, rim)) ** 2;
     };
     const o = at(-half, PILE, half);
     const ux = at(half, PILE, half);
@@ -600,12 +600,16 @@ export const rug: Prop = {
     const b = sink.mesh('props');
     /** The yarn at the rug's edge, a little darker than on its face: the pattern seen from the side. */
     const yarn = (x: number, z: number): Rgb => {
-      const square = Math.floor((x + half) / CHECK) + Math.floor((half - z) / CHECK);
+      // On the rug's own edge a square's number is the last one's, whatever the arithmetic says of the fifth.
+      const number = (along: number): number => Math.min(4, Math.max(0, Math.floor(along / CHECK)));
+      const square = number(x + half) + number(half - z);
       const [c0, c1, c2] = Math.abs(square) % 2 === 0 ? NAVY : IVORY;
       return [c0 * 0.7, c1 * 0.7, c2 * 0.72];
     };
-    // The rim, round the three whole corners from one end of the crease to the other: the pile's edge, the cut
-    // side and the foot on the boards.
+    // The rim, round the three whole corners from one end of the crease to the other: the pile's shoulder, the cut
+    // side, the backing and its foot on the boards. The rim is straight (the relief is calm there), so on the top tier
+    // a piece of it spans three cells; a square of the pattern is a whole number of pieces either way.
+    const stride = cells % 3 === 0 && Math.round(turned / cell) % 3 === 0 ? 3 : 1;
     const rim: [number, number, number, number][] = [];
     const run = (
       x0: number,
@@ -620,10 +624,11 @@ export const rug: Prop = {
       for (let i = first; i <= count; i++)
         rim.push([x0 + ((x1 - x0) * i) / count, z0 + ((z1 - z0) * i) / count, nx, nz]);
     };
-    const whole = cells - Math.round(turned / cell);
+    const whole = (cells - Math.round(turned / cell)) / stride;
+    const side = cells / stride;
     run(half - turned, -half, -half, -half, whole, 0, -1);
-    run(-half, -half, -half, half, cells, -1, 0, 1);
-    run(-half, half, half, half, cells, 0, 1, 1);
+    run(-half, -half, -half, half, side, -1, 0, 1);
+    run(-half, half, half, half, side, 0, 1, 1);
     run(half, half, half, -half + turned, whole, 1, 0, 1);
     // A corner's two normals meet in a mitre.
     const out = rim.map(([, , nx, nz], i): [number, number] => {
@@ -640,60 +645,103 @@ export const rug: Prop = {
     const top = (x: number, z: number): number => PILE + height((x + half) / RUG, (half - z) / RUG);
     const rings = [
       edge(0.0012, (x, z) => top(x, z) - 0.0006),
-      edge(-0.002, (x, z) => top(x, z) - 0.0045),
-      edge(-0.0024, () => FLOOR + 0.0035),
-      edge(-0.0008, () => FLOOR + 0.0003),
+      edge(-0.0016, (x, z) => top(x, z) - 0.0032),
+      edge(-0.0032, (x, z) => top(x, z) - 0.0062),
+      edge(-0.0036, () => FLOOR + 0.0052),
+      edge(-0.0026, () => FLOOR + 0.0022),
+      edge(-0.0006, () => FLOOR + 0.0003),
     ];
-    const strip = (from: number, to: number): void => {
-      const [p, q] = [rings[from] as Vec3[], rings[to] as Vec3[]];
+    const backing = tint(JUTE, 0.6);
+    /** The strip down to ring `to`: the yarn dimmed by `dim` (or the backing), shaded from `shade[0]` to `shade[1]`. */
+    const strip = (to: number, dim: number, shade: readonly [number, number], jute = false): void => {
+      const [p, q] = [rings[to - 1] as Vec3[], rings[to] as Vec3[]];
       for (let i = 0; i + 1 < p.length; i++) {
-        const [x0, z0] = rim[i] as [number, number, number, number];
-        const [x1, z1] = rim[i + 1] as [number, number, number, number];
-        // Darker down the cut side, darkest at the foot.
-        const dim = to === 3 ? 0.55 : to === 2 ? 0.8 : 1;
-        const [c0, c1] = [yarn(x0, z0), yarn(x1, z1)];
-        const a0: Rgb = [c0[0] * dim, c0[1] * dim, c0[2] * dim];
-        const a1: Rgb = [c1[0] * dim, c1[1] * dim, c1[2] * dim];
-        b.gradient(p[i] as Vec3, q[i] as Vec3, q[i + 1] as Vec3, [a0, a0, a1], [1, 0.7, 0.7]);
-        b.gradient(p[i] as Vec3, q[i + 1] as Vec3, p[i + 1] as Vec3, [a0, a1, a1], [1, 0.7, 1]);
+        const [xa, za] = rim[i] as [number, number, number, number];
+        const [xb, zb] = rim[i + 1] as [number, number, number, number];
+        // One yarn a piece, the one at its middle: a square's edge stays sharp.
+        const tone = jute ? backing : tint(yarn((xa + xb) / 2, (za + zb) / 2), dim);
+        b.gradient(p[i] as Vec3, q[i] as Vec3, q[i + 1] as Vec3, [tone, tone, tone], [shade[0], shade[1], shade[1]]);
+        b.gradient(
+          p[i] as Vec3,
+          q[i + 1] as Vec3,
+          p[i + 1] as Vec3,
+          [tone, tone, tone],
+          [shade[0], shade[1], shade[0]],
+        );
       }
     };
-    strip(0, 1);
-    strip(1, 2);
-    strip(2, 3);
+    strip(1, 1, [1, 0.9]);
+    strip(2, 0.92, [0.9, 0.78]);
+    strip(3, 0.8, [0.78, 0.62]);
+    strip(4, 1, [0.62, 0.5], true);
+    strip(5, 0.8, [0.5, 0.4], true);
+    // Where the rim stops at the crease its section is closed: the cloth's own cut, before it turns up into the roll.
+    for (const [index, facing] of [
+      [0, at(half, FLOOR, -half)],
+      [rim.length - 1, at(half, FLOOR, -half)],
+    ] as const) {
+      const section = rings.map((ring) => ring[index] as Vec3);
+      const [x, z] = rim[index] as [number, number, number, number];
+      const inner = at(x, FLOOR + 0.0003, z);
+      const tone = tint(yarn(x, z), 0.6);
+      for (let k = 0; k + 1 < section.length; k++) {
+        const [p, q] = [section[k] as Vec3, section[k + 1] as Vec3];
+        const normal = cross(sub(p, inner), sub(q, inner));
+        const towards = dot(normal, sub(facing, inner)) > 0;
+        b.gradient(inner, towards ? p : q, towards ? q : p, [tone, tone, tone], [0.5, 0.6, 0.6]);
+      }
+    }
 
     // The turned corner: the cloth leaves the boards along the crease, rolls over, and lies back on the pile, jute
     // side up. A point of it is `a` along the crease from its middle and `d` round the roll from where it lifts.
     const length = turned * Math.SQRT2;
     const middle: readonly [number, number] = [half - turned / 2, -half + turned / 2];
-    const roll = (a: number): number => 0.028 * Math.sqrt(Math.min(1, (length / 2 - Math.abs(a)) / 0.07));
-    // The corner's point is worn round.
-    const reach = (a: number): number => Math.max(0, length / 2 - Math.abs(a) - 0.014 * Math.exp(-Math.abs(a) / 0.035));
+    /** The cloth's own thickness in the fold. Wool this thick does not crease: it rolls, fullest at its middle. */
+    const body = THICK * 0.86;
+    const roll = (a: number): number =>
+      0.027 + 0.007 * Math.sqrt(Math.min(1, Math.max(0, length / 2 - Math.abs(a)) / 0.12));
+    // The corner's point is worn round, and no edge of a rug this old is quite straight.
+    const reach = (a: number): number => {
+      const straight = length / 2 - Math.abs(a);
+      const worn = 0.03 * Math.exp(-Math.abs(a) / 0.06);
+      const wavy = 0.004 * Math.sin(a * 21 + 0.5) * Math.min(1, Math.max(0, straight) / 0.06);
+      return Math.max(0, straight - worn + wavy);
+    };
     const flap = (a: number, d: number, under = 0): Vec3 => {
-      const radius = Math.max(1e-5, roll(a));
+      const radius = roll(a);
       const arc = Math.PI * radius;
       let [q, y] = [0, 0];
       if (d <= arc) {
         const angle = d / radius;
         // `under` draws the cloth's other face: the same roll, a thickness nearer its middle.
-        const rr = Math.max(0, radius - under);
+        const rr = radius - under;
         q = rr * Math.sin(angle);
         y = FLOOR + radius - rr * Math.cos(angle);
       } else {
         const lying = d - arc;
-        // A stiff cloth does not lie down again: it sags from the roll and hangs over the pile, lowest near its tip.
-        const rest = 2 * THICK + 0.011;
-        const up = rest + (2 * radius - rest) * Math.exp(-lying / 0.15);
+        // Heavy cloth: past the roll's crown it comes down in a soft S and lies on the pile, a shallow trough along
+        // its middle, its cut edges and its point lifted a little.
+        const rest = THICK + body + 0.0015;
+        const down = smooth(0, 0.15, lying);
+        const settled = Math.min(1, lying / 0.05);
+        const edge = Math.exp(-Math.max(0, reach(a) - d) / 0.07);
+        const lifted = 0.006 * Math.exp(-Math.max(0, reach(a) - d) / 0.035) * Math.min(1, lying / 0.06);
+        const trough = 0.005 * (1 - ((2 * a) / length) ** 2) * down;
+        // Its edges wave as a heavy cloth's do, and nothing of it is quite flat.
+        const wave = (0.0045 * Math.sin(a * 24 + 1.3) * edge + 0.002 * Math.sin(a * 11 + d * 17)) * settled;
         q = -lying;
-        // It hangs in a shallow trough along its middle and ripples a little at its edges.
-        const trough = 0.007 * (1 - ((2 * a) / length) ** 2) * Math.min(1, lying / 0.1);
-        y = FLOOR + up - trough + 0.0022 * Math.sin(a * 31) * Math.min(1, lying / 0.12) - under;
+        y = FLOOR + rest + (2 * radius - rest) * (1 - down) - trough + lifted + wave - under;
       }
       const x = middle[0] + (a + q) / Math.SQRT2;
       const z = middle[1] + (a - q) / Math.SQRT2;
       return at(x, y, z);
     };
-    const [across, round] = sink.detail >= 0.8 ? [30, 16] : [16, 9];
+    const [across, round] = sink.detail >= 0.8 ? [32, 28] : [16, 12];
+    /** The share of a sheet's rows that go round the roll (a curve wants more of them than the lying cloth), and how
+     * far short of the cloth's cut edge a sheet stops: the edge's own rounding is drawn after it. */
+    const [turning, shoulder] = [0.6, 0.006];
+    /** How much of its rounding the cut edge has here: none where the cloth has only just left the boards. */
+    const full = (a: number): number => Math.min(1, reach(a) / 0.035);
     const sheet = (lower: number): Vec3[][] => {
       const rows: Vec3[][] = [];
       for (let j = 0; j <= round; j++) {
@@ -701,20 +749,21 @@ export const rug: Prop = {
         rows.push(
           Array.from({ length: across + 1 }, (_, i) => {
             const a = (i / across - 0.5) * length;
-            const far = reach(a);
+            const far = Math.max(0, reach(a) - shoulder * full(a));
             const arc = Math.min(far, Math.PI * roll(a));
-            // Half the rows go round the roll, half along the lying cloth.
-            const d = v < 0.5 ? (v / 0.5) * arc : arc + ((v - 0.5) / 0.5) * (far - arc);
+            const d = v < turning ? (v / turning) * arc : arc + ((v - turning) / (1 - turning)) * (far - arc);
             return flap(a, d, lower);
           }),
         );
       }
       return rows;
     };
+    /** The backing: jute, uneven as it was woven and worn, darker down in the roll's own shadow. */
     const jute = (point: Vec3): Rgb => {
-      const weave = 0.9 + 0.1 * Math.sin(point[0] * 310) * Math.sin(point[2] * 310);
-      const low = 0.55 + 0.45 * smooth(FLOOR, FLOOR + 0.018, point[1]);
-      return [JUTE[0] * weave * low, JUTE[1] * weave * low, JUTE[2] * weave * low];
+      const cloth = mottled(JUTE, point, 0.26, 0.05, 91);
+      const thread = 0.93 + 0.14 * noise3(point[0] * 260, point[1] * 260, point[2] * 260, 5);
+      const low = 0.55 + 0.45 * smooth(FLOOR, FLOOR + 0.02, point[1]);
+      return tint(cloth, thread * low);
     };
     const upper = sheet(0);
     const paint = (rows: Vec3[][], tone: (point: Vec3) => Rgb, flip: boolean, dim: number): void => {
@@ -738,21 +787,38 @@ export const rug: Prop = {
     };
     // The jute face, seen from outside the roll and from above; under it, the pile's face, in the roll's shadow.
     paint(upper, jute, true, 1);
-    const lower = sheet(THICK * 0.82);
-    paint(lower, () => [NAVY[0] * 0.8, NAVY[1] * 0.8, NAVY[2] * 0.8], false, 0.5);
-    // The cut edge between them, along the two sides that were the rug's own.
+    const lower = sheet(body);
+    const pile = tint(NAVY, 0.85);
+    paint(lower, (point) => mottled(pile, point, 0.3, 0.02, 92), false, 0.5);
+    // The cut edge between them, along the two sides that were the rug's own, rounded as the rim is: the backing
+    // turns over its shoulder to the cut side, and the yarn comes up from under it.
     const last = upper.length - 1;
-    for (let i = 0; i < across; i++) {
-      const [u0, u1, l0, l1] = [
-        (upper[last] as Vec3[])[i] as Vec3,
-        (upper[last] as Vec3[])[i + 1] as Vec3,
-        (lower[last] as Vec3[])[i] as Vec3,
-        (lower[last] as Vec3[])[i + 1] as Vec3,
-      ];
-      const side: Rgb = [NAVY[0] * 0.9 + 0.02, NAVY[1] * 0.9 + 0.02, NAVY[2] * 0.9 + 0.025];
-      // Both ways round: the edge is seen from either side of the corner's point.
-      b.quad(u0, u1, l1, l0, side, 0.8);
-      b.quad(u0, l0, l1, u1, side, 0.8);
-    }
+    const ring = (offset: number, inset: number, pileSide: boolean): Vec3[] =>
+      Array.from({ length: across + 1 }, (_, i): Vec3 => {
+        const a = (i / across - 0.5) * length;
+        const under = inset * full(a);
+        return flap(a, Math.max(0, reach(a) + offset * full(a)), pileSide ? body - under : under);
+      });
+    const cut = (high: Vec3[], low: Vec3[], tone: (point: Vec3) => Rgb, shade: readonly [number, number]): void => {
+      for (let i = 0; i < across; i++) {
+        const [h0, h1, l0, l1] = [high[i] as Vec3, high[i + 1] as Vec3, low[i] as Vec3, low[i + 1] as Vec3];
+        const [th0, th1, tl0, tl1] = [tone(h0), tone(h1), tone(l0), tone(l1)];
+        // Both ways round: the edge is seen from either side of the corner's point.
+        b.gradient(h0, h1, l1, [th0, th1, tl1], [shade[0], shade[0], shade[1]]);
+        b.gradient(h0, l1, l0, [th0, tl1, tl0], [shade[0], shade[1], shade[1]]);
+        b.gradient(h0, l1, h1, [th0, tl1, th1], [shade[0], shade[1], shade[0]]);
+        b.gradient(h0, l0, l1, [th0, tl0, tl1], [shade[0], shade[1], shade[1]]);
+      }
+    };
+    const [over, bulge, below] = [
+      ring(-0.0015, 0.0028, false),
+      ring(0.002, body * 0.45, false),
+      ring(-0.0015, 0.0028, true),
+    ];
+    const [bound, wool] = [(point: Vec3): Rgb => tint(jute(point), 0.85), tint(NAVY, 0.9)];
+    cut(upper[last] as Vec3[], over, jute, [1, 0.92]);
+    cut(over, bulge, bound, [0.92, 0.75]);
+    cut(bulge, below, () => wool, [0.75, 0.55]);
+    cut(below, lower[last] as Vec3[], () => tint(NAVY, 0.8), [0.55, 0.45]);
   },
 };

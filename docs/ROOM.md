@@ -834,9 +834,24 @@ actual decoded loop seam, stereo/rate, all views, mute, one-source reuse and con
 
 ### The rug
 
-`gen/props/shell.ts` › `rug`: a 2.35 m square, 3 cm thick, turned 15° clockwise, with the corner nearest the TV folded
-over. Its pile is a surface function (`gen/materials.ts` › `rug`): navy and ivory checks with the pile's own soft
-mottle, baked like every chart. Changing the pattern is a change to that function; there is no image.
+`gen/props/shell.ts` › `rug`: a 2.35 m square of wool 2 cm thick, turned 15° clockwise, its rim a soft shoulder over
+the cut side and the jute backing, with the corner nearest the TV rolled back over itself: a fat roll (wool this thick
+does not crease), jute side out, that comes down in a soft S and lies on the pile. Its pile is a surface function
+(`gen/materials.ts` › `rug`): navy and ivory checks with tufts, rows of weft and the nap a brush and a vacuum cleaner
+leave, which the navy shows about three times as strongly as the ivory (dark wool does), baked like every chart.
+Changing the pattern is a change to that function; there is no image.
+
+### The window
+
+`gen/props/shell.ts` › `windowFrame`, to the shipped window's measures: a 13 cm casing (a bead at its inner edge, a
+band at its outer, a head board under a bed mould and a cap) whose face stands 87 mm proud of the wall, a stained sill
+with a rounded nose over its apron, the jamb with its stops, and two sashes, the lower in front of the upper, that meet
+at 1.65 m (`MEETING`): under the blind, where their two cam fasteners show; two hook lifts on the bottom rail. The
+blind (`BLIND`) hangs on the casing's face, in front of the opening: a head rail and valance, twenty crowned slats
+tilted open with their room-side edges low (the eye sees the night between them from below, and the rig's window light
+does not depend on them: docs › The night's rig), drawn up 47 mm crooked at the right, on ladder cords with a rung a
+slat, a bottom rail, the tilt wand at the left and the lift cords with a turned wooden pull at the right. The glass is
+not the generator's: the rain's plane stands at z = −2.43, behind both sashes (`WindowRain.ts`).
 
 ## CRT look (crtShader.ts)
 
