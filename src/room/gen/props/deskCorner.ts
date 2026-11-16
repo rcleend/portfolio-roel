@@ -2,14 +2,13 @@ import { place, type Rgb, type Ring, roundedRect, type Vec3 } from '../kit/build
 import { boxCharts, type Chart } from '../kit/charts';
 import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
+import { keyboard } from './keyboard';
 import { monitor } from './monitor';
 import { tower } from './tower';
 import { GROUP, PAGE, type Prop } from './types';
 
 const WHITE: Rgb = [0.62, 0.6, 0.57];
 const STEEL: Rgb = [0.28, 0.29, 0.3];
-const BEIGE: Rgb = [0.6, 0.555, 0.46];
-const BEIGE_DARK: Rgb = [0.38, 0.355, 0.3];
 
 let seed = 0;
 const enamel = (color: Rgb = WHITE, density = 380): Omit<Chart, 'origin' | 'u' | 'v'> => ({
@@ -253,27 +252,14 @@ export const towerAndLamp: Prop = {
   },
 };
 
-/** The desktop set: the CRT monitor (monitor.ts), the keyboard and the mouse. It faces +z. */
+/** The desktop set: the CRT monitor (monitor.ts), the keyboard (keyboard.ts) and the mouse. It faces +z. */
 export const desktop: Prop = {
   name: 'desktop',
-  budget: 9000,
+  budget: 16000,
   build(sink) {
     const b = sink.mesh('props');
     monitor(sink);
-    // The keyboard: a sloped tray and six rows of keys, the outer blocks in the darker tone.
-    const tilt = Math.atan2(0.02, 0.2);
-    b.placed(place([-1.345, 0.785, -1.505], 0, tilt), () => {
-      b.roundedBox([-0.245, 0, -0.1], [0.245, 0.022, 0.1], 0.006, BEIGE, 1, 1, 2);
-      for (let row = 0; row < 6; row++)
-        for (let col = 0; col < 23; col++) {
-          if (row === 0 && (col === 1 || col === 14 || col === 18)) continue;
-          if (col === 15 || col === 19) continue;
-          const x = -0.232 + col * 0.0202;
-          const z = -0.086 + row * 0.03 + (row === 0 ? -0.004 : 0);
-          const edge = col < 1 || col > 13 || row === 0;
-          b.box([x, 0.022, z], [x + 0.0165, 0.03, z + 0.0245], edge ? BEIGE_DARK : [0.55, 0.52, 0.45], 1, ['-y']);
-        }
-    });
+    keyboard(sink);
     // The mouse.
     b.roundedBox([-0.944, 0.788, -1.626], [-0.876, 0.826, -1.524], 0.016, [0.5, 0.47, 0.4], 1, 2, 3);
     b.cylinder([-0.914, 0.826, -1.604], [-0.906, 0.826, -1.604], 0.007, 0.007, 8, [0.1, 0.1, 0.1], 1);
