@@ -103,7 +103,7 @@ varies within its family by a little hue and a little age, never by a different 
 
 | Family | Where | Colour | Response |
 | --- | --- | --- | --- |
-| Painted wood | Desk, television cabinet, window casing, skirting, door frame, blind slats | Cream enamel, a little yellowed | Satin: a soft broad reflection of the lamps, brush grain and orange peel only at arm's length. Edges eased so they catch a lamp. |
+| Painted wood | Desk, television cabinet, window casing, skirting, door frame, blind slats | Cream enamel, a little yellowed; the television's cabinet the same paint in putty, a few shades deeper, so its corner stays dark around the picture and its top is not burnt out by the two lamps standing on it | Satin: a soft broad reflection of the lamps, brush grain and orange peel only at arm's length. Edges eased so they catch a lamp. |
 | Bare and stained wood | Oak floor, pine dresser, window sill, the guitar's neck, the door | Warm browns: oak red-brown, pine honey, the sill and door darker | Varnished: the floor mirrors the lamps most, furniture half as much. Grain is quiet and runs the right way; boards differ a little from one another. |
 | Plastic of the era, ivory | Monitor, keyboard, mouse, tower | One aged ivory, the keys' two tones either side of it | Matte moulded ABS: no gloss, soft form shading, a faint texture. All four read as bought together. |
 | Plastic of the era, black | Television, console, pads, boombox shell, game cases | Near black with a cool cast | Satin: a sheen from the screens and the window, the form shown by its edges. The set mirrors its own picture in its lip. |
@@ -166,8 +166,8 @@ soft shadow and modelled detail, never a light, a colour or an effect (ROOM.md �
   sill, two sashes and a venetian blind let halfway down, its slats nearly shut; rain runs down the glass, and behind
   it a tree's crown stands against the night sky, a few leaves catching the street's light.
 - **Furniture.** A white desk under the window (a frame leg at the left, a three-drawer unit at the right), a
-  honey pine dresser with a drawer and two panelled doors against the back wall, and the white TV cabinet against
-  the knee wall (two drawers, two open shelves, a low plinth). Cream enamel and wood; edges are eased so they
+  honey pine dresser with a drawer and two panelled doors against the back wall, and the putty TV cabinet against
+  the knee wall (two drawers, two open shelves, a low plinth). Enamel and wood; edges are eased so they
   catch the lamps.
 - **Rug.** A 2.35 m square of navy and oatmeal checks with a soft pile, turned 15° clockwise, the corner nearest the
   TV rolled back to show its jute backing. An old wool rug: the pale squares are aged, not white, so the largest
@@ -286,8 +286,9 @@ Nothing in the room carries a third party's mark, artwork or model: the wordmark
 covers and posters are fictional, and the devices are designs of their own in the manner of their years.
 
 The pictures under `docs/room/` (`after.webp`, `pc.webp`, `radio.webp`, `desktop-detail.webp`, `basket.webp`) and
-under `docs/gen/reference/` were captured from the room with shipped models (§ History), in the earlier, pinker
-finish. They show the layout; the palette and the light are the ones described here.
+under `docs/gen/reference/` were captured from the room with shipped models (§ History), and those under
+`docs/gen/compare/` set the generated room beside them, all in the earlier, pinker finish. They show the layout and
+the props; the palette and the light are the ones described here.
 
 ## History
 

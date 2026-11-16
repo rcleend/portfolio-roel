@@ -179,8 +179,8 @@ test('the discs keep their prints after the GPU process restarts', async ({ play
       for (const clip of clips) sum += (await look(page, clip)).colour;
       return sum / clips.length;
     };
-    // The prints fade in once painted; bare discs read about 24 here, printed ones about 32.
-    await expect.poll(colour, { timeout: 10_000 }).toBeGreaterThan(29);
+    // The prints fade in once painted; bare discs read about 19 here, printed ones about 25.
+    await expect.poll(colour, { timeout: 10_000 }).toBeGreaterThan(22);
     await page.waitForTimeout(1500);
     const before = await colour();
     await crashGpu(browser, page);
