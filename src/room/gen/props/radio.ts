@@ -15,6 +15,7 @@ import {
 } from '../kit/builder';
 import { hash32 } from '../kit/hash';
 import { RADIO_PRINTS, type RadioLabel } from '../radioArt';
+import { segments } from './form';
 import {
   CLUSTER,
   DECK_TILT,
@@ -424,8 +425,10 @@ function clothFrom(y: number): number {
   return shieldHalf(Math.max(SHIELD.bottom, Math.min(SHIELD.top, y))) + SHIELD.bevel - 0.005;
 }
 
-function speaker(b: MeshBuilder, side: 1 | -1): void {
-  const { from, reach, y: cy, half, power, rows, columns } = CLOTH;
+function speaker(b: MeshBuilder, side: 1 | -1, detail: number): void {
+  const { from, reach, y: cy, half, power } = CLOTH;
+  // Fewer bands and fewer columns on a lower tier: the same cloth, a coarser weave.
+  const [rows, columns] = [segments(CLOTH.rows, detail, 24), segments(CLOTH.columns, detail, 6)];
   const end = (y: number): number => {
     const v = Math.min(1, Math.abs((y - cy) / half));
     return Math.max(clothFrom(y), from + reach * (1 - v ** power) ** (1 / power));
@@ -458,7 +461,7 @@ function speaker(b: MeshBuilder, side: 1 | -1): void {
   );
   // The shell's rim round the cloth: a chamfer that catches the light.
   const outline: Pt[] = [];
-  const steps = 56;
+  const steps = segments(56, detail, 28);
   for (let i = 0; i <= steps; i++) {
     const angle = -Math.PI / 2 + (Math.PI * i) / steps;
     const [c, s] = [Math.cos(angle), Math.sin(angle)];
@@ -1413,8 +1416,8 @@ export const radio: Prop = {
     const body = sink.mesh('radio');
     body.toned(plastic, () => {
       shell(body);
-      speaker(body, -1);
-      speaker(body, 1);
+      speaker(body, -1, sink.detail);
+      speaker(body, 1, sink.detail);
       topDeck(body);
       panel(body, sink);
       apron(body);
