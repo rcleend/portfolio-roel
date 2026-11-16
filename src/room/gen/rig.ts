@@ -314,7 +314,7 @@ export const RIG: readonly RigLight[] = [
     target: [-1.34, 0.72, -1.1],
     color: [0.05, 0.085, 0.1],
     size: 0.12,
-    samples: [3, 2],
+    samples: [3, 1],
     cone: [1.0, 1.4],
     soften: 0.05,
     reach: [0.6, 1.6],
