@@ -198,7 +198,7 @@ The page does not wait for the room to show it (`app/startup/`, `app/hosts/Still
 - The first paint is a still of the room's TV view, the tube lit on a black picture, drawn in CSS in `index.html` (a few boxes and gradients: the wall, the casing, the lip round the glass, the plinth, the cabinet's top; no image is fetched) around four lengths, `--picture-*`, that place the picture exactly where the room will, with container units, at each framing of `tvViewpoint`: the whole set (landscape, tall enough), the picture between the pad's clusters (a phone on its side) and the picture across the width above the pad's 228 px (portrait, on coarse pointers). In development `__tvPicture()` says where the live picture lands (within half a pixel of the still's at 1440 × 900, 844 × 390 and 390 × 844). The bare-bulb lamp, the plant, the opal lamp's glow and the LED are not in it: they appear as it fades.
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room is made behind it (§ The generated room): its geometry in a worker from the moment the room's chunk runs, then the light of what the TV view shows, and then it is `ready` and lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The rest of the room is lit behind the running game. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
-- A visitor who leaves the TV before the whole room is lit waits for the rest (`ViewController.whenReady`): the bake then takes most of each frame instead of a quarter, and the camera sets off when it is done; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is a few tenths of a second at most (a click in the frame the room becomes ready); it is the GPU's time for the remaining views, so a phone's is longer in proportion, and none has been measured (§ Known gaps).
+- A visitor who leaves the TV before the whole room is lit waits for the rest (`ViewController.whenReady`): the room's frames then stand still, the bake has the GPU to itself, and the camera sets off when it is done; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready); it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
 - Should the room fail (no WebGL, no worker and no main-thread build, a bake that lights nothing), `ready` rejects, the flat host takes over and the still goes. Keep the still in step with the set (gen/props/tvSet.ts) and its framing (tv/tvFraming.ts).
 - A lost WebGL context takes the room's light (§ Lost canvases): `room.shown` turns false, and at the TV view the app puts the still back, the game playing on it, until the room is lit again.
 
@@ -224,7 +224,8 @@ room/
     art.ts, artPaint.ts the art page: the game covers, the set's legends and wordmark, the console's, painted
                         on one 2D canvas; radioArt.ts paints the CD player's strip of it
     tiers.ts            what each quality tier builds and bakes at
-    bake/               Baker.ts (shadow maps, light pages, the vertices' page, compose) and its three programs
+    bake/               Baker.ts (shadow maps, light pages, the vertices' page, compose) and its three programs;
+                        pace.ts (how its units are sized and spaced)
     kit/                builder.ts (placed primitives → flat arrays), vec.ts (vectors as triples: what the bake
                         shares with the builder), charts.ts (flat rectangles packed into pages), hash.ts
                         (integer hashes, the same in GLSL and JavaScript)
@@ -422,7 +423,7 @@ which the generated one was matched to (§ The generated room › Comparing it).
   - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
   On a device too slow to fit a unit between the game's frames the work waits for a quiet moment, or for the flight that needs it. The room queues:
-  - **The bake's second pass**, the light of everything the opening view does not show, a few views a unit
+  - **The bake's second pass**, the light of everything the opening view does not show, a few pieces of its views a unit
     (§ The generated room › Pacing).
   - **The pick chunks** (below), for quiet moments: the room view.
   - **The monitor's glass finish**, in bands of 32 rows.
@@ -516,6 +517,14 @@ else.
   the canvas and keeps its antialiasing.)
 - **Reading.** Below the top tier the room's air (dust, rain) holds still while the camera rests at the computer: on a
   phone the live screen covers the room. On the top tier it drifts on beside the monitor.
+- **Before the first frame.** The starting tier is a guess from what the device is; the governor needs thirty frames
+  a window to correct it, which at ten frames a second is the room's first several seconds. So once the opening view
+  is lit and before the still goes, `RoomStage.settle` draws the room behind it, a frame on each display frame, and
+  times each by a fence: a frame within one and a half 60 Hz frames ends it at once with the quality as it was (a
+  quick GPU draws one frame here and can never lose its tier to it); otherwise four are drawn, the first being the one
+  that uploads the view's textures, and the quickest of the other three says how many pixels fit 15 ms
+  (`fittingQuality`, `stage/quality.ts`: down the scales, then the tiers). The governor goes on from there. Not where
+  the quality is fixed (`?quality=`, a software renderer, a browser under automation).
 - **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
   `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
   phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
@@ -523,7 +532,8 @@ else.
   the TV, the room, the computer, the radio) with a WebGL profiler injected ahead of the page (`glProfiler.js`: GPU
   timer queries, draw calls, the pixels of every pass, the main thread's time in each WebGL call), on a desktop or a
   phone-sized viewport with CPU throttling, in Chromium or WebKit; `--config '{"slowGpu":60}'` overloads the GPU to
-  watch the governor work, `--shots` takes the same poses of any build. `node scripts/perf/counterfactuals.mjs`
+  watch the governor work (every frame's WebGL calls are asked of the GPU that many times; `slowBake` does the same to
+  the bake's draws, which are outside the frames, and `repeat` replays inside each frame's timer query), `--shots` takes the same poses of any build. `node scripts/perf/counterfactuals.mjs`
   switches each effect and pass off in turn. CPU throttling does not slow the GPU: a phone's GPU is reasoned about from
   the pixels a frame shades and each pass's share.
 
@@ -551,7 +561,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
 
 - **Who builds what, when.** `createRoom` makes the stage and, at once, a `GeneratedRoom` (in the room's chunk: it is
   on the room's critical path), which starts the worker and, while that builds, compiles the bake's programs on a
-  bake of nothing. The worker hands back every prop as flat arrays (0.12–0.2 s for the tiers' 73–126 k triangles in the lab's
+  bake of nothing. The worker hands back every prop as flat arrays (0.12–0.2 s for the tiers' 74–127 k triangles in the lab's
   development build on an Apple M4; `generatedStats.buildMs`).
   The main thread then, a task at a time so the game starting on the still is not held up (each slice yields to an idle
   page, at most 120 ms on a busy one): paints the prints, makes the meshes, wires the room to them (`assembleRoom`:
@@ -561,14 +571,18 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   opening view's frustum touches, widened by 12 %, are the first pass (`generatedStats.openingShare`: 1 % of them at 1440 × 900 on the top tier, 4 % on the lowest,
   whose cells are fewer), with every prop's
   vertices; `Baker.begin` limits each view's light to a part of the receivers. That pass runs unit after unit as fast
-  as the GPU takes them (nothing of the room is on screen yet): about 100 ms on an Apple M4. The second pass, the
-  other cells, runs behind the running game exactly as the bake's units always did (Pacing, below): about 3 s while
-  the game plays, 0.3 s on a quiet page. Both passes render every view's shadow map, so the order costs the bake one
+  as the GPU takes them, and the stage draws no frame meanwhile (`RoomStage.held`: the startup still covers the
+  canvas, so a frame would be a picture nobody sees that every unit queues behind on the GPU): about 100 ms on an
+  Apple M4. The second pass, the other cells, runs behind the running game (Pacing, below): about 0.5 s there, behind
+  the title screen or a level. Both passes render every view's shadow map, so the order costs the bake one
   more depth render a view and no light.
 - **Leaving early.** No view but the TV's is shown before the second pass is done: a request for another view waits
-  for it (`GeneratedRoom.whenWhole`, through `ViewController.whenReady`), and while one waits the units take 12 ms of
-  GPU each instead of 4 and run whether or not a frame is due. A viewport or inset change that makes the TV view show
-  cells its pass left out hurries the rest the same way (`reframed`).
+  for it (`GeneratedRoom.whenWhole`, through `ViewController.whenReady`), and while one waits the stage is held again, for 1.5 s at most
+  (`HURRY_HOLD_MS`): the TV's picture stands still, the units take 12 ms of GPU each and follow each other as fast as
+  the GPU takes them, so the wait is the GPU's time for what is left and not a frame's time for every view. A GPU that
+  needs longer gets its frames back and the bake goes on a view at a time behind them. A viewport or inset change that
+  makes the TV view show cells its pass left out hurries the rest the same way (`reframed`); a resized canvas gets its
+  one frame while held.
 - **Picking.** A click is tested against the props' own triangles: the TV set and the monitor are meshes of their own
   (scene.ts moves the desktop set's triangles inside `PC_SPEC.shell` into `monitor`), the desk's and the dresser's
   flat faces are their chart meshes, and the keyboard, the mouse, the chair, the tower, the lamp and the basket are
@@ -591,11 +605,11 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   the bake. Their noise is integer hashes (`gen/kit/hash.ts`), exact in GLSL ES 3.0 and in JavaScript, so every GPU
   draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the console's) are
   painted on one 2D canvas (`gen/artPaint.ts`), and painted again when a GPU reset blanks it (§ Lost canvases).
-- **Light** is a table of eighteen lights (`gen/rig.ts`, The night's rig below): the colours of the rig the room was
+- **Light** is a table of nineteen lights (`gen/rig.ts`, The night's rig below): the colours of the rig the room was
   first lit with in Blender, places read off the room. `gen/bake/Baker.ts` renders each light once from several
-  points of its emitter (143 views on `high` and `medium`, about 77 on `low`, each rendered in both passes, so
-  `generatedStats.views` is 286 and about 155; a fill that nothing shadows needs no shadow map), each through a shadow
-  map of the room's real geometry, and adds it to the charts' light pages and to a page holding one texel per prop
+  points of its emitter (144 views on `high` and `medium`, 78 on `low`, each rendered in both passes, so
+  `generatedStats.views` is 288 and 156; a fill that nothing shadows needs no shadow map), each through a shadow
+  map of the room's real geometry (read as a tent over nine texels, so an edge is a ramp and not the map's staircase), and adds it to the charts' light pages and to a page holding one texel per prop
   vertex: soft shadows by accumulation, which a frame could never afford and a load can. It then composes surface ×
   light under the display curve into the pages the charts draw with, and reads the vertices' colours back. Without
   half-float render targets it accumulates in eight bits.
@@ -610,14 +624,39 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   afterwards (the lab) keeps the pools and lamp it was baked with.
 - **A frame**: unlit materials named for the finish (their varnish and sheen), one map or vertex colours; what the
   views draw is under § Rendering and performance › Cost.
-- **Pacing.** A bake unit is a few views, as many as the GPU has been seen to finish in 4 ms. IdleWork decides when the
-  main thread runs one; the next is not queued until a fence says the GPU has the last one behind it, so frames always
-  go in between. A view that takes the GPU over 5 ms sends the rest of the bake to quiet moments (a paused game, the
-  room view) once three units in a row were that slow: on such a device the rest of the room waits for those rather
-  than the game stutter. The bake's programs and the display materials' link without blocking where the GPU allows it.
+- **Pacing** (`gen/bake/pace.ts`). A view is drawn in pieces (its shadow map, each page's light, the vertices' light:
+  `Baker.step(pieces)`; the shadow map is the bake's own target and waits there between units), and a unit is as many
+  pieces as the GPU has been seen to finish in 4 ms, at least one. A reading (a timer query's, or the wait for the
+  unit's fence) can only be too long, a frame's work having been on the GPU ahead of the unit, so behind the room's
+  frames a piece is taken to cost the smallest of the last three. IdleWork decides when the main thread runs a unit,
+  between a playing game's frames; one it has not run for 100 ms runs anyway (a main thread that is never idle while
+  the game plays), except while the camera flies or the tube turns on. The next is not queued until a fence says the
+  GPU has the last one behind it, so frames always go in between. When three units in a row say a single piece takes
+  over 5 ms, the units are spaced out to a quarter of the GPU's time and never more than 100 ms apart
+  (`generatedStats.deferred`): the rest of the room arrives however slow the GPU, where it used to wait for a quiet
+  moment that a visitor at the title screen never gives it. A game being played comes first: every frame of the room
+  that comes over 20 ms after the one before it halves what the bake's units take, down to an eighth, and rests the
+  bake up to 100 ms between them; frames on time give it back a tenth at a time (`BakePace.frame`). A visitor waiting
+  to leave, and the opening pass, are not paced by frames at all. The bake's programs and the display materials' link
+  without blocking where the GPU allows it.
+- **A slow GPU.** The opening pass times its own units (nothing else draws, so the wait for a unit's fence is the
+  bake's time); when the quickest of its first five says the pass would take over 0.8 s (`OPENING_BUDGET_MS`), the bake
+  starts over with the lowest tier's sample counts whatever the tier (`generatedStats.profile` `short`: 77 views a pass
+  instead of 143, so penumbras in fewer steps; the shadow map and the pages stay the tier's). A GPU about twenty times
+  slower than an Apple M4 Pro's gets it; that machine and anything within ten times of it bake as before, pixel for
+  pixel. Measured with the perf script's stand-ins (§ Quality › Measuring it: every frame and every draw of the bake
+  asked of the M4 Pro's GPU 48 times, which is not a phone), medians of three:
+  at 1440 × 900 on the top tier the room is ready in 2.9 s (16.3 s before the bake was paced this way; 0.55 s
+  unslowed) and a visitor who leaves in that frame waits 0.8 s (12.1 s; 0.2 s); at a phone's size on the middle tier,
+  with the CPU throttled six times, 3.1 s (10.4 s; 1.5 s) and 0.9 s (7.4 s; 0.3 s). The time to ready that is left
+  is the opening pass itself, most of it the props' vertices, lit as points in every view, and the three or four
+  frames that find the quality to show the room at (§ Quality › Before the first frame: 0.3–0.4 s on that stand-in,
+  none measurable unslowed). With a level started as the room turns ready, the same stand-ins then hold 62–66 frames
+  a second from the first second on the desktop (`low × 0.85`) and 56–64 on the phone (`low × 0.7`, where its
+  throttled main thread is the limit), and the whole room is lit 2.8 s and 0.9 s after ready.
 - **Tiers** (`gen/tiers.ts`, read once from the starting tier): `high` packs charts at full density into pages up to
   2048² (four pages, 89 MB with mips) and bakes light at half the pages' size; `medium` and `low` use half the
-  density in 1024² pages (22 MB); `low` also halves the shadow map and the samples. The bake's own targets peak at
+  density in 1024² pages (22 MB); `low` also halves the shadow map and the samples (which a GPU measured slow takes on any tier: A slow GPU, above). The bake's own targets peak at
   46 MB (38 MB on `low`) and are freed when it ends.
 - **Sixty frames a second.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
   Frames): it draws on the display's own frames, evenly spaced and sixty a second on 60 and 120 Hz displays, in every
@@ -652,14 +691,17 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   the table's comments quote: the warm attic practical (`pool`, with `bounce` and `floor` for what its pool sends
   back up), the TV's reflected blue (`tv-glow`, and `fill` on the left wall), the blue-hour window (`moon`,
   `moon-through-blind`, `moon-on-blind`), the window's reflected corner fill (`blind-scatter`, and `fill`), the lava
-  lamp's amber spill (`lava`, `lava-spill`), the tungsten task light (`desk`, `desk-fill`) and the computer's CRT
-  bounce (`crt`). Beside them: the `ambient` dome that only furniture shadows, `blind` (the room's own light on the
+  lamp's amber spill (`lava`, `lava-spill`), the tungsten task light (`desk`, `desk-wall`, `desk-fill`) and the computer's CRT
+  bounce (`crt`). Beside them: the `ambient` dome that only furniture shadows (its light from below, the floor's bounce, only by
+  what stands within 1.1 m of a surface: sixteen outlines of the furniture on a ceiling are blotches), `blind` (the room's own light on the
   slats' face), and the two `finish` lights, `opal` and `bulb`, which stand where `gen/roomSpec.ts` says the lamps
   are (`TV_LAMP_SPEC`, `BULB_SPEC`). The window's light is a small emitter outside and above the sash, in two parts:
   what comes under the blind (the bright patch past the desk's end) and what comes through it (a third, unstriped:
   `clear` ends its shadow map past the slats, whose stripes a handful of emitter points cannot resolve). A pool over
   the middle of the floor and its bounce stand for indirect light, which the bake does not compute; the desk lamp and the lava lamp are
-  small omnis that their own housings do not shadow (`clear`); the blind and the casing are lit from the room side
+  small omnis that their own housings do not shadow (`clear`); what the desk lamp sends past the desk's left end is a
+  fill (`desk-wall`, the `desk` light's exact complement: its arm, the sill's horn and the casing would be drawn a metre
+  wide and hard on the walls), and the lava lamp's spill lights nothing of the dresser it stands on (`beam.facing`); the blind and the casing are lit from the room side
   through a portal the size of the casing. Eight-bit light pages (no float colour buffers) round each pass by a hash
   and are read through a small blur, so a hundred weak passes still sum to the light's mean.
 - **Comparing it.** `node scripts/gen-shots.mjs` shoots the four views and seventeen true-zoom crops from fixed
@@ -671,7 +713,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
 - **Reading it.** `room.stats.generated` is `loading`, `opening` (the TV view lit, the rest on its way), `ready` or
   `failed`; `generatedStats` has where the geometry was built, the views baked, the bake's main-thread and wall time
   to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
-  whether the rest was deferred, and `marks`, the way to the first shown frame in ms since the room's creation.
+  whether the rest's units had to be spaced out (`deferred`), the bake's `profile`, and `marks`, the way to the first shown frame in ms since the room's creation.
   `e2e/generated-room.spec.ts` covers it.
 - **Finely made props.** The TV set, the desk set, the chair, the desk lamp, the tower, the wire basket, the rug, the plant and the bare-bulb lamp are built to be seen
   at arm's length (`gen/props/tvSet.ts`, `monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
@@ -682,8 +724,8 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   words and the lamps' glow are prints on the art page (`gen/deskArt.ts`, laid out by `props/keyboardLayout.ts`).
 - **Detail by tier.** A prop builds to `PropSink.detail` (`gen/tiers.ts`: 1 on `high`, 0.6 on `medium`, 0.45 on
   `low`): `form.segments` turns it into segments, and the smallest parts go first (a spring's coils become a striped
-  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 126 k triangles at full detail, 84 k and
-  73 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
+  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 127 k triangles at full detail, 85 k and
+  74 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
 - **The TV set** (`gen/props/tvSet.ts`; 11.0 k triangles at full detail, 5.6 k and 4.9 k below it, against 15.9 k for
   the model it stands for) is built to that model's sections: a front shell whose outline is a squircle (superellipse
   corners 6 cm long), its face crowned and its chin's edge a smile, a steep lip to the glass, a soft shoulder, a seam,
@@ -1132,7 +1174,7 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 
 - Clicks are ray-cast against registered interactables only, so a prop standing in front of the TV in the room view would not block a click on the TV (none does from the room viewpoint today).
 - The room draws sixty frames a second at rest in every view (§ Rendering and performance › Frames), where the room with shipped files drew none. That costs battery: how much on a phone has not been measured, and neither has anything else in the lists marked "not measured since" above.
-- Leaving the TV before the whole room is baked holds the flight until it is (§ The generated room › Leaving early). Behind a playing game the rest of the bake takes several seconds (about 3 s on an Apple M4), so a visitor who leaves in that time waits for what is left of it, hurried: a few tenths of a second on that machine, longer on a slower GPU, with nothing on screen to say why the camera has not set off.
+- Leaving the TV before the whole room is baked holds the flight until it is (§ The generated room › Leaving early). Behind a playing game the rest of the bake takes about 0.5 s on an Apple M4, and a visitor who leaves in that time waits for what is left of it with the TV's picture standing still: 0.2 s on that machine, 0.8–0.9 s with its GPU made 48 times slower (§ The generated room › A slow GPU), and nothing on screen says why the camera has not set off. On a GPU that slow the room is also ready seconds later than the room with shipped files was (0.4–0.5 s whatever the GPU).
 - A context lost away from the TV shows the room's flat surfaces unlit, black under their props, until the bake has run again (0.3 s on an M4): the startup still that covers this at the TV has no counterpart for the other views.
 - Nothing has been measured on a real phone: not the build, the bake, the frame rate, the wait above nor the memory. Phone-sized viewports with a throttled CPU say nothing of a phone's GPU.
 - The numbers the room's code shares with its generators are copies held together by tests, not one source: `TV_SCREEN_APERTURE` (`tv/tvModel.ts`) against the set's lip, `DECK` and `LID_FRAMING` against `RADIO_SPEC`, the finish's lamp intensities in `gen/tiers.ts`. Moving a prop means changing the spec (`gen/roomSpec.ts`, `gen/props/radioSpec.ts`) and following the tests that fail.

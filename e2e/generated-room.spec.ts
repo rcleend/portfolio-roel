@@ -46,6 +46,8 @@ test('the room builds in a worker and lights what the TV view shows before the r
   expect(built?.complete).toBe(true);
   // Every light from every point of its emitter, on the top tier (rig.ts), once for each pass.
   expect(built?.views).toBeGreaterThan(200);
+  // This GPU is quick: the full profile, and no unit of the rest had to be spaced out.
+  expect(built?.profile).toBe('full');
   // The whole room at full detail (the modelled room it replaced: 353 k); a view draws less of it (the next expectation). 118 k
   // with the window, the wire basket and the bulb lamp finely made: measured, the same frame times as at 104 k; 126 k
   // with the TV set (11 k, where its model was 15.9 k): the TV view draws 64 k of them at the frame times of 56 k.
@@ -87,6 +89,56 @@ test('a visitor who leaves the TV at once sees the room only once all of it is l
   // The camera did not set off before the rest of the room was baked.
   expect(seen.atDeparture).toBe('ready');
   // And what it then shows is lit: the floor in the middle of the room view is not black.
+  await expect.poll(() => page.evaluate(() => window.__roomLab?.room.settled)).toBe(true);
+  const shot = sharp(await page.locator('#stage canvas').screenshot());
+  const { data, info } = await shot.raw().toBuffer({ resolveWithObject: true });
+  const offset = (Math.round(info.height * 0.85) * info.width + Math.round(info.width * 0.5)) * info.channels;
+  expect((data[offset] ?? 0) + (data[offset + 1] ?? 0) + (data[offset + 2] ?? 0)).toBeGreaterThan(30);
+  expect(errors).toEqual([]);
+});
+
+test('a GPU that is slow over the first views bakes the shorter profile, and its visitor still leaves for a lit room', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  // A slow GPU, as the page sees one: every fence takes 12 ms to be reached, however little was drawn before it. The
+  // opening pass times its units by that wait, so its 143 views would take 1.7 s (bake/pace.ts allows 0.8 s).
+  await page.addInitScript(() => {
+    const proto = WebGL2RenderingContext.prototype;
+    const made = new WeakMap<WebGLSync, number>();
+    const fence = proto.fenceSync;
+    proto.fenceSync = function (...args) {
+      const sync = fence.apply(this, args);
+      if (sync) made.set(sync, performance.now());
+      return sync;
+    };
+    const wait = proto.clientWaitSync;
+    proto.clientWaitSync = function (sync, ...rest) {
+      const at = made.get(sync);
+      if (at !== undefined && performance.now() - at < 12) return this.TIMEOUT_EXPIRED;
+      return wait.call(this, sync, ...rest);
+    };
+  });
+  await page.goto('/room-lab.html?clean&mood=rose');
+  await page.waitForFunction(() => window.__roomLab !== undefined);
+  const seen = await page.evaluate(async () => {
+    const room = window.__roomLab?.room;
+    if (!room) throw new Error('No room');
+    await room.ready;
+    const left = new Promise<string>((resolve) => room.onViewChange(() => resolve(room.stats.generated)));
+    const clicked = performance.now();
+    room.showRoom();
+    return { atDeparture: await left, waited: performance.now() - clicked };
+  });
+  expect(seen.atDeparture).toBe('ready');
+  // The rest of the bake had the GPU to itself: a few units, not one behind every frame.
+  expect(seen.waited).toBeLessThan(2500);
+  const built = (await stats(page))?.generatedStats;
+  expect(built?.profile).toBe('short');
+  // The lowest tier's sample counts, once for each pass (the views timed before the bake started over do not count).
+  expect(built?.views).toBeGreaterThan(100);
+  expect(built?.views).toBeLessThan(200);
+  // And what the room view shows is lit.
   await expect.poll(() => page.evaluate(() => window.__roomLab?.room.settled)).toBe(true);
   const shot = sharp(await page.locator('#stage canvas').screenshot());
   const { data, info } = await shot.raw().toBuffer({ resolveWithObject: true });

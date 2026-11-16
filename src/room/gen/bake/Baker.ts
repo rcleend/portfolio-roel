@@ -177,6 +177,9 @@ export function rigViews(sampleSet: 0 | 1, rig: readonly RigLight[] = RIG): View
   return views;
 }
 
+/** Whether a page's bake mesh has cells in the part being lit (`Baker.begin`: an empty index is none of them). */
+const hasCells = (mesh: Mesh): boolean => mesh.geometry.index?.count !== 0;
+
 /** A part of the bake's receivers (`Baker.begin`). */
 export interface BakePart {
   /** Per chart page: the vertices of its bake mesh to light, as a triangle list (null: all; empty: none). */
@@ -195,13 +198,17 @@ export interface BakeResult {
 }
 
 /**
- * Computes the generated room's light on the GPU, once (docs/ROOM.md › The generated room › The bake). `step()` does
- * one view a call (a shadow map of the room, then that light added to every page and to the vertices' page), so the
- * caller can run it in idle moments; the last steps compose the pages and read the vertices' colours back.
+ * Computes the generated room's light on the GPU, once (docs/ROOM.md › The generated room › The bake). A view is a
+ * shadow map of the room, then that light added to every page and to the vertices' page: each of those draws is a
+ * piece, and `step(pieces)` does that many a call, going on where the last call stopped (the shadow map is the bake's
+ * own target and waits there between calls), so the caller can run it in idle moments however slow the GPU. The last
+ * steps compose the pages and read the vertices' colours back.
  */
 export class Baker {
-  private readonly views: View[];
+  private views: View[];
   private next = 0;
+  /** The pieces of view `next` already drawn. */
+  private piece = 0;
   private readonly camera: PerspectiveCamera;
   /** Draws the receivers, which place themselves (`clip`): any camera that sees their layer.*/
   private readonly flat: PerspectiveCamera;
@@ -400,6 +407,7 @@ export class Baker {
    */
   begin(part: BakePart): void {
     this.part = part;
+    // (A pass ends on a whole view: `piece` is 0 already.)
     this.next = 0;
     this.composed = false;
     // A pass without the vertices keeps the colours the pass that lit them read back.
@@ -410,9 +418,30 @@ export class Baker {
     });
   }
 
-  /** Views to render; composing and reading back come after. */
-  get steps(): number {
-    return this.views.length + 2;
+  /**
+   * Starts the pass over with other sample counts (rig.ts), dropping the light added so far: a GPU whose first views
+   * say the bake would keep the visitor waiting gets the shorter set (GeneratedRoom). The part `begin` chose stands.
+   */
+  restart(sampleSet: 0 | 1): void {
+    this.views = rigViews(sampleSet);
+    this.next = 0;
+    this.piece = 0;
+    this.cleared = false;
+  }
+
+  /** The views of a pass; composing and reading back come after. */
+  get viewCount(): number {
+    return this.views.length;
+  }
+
+  /** The views of this pass still to draw, the one under way among them. */
+  get left(): number {
+    return this.views.length - this.next;
+  }
+
+  /** The pieces a view of this pass has: its shadow map, each page with cells to light, the vertices' page. */
+  get viewPieces(): number {
+    return 1 + this.chartMeshes.filter(hasCells).length + (this.part?.vertices === false ? 0 : 1);
   }
 
   get done(): boolean {
@@ -448,10 +477,11 @@ export class Baker {
   }
 
   /**
-   * One unit of the bake. Returns false once there is nothing left to do here (the vertices' colours may still be on
-   * their way back from the GPU: `result()` waits for them).
+   * The bake's next `pieces` pieces, across views, or, once every view is drawn, the composing in one call and the
+   * reading back in another. Returns false once there is nothing left to do here (the vertices'
+   * colours may still be on their way back from the GPU: `result()` waits for them).
    */
-  step(): boolean {
+  step(pieces = 1): boolean {
     const renderer = this.renderer;
     const previous = renderer.getRenderTarget();
     const autoClear = renderer.autoClear;
@@ -464,10 +494,17 @@ export class Baker {
           renderer.clear();
         }
       }
-      const view = this.views[this.next];
+      let view = this.views[this.next];
       if (view) {
-        this.next++;
-        this.renderView(view);
+        for (let left = pieces; left > 0 && view; view = this.views[this.next]) {
+          const draws = this.draws(view, this.next + 1);
+          const to = Math.min(draws.length, this.piece + left);
+          left -= to - this.piece;
+          while (this.piece < to) draws[this.piece++]?.();
+          if (to < draws.length) break;
+          this.next++;
+          this.piece = 0;
+        }
         return true;
       }
       if (!this.composed) {
@@ -505,7 +542,11 @@ export class Baker {
     if (all) for (const page of this.finalPages) page.dispose();
   }
 
-  private renderView(view: View): void {
+  /**
+   * The pieces of `view`, the `number`th of the pass, in the order they are drawn: the shadow map, the pages, the
+   * vertices. Wherever a unit ends among them, the same draws in the same order.
+   */
+  private draws(view: View, number: number): (() => void)[] {
     const { renderer, camera } = this;
     const { light } = view;
     // The shadow map: the room's opaque meshes from this point of the emitter.
@@ -532,22 +573,20 @@ export class Baker {
       texel = (2 * Math.tan((view.fov ?? 1) / 2)) / this.options.shadowSize;
     }
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
-    if (light.casters !== 'none') {
-      camera.layers.set(light.casters === 'all' ? CASTERS_ALL : CASTERS_LOCAL);
-      const override = this.world.overrideMaterial;
-      this.world.overrideMaterial = this.depthMaterial;
-      renderer.autoClear = true;
-      renderer.setRenderTarget(this.shadow);
-      renderer.render(this.world, camera);
-      this.world.overrideMaterial = override;
-    }
+    const pieces: (() => void)[] = [];
+    if (light.casters !== 'none')
+      pieces.push(() => {
+        camera.layers.set(light.casters === 'all' ? CASTERS_ALL : CASTERS_LOCAL);
+        const override = this.world.overrideMaterial;
+        this.world.overrideMaterial = this.depthMaterial;
+        renderer.autoClear = true;
+        renderer.setRenderTarget(this.shadow);
+        renderer.render(this.world, camera);
+        this.world.overrideMaterial = override;
+      });
 
     const uniforms = this.lightMaterial.uniforms;
-    const uniform = (name: string): { value: unknown } => {
-      const found = uniforms[name];
-      if (!found) throw new Error(`The bake's light has no uniform ${name}`);
-      return found;
-    };
+    const uniform = (name: string): { value: unknown } => uniforms[name] as { value: unknown };
     const set = (name: string, ...values: number[]) =>
       (uniform(name).value as { set(...v: number[]): void }).set(...values);
     const directional = view.extent !== undefined;
@@ -579,24 +618,22 @@ export class Baker {
     } else set('uPortal', 0, 0, 0, 0);
     (uniform('uShadow').value as Matrix4).multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     set('uShadowTexel', 1 / this.options.shadowSize, texel, light.casters === 'none' ? 1 : 0, light.through ?? 0);
-    uniform('uDither').value = this.options.halfFloat ? 0 : this.next;
+    uniform('uDither').value = this.options.halfFloat ? 0 : number;
 
-    renderer.autoClear = false;
-    this.receivers.clear();
-    this.vertexMesh.material = this.lightMaterial;
-    this.chartMeshes.forEach((mesh, index) => {
-      if (mesh.geometry.index?.count === 0) return;
+    const lit = (mesh: Mesh, target: WebGLRenderTarget | null): void => {
+      renderer.autoClear = false;
       mesh.material = this.lightMaterial;
+      this.receivers.clear();
       this.receivers.add(mesh);
-      renderer.setRenderTarget(this.lightPages[index] ?? null);
+      renderer.setRenderTarget(target);
       renderer.render(this.receivers, this.flat);
       this.receivers.remove(mesh);
+    };
+    this.chartMeshes.forEach((mesh, index) => {
+      if (hasCells(mesh)) pieces.push(() => lit(mesh, this.lightPages[index] ?? null));
     });
-    if (this.part?.vertices === false) return;
-    this.receivers.add(this.vertexMesh);
-    renderer.setRenderTarget(this.vertexLight);
-    renderer.render(this.receivers, this.flat);
-    this.receivers.remove(this.vertexMesh);
+    if (this.part?.vertices !== false) pieces.push(() => lit(this.vertexMesh, this.vertexLight));
+    return pieces;
   }
 
   private compose(): void {

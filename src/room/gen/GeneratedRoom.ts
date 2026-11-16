@@ -6,6 +6,7 @@ import type { QualityTier } from '../stage/quality';
 import type { RoomStage } from '../stage/RoomStage';
 import { paintArt, paintExterior } from './artPaint';
 import { type BakePart, type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } from './bake/Baker';
+import { BakePace, overBudget, PROBE_UNITS } from './bake/pace';
 import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
 import { LavaWax } from './LavaWax';
@@ -55,8 +56,13 @@ export interface GeneratedStats {
   readonly openingShare: number;
   /** The longest one view's GPU work was seen to take (ms; without a GPU timer, the wait for it). */
   readonly longestGpuMs: number;
-  /** The rest's units were kept for quiet moments: one took the GPU too long to go between a playing game's frames. */
+  /** The rest's units were spaced out: one piece took the GPU too long to go between a playing game's frames. */
   readonly deferred: boolean;
+  /**
+   * `short`: the first views said the bake would keep the visitor waiting, so it took the lowest tier's sample counts
+   * whatever the tier (bake/pace.ts).
+   */
+  readonly profile: 'full' | 'short';
   /** The whole room is baked. */
   readonly complete: boolean;
   readonly triangles: number;
@@ -94,8 +100,6 @@ export interface BakeRequest {
   readonly opening: () => Matrix4 | null;
 }
 
-/** A view whose GPU work takes longer than this is not run between a playing game's frames again (ms). */
-const UNIT_GPU_LIMIT_MS = 5;
 /**
  * What a unit's views together may take of the GPU (ms): a quarter of a 60 Hz frame behind the room's own frames,
  * half of one while only the startup still's game draws, and most of one while a visitor waits for the room.
@@ -110,6 +114,20 @@ const GPU_POLL_MS = 3;
 const UNIT_ESTIMATE_MS = 2;
 /** How far past the opening view's edges its pass reaches, as a share of the view: a resize's worth. */
 const OPENING_MARGIN = 0.12;
+/**
+ * A unit queued behind the room's frames that no idle period has taken for this long runs anyway (ms), unless the
+ * camera flies: on a main thread that is never idle while the game plays, the rest of the room still arrives.
+ */
+const STALL_MS = 100;
+/**
+ * How long at most the room's frames stand still for a visitor who leaves the TV before the rest is baked (ms): the
+ * bake then has the GPU to itself, and the camera sets off when it is done, which a GPU forty-eight times slower than
+ * an Apple M4 Pro's is in 0.7 s. One that needs longer than this gets its frames back, so the TV's picture moves
+ * again, and the bake goes on a view at a time behind each of them: slower, since every view then waits out a frame.
+ */
+const HURRY_HOLD_MS = 1500;
+/** What a slow GPU bakes with: the lowest tier's sample counts. */
+const SHORT_SAMPLES = GENERATED_TIERS.low.sampleSet;
 
 /**
  * The room (docs/ROOM.md › The generated room): builds its geometry in a worker, paints its prints, puts its meshes in
@@ -135,6 +153,7 @@ export class GeneratedRoom {
   private dropTask: (() => void) | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private waited: (() => void) | null = null;
+  private bound: ReturnType<typeof setTimeout> | undefined;
   private shown = false;
   private complete = false;
   private hurried = false;
@@ -143,6 +162,7 @@ export class GeneratedRoom {
   private failed = false;
   private stopFrames: (() => void) | null = null;
   private stopCanvas: (() => void) | null = null;
+  private stopLate: (() => void) | null = null;
   private vertexLit: Partial<Record<MeshName, Mesh>> = {};
   private charts = new Map<number, Mesh>();
   /** The opening view's cells as last classified, and the clip matrix they were classified with. */
@@ -154,11 +174,13 @@ export class GeneratedRoom {
   private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
   private timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
-  /** What one view was last seen to take of the GPU (ms); a cautious guess before any has been timed. */
-  private viewGpuMs = UNIT_GPU_TARGET_MS.rest;
-  /** What one view was last seen to take of the main thread (ms). */
-  private viewCpuMs = 1;
-  private slowUnits = 0;
+  /** What a piece of the bake costs this GPU (bake/pace.ts). */
+  private readonly pace = new BakePace(UNIT_GPU_TARGET_MS.rest);
+  /** What one piece was last seen to take of the main thread (ms). */
+  private cpuMs = 1;
+  private profile: 'full' | 'short' = 'full';
+  /** The opening pass's units timed so far and the least a view took in one (ms), until its length is judged. */
+  private probe: { units: number; least: number } | null = null;
   /** When the first bake's moments came, in ms since the room was created (GeneratedStats.marks). */
   private readonly marks: Record<string, number> = {};
   private transientBytes = 0;
@@ -224,6 +246,7 @@ export class GeneratedRoom {
       openingShare: this.opening?.share ?? 1,
       longestGpuMs: timings.gpu,
       deferred: timings.deferred,
+      profile: this.profile,
       complete: this.complete,
       triangles: gen.props.reduce((sum, prop) => sum + prop.triangles, 0),
       pages,
@@ -257,25 +280,40 @@ export class GeneratedRoom {
   }
 
   /**
-   * The visitor wants to see the rest of the room: its bake stops waiting for quiet moments and takes most of each
-   * frame. Resolves once the whole room is baked (at once when it is).
+   * The visitor wants to see the rest of the room: its bake stops going between the room's frames. The frames stand
+   * still instead (the TV's picture, for `HURRY_HOLD_MS` at most) and the units follow each other as fast as the GPU
+   * takes them, so the wait is the GPU's time for what is left and no more. Resolves once the whole room is baked (at
+   * once when it is).
    */
   whenWhole(): Promise<void> {
     if (this.complete || this.failed) return Promise.resolve();
     if (!this.hurried) {
       this.hurried = true;
       // A unit queued behind the room's frames runs now instead; one whose fence is being waited for goes on by itself.
+      if (this.timer !== null) clearTimeout(this.timer);
       if (this.dropTask && this.baker) {
         const baker = this.baker;
         this.dropTask();
         this.dropTask = null;
         soon(() => this.unit(baker));
-      } else if (this.timer !== null && this.waited) {
-        clearTimeout(this.timer);
-        soon(this.waited);
+      } else if (this.timer !== null && this.waited) soon(this.waited);
+      // Only while the room is what is on screen: before that the stage is held already (startBake).
+      if (this.shown) {
+        this.hold(true);
+        this.bound = setTimeout(() => this.hold(false), HURRY_HOLD_MS);
       }
     }
     return new Promise((resolve) => this.waiting.push(resolve));
+  }
+
+  /**
+   * While held no frame of the room is drawn (`RoomStage.held`): the bake has the GPU to itself. While the startup
+   * still covers the canvas a frame is a picture nobody sees, and on a slow GPU each one is tens of milliseconds every
+   * unit of the bake would queue behind.
+   */
+  private hold(held: boolean): void {
+    clearTimeout(this.bound);
+    this.context.stage.held = held;
   }
 
   /**
@@ -295,6 +333,7 @@ export class GeneratedRoom {
     canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.stopWork();
     this.stopFrames?.();
+    this.stopLate?.();
     this.stopCanvas?.();
     this.stopLava?.();
     this.lava?.dispose();
@@ -622,8 +661,7 @@ export class GeneratedRoom {
     this.mark('baker');
     this.transientBytes = baker.transientBytes;
     this.timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
-    this.viewGpuMs = UNIT_GPU_TARGET_MS.rest;
-    this.slowUnits = 0;
+    this.profile = 'full';
     // The display's programs and the bake's link off the main thread; the first unit waits for the bake's. In the
     // next task: making the bake's buffers and the programs' sources are each a slow phone's whole frame or two.
     void pause().then(() => {
@@ -634,6 +672,10 @@ export class GeneratedRoom {
       this.opening = clip && parts ? { clip: clip.clone(), share: parts.share } : null;
       this.late = parts && parts.share < 1 ? parts.late : null;
       if (parts && this.late) baker.begin(parts.early);
+      this.pace.reset(UNIT_GPU_TARGET_MS.rest / baker.viewPieces);
+      // At the TV the startup still covers the canvas until the room is lit: its frames would only be in the way.
+      if (clip) this.hold(true);
+      this.probe = clip && this.tier.sampleSet !== SHORT_SAMPLES ? { units: 0, least: Infinity } : null;
       // The pick meshes are never drawn, so they stay out of the compile: `renderer.compile` prepares invisible
       // meshes too, and the props' material on their geometry without normals is a program of its own under a finish.
       const parents = this.picks.map((pick) => pick.parent);
@@ -660,11 +702,12 @@ export class GeneratedRoom {
   }
 
   /**
-   * Queues the bake's next unit: a few views, as many as the GPU has been seen to do in the time a unit may take.
-   * Until the opening view is baked nothing of the room is on screen and units follow each other as fast as the GPU
-   * takes them. After that IdleWork says when the main thread may run one (between a playing game's frames while a
-   * view is quick on this GPU, else only in a quiet moment, unless a visitor is waiting for the room). The unit after
-   * is never queued until the GPU has this one's work behind it, so frames go in between and no two pile up on one.
+   * Queues the bake's next unit: a few pieces of its views, as many as the GPU has been seen to do in the time a unit
+   * may take (bake/pace.ts). Until the opening view is baked nothing of the room is on screen and units follow each
+   * other as fast as the GPU takes them. After that IdleWork says when the main thread may run one, between a playing
+   * game's frames; one it has not run within `STALL_MS` runs anyway. The unit after is never queued until the GPU has
+   * this one's work behind it, so frames go in between and no two pile up on one; on a GPU that takes too long over
+   * a single piece the units are spaced out further, and still come.
    */
   private next(baker: Baker): void {
     if (this.paced) this.queue(baker);
@@ -673,21 +716,30 @@ export class GeneratedRoom {
 
   private queue(baker: Baker): void {
     this.dropTask?.();
-    if (!this.request) return;
+    const { request } = this;
+    if (!request) return;
     const run = this.unit.bind(this);
-    const kit = this.kit;
-    const deferred = (): boolean => this.timings.deferred;
-    this.dropTask = this.request.background.add(
+    this.dropTask = request.background.add(
+      // biome-ignore lint/correctness/useYield: a task of one unit; the next is queued once the GPU has this one behind it.
       (function* (): IdleTask {
-        // Kept for a quiet moment once a single view has taken the GPU too long to hide between two frames.
-        if (deferred()) yield kit.quiet;
         run(baker);
       })(),
       { estimateMs: UNIT_ESTIMATE_MS, apart: true },
     );
+    const stalled = (): void => {
+      // Not into a flight's frames, nor the tube's turn-on: nothing but the TV's view is shown before the bake ends.
+      if (request.background.moment() === 'moving') this.timer = setTimeout(stalled, STALL_MS);
+      else {
+        this.dropTask?.();
+        this.unit(baker);
+      }
+    };
+    this.timer = setTimeout(stalled, STALL_MS);
   }
 
   private unit(baker: Baker): void {
+    // Run by IdleWork, its stall's timer is still set.
+    if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     this.dropTask = null;
     if (this.disposed || this.baker !== baker) return;
@@ -696,7 +748,8 @@ export class GeneratedRoom {
     const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number } | null;
     // The opening pass does not wait for a timer's result (it follows the fence by a task or two): the wait for the
     // fence is its measure.
-    const query = timer && this.paced ? gl.createQuery() : null;
+    const paced = this.paced;
+    const query = timer && paced ? gl.createQuery() : null;
     const started = performance.now();
     if (!this.timings.started) this.timings.started = started;
     if (timer && query) gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
@@ -705,35 +758,38 @@ export class GeneratedRoom {
       : this.shown
         ? UNIT_GPU_TARGET_MS.rest
         : UNIT_GPU_TARGET_MS.opening;
-    const most = this.paced ? MAX_VIEWS_A_UNIT.rest : MAX_VIEWS_A_UNIT.opening;
+    const aView = baker.viewPieces;
+    const most = (paced ? MAX_VIEWS_A_UNIT.rest : MAX_VIEWS_A_UNIT.opening) * aView;
     // Behind the room's frames a unit is also short on the main thread: IdleWork judges every task's untimed units by
     // the longest unit it has run, and a long one here would keep the monitor's still waiting for a quiet moment.
-    const cpu = this.paced ? Math.floor(UNIT_CPU_TARGET_MS / this.viewCpuMs) : most;
-    const views = Math.max(1, Math.min(most, cpu, Math.floor(target / this.viewGpuMs)));
+    const cpu = paced ? UNIT_CPU_TARGET_MS / this.cpuMs : most;
+    const pieces = this.pace.pieces(target, Math.min(most, cpu), paced ? 1 : aView, paced);
+    const left = baker.left;
     // The bake clears with its own colour; the room's frames clear with theirs.
     const clearAlpha = renderer.getClearAlpha();
     const clearColor = renderer.getClearColor(new this.kit.Color());
     let more = true;
-    let stepped = 0;
     try {
-      for (; stepped < views && more; stepped++) more = baker.step();
+      more = baker.step(pieces);
+      // The pass's last unit composes the pages and asks for the colours as well.
+      while (more && baker.left === 0) more = baker.step();
     } catch (error) {
       this.fail(error);
       return;
     } finally {
       renderer.setClearColor(clearColor, clearAlpha);
     }
-    this.timings.views += more ? stepped : Math.max(0, stepped - 2);
     if (timer && query) gl.endQuery(timer.TIME_ELAPSED_EXT);
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
     const took = performance.now() - started;
-    if (stepped > 0) this.viewCpuMs = Math.max(0.05, took / stepped);
+    this.cpuMs = Math.max(0.01, took / pieces);
     this.timings.cpu += took;
     this.timings.longest = Math.max(this.timings.longest, took);
     if (!more) {
       if (query) gl.deleteQuery(query);
       if (sync) gl.deleteSync(sync);
+      this.timings.views += baker.viewCount;
       baker.result().then(
         (result) => this.passed(baker, result),
         (error: unknown) => this.fail(error),
@@ -760,15 +816,40 @@ export class GeneratedRoom {
           : performance.now() - started;
       if (query) gl.deleteQuery(query);
       if (sync) gl.deleteSync(sync);
-      this.viewGpuMs = Math.max(0.05, gpuMs / views);
-      this.timings.gpu = Math.max(this.timings.gpu, this.viewGpuMs);
-      // One slow reading is the GPU busy with a frame; three in a row is this GPU.
-      this.slowUnits = this.viewGpuMs > UNIT_GPU_LIMIT_MS ? this.slowUnits + 1 : 0;
-      if (this.slowUnits >= 3) this.timings.deferred = true;
-      this.next(baker);
+      this.pace.read(gpuMs, pieces);
+      this.timings.gpu = Math.max(this.timings.gpu, (gpuMs / pieces) * aView);
+      if (this.judged(baker, gpuMs, left - baker.left)) return;
+      // A GPU that takes too long over one piece gets a rest between units, and its frames their share of it.
+      const gap = this.paced ? this.pace.gapMs() : 0;
+      if (gap > 0) {
+        this.timings.deferred = true;
+        this.wait(() => {
+          this.timer = null;
+          this.next(baker);
+        }, gap);
+      } else this.next(baker);
     };
     if (this.paced) this.wait(poll, GPU_POLL_MS);
     else later(poll);
+  }
+
+  /**
+   * The opening pass's first views say how long the whole pass will take this GPU (nothing else draws meanwhile, so
+   * the wait for a unit is the bake's own time, or longer where it uploaded the bake's buffers first or the main
+   * thread was late to look: the quickest of a few units is the one that was not held up). One that would keep the visitor waiting starts over at the shorter
+   * profile: true when it did, and the next unit is queued.
+   */
+  private judged(baker: Baker, gpuMs: number, views: number): boolean {
+    const { probe } = this;
+    if (!probe || this.shown) return false;
+    probe.least = Math.min(probe.least, gpuMs / views);
+    if (++probe.units < PROBE_UNITS) return false;
+    this.probe = null;
+    if (!overBudget(probe.least, baker.viewCount)) return false;
+    this.profile = 'short';
+    baker.restart(SHORT_SAMPLES);
+    this.next(baker);
+    return true;
   }
 
   /** A pass is back from the GPU: light the meshes; after the opening view's, show the room and start on the rest. */
@@ -808,6 +889,7 @@ export class GeneratedRoom {
     }
     const done = (): void => {
       if (!late) {
+        this.hold(false);
         this.complete = true;
         this.hurried = false;
         this.events.onComplete(this.stats as GeneratedStats);
@@ -815,20 +897,30 @@ export class GeneratedRoom {
         return;
       }
       baker.begin(late);
+      // The rest's pieces are other draws than the opening view's (whole pages, no vertices).
+      this.pace.reset(UNIT_GPU_TARGET_MS.rest / baker.viewPieces);
       this.next(baker);
     };
     if (this.shown) {
       done();
       return;
     }
-    linked(context.stage.renderer).then(() => {
+    // And at a quality this GPU holds sixty at: measured now, behind the still (RoomStage.settle).
+    const settled = linked(context.stage.renderer).then(() => context.stage.settle());
+    settled.then(() => {
       if (this.disposed || this.baker !== baker) return;
+      this.hold(false);
       this.shown = true;
       this.timings.shown = performance.now();
       this.mark('shown');
       this.lava?.sync();
       // Sixty frames a second in every view, whether or not something moves.
       this.stopFrames ??= sixtyFrames(context.stage);
+      // The rest of the bake gives way to frames that come late (bake/pace.ts).
+      this.stopLate ??= context.stage.onRender(() => {
+        const interval = context.stage.loop.runInterval;
+        if (interval !== null && this.paced && !this.complete) this.pace.frame(interval);
+      });
       this.events.onShown(this.stats as GeneratedStats);
       done();
     });
@@ -853,6 +945,7 @@ export class GeneratedRoom {
   }
 
   private stopWork(): void {
+    this.hold(false);
     this.dropTask?.();
     this.dropTask = null;
     if (this.timer !== null) clearTimeout(this.timer);
@@ -955,10 +1048,6 @@ function inside(clip: Matrix4, within: Matrix4, kit: GenKit): boolean {
   return true;
 }
 
-/**
- * Runs `task` as the next task, without a timer's clamp (4 ms once timers nest): the opening pass's units and the
- * looks at their fences follow each other with frames and input in between, and no time lost.
- */
 /** Longest a slice of the room's raising waits for the page to be idle (ms). */
 const PAUSE_MS = 120;
 
@@ -972,6 +1061,10 @@ const pause = (): Promise<void> =>
     else soon(resolve);
   });
 
+/**
+ * Runs `task` as the next task, without a timer's clamp (4 ms once timers nest): the opening pass's units and the
+ * looks at their fences follow each other with frames and input in between, and no time lost.
+ */
 function soon(task: () => void): void {
   const channel = new MessageChannel();
   channel.port1.onmessage = () => {

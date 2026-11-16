@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   FAST_FRAME_MS,
+  FIT_MARGIN,
+  fittingQuality,
   GOVERNOR_WINDOW,
   pixelRatioFor,
   QUALITY_SCALES,
@@ -49,6 +51,46 @@ describe('pixelRatioFor', () => {
     expect(pixelRatioFor({ tier: 'medium', scale: 1 }, 390, 844, 3)).toBe(2);
     expect(pixelRatioFor({ tier: 'medium', scale: 0.7 }, 390, 844, 3)).toBeCloseTo(1.4, 6);
     expect(pixelRatioFor({ tier: 'low', scale: 1 }, 390, 844, 3)).toBe(1.5);
+  });
+});
+
+describe('fittingQuality', () => {
+  // A 1440 × 900 canvas on a 2× display.
+  const pixels = (quality: Quality): number => pixelRatioFor(quality, 1440, 900, 2) ** 2;
+  const high: Quality = { tier: 'high', scale: 1 };
+
+  it('never steps a quick GPU down: a frame within one and a half 60 Hz frames keeps the start', () => {
+    expect(fittingQuality(high, 2, pixels)).toBe(high);
+    expect(fittingQuality(high, 16.7, pixels)).toBe(high);
+    expect(fittingQuality(high, (1000 / 60) * FIT_MARGIN, pixels)).toBe(high);
+    expect(fittingQuality(high, Number.NaN, pixels)).toBe(high);
+  });
+
+  it('steps down the scales, then the tiers, as far as the pixels have to go', () => {
+    expect(fittingQuality(high, 26, pixels)).toEqual({ tier: 'high', scale: 0.7 });
+    expect(fittingQuality(high, 40, pixels)).toEqual({ tier: 'high', scale: 0.6 });
+    expect(fittingQuality(high, 50, pixels)).toEqual({ tier: 'medium', scale: 0.7 });
+    expect(fittingQuality(high, 100, pixels)).toEqual({ tier: 'low', scale: 0.7 });
+    expect(fittingQuality(high, 2000, pixels)).toEqual({ tier: 'low', scale: 0.6 });
+  });
+
+  it('starts from where the device is, never above it', () => {
+    const phone = (quality: Quality): number => pixelRatioFor(quality, 390, 844, 3) ** 2;
+    expect(fittingQuality({ tier: 'medium', scale: 1 }, 30, phone)).toEqual({ tier: 'medium', scale: 0.7 });
+    expect(fittingQuality({ tier: 'medium', scale: 0.7 }, 30, phone).tier).not.toBe('high');
+    expect(fittingQuality({ tier: 'low', scale: 0.6 }, 500, phone)).toEqual({ tier: 'low', scale: 0.6 });
+  });
+});
+
+describe('QualityGovernor.start', () => {
+  it('goes on from the measured quality, and leaves a fixed one alone', () => {
+    const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+    governor.start({ tier: 'medium', scale: 0.7 }, 1000);
+    expect(governor.quality).toEqual({ tier: 'medium', scale: 0.7 });
+    const fixed = new QualityGovernor({ tier: 'high', scale: 1 }, true);
+    fixed.start({ tier: 'low', scale: 0.6 }, 1000);
+    expect(fixed.quality).toEqual({ tier: 'high', scale: 1 });
+    expect(fixed.isFixed).toBe(true);
   });
 });
 

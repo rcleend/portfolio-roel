@@ -168,7 +168,8 @@ export class IdleWork {
   private longestUnit = FIRST_UNIT_ESTIMATE_MS;
 
   constructor(
-    private readonly moment: () => IdleMoment,
+    /** What the screen is doing now. */
+    readonly moment: () => IdleMoment,
     private readonly scheduler: IdleScheduler = browserScheduler,
   ) {}
 
@@ -200,6 +201,13 @@ export class IdleWork {
       dropped: false,
     };
     this.queue.push(queued);
+    // A look again later was for the tasks queued then (all kept for a quiet moment, or the camera flying): this one
+    // may run in the next idle period, and a task queued a unit at a time (the room's bake) would otherwise wait out
+    // that timer before each of its units.
+    if (this.retry !== null) {
+      clearTimeout(this.retry);
+      this.retry = null;
+    }
     this.hurry();
     return () => this.drop(queued);
   }

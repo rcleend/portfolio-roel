@@ -84,6 +84,28 @@ const FLOOR_HITS = 2;
 
 const TIERS: readonly QualityTier[] = ['high', 'medium', 'low'];
 
+/** A frame measured before the room is shown is too slow only past this many 60 Hz frames: no quick GPU steps down. */
+export const FIT_MARGIN = 1.5;
+
+/**
+ * The quality a device should start on when one frame at `start` took its GPU `frameMs` (the quickest of a few, timed
+ * before the room is shown: docs/ROOM.md › Quality): `start` unless the frame is clearly over a 60 Hz frame, else the
+ * first step down the scales and tiers whose pixels (`pixelsOf`) would bring it to the governor's target, pixels
+ * being what a frame's GPU time is mostly made of; the floor when none does. The governor goes on from there.
+ */
+export function fittingQuality(start: Quality, frameMs: number, pixelsOf: (quality: Quality) => number): Quality {
+  if (!(frameMs > (1000 / 60) * FIT_MARGIN)) return start;
+  const budget = (pixelsOf(start) * TARGET_FRAME_MS) / frameMs;
+  let last = start;
+  for (const tier of TIERS.slice(TIERS.indexOf(start.tier)))
+    for (const scale of QUALITY_SCALES) {
+      if (tier === start.tier && scale > start.scale) continue;
+      last = { tier, scale };
+      if (pixelsOf(last) <= budget) return last;
+    }
+  return last;
+}
+
 /**
  * Moves the quality with the measured frame intervals of runs of frames (the game on the TV, a flight), the way a
  * console game's dynamic resolution does. Slower than 21 ms a frame, the scale steps down far enough to reach 15 ms,
@@ -111,6 +133,16 @@ export class QualityGovernor {
 
   get quality(): Quality {
     return this.current;
+  }
+
+  /** Starts over from `quality` at `now` (a frame was measured before the room was shown); not where it is fixed. */
+  start(quality: Quality, now: number): void {
+    if (!this.fixed) this.change(quality, now);
+  }
+
+  /** Whether the quality is fixed (a tier asked for, a software renderer, a browser under automation). */
+  get isFixed(): boolean {
+    return this.fixed;
   }
 
   /** A frame of a run came `ms` after the one before it, at `now`. Returns the new quality when it changes it. */

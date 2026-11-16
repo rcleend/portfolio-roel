@@ -31,7 +31,12 @@ export interface RigLight {
   readonly reach?: readonly [number, number];
   /** How far past the horizon the emitter still lights a surface (a sphere light's wrap), 0–1. */
   readonly wrap: number;
-  /** A lens: full light along `aim`, `floor` of it off the beam, between the two cosines; nothing behind `facing`. */
+  /**
+   * A lens: full light along `aim`, `floor` of it off the beam, between the two cosines; nothing behind `facing`,
+   * fading over the 15° before its plane, or less by as much as it is longer than one (a zero `facing`: no such
+   * plane; a zero `aim` with cosines below zero: no lens, only the plane). A `floor` below zero turns it inside out:
+   * the light everywhere but in the beam.
+   */
   readonly beam?: {
     readonly aim: Vec3;
     readonly cos: readonly [number, number];
@@ -58,6 +63,31 @@ export interface RigLight {
 
 /** Where the night's light comes from: outside the window, above it and a little to its right. */
 const MOON: Vec3 = [-1.25, 2.65, -3.4];
+
+/**
+ * The desk lamp's bulb, and the part of its light that goes out past the desk's left end to the wall beside it: a cone
+ * about `aim`, cut along the plane through the bulb and the desk top's left edge (`under`: nothing below it, all of it
+ * from the edge up). The lamp's own arm, the sill's horn and the window's casing stand in that part, a hand from the
+ * bulb, and a bulb drawn from one or two points throws them a metre wide and hard-edged on the walls; the room's wall
+ * there is a soft glow. So that part is a fill nothing shadows (`desk-wall`) and the shadowed light is the rest
+ * (`desk`): together they are the one light, whole.
+ */
+const DESK_BULB: Vec3 = [-1.94, 1.03, -2.12];
+const DESK_WALL = {
+  aim: [-0.9924, 0.0868, -0.0868] as Vec3,
+  cone: [0.79, 1.08] as const,
+  under: [-2.76, 2.896, 0] as Vec3,
+};
+
+/** What the desk lamp's two lights share. */
+const DESK_LIGHT = {
+  space: 'scene',
+  position: DESK_BULB,
+  color: [0.38, 0.135, 0.035],
+  soften: 0.03,
+  reach: [0.5, 1.9],
+  wrap: 0,
+} as const;
 
 /** The colour of the room's ambient light from above and from below (bounce off the oak). */
 export const AMBIENT = { sky: [0.043, 0.05, 0.072] as Rgb, ground: [0.1, 0.072, 0.083] as Rgb };
@@ -159,7 +189,7 @@ export const RIG: readonly RigLight[] = [
     position: MOON,
     target: [-0.6, 0.2, -0.9],
     color: [11.4, 12, 13.9],
-    size: 0.1,
+    size: 0.2,
     samples: [8, 4],
     cone: [0.45, 0.62],
     soften: 6,
@@ -212,7 +242,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.49, 1.21, -1.97],
     target: [0.49, 1.21, -1.97],
-    color: [0.3, 0.085, 0.015],
+    color: [0.44, 0.09, 0.012],
     size: 0.04,
     samples: [1, 1],
     soften: 0.2,
@@ -238,22 +268,38 @@ export const RIG: readonly RigLight[] = [
     reach: [1.5, 3.2],
     wrap: 0,
     casters: 'none',
+    // Nothing of it on the dresser the lamp stands on, whose top would shadow all of it: only what goes out level or
+    // upwards towards the cabinet. (It drew the right front post's inner face and the side rails' tops in orange.)
+    beam: { aim: [0, 0, 0], cos: [-0.9, -0.8], floor: 0, facing: [-0.23, 0.626, 1.347] },
   },
   // The desk lamp ("Task light tungsten"): under its shade, down onto the desk and out onto the wall beside it.
   {
+    ...DESK_LIGHT,
     name: 'desk',
     kind: 'omni',
-    space: 'scene',
-    position: [-1.94, 1.03, -2.12],
-    target: [-1.94, 1.03, -2.12],
-    color: [0.38, 0.135, 0.035],
+    target: DESK_BULB,
     size: 0.05,
     samples: [2, 1],
-    soften: 0.03,
-    reach: [0.5, 1.9],
-    wrap: 0,
     casters: 'local',
     clear: 0.14,
+    beam: {
+      aim: DESK_WALL.aim,
+      cos: [Math.cos(DESK_WALL.cone[1]), Math.cos(DESK_WALL.cone[0])],
+      floor: -1,
+      facing: DESK_WALL.under,
+    },
+  },
+  // The same light where it leaves the desk for the wall beside it (DESK_WALL): a fill.
+  {
+    ...DESK_LIGHT,
+    name: 'desk-wall',
+    kind: 'spot',
+    target: DESK_BULB.map((at, axis) => at + (DESK_WALL.aim[axis] as number)) as unknown as Vec3,
+    size: 0,
+    samples: [1, 1],
+    cone: DESK_WALL.cone,
+    casters: 'none',
+    beam: { aim: [0, 0, 0], cos: [-0.9, -0.8], floor: 0, facing: DESK_WALL.under },
   },
   // What the task light's pool on the white desk, the wall and the blind sends back down ("Task light tungsten"): a broad warm emitter over the desk's front, so the keyboard, the mouse and the mug are lit from
   // above and the monitor's moon shadow is filled. It ends within the desk's own length.
@@ -318,7 +364,8 @@ export const RIG: readonly RigLight[] = [
     position: MOON,
     target: [-1.3, 1.9, -2.36],
     color: [0.75, 0.84, 1.0],
-    size: 0.25,
+    // Small enough that the glazing bar's shadow on the slats is one soft bar from two points of it, not two bars.
+    size: 0.12,
     samples: [4, 2],
     cone: [0.8, 1.1],
     soften: 0,

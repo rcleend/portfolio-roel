@@ -32,7 +32,6 @@ import {
   ZeroFactor,
 } from 'three';
 import { onCanvasRestored } from '../stage/canvasRestore';
-import { QUIET } from '../stage/IdleWork';
 
 /**
  * The three.js the room is built and baked with, handed over rather than imported: the generators also run in a
@@ -72,8 +71,6 @@ export const genKit = {
   Vector4,
   WebGLRenderTarget,
   ZeroFactor,
-  /** IdleWork's QUIET: the unit it leads to is GPU work. */
-  quiet: QUIET,
   onCanvasRestored,
 } as const;
 

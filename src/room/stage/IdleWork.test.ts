@@ -549,6 +549,25 @@ describe('IdleWork', () => {
       expect(log).toEqual(['a:cpu', 'b:1', 'a:quiet']);
     });
 
+    it('runs a task queued while it looks again later in the next idle period, not after that wait', () => {
+      work.add(uploading(log, 'a'));
+      idle.idle(50);
+      // Only a's upload is left, kept for a quiet moment: the queue looks again in a while.
+      expect(log).toEqual(['a:cpu']);
+      expect(idle.waiting).toBe(0);
+      // The room's bake queues its units one at a time, each as the GPU finishes the one before.
+      work.add(logging(log, 'b', 1));
+      expect(idle.waiting).toBe(1);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1']);
+      // And the look again later is back for what waits.
+      expect(idle.waiting).toBe(0);
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1', 'a:quiet']);
+    });
+
     it('does not let a unit kept for a quiet moment raise the bar for the others', () => {
       moment = 'quiet';
       work.add(

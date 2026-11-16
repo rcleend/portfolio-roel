@@ -61,17 +61,31 @@ uniform vec4 uEncode;
 uniform float uDither;
 ${HASH_GLSL}
 
-float lit(vec3 point) {
+// How far from a surface (metres) an occluder still shadows the ambient dome's light from below.
+const float DOME_REACH = 1.1;
+
+// How much of the light reaches the point, 0–1 (below zero: outside the map). The nine texels about the point, weighed
+// as a tent two texels wide (the mean of four bilinear lookups half a texel out): a shadow's edge is a ramp that wide,
+// and the map's own staircase (long teeth where the light grazes a surface, as the desk lamp's does the desk) is
+// smoothed out of it. A reach above zero: an occluder further than that from the point shadows nothing, fading from
+// half of it (metres, in an orthographic map, whose depth is linear: its third row is 2 / (far - near) long).
+float lit(vec3 point, float reach) {
   vec4 projected = uShadow * vec4(point, 1.0);
   if (projected.w <= 0.0) return -1.0;
   vec3 at = projected.xyz / projected.w * 0.5 + 0.5;
   if (at.x <= 0.0 || at.x >= 1.0 || at.y <= 0.0 || at.y >= 1.0) return -1.0;
+  vec2 texel = at.xy / uShadowTexel.x;
+  float range = 2.0 / length(vec3(uShadow[0][2], uShadow[1][2], uShadow[2][2]));
   float sum = 0.0;
-  for (int i = 0; i < 4; i++) {
-    vec2 offset = (vec2(float(i & 1), float(i >> 1)) - 0.5) * uShadowTexel.x;
-    sum += step(at.z - 0.00004, texture2D(uShadowMap, at.xy + offset).r);
+  for (int i = 0; i < 9; i++) {
+    vec2 to = vec2(float(i % 3), float(i / 3)) - 1.0;
+    float depth = texture2D(uShadowMap, (floor(texel) + 0.5 + to) * uShadowTexel.x).r;
+    float seen = step(at.z - 0.00004, depth);
+    if (reach > 0.0) seen = max(seen, smoothstep(reach * 0.5, reach, (at.z - depth) * range));
+    vec2 weight = 0.5 - 0.25 * abs(to) + 0.5 * to * (fract(texel) - 0.5);
+    sum += weight.x * weight.y * seen;
   }
-  return sum * 0.25;
+  return sum;
 }
 
 void main() {
@@ -85,14 +99,20 @@ void main() {
     light /= distance2 + uFall.x;
     if (uFall.z > 0.0) light *= 1.0 - smoothstep(uFall.y, uFall.z, sqrt(distance2));
     if (uCone.x > -1.0) light *= smoothstep(uCone.x, uCone.y, dot(-direction, uLightAxis));
-    if (uBeamCos.x > -1.0)
-      light *= mix(uBeam.w, 1.0, smoothstep(uBeamCos.x, uBeamCos.y, dot(-direction, uBeam.xyz)))
-        * smoothstep(-0.05, 0.2, dot(-direction, uFacing));
+    if (uBeamCos.x > -1.0) {
+      float lens = smoothstep(uBeamCos.x, uBeamCos.y, dot(-direction, uBeam.xyz));
+      if (dot(uFacing, uFacing) > 0.0) lens *= smoothstep(-0.05, 0.2, dot(-direction, uFacing));
+      // A floor below zero: the beam's complement, the light everywhere but in it.
+      light *= uBeam.w < 0.0 ? 1.0 - lens : mix(uBeam.w, 1.0, lens);
+    }
   }
   if (light > 0.0 && uShadowTexel.z < 0.5) {
     // Off the surface by a shadow texel's width, so a surface never shadows itself.
     float texel = uShadowTexel.y * (uDirectional > 0.5 ? 1.0 : sqrt(distance2));
-    float seen = lit(vWorld + normal * texel * 2.0 + direction * (texel + uShadowTexel.w));
+    // The dome's light from below is the floor's bounce, which comes from everywhere under a surface: furniture
+    // shadows it only on what stands near (a shelf's inside, the wall behind a desk), never as an outline on a ceiling.
+    float reach = uDome > 0.5 && uLightAxis.y > 0.0 ? DOME_REACH : 0.0;
+    float seen = lit(vWorld + normal * texel * 2.5 + direction * (texel + uShadowTexel.w), reach);
     // Outside the map: a sun or the dome is unshadowed there, a point light's view simply does not reach it.
     light *= seen < 0.0 ? uDirectional : seen;
   }
@@ -129,7 +149,7 @@ vec3 display(vec3 albedo, vec4 light, vec3 world) {
   c = 1.15 * c / (c + 0.3475);
   float lava = length(world - vec3(0.49, 1.28, -1.97));
   float desk = length(world - vec3(-2.05, 1.03, -1.88));
-  float pool = exp(-lava * lava * 0.85) + exp(-desk * desk * 1.8) * 0.65;
+  float pool = exp(-lava * lava * 2.2) + exp(-desk * desk * 1.8) * 0.65;
   c *= vec3(1.0) + vec3(0.9, 0.26, 0.025) * pool * uWarmth;
   c += min(c * 25.0, vec3(0.85)) * uStatic * light.a * uDecode.a;
   return c;

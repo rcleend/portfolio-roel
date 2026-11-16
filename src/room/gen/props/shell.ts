@@ -130,7 +130,7 @@ export const door: Prop = {
   budget: 400,
   build(sink) {
     const b = sink.mesh('props');
-    b.beam([-1.36, 0, 2.423], [-0.24, 2.2, 2.477], [0.11, 0.05, 0.034], 1, 0.3);
+    b.beam([-1.36, 0, 2.423], [-0.24, 2.2, 2.477], [0.4, 0.185, 0.12], 1, 0.3);
     b.beam([-1.437, 0, 2.32], [-1.363, 2.24, 2.4], TRIM, 1, 0.3);
     b.beam([-0.237, 0, 2.32], [-0.163, 2.24, 2.4], TRIM, 1, 0.3);
     b.sphere([-0.35, 1.05, 2.39], 0.034, 14, [0.3, 0.26, 0.16]);
@@ -167,7 +167,7 @@ const slatHeight = (i: number, s: number): number =>
  */
 export const windowFrame: Prop = {
   name: 'window',
-  budget: 9800,
+  budget: 10800,
   build(sink) {
     const b = sink.mesh('props');
     const { detail } = sink;
@@ -244,13 +244,22 @@ export const windowFrame: Prop = {
     board([x0 - 0.03, 2.4895, -2.2465], [x1 + 0.03, 2.5505, -2.235], 0, metal, 0.003);
     // The slats: shallow arches across their depth, lit above and seen from below, no two tilted quite alike.
     const pieces = fine ? 8 : 4;
+    // Where a slat is cut along its length: evenly, and closely where the upper sash's glazing bar throws its shadow
+    // through the blind (the night's light stands a little right of the window's middle, so the shadow falls a
+    // little left of it). A slat's light is its vertices': a shadow a hand wide between cuts 20 cm apart is a blotch.
+    const shadow = (x0 + x1) / 2 - 0.0067;
+    const cuts = [
+      ...Array.from({ length: pieces + 1 }, (_, k) => k / pieces),
+      ...(fine ? [-0.05, -0.03, -0.012, 0.026, 0.046] : [-0.042, -0.018, 0.03]).map(
+        (offset) => (shadow + offset - left) / (right - left),
+      ),
+    ].sort((a, b) => a - b);
     const crown = 0.004;
     const pitchOf = (i: number): number => 0.8 + 0.05 * Math.sin(i * 2.4 + 1);
     for (let i = 0; i < slats; i++) {
       const [cp, sp] = [Math.cos(pitchOf(i)), Math.sin(pitchOf(i))];
       const line = (across: number, drop = 0): Vec3[] =>
-        Array.from({ length: pieces + 1 }, (_, k): Vec3 => {
-          const s = k / pieces;
+        cuts.map((s): Vec3 => {
           const [up, out] = [crown * (1 - across * across) - drop, (across * depth) / 2];
           return [left + (right - left) * s, slatHeight(i, s) + up * cp - out * sp, zc + up * sp + out * cp];
         });
@@ -263,7 +272,7 @@ export const windowFrame: Prop = {
       });
       // The rolled edge towards the room: what catches the light along every slat.
       const lip = line(1.04, 0.0024);
-      for (let k = 0; k < pieces; k++)
+      for (let k = 0; k + 1 < cuts.length; k++)
         b.quad(lip[k] as Vec3, lip[k + 1] as Vec3, edge[k + 1] as Vec3, edge[k] as Vec3, slat, 1);
     }
     // The bottom rail under the last slat, hanging as crooked as it does.

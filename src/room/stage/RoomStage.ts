@@ -1,7 +1,20 @@
 import { NoToneMapping, type Object3D, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
 import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
-import { pixelRatioFor, QUALITY_TIERS, type Quality, QualityGovernor, type QualityTier, startingTier } from './quality';
+import {
+  FIT_MARGIN,
+  fittingQuality,
+  pixelRatioFor,
+  QUALITY_TIERS,
+  type Quality,
+  QualityGovernor,
+  type QualityTier,
+  startingTier,
+} from './quality';
+
+/** Frames `settle` draws at most: the first uploads what the view needs, the quickest of the others is the measure. */
+const SETTLE_FRAMES = 4;
+
 import { RenderLoop } from './RenderLoop';
 import { isSoftwareGpu } from './softwareGpu';
 
@@ -37,6 +50,13 @@ export class RoomStage {
   readonly softwareGpu: boolean;
 
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
+  /**
+   * While true no frame is drawn: for the room's bake, while nothing of the room is on screen or a visitor waits for
+   * the rest of it, so its work is not queued behind frames on the GPU. A resized canvas still gets its one frame (it
+   * is blank until then); whoever sets it false again asks for a frame.
+   */
+  held = false;
+
   private readonly resizeListeners = new Set<(size: ViewportSize) => void>();
   private readonly renderListeners = new Set<() => void>();
   private readonly resizeObserver: ResizeObserver;
@@ -51,6 +71,8 @@ export class RoomStage {
   private reading = false;
   /** The governor has changed the quality and the stage has yet to take it up. */
   private qualityDue = false;
+  /** The canvas has a new size and no frame of it yet: it is blank until one is drawn. */
+  private blank = false;
 
   constructor(private readonly options: StageOptions) {
     // A finish draws the room into its own multisampled target and only two triangles and the dust onto the canvas,
@@ -205,27 +227,86 @@ export class RoomStage {
     this.renderListeners.clear();
   }
 
-  private resize(): void {
-    const width = Math.max(1, this.options.container.clientWidth);
-    const height = Math.max(1, this.options.container.clientHeight);
-    const pixelRatio = Math.min(
-      pixelRatioFor(this.quality, width, height, window.devicePixelRatio || 1),
+  /** The pixel ratio `quality` draws a `width` × `height` canvas at here. */
+  private ratioAt(quality: Quality, width: number, height: number): number {
+    return Math.min(
+      pixelRatioFor(quality, width, height, window.devicePixelRatio || 1),
       this.options.maxPixelRatio ?? Number.POSITIVE_INFINITY,
       Math.sqrt((this.options.maxDrawingBufferPixels ?? Number.POSITIVE_INFINITY) / (width * height)),
     );
+  }
+
+  /**
+   * Finds the quality this GPU can draw the room at, before the room is shown (docs/ROOM.md › Quality › Before the
+   * first frame): draws up to four frames nobody sees, each on a display frame, and times each by a fence. A frame
+   * within `FIT_MARGIN` of a 60 Hz frame ends it at once, the quality as it was (a quick GPU draws one frame here);
+   * otherwise the quickest of the last three says how many pixels fit (`fittingQuality`), so the governor does not
+   * spend the room's first seconds finding out at a few frames a second. Resolves when done; at once where the
+   * quality is fixed.
+   */
+  settle(): Promise<void> {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (this.governor.isFixed || this.contextLost || typeof gl.fenceSync !== 'function') return Promise.resolve();
+    return new Promise((resolve) => {
+      const times: number[] = [];
+      const frame = (): void => {
+        const started = performance.now();
+        this.render();
+        // In the next task: whatever stands in for a slow GPU by drawing the frame again has done so by then.
+        setTimeout(() => {
+          const sync = this.contextLost ? null : gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+          gl.flush();
+          const poll = (): void => {
+            if (sync && !this.contextLost && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED) {
+              setTimeout(poll, 1);
+              return;
+            }
+            if (sync) gl.deleteSync(sync);
+            const took = performance.now() - started;
+            times.push(took);
+            const fits = took <= (1000 / 60) * FIT_MARGIN;
+            if (!sync || fits || times.length === SETTLE_FRAMES) {
+              const { width, height } = this.viewport;
+              const fitting = fits
+                ? this.quality
+                : fittingQuality(this.quality, Math.min(...times.slice(1)), (quality) => {
+                    const ratio = this.ratioAt(quality, width, height);
+                    return ratio * ratio;
+                  });
+              if (sync && fitting !== this.quality) {
+                this.governor.start(fitting, performance.now());
+                this.atmosphere?.setTier(QUALITY_TIERS[fitting.tier]);
+                this.atmosphere?.syncMotion();
+                this.resize();
+              }
+              resolve();
+            } else requestAnimationFrame(frame);
+          };
+          poll();
+        });
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  private resize(): void {
+    const width = Math.max(1, this.options.container.clientWidth);
+    const height = Math.max(1, this.options.container.clientHeight);
+    const pixelRatio = this.ratioAt(this.quality, width, height);
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.viewport = { width, height, pixelRatio };
     for (const listener of this.resizeListeners) listener(this.viewport);
+    this.blank = true;
     this.loop.invalidate();
   }
 
   private readonly draw = (now: number): void => {
-    if (this.contextLost) return;
-    if (this.atmosphere) this.atmosphere.render(this.scene, this.camera);
-    else this.renderer.render(this.scene, this.camera);
+    if (this.contextLost || (this.held && !this.blank)) return;
+    this.blank = false;
+    this.render();
     for (const listener of this.renderListeners) listener();
     // Judged after the frame, so a change of quality is drawn by the next one whole.
     const interval = this.loop.runInterval;
@@ -237,6 +318,12 @@ export class RoomStage {
     this.atmosphere?.syncMotion();
     this.resize();
   };
+
+  private render(): void {
+    if (this.contextLost) return;
+    if (this.atmosphere) this.atmosphere.render(this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
+  }
 
   private readonly onVisibilityChange = (): void => {
     this.atmosphere?.syncMotion();

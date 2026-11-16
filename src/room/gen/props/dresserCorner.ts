@@ -256,9 +256,9 @@ export const dresserBooksAndLead: Prop = {
     const b = sink.mesh('props');
     // Each a block under a thick cover that stands 3 mm proud of it.
     const books: readonly { at: Vec3; size: Vec3; yaw: number; color: Rgb }[] = [
-      { at: [0.02, 0.006, -1.96], size: [0.41, 0.06, 0.29], yaw: 0.05, color: [0.022, 0.045, 0.125] },
-      { at: [0.02, 0.066, -1.96], size: [0.37, 0.052, 0.275], yaw: -0.08, color: [0.21, 0.062, 0.036] },
-      { at: [0.02, 0.118, -1.96], size: [0.35, 0.047, 0.25], yaw: 0.04, color: [0.055, 0.062, 0.088] },
+      { at: [0.02, 0.006, -1.96], size: [0.41, 0.06, 0.29], yaw: 0.05, color: [0.075, 0.14, 0.3] },
+      { at: [0.02, 0.066, -1.96], size: [0.37, 0.052, 0.275], yaw: -0.08, color: [0.46, 0.17, 0.1] },
+      { at: [0.02, 0.118, -1.96], size: [0.35, 0.047, 0.25], yaw: 0.04, color: [0.17, 0.19, 0.26] },
     ];
     for (const { at, size, yaw, color } of books) {
       const [hx, h, hz] = [size[0] / 2, size[1], size[2] / 2];
