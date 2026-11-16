@@ -4,6 +4,7 @@ import { seeded } from '../kit/hash';
 import { MATERIAL } from '../materials';
 import { keyboard } from './keyboard';
 import { monitor } from './monitor';
+import { mouse } from './mouse';
 import { tower } from './tower';
 import { GROUP, PAGE, type Prop } from './types';
 
@@ -252,16 +253,13 @@ export const towerAndLamp: Prop = {
   },
 };
 
-/** The desktop set: the CRT monitor (monitor.ts), the keyboard (keyboard.ts) and the mouse. It faces +z. */
+/** The desktop set: the CRT monitor (monitor.ts), the keyboard (keyboard.ts) and the mouse (mouse.ts). It faces +z. */
 export const desktop: Prop = {
   name: 'desktop',
-  budget: 16000,
+  budget: 17000,
   build(sink) {
-    const b = sink.mesh('props');
     monitor(sink);
     keyboard(sink);
-    // The mouse.
-    b.roundedBox([-0.944, 0.788, -1.626], [-0.876, 0.826, -1.524], 0.016, [0.5, 0.47, 0.4], 1, 2, 3);
-    b.cylinder([-0.914, 0.826, -1.604], [-0.906, 0.826, -1.604], 0.007, 0.007, 8, [0.1, 0.1, 0.1], 1);
+    mouse(sink);
   },
 };
