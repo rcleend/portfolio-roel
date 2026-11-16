@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { coverCrop, needsRepaint, paintPlaceholder, WALLPAPER_PLACEHOLDER, wallpaperSize } from './wallpaper';
+import { needsRepaint, paintPlaceholder, WALLPAPER_PLACEHOLDER, wallpaperSize } from './wallpaper';
+import { paintWallpaperRows } from './wallpaperPicture';
 
 /** A 2D context that records every call and property write. */
 function recordingContext(): { readonly context: CanvasRenderingContext2D; readonly calls: string[] } {
@@ -59,25 +60,6 @@ describe('needsRepaint', () => {
   });
 });
 
-describe('coverCrop', () => {
-  it('crops a taller photograph top and bottom, centred, to fill a wider screen', () => {
-    expect(coverCrop({ width: 1280, height: 1029 }, { width: 874, height: 687 })).toEqual({
-      x: 0,
-      y: expect.closeTo((1029 - 1280 / (874 / 687)) / 2, 6),
-      w: 1280,
-      h: expect.closeTo(1280 / (874 / 687), 6),
-    });
-  });
-
-  it('crops the sides for a screen narrower than the photograph', () => {
-    const crop = coverCrop({ width: 1280, height: 1029 }, { width: 400, height: 400 });
-    expect(crop.h).toBe(1029);
-    expect(crop.w).toBeCloseTo(1029, 6);
-    expect(crop.x).toBeCloseTo((1280 - 1029) / 2, 6);
-    expect(crop.y).toBe(0);
-  });
-});
-
 describe('paintPlaceholder', () => {
   it('fills the sky over the hill, edge to edge', () => {
     const { context, calls } = recordingContext();
@@ -89,5 +71,69 @@ describe('paintPlaceholder', () => {
       `context.fillStyle = ${WALLPAPER_PLACEHOLDER.grass}`,
       `context.fillRect(0.000000, ${horizon.toFixed(6)}, 874.000000, ${(687 - horizon).toFixed(6)})`,
     ]);
+  });
+});
+
+describe('paintWallpaperRows', () => {
+  const width = 160;
+  const height = 128;
+  const whole = new Uint8ClampedArray(width * height * 4);
+  paintWallpaperRows(whole, width, height, 0, height);
+  const at = (x: number, y: number): [number, number, number] => {
+    const o = (y * width + x) * 4;
+    return [whole[o] ?? 0, whole[o + 1] ?? 0, whole[o + 2] ?? 0];
+  };
+  /** The mean colour of a block of pixels. */
+  const mean = (x0: number, y0: number, x1: number, y1: number): [number, number, number] => {
+    let [r, g, b] = [0, 0, 0];
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const colour = at(x, y);
+        r += colour[0];
+        g += colour[1];
+        b += colour[2];
+      }
+    }
+    const count = (x1 - x0) * (y1 - y0);
+    return [r / count, g / count, b / count];
+  };
+
+  it('draws the same picture whatever bands its rows are drawn in, and in whatever order', () => {
+    const banded = new Uint8ClampedArray(whole.length);
+    for (const from of [77, 0, 30, 31, 100]) {
+      const to = { 77: 100, 0: 30, 30: 31, 31: 77, 100: height + 5 }[from] ?? height;
+      paintWallpaperRows(banded, width, height, from, to);
+    }
+    expect(Buffer.compare(Buffer.from(banded.buffer), Buffer.from(whole.buffer))).toBe(0);
+  });
+
+  it('fills every pixel, opaque', () => {
+    for (let o = 3; o < whole.length; o += 4) if (whole[o] !== 255) throw new Error(`alpha ${whole[o]} at ${o}`);
+  });
+
+  it('is a blue sky, deeper overhead, over a green hill that is lit on the left and darker in front', () => {
+    const [topR, topG, topB] = mean(0, 0, width, 6);
+    expect(topB).toBeGreaterThan(topG);
+    expect(topG).toBeGreaterThan(topR);
+    const low = mean(0, 60, 16, 66);
+    expect(low[0]).toBeGreaterThan(topR + 40);
+    const lit = mean(20, 84, 50, 96);
+    const shaded = mean(120, 110, 150, 122);
+    for (const [r, g, b] of [lit, shaded]) {
+      expect(g).toBeGreaterThan(r + 20);
+      expect(g).toBeGreaterThan(b + 40);
+    }
+    expect(lit[1]).toBeGreaterThan(shaded[1] + 15);
+  });
+
+  it('dithers: a clear stretch of sky never holds a flat run of one value', () => {
+    const top = Array.from({ length: width }, (_, x) => at(x, 0)[0]);
+    let run = 1;
+    let longest = 1;
+    for (let x = 1; x < width; x++) {
+      run = top[x] === top[x - 1] ? run + 1 : 1;
+      longest = Math.max(longest, run);
+    }
+    expect(longest).toBeLessThan(8);
   });
 });

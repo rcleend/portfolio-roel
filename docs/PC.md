@@ -7,6 +7,7 @@ Clicking the reader's close button or pressing Escape closes the window, holds t
 
 Everything here is real DOM: text a screen reader can browse, native scrolling, real links.
 Nothing is downloaded on first load beyond about 0.8 kB of glue.
+No image is downloaded at all: the icons are vector data and the wallpaper is drawn by code.
 
 ## Contract with the room
 
@@ -23,7 +24,7 @@ Nothing is downloaded on first load beyond about 0.8 kB of glue.
 
 A `StillPainter` gets a context whose origin is the picture's top-left, clipped to it, and `{ width, height, placement, cpuCanvas }` (canvas px of the picture, the live screen's CSS size, and whether to make any canvas it paints ahead a CPU one: true on a software GPU, where an accelerated canvas's raster would stall the game's frames).
 It composes transforms only (`save`/`scale`/`translate`/`restore`) and never reads pixels.
-Its optional `prepare(request)` is the first paint's one-time work in small units, each `yield` ending one; the room runs them ahead of the first paint. `paintDesktop` prepares the wallpaper's bitmap and the first use of its two fonts (5 ms each on a phone six times slower than a laptop), so the paint itself is a few milliseconds.
+Its optional `prepare(request)` is the first paint's one-time work in small units, each `yield` ending one; the room runs them ahead of the first paint. `paintDesktop` works out the wallpaper's picture, 16 000 pixels a unit (some 50 units for the 1024-wide still: under 1 ms each on a laptop, 4-6 ms on a phone six times slower), and prepares the first use of its two fonts (5 ms each there), so the paint itself is a few milliseconds.
 
 `PcSlot` (`PcSlot.tsx`) is the only module the room host imports:
 
@@ -74,8 +75,8 @@ The still on the glass and the live DOM desktop must be indistinguishable at the
 - `lunaTokens.ts` holds the gradients as stop arrays and the font strings; the painter builds canvas gradients from them and the DOM applies them inline (`cssGradient`).
 - `icons.ts` holds original vector art as SVG path data with fills (`art.ts`): `new Path2D(d)` in the painter, `<path d>` in the DOM (`ArtSvg`). The "PDF" on the CV is drawn, not typed.
 - `text.ts`: `wrapLabel` breaks a label into lines with the same measurements in both renderers (the DOM measures with a canvas too), and `baselineInLineBox` puts canvas text on the CSS half-leading baseline (`top + (L − (A + D)) / 2 + A` from the font's bounding-box metrics). Label shadows are an offset copy of the text, because canvas shadow offsets ignore the transform.
-- `wallpaper.ts` draws Windows XP's "Bliss" (Charles O'Rear's photograph; the captain's call), `desktop/bliss.webp`: 1280 × 1029 from the original 4510 × 3627 scan, 86 kB, drawn to cover the screen (`coverCrop`). The still painter's chunk starts its download and decode (`loadWallpaper`); until it has decoded the shared canvas holds the photograph's sky and grass as two flat bands, then it is repainted in place (the live desktop shows the same element) and `PcSlot` asks the room to repaint the glass (`invalidateStill`).
-  It is painted once into a cached canvas of at most 1 MP (0.6 MP with `deviceMemory ≤ 2`) and repainted in place only when a request needs more than 1.3× its width. The DOM desktop appends that very canvas as its background, so one bitmap serves the glass and the live screen.
+- `wallpaper.ts` shows a wallpaper drawn by code, with no image file: a sunlit green hill under a blue sky with fair-weather clouds, the era's default-desktop feeling in a composition of its own (the summit right of the middle, a far blue ridge, the sun from the upper left). `wallpaperPicture.ts` is the picture, a pure function of the pixel in units of the picture's height, so it is the same on every device and at every size, and a band of rows can be drawn at a time: value noise on a 256 × 256 lattice of integer hashes (the `lowbias32` mix of `room/gen/kit/hash.ts`, a local copy so no room module joins the chunk); a sky gradient with a glow towards the sun; cumulus as five layers of noise on a plane that shrinks and flattens towards the horizon, white where the cover falls away towards the sun and grey-blue behind and inside; thin high streaks; the hill lit by its facing, cloud shadows, tufts, blades and a few flowers in the near grass; every pixel dithered by ±1.5 levels, so no gradient bands. The sky is soft, so it is worked out at every other pixel of every other row and interpolated (a quarter of its cost); the hill at every pixel. `paintWallpaperUnit` draws 16 000 pixels of it into an `ImageData` per call and puts the finished picture on the shared canvas in one go: the still painter's `prepare` yields between units, and the module also drives them itself in the page's idle moments (`requestIdleCallback`, as many units as an idle period with 8 ms to spare holds, one a second at the least; a unit a frame where it does not exist), so a picture the room had no time to prepare, or one that must grow, still arrives. Until the last row is done the shared canvas holds the picture's sky and grass as two flat bands, then it is repainted in place (the live desktop shows the same element) and `PcSlot` asks the room to repaint the glass (`onWallpaperPainted` → `invalidateStill`); the same after a GPU reset, from the kept `ImageData`, without working it out again (docs/ROOM.md › Lost canvases).
+  It is painted once into a cached canvas of at most 1 MP (0.6 MP with `deviceMemory ≤ 2`); a request that needs more than 1.3× its width has the larger picture worked out behind the one shown, which is swapped in place when done. The DOM desktop appends that very canvas as its background, so one bitmap serves the glass and the live screen.
 - `clock.ts`: the visitor's locale (`hour: 'numeric', minute: '2-digit'`), one formatter made once; `useClock` re-arms a timeout to each minute boundary and calls `display.invalidateStill()` on every tick, all page long, but changes the DOM clock's text (and so renders the screen) only while the screen is live, catching up in the landing's own render.
 
 The DOM desktop is `aria-hidden` and its icons are inert: only the scripted double-click opens the CV.
@@ -158,7 +159,7 @@ Clicking outside the monitor leaves, like the room. `window.__pcLab` lands, leav
 | Entry JS (with `PcSlot`, the hotspots, the landing signal, without the old navigation bar) | baseline + 1.06 kB (spec: + 1.0) | + 1.03 kB |
 | Entry CSS | baseline + 0.5 kB | + 0.29 kB |
 | Room chunk (the monitor; chunked picking, the idle-time work and its scheduling, the framing round the computer: docs/ROOM.md) | baseline + 7.6 kB (spec: + 5.0) | + 7.55 kB |
-| `pcStill` closure (with the still's preparation in idle units) | 5.15 kB (spec: 5) | 5.11 kB |
+| `pcStill` closure (with the still's preparation in idle units, and the wallpaper's picture as code: + 1.86 kB for an 86 kB photograph no longer fetched) | 6.7 kB (spec: 5) | 6.60 kB |
 | `PcExperience` closure, JS + CSS | 25 kB, no three.js | 19.4 kB |
 
 The three budgets over the spec's wait for the captain's word: what they hold is listed in `bundle-budgets.json`.
@@ -183,13 +184,14 @@ Measured in the production lab (Chromium, M-series Mac):
 | Reader mount, first visit (`performance.measure('pc-reader-mount')`) | 15 ms | 90 ms, no task over 50 ms |
 | Reader mount, warm | 4 ms | 22 ms |
 | Readable after landing, first / warm | 1.87 s / 0.59 s | 1.88 s / 0.61 s |
-| First still, in the room's idle units (main thread): the wallpaper, each font's first use, the composition | 9 ms in all | 5-7, 5-11 and 6 ms |
+| First still, in the room's idle units (main thread): each font's first use, the composition | 9 ms in all | 5-11 and 6 ms |
+| The wallpaper's picture, 1024 × 768 in 48 units and 512 × 384 in 13 (Chromium, `paintWallpaperRows` timed per unit) | 45 ms and 10 ms in all, 0.9 ms a unit | 250 ms and 63 ms in all, 4.5-5.7 ms a unit |
 | Still repaint (the clock's minute) | < 1 ms | 2 ms |
 | Hand-off, still vs live desktop (lab, 1440 × 900 at DPR 1 and 2, 390 × 844 at DPR 3) | mean \|Δ\| 0.2–0.95 / 255 | |
 
 ## Lookalike rules (PR checklist)
 
-- [ ] Original work only, but for the two the captain asked for: the Bliss wallpaper and the start button's four-colour Windows XP flag. No other Microsoft or Adobe image, icon, logo, cursor or font copied, traced, extracted or bundled; no community recreation (XP.css and similar) copied.
+- [ ] Original work only, but for the one the captain asked for: the start button's four-colour Windows XP flag. The wallpaper is a composition of its own, drawn by code, not a tracing of Windows XP's "Bliss". No other Microsoft or Adobe image, icon, logo, cursor or font copied, traced, extracted or bundled; no community recreation (XP.css and similar) copied.
 - [ ] On screen only "start" and "Document Reader 7.0" as product-like names; never "Windows", "Adobe", "Acrobat" or "Reader" on its own.
 - [ ] The start mark is Windows XP's waving four-colour flag (red, green, blue, yellow panes lit from the top over a soft shadow, `START_MARK`); the reader's mark is a white folded sheet, never a stylised "A" or swirl.
 - [ ] System font stacks only; no font files.
@@ -213,7 +215,8 @@ pc/
     art.ts              vector art as data, and its paint helpers
     icons.ts            the four desktop icons and the start mark
     text.ts           ★ label wrapping and the CSS baseline for canvas text
-    wallpaper.ts      ★ the Bliss wallpaper (bliss.webp) and its shared cached canvas
+    wallpaper.ts      ★ the wallpaper's shared cached canvas, painted a few rows a unit
+    wallpaperPicture.ts ★ the wallpaper's picture, a pure function of the pixel
     clock.ts          ★ the clock's format and the time to the next minute
     paintChrome.ts      icons, labels, taskbar, start, tray and clock onto a canvas
     Desktop.tsx         the live desktop (DOM twin of the painter); ArtSvg.tsx, cssGradient.ts, useClock.ts
