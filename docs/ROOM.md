@@ -792,7 +792,7 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
     along 87 % where 32 % was; the dresser's joints along 88 % where 44 % was (a phone's room built for `medium`:
     90 % where 52 % was). A room built for the lowest tier reads the same (97 %, 84 %, 87 %). With each surface
     brought back to its own rectangle frame by frame, what changes at fine scale between two frames of a flight is
-    1.2 levels on the blind where it was 4.2, 0.24 on the dresser's front where it was 0.48, 0.76 on the casing's
+    1.2 levels on the blind where it was 4.2, 0.25 on the dresser's front where it was 0.48, 0.94 on the casing's
     left leg where it was 1.65, against 0.31 on a plain piece of wall.
 - **The TV set** (`gen/props/tvSet.ts`; 11.0 k triangles at full detail, 5.6 k and 4.9 k below it, against 15.9 k for
   the model it stands for) is built to that model's sections: a front shell whose outline is a squircle (superellipse
