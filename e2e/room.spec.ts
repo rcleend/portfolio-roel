@@ -52,11 +52,15 @@ test('opens on the startup still, starts the game on it and hands over to the li
   const picture = page.locator('.still-picture');
   const box = await picture.boundingBox();
   const clip = { x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 0, height: box?.height ?? 0 };
-  const shown = await page.screenshot({ clip });
-  await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
-  const hidden = await page.screenshot({ clip });
-  await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
-  expect(await differingPixels(shown, hidden, 24)).toBeGreaterThan(clip.width * clip.height * 0.5);
+  // The title comes up out of the dark, so the picture is looked at until it is there.
+  const lit = async (): Promise<number> => {
+    const shown = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
+    const hidden = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
+    return differingPixels(shown, hidden, 24);
+  };
+  await expect.poll(lit, { timeout: 10_000 }).toBeGreaterThan(clip.width * clip.height * 0.5);
   await page.keyboard.press('Enter');
   await expect(still).toHaveAttribute('data-shown', 'false');
   expect(errors).toEqual([]);
