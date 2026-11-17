@@ -39,7 +39,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   const started = useRef(false);
   const begun = useBegun(services.director);
   const running = startup.phase === 'running';
-  // `?capture` keeps the tube dark, to compare the live set with the startup still (harness/config.ts).
+  // `?capture` keeps the tube dark: the live set as the startup still is sampled from and held to (harness/config.ts).
   const powering = (startup.phase === 'powering' || running) && !config.capture;
 
   const events = useMemo<HostEvents>(
