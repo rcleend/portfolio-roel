@@ -52,28 +52,37 @@
   const capEvery = config.rafEvery ?? 0;
   let waiting = new Map();
   let nextHandle = 1e9;
-  const tickOf = (t) => {
-    capFrames++;
-    if (capEvery > 0) return capFrames % capEvery === 0 ? t : null;
-    capOrigin ??= t - 4;
-    const slot = Math.floor((t - capOrigin) / capMs);
-    if (slot <= capSlot || t - capOrigin - slot * capMs > 8) return null;
-    capSlot = slot;
-    return capOrigin + 4 + slot * capMs;
-  };
   // Every display frame is seen, so they can be counted; the page's callbacks run on the ticks only.
   const capped = (t) => {
     realRaf(capped);
-    const tick = tickOf(t);
-    if (tick === null || waiting.size === 0) return;
-    const run = waiting;
-    waiting = new Map();
-    for (const callback of run.values()) callback(tick);
+    capFrames++;
+    let tick = t;
+    let due = waiting;
+    if (capEvery > 0) {
+      if (capFrames % capEvery !== 0) return;
+    } else {
+      capOrigin ??= t - 4;
+      const slot = Math.floor((t - capOrigin) / capMs);
+      if (slot <= capSlot) return;
+      // The tick is the cell's start. A callback asked for before it runs on this cell's first display frame,
+      // however late in the cell a busy page gets to it (a display link's callback runs late, it is not skipped);
+      // one asked for after it waits for the next tick.
+      const start = capOrigin + slot * capMs;
+      due = new Map();
+      for (const [handle, entry] of waiting) if (entry.at <= start + 1) due.set(handle, entry);
+      if (due.size === 0) return;
+      capSlot = slot;
+      tick = start + 4;
+    }
+    if (due.size === 0) return;
+    if (due === waiting) waiting = new Map();
+    else for (const handle of due.keys()) waiting.delete(handle);
+    for (const entry of due.values()) entry.callback(tick);
   };
   if (capMs) realRaf(capped);
   const nativeRaf = capMs
     ? (callback) => {
-        waiting.set(++nextHandle, callback);
+        waiting.set(++nextHandle, { callback, at: now() });
         return nextHandle;
       }
     : realRaf;
