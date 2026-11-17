@@ -73,12 +73,28 @@ async function inRoom(page: Page, query = ''): Promise<void> {
 }
 
 /** Flies to the radio at a known moment of the paused clock and returns it, once the GPU has its programs. */
+/**
+ * Sends the camera to the radio and returns the time it set off at, which is what the device's storyboard runs
+ * from. The first flight there waits for the discs to be made ready first (docs/ROOM.md › Flights): a few tasks,
+ * which under this paused clock take as many of its frames.
+ */
 async function goToRadio(page: Page): Promise<number> {
-  const start = await page.evaluate(() => {
-    window.__roomLab?.room.focusRadio();
-    return performance.now();
+  await page.evaluate(() => {
+    const room = window.__roomLab?.room;
+    const left = window as unknown as { __leftForRadio?: number };
+    delete left.__leftForRadio;
+    const stop = room?.onViewChange((view) => {
+      if (view !== 'radio') return;
+      left.__leftForRadio = performance.now();
+      stop?.();
+    });
+    room?.focusRadio();
   });
   await programsCompiled(page);
+  const left = () => page.evaluate(() => (window as unknown as { __leftForRadio?: number }).__leftForRadio);
+  for (let frames = 0; frames < 120 && (await left()) === undefined; frames++) await advance(page, FRAME);
+  const start = await left();
+  if (start === undefined) throw new Error('The camera never set off for the radio');
   return start;
 }
 
