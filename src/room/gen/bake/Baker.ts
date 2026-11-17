@@ -14,6 +14,7 @@ import type { GenKit } from '../genKit';
 import { add, basis, normalize, scale, sub, type Vec3 } from '../kit/vec';
 import { AMBIENT, RIG, type RigLight } from '../rig';
 import type { GenScene } from '../scene';
+import { composeSlices } from './pace';
 import {
   CHART_COMPOSE_FRAGMENT,
   CHART_COMPOSE_VERTEX,
@@ -201,8 +202,9 @@ export interface BakeResult {
  * Computes the generated room's light on the GPU, once (docs/ROOM.md › The generated room › The bake). A view is a
  * shadow map of the room, then that light added to every page and to the vertices' page: each of those draws is a
  * piece, and `step(pieces)` does that many a call, going on where the last call stopped (the shadow map is the bake's
- * own target and waits there between calls), so the caller can run it in idle moments however slow the GPU. The last
- * steps compose the pages and read the vertices' colours back.
+ * own target and waits there between calls), so the caller can run it in idle moments however slow the GPU. After the
+ * views the pages are composed, a slice of a page a piece (bake/pace.ts › composeSlices), and the last step reads the
+ * vertices' colours back.
  */
 export class Baker {
   private views: View[];
@@ -227,7 +229,13 @@ export class Baker {
   private readonly vertexCount: number;
   private readonly vertexSide: number;
   private readonly geometries: BufferGeometry[] = [];
-  private composed = false;
+  /** Each page's charts as runs of vertices of about the same texel area: what a piece of the composing draws. */
+  private readonly slices: { start: number; count: number }[][] = [];
+  /** This pass's composing, a slice a piece, once its views are drawn; `tailNext` are the pieces done. */
+  private tail: (() => void)[] | null = null;
+  private tailNext = 0;
+  /** The pages hold a composing: a later pass draws over it, since the room's frames show the pages meanwhile. */
+  private pagesComposed = false;
   private pending: Promise<Float32Array> | null = null;
   private colors: Float32Array | null = null;
   private cleared = false;
@@ -323,6 +331,7 @@ export class Baker {
       geometry.setAttribute('position', new k.BufferAttribute(mesh.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(mesh.normals, 3));
       geometry.setAttribute('clip', new k.BufferAttribute(clip, 2));
+      this.slices.push(composeSlices(clip));
       geometry.setAttribute('shade', new k.BufferAttribute(mesh.shade, 1));
       geometry.setAttribute('local', new k.BufferAttribute(mesh.local, 2));
       geometry.setAttribute('st', new k.BufferAttribute(mesh.st, 2));
@@ -352,6 +361,9 @@ export class Baker {
       });
       final.texture.colorSpace = k.SRGBColorSpace;
       final.texture.anisotropy = options.anisotropy;
+      // Its storage is made now, with its whole mip chain: the composing's slices switch its mipmaps off but for the
+      // page's last, and a target first drawn into without them would have one level for good.
+      renderer.initRenderTarget(final);
       this.finalPages.push(final);
     });
 
@@ -409,7 +421,8 @@ export class Baker {
     this.part = part;
     // (A pass ends on a whole view: `piece` is 0 already.)
     this.next = 0;
-    this.composed = false;
+    this.tail = null;
+    this.tailNext = 0;
     // A pass without the vertices keeps the colours the pass that lit them read back.
     this.pending = part.vertices ? null : Promise.resolve(this.colors ?? new Float32Array(this.vertexCount * 3));
     this.chartMeshes.forEach((mesh, index) => {
@@ -427,6 +440,8 @@ export class Baker {
     this.next = 0;
     this.piece = 0;
     this.cleared = false;
+    this.tail = null;
+    this.tailNext = 0;
   }
 
   /** The views of a pass; composing and reading back come after. */
@@ -446,6 +461,16 @@ export class Baker {
 
   get done(): boolean {
     return this.colors !== null;
+  }
+
+  /** The views of this pass are drawn: what `step` does now is the composing, a slice of a page a piece. */
+  get composing(): boolean {
+    return this.left === 0;
+  }
+
+  /** Every slice of this pass's composing is drawn: all `step` has left to do is ask for the colours. */
+  get composed(): boolean {
+    return this.tail !== null && this.tailNext >= this.tail.length;
   }
 
   /** Bytes of the bake's own targets while it runs (they are freed by `dispose`, all but the pages). */
@@ -477,9 +502,10 @@ export class Baker {
   }
 
   /**
-   * The bake's next `pieces` pieces, across views, or, once every view is drawn, the composing in one call and the
-   * reading back in another. Returns false once there is nothing left to do here (the vertices'
-   * colours may still be on their way back from the GPU: `result()` waits for them).
+   * The bake's next `pieces` pieces: across views, then, once every view is drawn, of the composing (a slice of a page
+   * each), and after those the reading back, in a call of its own. Returns false once there is nothing left to do here
+   * (the GPU may still be at it, and the vertices' colours on their way back: `result()` waits for the colours of a
+   * pass that read them, and the caller for the GPU).
    */
   step(pieces = 1): boolean {
     const renderer = this.renderer;
@@ -507,9 +533,9 @@ export class Baker {
         }
         return true;
       }
-      if (!this.composed) {
-        this.composed = true;
-        this.compose();
+      this.tail ??= this.composePieces();
+      if (this.tailNext < this.tail.length) {
+        for (let left = pieces; left > 0 && this.tailNext < this.tail.length; left--) this.tail[this.tailNext++]?.();
         return true;
       }
       if (!this.pending) {
@@ -636,35 +662,61 @@ export class Baker {
     return pieces;
   }
 
-  private compose(): void {
+  /**
+   * The composing of this pass as pieces: every page a slice at a time (every chart of it, whatever part the pass
+   * lit), then the vertices' page. A page is cleared by its first slice ever and never again: a later pass composes
+   * over the pages the room's frames are drawing with, and frames come between its slices. Its mip chain is made
+   * once, with its last slice.
+   */
+  private composePieces(): (() => void)[] {
     const { renderer, flat: camera } = this;
-    renderer.autoClear = true;
-    renderer.setClearColor(0x000000, 1);
+    const fresh = !this.pagesComposed;
+    this.pagesComposed = true;
+    const pieces: (() => void)[] = [];
     this.chartMeshes.forEach((mesh, index) => {
       const light = this.lightPages[index];
-      if (!light) return;
-      // Every chart of the page, whatever part the pass lit.
-      mesh.geometry.setIndex(null);
-      (this.chartCompose.uniforms.uLight as { value: Texture }).value = light.texture;
-      (this.chartCompose.uniforms.uSoften as { value: { set(...v: number[]): void } }).value.set(
-        this.options.halfFloat ? 0 : 1.5 / light.width,
-        this.options.halfFloat ? 0 : 1.5 / light.height,
-        0,
-        0,
-      );
-      mesh.material = this.chartCompose;
-      this.receivers.add(mesh);
-      renderer.setRenderTarget(this.finalPages[index] ?? null);
-      renderer.render(this.receivers, camera);
-      this.receivers.remove(mesh);
+      const page = this.finalPages[index];
+      const slices = this.slices[index] ?? [];
+      if (!light || !page) return;
+      slices.forEach((slice, at) => {
+        pieces.push(() => {
+          mesh.geometry.setIndex(null);
+          mesh.geometry.setDrawRange(slice.start, slice.count);
+          (this.chartCompose.uniforms.uLight as { value: Texture }).value = light.texture;
+          (this.chartCompose.uniforms.uSoften as { value: { set(...v: number[]): void } }).value.set(
+            this.options.halfFloat ? 0 : 1.5 / light.width,
+            this.options.halfFloat ? 0 : 1.5 / light.height,
+            0,
+            0,
+          );
+          mesh.material = this.chartCompose;
+          renderer.autoClear = fresh && at === 0;
+          renderer.setClearColor(0x000000, 1);
+          page.texture.generateMipmaps = at === slices.length - 1;
+          this.receivers.add(mesh);
+          try {
+            renderer.setRenderTarget(page);
+            renderer.render(this.receivers, camera);
+          } finally {
+            this.receivers.remove(mesh);
+            mesh.geometry.setDrawRange(0, Number.POSITIVE_INFINITY);
+            page.texture.generateMipmaps = true;
+          }
+        });
+      });
     });
-    if (this.part?.vertices === false) return;
-    (this.vertexCompose.uniforms.uLight as { value: Texture }).value = this.vertexLight.texture;
-    this.vertexMesh.material = this.vertexCompose;
-    this.receivers.add(this.vertexMesh);
-    renderer.setRenderTarget(this.vertexFinal);
-    renderer.render(this.receivers, camera);
-    this.receivers.remove(this.vertexMesh);
+    if (this.part?.vertices === false) return pieces;
+    pieces.push(() => {
+      renderer.autoClear = true;
+      renderer.setClearColor(0x000000, 1);
+      (this.vertexCompose.uniforms.uLight as { value: Texture }).value = this.vertexLight.texture;
+      this.vertexMesh.material = this.vertexCompose;
+      this.receivers.add(this.vertexMesh);
+      renderer.setRenderTarget(this.vertexFinal);
+      renderer.render(this.receivers, camera);
+      this.receivers.remove(this.vertexMesh);
+    });
+    return pieces;
   }
 
   private async readColors(): Promise<Float32Array> {

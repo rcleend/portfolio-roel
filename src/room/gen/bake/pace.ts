@@ -90,3 +90,45 @@ export class BakePace {
 export function overBudget(msAView: number, views: number): boolean {
   return msAView * views > OPENING_BUDGET_MS;
 }
+
+/** A page is composed in this many slices of about the same texel area: pieces a unit of the bake can count. */
+export const COMPOSE_SLICES_A_PAGE = 16;
+
+/**
+ * Cuts a page's charts (triangles, three vertices each, at `clip`: their place on the page as x, y pairs) into at
+ * most `slices` runs of vertices of about the same area, in the order they are drawn. Composing a page is the
+ * bake's largest draw (every texel's surface, once): in one piece it is on the GPU for as long as a hundred of its
+ * other pieces and no frame gets past it; a slice at a time it goes between frames like the rest. A page without
+ * charts is one empty slice (it is still cleared).
+ */
+export function composeSlices(clip: ArrayLike<number>, slices = COMPOSE_SLICES_A_PAGE): { start: number; count: number }[] {
+  const triangles = Math.floor(clip.length / 6);
+  const areas = new Float64Array(triangles);
+  let total = 0;
+  for (let t = 0; t < triangles; t++) {
+    const i = t * 6;
+    const [ax, ay, bx, by, cx, cy] = [0, 1, 2, 3, 4, 5].map((k) => clip[i + k] as number) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    areas[t] = Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2;
+    total += areas[t] as number;
+  }
+  const each = total / Math.max(1, slices);
+  const cut: { start: number; count: number }[] = [];
+  let first = 0;
+  let sum = 0;
+  for (let t = 0; t < triangles; t++) {
+    sum += areas[t] as number;
+    if (sum < each || cut.length >= slices - 1) continue;
+    cut.push({ start: first * 3, count: (t + 1 - first) * 3 });
+    first = t + 1;
+    sum = 0;
+  }
+  if (first < triangles || cut.length === 0) cut.push({ start: first * 3, count: (triangles - first) * 3 });
+  return cut;
+}

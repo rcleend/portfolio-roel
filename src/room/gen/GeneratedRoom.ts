@@ -181,6 +181,8 @@ export class GeneratedRoom {
   private profile: 'full' | 'short' = 'full';
   /** The opening pass's units timed so far and the least a view took in one (ms), until its length is judged. */
   private probe: { units: number; least: number } | null = null;
+  /** The last unit drew slices of the pages' composing, not pieces of a view. */
+  private composing = false;
   /** When the first bake's moments came, in ms since the room was created (GeneratedStats.marks). */
   private readonly marks: Record<string, number> = {};
   private transientBytes = 0;
@@ -749,6 +751,11 @@ export class GeneratedRoom {
     // The opening pass does not wait for a timer's result (it follows the fence by a task or two): the wait for the
     // fence is its measure.
     const paced = this.paced;
+    // The views are drawn and the pages' composing begins: its slices are other draws than a view's pieces, and what
+    // those took says nothing about them. One slice a unit until a unit has been timed.
+    const composing = baker.composing;
+    if (composing && !this.composing) this.pace.reset(UNIT_GPU_TARGET_MS.rest);
+    this.composing = composing;
     const query = timer && paced ? gl.createQuery() : null;
     const started = performance.now();
     if (!this.timings.started) this.timings.started = started;
@@ -771,8 +778,8 @@ export class GeneratedRoom {
     let more = true;
     try {
       more = baker.step(pieces);
-      // The pass's last unit composes the pages and asks for the colours as well.
-      while (more && baker.left === 0) more = baker.step();
+      // The unit that draws the composing's last slice asks for the colours as well.
+      if (more && composing && baker.composed) more = baker.step();
     } catch (error) {
       this.fail(error);
       return;
@@ -786,17 +793,10 @@ export class GeneratedRoom {
     this.cpuMs = Math.max(0.01, took / pieces);
     this.timings.cpu += took;
     this.timings.longest = Math.max(this.timings.longest, took);
-    if (!more) {
-      if (query) gl.deleteQuery(query);
-      if (sync) gl.deleteSync(sync);
-      this.timings.views += baker.viewCount;
-      baker.result().then(
-        (result) => this.passed(baker, result),
-        (error: unknown) => this.fail(error),
-      );
-      return;
-    }
-    // Wait for the GPU, off the frame's path, then judge the unit and queue the next.
+    if (!more) this.timings.views += baker.viewCount;
+    // Wait for the GPU, off the frame's path, then judge the unit and queue the next. The pass's last unit is waited
+    // for like any other: a pass that reads no colours back has nothing else that waits for the GPU, and the room
+    // would call itself lit, and let a waiting camera go, with the composing of every page still ahead of its frames.
     let polls = 0;
     const poll = (): void => {
       this.timer = null;
@@ -805,9 +805,18 @@ export class GeneratedRoom {
       const signalled = !sync || gl.clientWaitSync(sync, 0, 0) !== gl.TIMEOUT_EXPIRED;
       const measured = query ? (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) as boolean) : false;
       // The timer's result follows the fence by a task or two; without a timer the wait itself is the measure.
-      if (!signalled || (query && !measured && ++polls < 6)) {
+      if (!signalled || (more && query && !measured && ++polls < 6)) {
         if (this.paced) this.wait(poll, signalled ? 0 : GPU_POLL_MS);
         else later(poll);
+        return;
+      }
+      if (!more) {
+        if (query) gl.deleteQuery(query);
+        if (sync) gl.deleteSync(sync);
+        baker.result().then(
+          (result) => this.passed(baker, result),
+          (error: unknown) => this.fail(error),
+        );
         return;
       }
       const gpuMs =
@@ -817,8 +826,11 @@ export class GeneratedRoom {
       if (query) gl.deleteQuery(query);
       if (sync) gl.deleteSync(sync);
       this.pace.read(gpuMs, pieces);
-      this.timings.gpu = Math.max(this.timings.gpu, (gpuMs / pieces) * aView);
-      if (this.judged(baker, gpuMs, left - baker.left)) return;
+      // (A unit of the composing drew no view: it says nothing about one.)
+      if (!composing) {
+        this.timings.gpu = Math.max(this.timings.gpu, (gpuMs / pieces) * aView);
+        if (this.judged(baker, gpuMs, left - baker.left)) return;
+      }
       // A GPU that takes too long over one piece gets a rest between units, and its frames their share of it.
       const gap = this.paced ? this.pace.gapMs() : 0;
       if (gap > 0) {
