@@ -22,6 +22,13 @@ export interface Chart {
   readonly density: number;
   /** Occlusion the surface knows about itself, multiplied into the ambient light. */
   readonly shade: number;
+  /** The normal its light falls on, where that is not the rectangle's own (a flat sheet drawn as tilted slats). */
+  readonly lit?: Vec3;
+  /**
+   * Packed after the page's other charts, into the room a shelf of theirs has left: a chart that only one tier has
+   * then moves none of the others, whose dither and filtering are their place's.
+   */
+  readonly late?: boolean;
   /**
    * A sheet that does not lie flat (a rug): cut into `cells` across u and v, each vertex lifted off the rectangle's
    * plane along u × v by `height(s, t)` metres (s and t run 0–1 across it). Its texels stay the flat rectangle's;
@@ -83,26 +90,29 @@ function shelves(charts: readonly Chart[], factor: number, maxSize: number): Pac
       w: Math.max(2, Math.round(length(chart.u) * chart.density * factor)),
       h: Math.max(2, Math.round(length(chart.v) * chart.density * factor)),
     }))
-    .sort((a, b) => b.h - a.h || b.w - a.w);
+    .sort((a, b) => Number(a.chart.late ?? false) - Number(b.chart.late ?? false) || b.h - a.h || b.w - a.w);
   for (let width = 64; width <= maxSize; width *= 2) {
     const placed: PackedChart[] = [];
-    let [x, y, shelf] = [GUTTER, GUTTER, 0];
+    // The shelves so far: where each stands, how high it is and where its next chart goes.
+    const rows: { y: number; h: number; x: number }[] = [];
     let fits = true;
     for (const { chart, w, h } of sized) {
       if (w + 2 * GUTTER > width) {
         fits = false;
         break;
       }
-      if (x + w + GUTTER > width) {
-        x = GUTTER;
-        y += shelf + GUTTER;
-        shelf = 0;
+      const last = rows[rows.length - 1];
+      let row = chart.late ? rows.find((each) => each.h >= h && each.x + w + GUTTER <= width) : last;
+      if (!row || row.x + w + GUTTER > width) {
+        row = { y: last ? last.y + last.h + GUTTER : GUTTER, h: 0, x: GUTTER };
+        rows.push(row);
       }
-      placed.push({ ...chart, x, y, w, h });
-      x += w + GUTTER;
-      shelf = Math.max(shelf, h);
+      placed.push({ ...chart, x: row.x, y: row.y, w, h });
+      row.x += w + GUTTER;
+      row.h = Math.max(row.h, h);
     }
-    const used = y + shelf + GUTTER;
+    const last = rows[rows.length - 1];
+    const used = last ? last.y + last.h + GUTTER : GUTTER;
     if (!fits || used > maxSize) continue;
     let height = 64;
     while (height < used) height *= 2;
@@ -281,10 +291,11 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
         relieved(chart, page, normal, d, b);
         continue;
       }
+      const lit = chart.lit ?? normal;
       for (const [s, t] of CORNERS) {
         const p = add(chart.origin, add(scale(chart.u, s), scale(chart.v, t)));
         d.positions.push(...p);
-        d.normals.push(...normal);
+        d.normals.push(...lit);
         // Texel centres of the chart's outermost texels: the rectangle's edge maps half a texel in.
         d.uvs.push((chart.x + 0.5 + s * (chart.w - 1)) / page.width, (chart.y + 0.5 + t * (chart.h - 1)) / page.height);
       }
@@ -298,7 +309,7 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
             const bs = across[i + s] as number;
             const bt = up[j + t] as number;
             b.positions.push(...add(chart.origin, add(scale(chart.u, bs), scale(chart.v, bt))));
-            b.normals.push(...normal);
+            b.normals.push(...lit);
             b.uvs.push(
               (chart.x + 0.5 + bs * (chart.w - 1)) / page.width,
               (chart.y + 0.5 + bt * (chart.h - 1)) / page.height,

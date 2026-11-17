@@ -26,6 +26,8 @@ export interface RoomGuideProps {
   readonly view: RoomView;
   /** The camera rests at `view`. */
   readonly settled: boolean;
+  /** The startup still is out of sight: the TV's way out never arrives as part of the hand-over. */
+  readonly clear: boolean;
   readonly scenes: SceneSignal;
   /** Set when the host's own way out went with the keyboard on it: the hint's button takes the focus (RoomHost.tsx). */
   readonly handOver: RefObject<boolean>;
@@ -56,7 +58,7 @@ const GO: Readonly<Record<RoomTarget, (room: Room) => void>> = {
  * in the light, and the way back from the computer and the radio. A lazy chunk the room host loads once the TV's
  * picture is up.
  */
-export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
+export function RoomGuide({ room, view, settled, clear, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
   const touch = useMediaQuery(COARSE_POINTER);
   const [progress, learn] = useGuideProgress();
   const lit = useLitTarget(room.spotlight);
@@ -105,7 +107,7 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
     <>
       {view === 'tv' ? (
         <TvWayOut
-          due={begun && settled}
+          due={begun && settled && clear}
           returning={returning}
           onLookAround={showRoom}
           touch={touch}

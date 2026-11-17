@@ -85,6 +85,10 @@ export class BootScene implements GameScene {
     }
   }
 
+  dark(): boolean {
+    return this.#time >= this.#exitAt;
+  }
+
   render(gfx: Gfx): void {
     const time = this.#time;
     if (time >= this.#exitAt) {

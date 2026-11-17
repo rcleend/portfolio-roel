@@ -73,6 +73,16 @@ export class Director<M extends SceneMap<M>, A extends string = string> implemen
   }
 
   /**
+   * The frame `render` draws now is all black: a transition at a cover that hides everything in black, or a scene
+   * that says so. The startup still hands over to the live room on such a frame, when the flat picture and the tube
+   * both show nothing (docs/ROOM.md › Startup).
+   */
+  get dark(): boolean {
+    const active = this.#transition;
+    return (active?.transition.dark?.(coverageOf(active)) || this.#current?.scene.dark?.()) ?? false;
+  }
+
+  /**
    * Switches to `id`. Without a transition this is a cut. Called from a
    * scene's update, the switch happens right after that update returns.
    */

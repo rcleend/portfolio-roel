@@ -321,11 +321,14 @@ machine's and its frames are discarded; A's room stretch had 4.4 cores of other 
 real machine without a GPU, Windows, Linux, Firefox, Safari, Chrome 157 on software WebGL, device scale 1, a picture
 at 0.5 MP, the room at rest on slow cores.
 
-**My reading, for the owner to overrule**: D with E (send a software-rendered visitor to the flat television before
-the room's chunk loads) is the only option that holds a full frame rate on a slow CPU, and it costs under half a
-core; B holds only on a fast one, and A and C leave a first wait nothing bounds. But D is worth choosing only
-together with giving the flat television a way to the resume and the links by mouse and touch, which is new work
-outside the camera and the render loop, and which today's acceleration-off visitor lacks already.
+**The owner's decision (firstmate's message 008, 17 Nov, 14:29 UTC), in his words: "On no-gpu devices, simply don't
+display any of the game or room. Simply display the CV".** So none of A to D: a visitor with no WebGL, or with
+software WebGL only, gets the CV page directly, no room, no game, no flat television. It is not built on this
+branch: another worker builds it from these notes and from the test in E, and its branch goes into PR 19 as this one
+does. Two consequences here: these notes and the measurements stay committed where they are, and the second stage
+(rest pacing, the governor) is not tuned for the software renderer, which no longer reaches the room. (What I had
+put to the owner was D with E, the flat television plus ways to the résumé; the decision goes further and drops the
+flat television for these visitors too.)
 
 ## Chrome's Energy Saver (found while measuring)
 
@@ -551,9 +554,8 @@ rest, and the slow-GPU rows above for the governor (it changes the scale 3-5 tim
    bake's end and the idle units after ready (the rain's sound, the warming) are what this branch changed at that
    moment.
 2. **The second stage** (above): rest pacing, then the governor under overload.
-3. **The no-GPU decision** is with the owner (raised 17 Nov, 15:40, `needs-decision … [key=nogpu]`): the options
-   and their numbers are in "No GPU" above. Nothing of it is built; if the answer is the flat television, the ways
-   to the résumé and the links by mouse and touch are a task of their own.
+3. ~~The no-GPU decision~~ Decided by the owner (message 008): such visitors get the CV page, built by another
+   worker from "No GPU" above. Nothing to do here but keep the notes where they are.
 4. Steady state, before against after, was not measured as such in the first stage: frame time per view at rest and
    memory (`node scripts/perf/profile.mjs --dist .shots/flights/dist-base` against `--dist dist`); it belongs with
    the second stage's rest measurements. Room-ready times are in the tables' logs: desktop 549-634 ms before,

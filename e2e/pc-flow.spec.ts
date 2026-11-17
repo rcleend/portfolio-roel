@@ -639,10 +639,11 @@ test.describe('performance', () => {
     await page.goto('/?seed=1');
     await waitForRunning(page);
     // The walls' strips go up at the TV just after the room is in, under the startup still (docs/ROOM.md ›
-    // Startup); the visitor's press a moment later hands the game over to the room, and from there on it plays.
+    // Startup); the still goes on a black frame of the game (the boot's blackout, or after the press that leaves the
+    // title), and from there on the game plays on the room's tube.
     await page.waitForTimeout(1000);
     await page.keyboard.press('Enter');
-    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false', { timeout: 30_000 });
     const handedOver = await page.evaluate(() => performance.now());
     // Long enough for the still painter to arrive and be prepared between the game's frames.
     await page.waitForTimeout(2500);

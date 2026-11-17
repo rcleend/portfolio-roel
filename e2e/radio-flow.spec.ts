@@ -39,7 +39,8 @@ const WALL = { x: 40, y: 450 };
 const LAZY_RADIO =
   /\/radio\/deckChunk|\/radio\/device\/|RadioDevice|RadioExperience|\/app\/radio\/(player|ui|labels)\/|\/content\/radio\/|\.m4a|\.mp3/;
 /** The room's retired files: its models and textures (`/room/`), the startup still (`/startup/`). */
-const ROOM_FILE = /^\/(room|startup)\/|\.(glb|gltf|ktx2)$/;
+// The startup still's one picture is the page's own (docs/ROOM.md › Startup), not a file of the room.
+const ROOM_FILE = /^\/room\/|^\/startup\/(?!(still|small)-[0-9a-f]{8}\.(avif|webp)$)|\.(glb|gltf|ktx2)$/;
 
 const stats = (page: Page) => page.evaluate(() => window.__room?.stats);
 const view = (page: Page) => page.evaluate(() => window.__room?.view);

@@ -15,7 +15,7 @@ const WALL = { x: 40, y: 450 };
 const RADIO_IN_ROOM_VIEW = { x: 805, y: 446 };
 const CABINET_IN_ROOM_VIEW = { x: 780, y: 545 };
 
-test('opens on the startup still, starts the game on it and hands over to the live room on a press', async ({
+test('opens on the startup still, starts the game on it and hands over to the live room in the dark after a press', async ({
   page,
 }) => {
   const errors = trackErrors(page);
@@ -29,7 +29,9 @@ test('opens on the startup still, starts the game on it and hands over to the li
       if (now && now !== phases.at(-1)?.phase) phases.push({ phase: now, game: window.__arcade !== undefined });
     }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
   });
-  await page.goto('/?seed=1');
+  // Straight onto the title: after the boot the still goes in the boot's own blackout, whenever the room is in by
+  // then (handover.spec.ts), and here it is looked at with the game's picture on it.
+  await page.goto('/?seed=1&scene=title');
   const still = page.locator('#tv-still');
   await expect(still).toHaveAttribute('data-shown', 'true');
   await expect(hostElement(page)).toHaveAttribute('data-host', 'room');
@@ -41,24 +43,30 @@ test('opens on the startup still, starts the game on it and hands over to the li
   );
   expect(phases.map((entry) => entry.phase).slice(-2)).toEqual(['powering', 'running']);
   expect(phases.find((entry) => entry.phase === 'powering')?.game).toBe(false);
-  expect(['boot', 'title']).toContain(await scene(page));
+  expect(await scene(page)).toBe('title');
   expect(await paused(page)).toBe(false);
-  // The room is in, its tube lit at once behind the still, which waits for the visitor.
+  // The room is in, its tube lit at once behind the still, which waits for a black frame of the game: the title has
+  // none until the visitor presses.
   expect(await page.evaluate(() => window.__room?.powerState)).toBe('on');
   await expect(still).toHaveAttribute('data-shown', 'true');
   // The game's picture is on the still's glass, not under its casing: without it that part of the page looks
   // different nearly everywhere.
-  await expect.poll(() => scene(page), { timeout: 15_000 }).toBe('title');
   const picture = page.locator('.still-picture');
   const box = await picture.boundingBox();
   const clip = { x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 0, height: box?.height ?? 0 };
-  const shown = await page.screenshot({ clip });
-  await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
-  const hidden = await page.screenshot({ clip });
-  await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
-  expect(await differingPixels(shown, hidden, 24)).toBeGreaterThan(clip.width * clip.height * 0.5);
+  // The title comes up out of the dark, so the picture is looked at until it is there.
+  const lit = async (): Promise<number> => {
+    const shown = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
+    const hidden = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
+    return differingPixels(shown, hidden, 24);
+  };
+  await expect.poll(lit, { timeout: 10_000 }).toBeGreaterThan(clip.width * clip.height * 0.5);
+  // The press leaves the title through black, and there the still goes (not at the press: handover.spec.ts).
   await page.keyboard.press('Enter');
   await expect(still).toHaveAttribute('data-shown', 'false');
+  await expect(still).toHaveAttribute('data-black', '');
   expect(errors).toEqual([]);
 });
 

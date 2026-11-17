@@ -6,14 +6,18 @@
  * taken as it is.
  */
 import type { StillFraming } from '../../src/app/startup/still/camera';
-import { layersFor, type PaintSpec } from './layers';
-import { fromPlane, type Pinhole, rasterise, toPlane, type Vec3 } from './raster';
+import type { Vignette } from './encode';
+import { pageVignette } from './finish';
+import { LAYERS, type LayerSpec, type PaintSpec } from './layers';
+import { fromPlane, type Pinhole, rasterise, type Vec3 } from './raster';
 import { area, outlines, type Pair, simplify, smooth } from './trace';
 import { cameraFor, FAMILY, pinholeOf, type World } from './world';
 
 export interface Shape {
   readonly name: string;
-  readonly kind: 'loops' | 'disc' | 'text' | 'rim';
+  readonly kind: 'loops' | 'disc' | 'text' | 'rim' | 'vignette';
+  /** The finish's vignette, where the shape is it. */
+  readonly vignette?: Vignette;
   /** Closed outlines in world metres; holes are loops too (the fill is even-odd). */
   readonly loops: readonly (readonly Vec3[])[];
   /** Which loops are control points of a curve (trace.ts › curve) rather than a polygon's corners. */
@@ -26,13 +30,21 @@ export interface Shape {
   /** A print's words, and where along the face (z) each is centred. */
   readonly texts?: readonly string[];
   readonly places?: readonly number[];
-  /** An edge's light: the number of the shape whose outlines it runs along. */
+  /** An edge's light: the number of the shape whose outlines it runs along (0: the picture's), and of the one it is cut to. */
   readonly along?: number;
+  readonly within?: number;
+  readonly strengths?: readonly number[];
   /** Shown only with the set on: a light of the set, the picture's light on the lip. */
   readonly lit?: boolean;
+  /** An outline only, for the shape after it where the eye's depth along the view is more than this (nearer the set). */
+  readonly near?: number;
+  /** A disc that is a lamp's bloom: sized in the room's buffer pixels (draw.ts). */
+  readonly bloom?: boolean;
+  /** The shape whose rendered picture has this one in it: drawn only until that picture is in. */
+  readonly on?: string;
+  /** What the picture lights. */
+  readonly tube?: boolean;
   readonly paints: readonly PaintSpec[];
-  /** The shape its paints go over (a lamp's pool on its surface). */
-  readonly over?: number;
 }
 
 /** Triangles drawn over what was drawn before them, as the shape numbered: how the still's shapes cover the view. */
@@ -59,7 +71,7 @@ const CHART_SHOWS = 1000;
 /** An outline smaller than this is left out (CSS px² at the nominal view). */
 const SMALLEST = 2;
 
-export function buildGeometry(world: World, framing: StillFraming): Geometry {
+export function buildGeometry(world: World, framing: StillFraming, layers: readonly LayerSpec[] = LAYERS): Geometry {
   const nominal = pinholeOf(cameraFor(framing, 1440, 900, false), 900, DENSITY);
   const everything = world.triangles.map((_, i) => i);
   // What each framing of the family shows of each chart.
@@ -77,7 +89,7 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
 
   const shapes: Shape[] = [];
   const passes: Pass[] = [];
-  for (const layer of layersFor(nominal.eye)) {
+  for (const layer of layers) {
     if (layer.kind === 'disc') {
       shapes.push({
         name: layer.name,
@@ -86,6 +98,8 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
         centre: layer.centre,
         size: layer.radius,
         lit: layer.lit,
+        // A lamp's bloom, but the power lamp's, whose halo is a part of the set.
+        bloom: !layer.lit && layer.paints.some((paint) => paint.kind === 'radial' && paint.glow),
         paints: layer.paints,
       });
     } else if (layer.kind === 'text') {
@@ -97,23 +111,41 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
         centre: [layer.centre[0], layer.centre[1], places[0] as number],
         size: layer.size,
         texts: layer.words.map(([text]) => text),
+        on: layer.on,
         places,
         paints: layer.paints,
       });
+    } else if (layer.kind === 'vignette') {
+      const except = shapes.findIndex((shape) => shape.name === layer.except);
+      if (except < 0) throw new Error(`The still's vignette leaves out "${layer.except}", which is no layer before it`);
+      shapes.push({
+        name: layer.name,
+        kind: 'vignette',
+        loops: [],
+        along: except,
+        vignette: pageVignette(),
+        paints: [],
+      });
     } else if (layer.kind === 'rim') {
-      const of = shapes.find((shape) => shape.name === layer.of);
-      if (!of)
-        throw new Error(`The still's "${layer.name}" is the light on "${layer.of}", which is no layer before it`);
-      const all = of.loops.flat();
+      const index = (name: string): number => {
+        const found = shapes.findIndex((shape) => shape.name === name);
+        if (found < 1)
+          throw new Error(`The still's "${layer.name}" is the light on "${name}", which is no layer before it`);
+        return found;
+      };
+      const within = index(layer.within);
+      const all = (shapes[within] as Shape).loops.flat();
       const centre = [0, 1, 2].map((axis) => all.reduce((sum, p) => sum + (p[axis] as number), 0) / all.length);
       shapes.push({
         name: layer.name,
         kind: 'rim',
-        along: shapes.indexOf(of),
-        loops: of.loops,
+        along: layer.of === 'picture' ? 0 : index(layer.of),
+        within,
+        strengths: Array.from({ length: layer.steps }, () => 0),
+        loops: [],
         centre: centre as unknown as Vec3,
         size: layer.width,
-        lit: true,
+        tube: true,
         paints: layer.paints,
       });
     } else if (layer.kind === 'charts') {
@@ -129,14 +161,13 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
         const corners = rectangle(world, triangles);
         const facing = (world.triangles[triangles[0] as number] as World['triangles'][number]).normal[0] < -0.9;
         const [left, right] = [Math.min(...corners.map((p) => p[2])), Math.max(...corners.map((p) => p[2]))];
-        const [x, y] = [(corners[0] as Vec3)[0], corners.reduce((sum, p) => sum + p[1], 0) / 4];
         shapes.push({
           name: order.length > 1 ? `${layer.name}-${i}` : layer.name,
           kind: 'loops',
           loops: [corners],
           paints:
             layer.wide && facing && right - left >= layer.wide.from
-              ? [{ kind: 'linear', from: [x, y, left], to: [x, y, right], stops: layer.wide.stops }]
+              ? [{ kind: 'field', columns: layer.wide.columns, rows: layer.wide.rows }]
               : layer.paints,
         });
       });
@@ -145,10 +176,24 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
       if (picked.length === 0) throw new Error(`The still's layer "${layer.name}" picks nothing of the room`);
       if (layer.kind === 'outline') {
         const behind = layer.behind ? everything.filter((i) => layer.behind?.(world.triangles[i] as never)) : undefined;
-        passes.push({ shape: shapes.length, positions: world.positions, triangles: picked, behind });
-        let traced = trace(nominal, layer, world.positions, picked, undefined, layer.round, behind);
+        let traced = trace(nominal, layer, world.positions, picked, layer.round, behind);
         if (layer.whole) traced = [traced.reduce((most, loop) => (loop.area > most.area ? loop : most))];
         const loops = traced.map((loop) => loop.points);
+        if (layer.near) {
+          // The same outline from the nearer eye, before the shape itself: the page draws the shape with it in the
+          // windows whose eye is nearer to that one than to the nominal view's (its depth along the view, between).
+          const view = cameraFor(framing, layer.near[0], layer.near[1], false);
+          const seen = trace(pinholeOf(view, layer.near[1], DENSITY), layer, world.positions, picked, false, behind);
+          shapes.push({
+            name: `${layer.name}-near`,
+            kind: 'loops',
+            loops: seen.map((loop) => loop.points),
+            curved: seen.map((loop) => loop.curved),
+            near: (view.eye[2] + cameraFor(framing, 1440, 900, false).eye[2]) / 2,
+            paints: [],
+          });
+        }
+        passes.push({ shape: shapes.length, positions: world.positions, triangles: picked, behind });
         if (!layer.round) {
           shapes.push({
             name: layer.name,
@@ -156,6 +201,7 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
             loops,
             curved: traced.map((loop) => loop.curved),
             coarse: layer.coarse,
+            on: layer.on,
             paints: layer.paints,
           });
           continue;
@@ -169,6 +215,7 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
           loops: [],
           centre: outer.centre,
           size: outer.size,
+          on: layer.on,
           paints: layer.paints,
         });
         if (hole)
@@ -178,57 +225,10 @@ export function buildGeometry(world: World, framing: StillFraming): Geometry {
             loops: [],
             centre: hole.centre,
             size: hole.size,
+            on: layer.on,
             paints: [{ kind: 'flat' }],
           });
-        continue;
       }
-      const over = shapes.findIndex((shape) => shape.name === layer.over);
-      const surface = world.triangles[picked[0] as number] as World['triangles'][number];
-      const axis = surface.normal.findIndex((value) => Math.abs(value) > 0.9);
-      const shadow = shadowOf(
-        world.positions,
-        everything.filter((i) => layer.casters(world.triangles[i] as never)),
-        layer.light,
-        axis,
-        // A hair off the surface, towards the light.
-        (surface.min[axis] as number) + Math.sign((layer.light[axis] as number) - (surface.min[axis] as number)) * 5e-4,
-      );
-      const shade = Array.from({ length: shadow.length / 9 }, (_, i) => i);
-      const { centre, reach } = layer;
-      const keep = (at: Vec3): boolean => Math.hypot(at[0] - centre[0], at[1] - centre[1], at[2] - centre[2]) <= reach;
-      // The window the pool can be in: round the box its reach fills.
-      const corners = Array.from({ length: 8 }, (_, i) =>
-        toPlane(
-          nominal,
-          [0, 1, 2].map((k) => (centre[k] as number) + (i & (1 << k) ? reach : -reach)) as unknown as Vec3,
-        ),
-      );
-      const limit = [
-        Math.min(...corners.map((p) => p[0])),
-        Math.min(...corners.map((p) => p[1])),
-        Math.max(...corners.map((p) => p[0])),
-        Math.max(...corners.map((p) => p[1])),
-      ] as const;
-      // The pool takes the surface within its reach, and the shadow gives its part back to the surface's own shape.
-      passes.push({ shape: shapes.length, positions: world.positions, triangles: picked, keep });
-      const chart = picked.map((i) => world.triangles[i] as World['triangles'][number]);
-      const onSurface = (at: Vec3): boolean =>
-        at.every(
-          (value, k) =>
-            value >= Math.min(...chart.map((t) => t.min[k] as number)) - 1e-3 &&
-            value <= Math.max(...chart.map((t) => t.max[k] as number)) + 1e-3,
-        );
-      passes.push({ shape: over, positions: shadow, triangles: shade, keep: onSurface });
-      const traced = trace(nominal, layer, world.positions, picked, { positions: shadow, triangles: shade, limit });
-      shapes.push({
-        name: layer.name,
-        kind: 'loops',
-        loops: traced.map((loop) => loop.points),
-        curved: traced.map((loop) => loop.curved),
-        coarse: 4,
-        paints: layer.paints,
-        over,
-      });
     }
   }
   return { shapes, passes };
@@ -287,74 +287,21 @@ function rectangle(world: World, triangles: readonly number[]): Vec3[] {
   return corners.sort((a, b) => angle(a) - angle(b));
 }
 
-/**
- * The picked triangles' shadow from a point light on the plane where `axis` is `value`: each laid flat there. Only
- * what is between the light and the plane throws one; a triangle across the light's own level is cut there.
- */
-function shadowOf(
-  positions: ArrayLike<number>,
-  picked: readonly number[],
-  light: Vec3,
-  axis: number,
-  value: number,
-): number[] {
-  const flat: number[] = [];
-  const side = Math.sign(value - (light[axis] as number));
-  const from = (light[axis] as number) + side * 0.02;
-  const cast = (p: Vec3): Vec3 => {
-    const t = (value - (light[axis] as number)) / ((p[axis] as number) - (light[axis] as number));
-    return [0, 1, 2].map((k) =>
-      k === axis ? value : (light[k] as number) + ((p[k] as number) - (light[k] as number)) * t,
-    ) as unknown as Vec3;
-  };
-  for (const triangle of picked) {
-    const corners = [0, 1, 2].map((corner): Vec3 => {
-      const at = triangle * 9 + corner * 3;
-      return [positions[at] as number, positions[at + 1] as number, positions[at + 2] as number];
-    });
-    const beyond: Vec3[] = [];
-    corners.forEach((a, i) => {
-      const b = corners[(i + 1) % 3] as Vec3;
-      const [inA, inB] = [(a[axis] as number) * side >= from * side, (b[axis] as number) * side >= from * side];
-      if (inA) beyond.push(a);
-      if (inA !== inB) {
-        const t = (from - (a[axis] as number)) / ((b[axis] as number) - (a[axis] as number));
-        beyond.push(
-          [0, 1, 2].map((k) => (a[k] as number) + ((b[k] as number) - (a[k] as number)) * t) as unknown as Vec3,
-        );
-      }
-    });
-    for (let i = 1; i + 1 < beyond.length; i++)
-      flat.push(...cast(beyond[0] as Vec3), ...cast(beyond[i] as Vec3), ...cast(beyond[i + 1] as Vec3));
-  }
-  return flat;
-}
-
 function trace(
   camera: Pinhole,
-  layer: { readonly name: string; readonly grow?: number; readonly tolerance?: number },
+  layer: { readonly name: string; readonly grow?: number; readonly close?: boolean; readonly tolerance?: number },
   positions: ArrayLike<number>,
   triangles: readonly number[],
-  /** What is cut out of it, and the window on the camera's plane it is traced in. */
-  less?: {
-    readonly positions: ArrayLike<number>;
-    readonly triangles: readonly number[];
-    readonly limit: readonly [number, number, number, number];
-  },
   /** Corners only: a round part's outline is measured, not drawn. */
   plain = false,
   /** Triangles that hide what is behind them. */
   behind?: readonly number[],
 ): { points: Vec3[]; curved: boolean; area: number }[] {
-  const raster = rasterise(camera, positions, triangles, less?.limit);
+  const raster = rasterise(camera, positions, triangles);
   let mask = Uint8Array.from(raster.triangle, (triangle) => (triangle >= 0 ? 1 : 0));
   if (behind) {
     const front = rasterise(camera, positions, behind, undefined, raster);
     for (let i = 0; i < mask.length; i++) if ((front.depth[i] as number) < (raster.depth[i] as number)) mask[i] = 0;
-  }
-  if (less) {
-    const shadow = rasterise(camera, less.positions, less.triangles, undefined, raster);
-    for (let i = 0; i < mask.length; i++) if ((shadow.triangle[i] as number) >= 0) mask[i] = 0;
   }
   const { width, height } = raster;
   const depth = Float32Array.from(raster.depth);
@@ -377,6 +324,22 @@ function trace(
         }
       }
     mask = grown;
+    if (layer.close) {
+      // Only its gaps closed: shrunk again by as much, so its own edges are where they were.
+      const shrunk = new Uint8Array(mask.length);
+      for (let y = 0; y < height; y++)
+        for (let x = 0; x < width; x++) {
+          let whole = mask[y * width + x] === 1;
+          for (let dy = -reach; dy <= reach && whole; dy++)
+            for (let dx = -reach; dx <= reach && whole; dx++) {
+              const [sx, sy] = [x + dx, y + dy];
+              if (dx * dx + dy * dy > reach * reach) continue;
+              whole = sx >= 0 && sy >= 0 && sx < width && sy < height && mask[sy * width + sx] === 1;
+            }
+          shrunk[y * width + x] = whole ? 1 : 0;
+        }
+      mask = shrunk;
+    }
   }
   const tolerance = (layer.tolerance ?? 0.3) * DENSITY;
   const loops: { points: Vec3[]; curved: boolean; area: number }[] = [];

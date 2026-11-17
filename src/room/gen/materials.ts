@@ -20,15 +20,46 @@ export const MATERIAL = {
   /** The rug's pile: navy and ivory squares, `params.x` metres a square, with the pile's own soft mottle. */
   rug: 6,
   /**
-   * Stained softwood furniture (the dresser): `params.rgb` the stain; `params.a` under 0.5 runs the grain along the
-   * chart, from 0.5 up it, and its fraction seeds the board.
+   * Stained softwood furniture (the dresser): `params.rgb` the stain; the fraction of `params.a` under 0.5 runs the
+   * grain along the chart, from 0.5 up it, and seeds the board; its whole part is the chart's drawn joints (`joint`).
    */
   stained: 7,
   /** A sheet of printed paper: `params.rgb`, with faint lines of text across it. */
   paper: 8,
+  /** The blind as one sheet with its slats drawn (`SLATS`): `params.rgb` a slat's enamel. */
+  slats: 9,
 } as const;
 
-/** `vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity)`; needs `uArt`. */
+/**
+ * A line of geometry thinner than a pixel breaks into dashes where the scene is drawn without multisampling, so the
+ * tier that is built for that draws such lines into its charts instead (docs/ROOM.md › Detail by tier): each texel
+ * takes the share of it the line covers, and the page's filter keeps the line whole at any distance.
+ *
+ * A stained chart's joints, two bits an edge in `params.a`'s whole part: none, the 3 mm gap round a drawer or a door,
+ * or the 7 mm bead round a panel. The line lies a texel inside the edge, so the chart beside it, in the same plane,
+ * need know nothing of it.
+ */
+export const JOINT = { gap: 1, bead: 2 } as const;
+export const joints = (u0: number, v0: number, u1: number, v1: number): number => u0 + 4 * v0 + 16 * u1 + 64 * v1;
+
+/**
+ * The drawn blind's measures (shell.ts builds the sheet to them, and gen.test.ts holds them to the slats' own): a
+ * slat's pitch at the sheet's left end, how much less it is at the right, where the cords draw the blind up, and how
+ * far above the sheet's lower edge the lowest slat's middle is.
+ */
+export const SLATS = { pitch: 0.03616, closes: 0.00247, foot: 0.03, count: 20 } as const;
+
+/**
+ * `vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity)`; needs `uArt`.
+ *
+ * The drawn lines (their comments are here: a shader's are shipped). `covered` is the share of a texel, given its
+ * middle and its size, that the band from `a` to `b` covers; `grain` a texel's size in the chart's metres and `size`
+ * the chart's. The slats: the sheet's u runs up it and its v from its right end; a slat's band is, from its foot, the
+ * lip the desk lamp catches, the face, darker towards the slat above that shades it, and the gap under that slat; over
+ * the top slat is the casing in the head rail's shade, and down the sheet the two ladder cords. The joints: `from` is
+ * how far in from each edge a texel is (u = 0, v = 0, u = 1, v = 1) less the line's middle, which lies a texel in, or
+ * half a texel clear of the edge where the line is the wider.
+ */
 export const SURFACE_GLSL = /* glsl */ `
 ${HASH_GLSL}
 uniform sampler2D uArt;
@@ -60,9 +91,27 @@ vec4 oakBoards(vec2 p) {
   return vec4(base, smoothstep(0.0008, 0.008, edge));
 }
 
+float covered(float at, float wide, float a, float b) {
+  return clamp((min(at + 0.5 * wide, b) - max(at - 0.5 * wide, a)) / wide, 0.0, 1.0);
+}
+
 vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity) {
   cavity = 1.0;
   if (material < 0.5) return params.rgb;
+  vec2 grain = abs(vec2(dFdx(metres.x), dFdy(metres.y)));
+  vec2 size = grain / abs(vec2(dFdx(st.x), dFdy(st.y)));
+  if (material > 8.5) {
+    float pitch = ${SLATS.pitch} - ${SLATS.closes} * (1.0 - st.y);
+    float up = metres.x - ${SLATS.foot} + 0.5 * pitch;
+    float slat = floor(up / pitch);
+    float y = up - slat * pitch;
+    float lip = covered(y, grain.x, 0.0, 0.007) + covered(y - pitch, grain.x, 0.0, 0.007);
+    float gap = slat > ${SLATS.count - 0.5} ? 1.0 : covered(y, grain.x, pitch - 0.005, pitch) + covered(y + pitch, grain.x, pitch - 0.005, pitch);
+    float face = (1.0 - 0.26 * smoothstep(0.35, 1.0, y / pitch)) * (0.97 + 0.06 * hash2(ivec2(int(slat), 5)));
+    float cord = covered(abs(abs(metres.y - 0.795) - 0.57), grain.y, -0.0011, 0.0011);
+    vec3 tone = mix(mix(vec3(face), vec3(1.8, 1.4, 1.1), lip), vec3(0.3, 0.34, 0.44), gap);
+    return params.rgb * tone * (1.0 - 0.2 * cord);
+  }
   if (material < 1.5) {
     float brush = fbm(vec2(metres.x * 420.0, metres.y * 9.0) + params.a * 31.0);
     float peel = vnoise(metres * 260.0 + params.a * 7.0);
@@ -94,7 +143,19 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     return params.rgb * (1.0 - 0.09 * line) * (0.97 + 0.05 * vnoise(metres * 300.0));
   }
   if (material > 6.5) {
-    vec2 g = (params.a < 0.5 ? metres : metres.yx) + fract(params.a * 2.0) * 61.0;
+    float joined = floor(params.a);
+    float seed = params.a - joined;
+    if (joined > 0.5) {
+      vec4 kind = mod(floor(joined / vec4(1.0, 4.0, 16.0, 64.0)), 4.0);
+      vec4 reach = 0.0015 + 0.002 * step(1.5, kind);
+      vec4 wide = grain.xyxy;
+      vec4 middle = max(wide, 0.5 * wide + reach);
+      vec4 from = vec4(metres, size - metres) - middle;
+      vec4 line = clamp((min(from + 0.5 * wide, reach) - max(from - 0.5 * wide, -reach)) / wide, 0.0, 1.0);
+      line *= step(0.5, kind) * (0.9 - 0.35 * step(1.5, kind));
+      cavity = 1.0 - max(max(line.x, line.y), max(line.z, line.w));
+    }
+    vec2 g = (seed < 0.5 ? metres : metres.yx) + fract(seed * 2.0) * 61.0;
     // Growth rings cut along the board: lines a few millimetres apart that wander and open into cathedrals.
     float wander = fbm(vec2(g.x * 1.4, g.y * 5.0)) * 11.0 + fbm(vec2(g.x * 0.5, g.y * 1.5) + 17.0) * 16.0;
     float ring = abs(fract(g.y * 70.0 + wander) - 0.5) * 2.0;

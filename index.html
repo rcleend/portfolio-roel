@@ -123,10 +123,10 @@
         pointer-events: none;
         transition: opacity 400ms ease, visibility 0s 400ms;
       }
-      .tv-still svg {
+      .tv-still svg,
+      .tv-still i {
         position: absolute;
-        top: 0;
-        left: 0;
+        inset: 0;
       }
       .tv-still text {
         font-family: Helvetica, Arial, sans-serif;
@@ -135,18 +135,47 @@
         dominant-baseline: central;
         white-space: pre;
       }
-      .tv-still g {
+      .tv-still .o {
         opacity: 0;
       }
-      .tv-still:has([data-powered="true"]) g {
+      .tv-still:has([data-powered="true"]) .o {
         opacity: 1;
+      }
+      /* The still's image, once it is in (still/inline.ts): each surface's piece of it over that surface's gradients,
+         and what the pieces have in them (the print, the jacks, the filament) no longer drawn. */
+      .tv-still .p {
+        inset: auto;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        background: var(--p) no-repeat;
+        opacity: 0;
+      }
+      .tv-still[data-image] .p {
+        opacity: 1;
+        transition: opacity 200ms;
+      }
+      .tv-still[data-image] .v {
+        display: none;
+      }
+      /* The picture's light: the drawing that has it takes --tube from the still, and nothing else does. */
+      @property --tube {
+        syntax: "<color>";
+        inherits: false;
+        initial-value: #000;
+      }
+      .tv-still .t {
+        --tube: inherit;
+        color: var(--tube);
+        mix-blend-mode: screen;
       }
       .tv-still[data-shown="false"] {
         opacity: 0;
         visibility: hidden;
       }
       @media (prefers-reduced-motion: reduce) {
-        .tv-still {
+        .tv-still,
+        .tv-still[data-image] .p {
           transition: none;
         }
       }

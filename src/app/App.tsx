@@ -52,7 +52,11 @@ export function App({ loading, host, config }: AppProps) {
         Skip to résumé
       </a>
       {created ? <Arcade created={created} host={host} config={config} startup={startup} dispatch={dispatch} /> : null}
-      <TvStill shown={(still && startup.still) || failed} failed={failed} />
+      <TvStill
+        shown={(still && startup.still) || failed}
+        failed={failed}
+        onGone={() => dispatch({ type: 'stillGone' })}
+      />
       <Resume />
       <Analytics />
     </>

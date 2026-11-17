@@ -14,6 +14,7 @@ import {
 import type { Room, RoomView } from '@/room';
 import { PcSlot } from '../pc/PcSlot';
 import { whenIdle } from '../pc/whenIdle';
+import { dropStill } from '../startup/TvStill';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import { StillPicture } from './StillPicture';
@@ -121,6 +122,7 @@ function AtticStage({
   scenes,
   powered,
   still,
+  clear,
   insets,
   events,
   muted,
@@ -160,7 +162,10 @@ function AtticStage({
     events.onViewChange(next);
   });
   const unavailable = useEffectEvent(onUnavailable);
-  const stillDone = useEffectEvent(() => events.onStillDone());
+  const stillDone = useEffectEvent((black: boolean) => {
+    dropStill(black);
+    events.onStillDone();
+  });
   const stillBack = useEffectEvent(() => events.onStillBack());
 
   useLayoutEffect(() => {
@@ -220,36 +225,38 @@ function AtticStage({
       .then(still ? undefined : poweredOn, (error: unknown) => console.error('TV failed to power on', error));
   }, [room, powered, still, tvOn]);
 
-  // The hand-over (docs/ROOM.md › Startup): the visitor's first press, the game leaving its title, or the camera
-  // leaving the TV fades the still out over the identical live scene, as soon as the room shows the game (a press
-  // before that is remembered).
-  const pressed = useRef(false);
+  // The hand-over (docs/ROOM.md › Startup). The still goes where nobody can see it go: on a black frame of the game
+  // (the boot's blackout, the middle of the fade out of the title), when the flat picture and the live tube both show
+  // nothing and light nothing. The second black frame in a row, so the room has drawn the first whichever of the two
+  // loops runs first in a frame, and only after the room has had a frame to draw its lit tube in. Where no black frame
+  // comes (the game past its opening scenes without one or held by the harness, the camera leaving the TV) the still
+  // fades over the live scene instead.
   useEffect(() => {
-    if (!still) return;
+    if (!still || !room || !tvOn) return;
     const opening = (id: string | null): boolean => id === null || id === 'boot' || id === 'title';
-    const check = (): void => {
-      const due = pressed.current || !opening(scenes.current) || (room !== null && room.view !== 'tv');
-      if (due && room?.powerState === 'on' && room.shown && tvOn) stillDone();
+    const live = (): boolean => room.powerState === 'on' && room.shown;
+    const fade = (): void => {
+      const past = surface.paused || !(scenes.dark || opening(scenes.current));
+      if (live() && (room.view !== 'tv' || past)) stillDone(false);
     };
-    const press = (): void => {
-      pressed.current = true;
-      check();
-    };
-    check();
-    const stopScenes = scenes.onSceneChange(check);
-    const stopViews = room?.onViewChange(check);
-    const stopShown = room?.onShownChange(check);
-    const options = { capture: true, passive: true } as const;
-    window.addEventListener('keydown', press, options);
-    window.addEventListener('pointerdown', press, options);
+    fade();
+    // The game's frames since the room showed its lit tube, and the black ones in a row among them.
+    let seen = 0;
+    let dark = 0;
+    const stops = [
+      surface.onFrame(() => {
+        seen = live() ? seen + 1 : 0;
+        dark = seen > 1 && scenes.dark ? dark + 1 : 0;
+        if (dark > 1) stillDone(true);
+        else fade();
+      }),
+      room.onViewChange(fade),
+      room.onShownChange(fade),
+    ];
     return () => {
-      stopScenes();
-      stopViews?.();
-      stopShown?.();
-      window.removeEventListener('keydown', press, options);
-      window.removeEventListener('pointerdown', press, options);
+      for (const stop of stops) stop();
     };
-  }, [still, room, tvOn, scenes]);
+  }, [still, room, tvOn, scenes, surface]);
 
   // A lost WebGL context takes the room's light (docs/ROOM.md › Lost canvases): at the TV the still covers the canvas
   // again, the game playing on it, until the hand-over above finds the room lit. Elsewhere the still (a close-up of
@@ -368,13 +375,21 @@ function AtticStage({
         onKeyDown={onKeyDown}
       />
       <div ref={screensRef} className="room-host__screens" />
-      <StillPicture surface={surface} powered={powered} onLit={poweredOn} passThrough={room !== null} />
+      <StillPicture
+        surface={surface}
+        scenes={scenes}
+        powered={powered}
+        onLit={poweredOn}
+        passThrough={room !== null}
+        inSight={!clear}
+      />
       {room && guideDue ? (
         <Suspense fallback={wayOut}>
           <RoomGuide
             room={room}
             view={view}
             settled={settled}
+            clear={clear}
             scenes={scenes}
             handOver={handOver}
             onFocusStage={focusStage}

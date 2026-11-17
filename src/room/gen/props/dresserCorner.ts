@@ -1,7 +1,7 @@
 import type { MeshBuilder, Placement, Rgb, Ring, Vec3 } from '../kit/builder';
 import { inset, place, spline } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
-import { MATERIAL } from '../materials';
+import { JOINT, joints, MATERIAL } from '../materials';
 import { GROUP, PAGE, type Prop } from './types';
 
 /**
@@ -16,12 +16,12 @@ const PINE: Rgb = [0.34, 0.19, 0.105];
 const PINE_SOLID: Rgb = [0.32, 0.18, 0.1];
 
 let seed = 0;
-/** Stained pine; `upright` turns the grain to run up the chart. */
-const pine = (upright = false, density = 420): Omit<Chart, 'origin' | 'u' | 'v'> => ({
+/** Stained pine; `upright` turns the grain to run up the chart, `joined` draws joints along its edges (`joints`). */
+const pine = (upright = false, density = 420, joined = 0): Omit<Chart, 'origin' | 'u' | 'v'> => ({
   page: PAGE.furniture,
   group: GROUP.dresser,
   material: MATERIAL.stained,
-  params: [PINE[0], PINE[1], PINE[2], ((seed++ % 16) + 0.5) / 32 + (upright ? 0.5 : 0)],
+  params: [PINE[0], PINE[1], PINE[2], ((seed++ % 16) + 0.5) / 32 + (upright ? 0.5 : 0) + joined],
   density,
   shade: 1,
 });
@@ -72,6 +72,8 @@ const TOP = { x0: 0.34, x1: 1.36, y0: 0.845, y1: 0.887, z0: -2.325, z1: -1.715 }
 const FRONT = -1.741;
 const DOORS = -1.746;
 const INSIDE = -1.758;
+/** The posts' faces: the plane the whole front is built in where its joints are drawn rather than built. */
+const FLUSH = -1.734;
 
 /** How high the skirt's lower edge is, `d` metres in from a front post: a foot, an ogee, then the long flat arch. */
 const skirtEdge = (d: number): number => {
@@ -148,46 +150,76 @@ export const dresser: Prop = {
         sink.chart(
           ...faces([x, 0.006, z], [x + 0.063, y0, z + 0.049], z > -2 ? ['-x', '+x', '+z'] : ['-x', '+x'], pine(true)),
         );
-    // The front: the top rail, the drawer in its opening, the rail under it, and the dark of the carcass in the gaps.
-    sink.chart(...faces([0.441, 0.802, -1.765], [1.259, y0, FRONT], ['+z'], pine()));
-    sink.chart(...faces([0.444, 0.659, -1.765], [1.256, 0.799, FRONT], ['+z'], pine()));
-    sink.chart(...faces([0.441, 0.611, -1.765], [1.259, 0.656, FRONT], ['+z'], pine()));
-    b.box([0.441, 0.122, -1.765], [1.259, 0.802, INSIDE], [0.03, 0.016, 0.012], 0.35, ['-x', '+x', '-y', '+y', '-z']);
-    // The two doors: a frame of stiles and rails around a panel set 7 mm back.
-    const frame = 0.052;
-    for (const [d0, d1] of [
-      [0.444, 0.8485],
-      [0.8515, 1.256],
-    ] as const) {
-      const [e0, e1] = [0.125, 0.608];
-      sink.chart(...faces([d0, e0, -1.765], [d0 + frame, e1, DOORS], ['+z'], pine(true)));
-      sink.chart(...faces([d1 - frame, e0, -1.765], [d1, e1, DOORS], ['+z'], pine(true)));
-      sink.chart(...faces([d0 + frame, e0, -1.765], [d1 - frame, e0 + frame, DOORS], ['+z'], pine()));
-      sink.chart(...faces([d0 + frame, e1 - frame, -1.765], [d1 - frame, e1, DOORS], ['+z'], pine()));
-      sink.chart(
-        ...faces([d0 + frame, e0 + frame, -1.765], [d1 - frame, e1 - frame, DOORS - 0.007], ['+z'], pine(true)),
-      );
-      // The frame's inner edges, down to the panel: a bead at 45°, in the shadow the frame casts on it.
-      const [p0, p1, q0, q1] = [d0 + frame, d1 - frame, e0 + frame, e1 - frame];
-      const m = 0.007;
-      const lip: Rgb = [PINE_SOLID[0] * 0.6, PINE_SOLID[1] * 0.6, PINE_SOLID[2] * 0.6];
-      const bead = (a: Vec3, c: Vec3, [ix, iy]: readonly [number, number]) =>
-        strip(
-          b,
-          [a, c],
-          [
-            [a[0] + ix * m, a[1] + iy * m, DOORS - m],
-            [c[0] + ix * m, c[1] + iy * m, DOORS - m],
-          ],
-          [ix, iy, 1],
-          3,
-          lip,
-          0.6,
+    // Without multisampling the 3 mm gaps round the drawer and the doors, and the beads round the panels, are lines
+    // thinner than a pixel that break into dashes. There the front is flat, in the plane of the posts' faces: the
+    // drawer and the doors reach over their gaps and carry them as drawn joints (materials.ts › JOINT), a texel inside
+    // their own edges, so every line lies within one surface and no edge of geometry crosses it.
+    const flat = sink.detail < 0.5;
+    const front = flat ? FLUSH : FRONT;
+    if (flat) {
+      const { gap, bead } = JOINT;
+      const face = (x: readonly [number, number], y: readonly [number, number], upright: boolean, joined = 0): void =>
+        sink.chart(...faces([x[0], y[0], -1.765], [x[1], y[1], FLUSH], ['+z'], pine(upright, 420, joined)));
+      face([0.441, 1.259], [0.802, y0], false);
+      face([0.441, 1.259], [0.656, 0.802], false, joints(gap, gap, gap, gap));
+      face([0.441, 1.259], [0.611, 0.656], false);
+      const frame = 0.052;
+      const [e0, e1] = [0.122, 0.611];
+      const [q0, q1] = [0.125 + frame, 0.608 - frame];
+      // The left door carries the gap between the two.
+      for (const [d0, d1, left] of [
+        [0.441, 0.8515, gap],
+        [0.8515, 1.259, 0],
+      ] as const) {
+        const [p0, p1] = [d0 + frame + (left ? 0.003 : 0), d1 - frame - 0.003];
+        face([d0, p0], [e0, e1], true, joints(left, gap, 0, gap));
+        face([p1, d1], [e0, e1], true, joints(0, gap, gap, gap));
+        face([p0, p1], [e0, q0], false, joints(0, gap, 0, 0));
+        face([p0, p1], [q1, e1], false, joints(0, 0, 0, gap));
+        face([p0, p1], [q0, q1], true, joints(bead, bead, bead, bead));
+      }
+    } else {
+      // The front: the top rail, the drawer in its opening, the rail under it, and the dark of the carcass in the gaps.
+      sink.chart(...faces([0.441, 0.802, -1.765], [1.259, y0, FRONT], ['+z'], pine()));
+      sink.chart(...faces([0.444, 0.659, -1.765], [1.256, 0.799, FRONT], ['+z'], pine()));
+      sink.chart(...faces([0.441, 0.611, -1.765], [1.259, 0.656, FRONT], ['+z'], pine()));
+      b.box([0.441, 0.122, -1.765], [1.259, 0.802, INSIDE], [0.03, 0.016, 0.012], 0.35, ['-x', '+x', '-y', '+y', '-z']);
+      // The two doors: a frame of stiles and rails around a panel set 7 mm back.
+      const frame = 0.052;
+      for (const [d0, d1] of [
+        [0.444, 0.8485],
+        [0.8515, 1.256],
+      ] as const) {
+        const [e0, e1] = [0.125, 0.608];
+        sink.chart(...faces([d0, e0, -1.765], [d0 + frame, e1, DOORS], ['+z'], pine(true)));
+        sink.chart(...faces([d1 - frame, e0, -1.765], [d1, e1, DOORS], ['+z'], pine(true)));
+        sink.chart(...faces([d0 + frame, e0, -1.765], [d1 - frame, e0 + frame, DOORS], ['+z'], pine()));
+        sink.chart(...faces([d0 + frame, e1 - frame, -1.765], [d1 - frame, e1, DOORS], ['+z'], pine()));
+        sink.chart(
+          ...faces([d0 + frame, e0 + frame, -1.765], [d1 - frame, e1 - frame, DOORS - 0.007], ['+z'], pine(true)),
         );
-      bead([p0, q0, DOORS], [p0, q1, DOORS], [1, 0]);
-      bead([p1, q0, DOORS], [p1, q1, DOORS], [-1, 0]);
-      bead([p0, q0, DOORS], [p1, q0, DOORS], [0, 1]);
-      bead([p0, q1, DOORS], [p1, q1, DOORS], [0, -1]);
+        // The frame's inner edges, down to the panel: a bead at 45°, in the shadow the frame casts on it.
+        const [p0, p1, q0, q1] = [d0 + frame, d1 - frame, e0 + frame, e1 - frame];
+        const m = 0.007;
+        const lip: Rgb = [PINE_SOLID[0] * 0.6, PINE_SOLID[1] * 0.6, PINE_SOLID[2] * 0.6];
+        const bead = (a: Vec3, c: Vec3, [ix, iy]: readonly [number, number]) =>
+          strip(
+            b,
+            [a, c],
+            [
+              [a[0] + ix * m, a[1] + iy * m, DOORS - m],
+              [c[0] + ix * m, c[1] + iy * m, DOORS - m],
+            ],
+            [ix, iy, 1],
+            3,
+            lip,
+            0.6,
+          );
+        bead([p0, q0, DOORS], [p0, q1, DOORS], [1, 0]);
+        bead([p1, q0, DOORS], [p1, q1, DOORS], [-1, 0]);
+        bead([p0, q0, DOORS], [p1, q0, DOORS], [0, 1]);
+        bead([p0, q1, DOORS], [p1, q1, DOORS], [0, -1]);
+      }
     }
     // The skirt: flat across the middle, falling in an ogee to a foot at each post.
     const columns: number[] = [0, 0.04];
@@ -201,11 +233,13 @@ export const dresser: Prop = {
         .slice(1)
         .map((d) => 1.259 - d),
     ];
+    // 2 mm behind the front, or in its plane where that is flat: the doors' drawn joint lies over it.
+    const skirt = flat ? FLUSH : -1.743;
     for (let i = 0; i + 1 < xs.length; i++) {
       const [xa, xb] = [xs[i] as number, xs[i + 1] as number];
       const [ya, yb] = [skirtEdge(Math.min(xa - 0.441, 1.259 - xa)), skirtEdge(Math.min(xb - 0.441, 1.259 - xb))];
-      b.quad([xa, ya, -1.743], [xb, yb, -1.743], [xb, 0.122, -1.743], [xa, 0.122, -1.743], PINE_SOLID);
-      b.quad([xa, ya, -1.765], [xb, yb, -1.765], [xb, yb, -1.743], [xa, ya, -1.743], PINE_SOLID, 0.7);
+      b.quad([xa, ya, skirt], [xb, yb, skirt], [xb, 0.122, skirt], [xa, 0.122, skirt], PINE_SOLID);
+      b.quad([xa, ya, -1.765], [xb, yb, -1.765], [xb, yb, skirt], [xa, ya, skirt], PINE_SOLID, 0.7);
     }
     // The sides: a thin panel behind three rails and the top rail, and the back that closes the carcass.
     for (const [panel, rail, top, side] of [
@@ -231,7 +265,7 @@ export const dresser: Prop = {
     // The drawer's two turned knobs.
     for (const x of [0.564, 1.136])
       b.lathe(
-        [x, 0.7285, FRONT],
+        [x, 0.7285, front],
         [0, 0, 1],
         [
           [0.0065, 0],
@@ -411,16 +445,23 @@ export const guitar: Prop = {
   budget: 6000,
   build(sink) {
     const b = sink.mesh('props');
+    // Strings, frets, inlays, screws and pole pieces are a tenth of a pixel across the room: without multisampling
+    // they are specks that come and go, so the tier built for that leaves them out and gives the board the tone
+    // they left on it.
+    plain = sink.detail < 0.5;
     b.placed(GUITAR, () => {
       body(b);
       neck(b);
       hardware(b);
-      strings(b);
+      if (!plain) strings(b);
       standOnGuitar(b);
     });
     standLegs(b);
   },
 };
+
+/** Whether the guitar is built without its smallest parts (set by its prop as it builds). */
+let plain = false;
 
 function body(b: MeshBuilder): void {
   // The arm contour: the face falls away towards the rim of the bass side's lower bout.
@@ -438,7 +479,7 @@ function body(b: MeshBuilder): void {
     const [q, r, t] = [rim[j] as (typeof rim)[number], ply[j] as (typeof rim)[number], ply[i] as (typeof rim)[number]];
     b.quad([t[0], t[1], 0.0262], [r[0], r[1], 0.0262], [q[0], q[1], 0.0266], [p[0], p[1], 0.0266], BLACK);
   });
-  for (const [x, y] of SCREWS) disc(b, x, y, 0.0281, 0.0026, 4, [0.09, 0.09, 0.095]);
+  if (!plain) for (const [x, y] of SCREWS) disc(b, x, y, 0.0281, 0.0026, 4, [0.09, 0.09, 0.095]);
 }
 
 /** A D across the neck at `y`: flat on top, `depth` deep, `half` wide; `square` under 1 fills its corners out. */
@@ -478,16 +519,16 @@ function neck(b: MeshBuilder): void {
       [AXIS - half, y, BOARD],
     ];
   };
-  b.skin([0.064, 0.15, 0.24, 0.33, 0.42, 0.51, NUT - 0.0015].map(board), ROSEWOOD);
+  b.skin([0.064, 0.15, 0.24, 0.33, 0.42, 0.51, NUT - 0.0015].map(board), plain ? [0.075, 0.06, 0.058] : ROSEWOOD);
   b.box([AXIS - 0.024, NUT - 0.0015, under], [AXIS + 0.024, NUT + 0.002, BOARD + 0.0016], [0.5, 0.48, 0.42]);
   const wire: Rgb = [0.2, 0.2, 0.2];
-  for (let k = 1; k <= 21; k++) {
+  for (let k = 1; k <= (plain ? 0 : 21); k++) {
     const y = fret(k);
     const half = halfWidth(y);
     b.box([AXIS - half, y - 0.0009, BOARD], [AXIS + half, y + 0.0009, BOARD + 0.001], wire, 1, ['-z', '-x', '+x']);
   }
   const pearl: Rgb = [0.5, 0.48, 0.44];
-  for (const k of [3, 5, 7, 9, 12, 15, 17, 19, 21]) {
+  for (const k of plain ? [] : [3, 5, 7, 9, 12, 15, 17, 19, 21]) {
     const y = (fret(k - 1) + fret(k)) / 2;
     for (const x of k === 12 ? [-0.011, 0.011] : [0]) disc(b, AXIS + x, y, BOARD + 0.0004, 0.0032, 6, pearl);
   }
@@ -528,7 +569,8 @@ function hardware(b: MeshBuilder): void {
   ] as const)
     b.placed(place([AXIS, y, 0], 0, 0, slant), () => {
       b.extrude(stadium, face, face + 0.004, cover, { bevel: 0.0012, steps: 1, back: false });
-      for (let i = 0; i < 6; i++) disc(b, (i - 2.5) * 0.0104, 0, face + 0.0043, 0.0024, 4, [0.07, 0.07, 0.075]);
+      for (let i = 0; i < (plain ? 0 : 6); i++)
+        disc(b, (i - 2.5) * 0.0104, 0, face + 0.0043, 0.0024, 4, [0.07, 0.07, 0.075]);
     });
   // Volume and two tones, skirted; the five-way switch's slot and tip.
   for (const [x, y] of [

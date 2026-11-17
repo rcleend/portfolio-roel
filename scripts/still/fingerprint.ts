@@ -7,7 +7,7 @@
  */
 import type { StillFraming } from '../../src/app/startup/still/camera';
 import { unseen } from '../../src/app/startup/still/camera';
-import { layersFor } from './layers';
+import { LAYERS } from './layers';
 import { cameraFor, type World } from './world';
 
 export function fingerprint(world: World, framing: StillFraming): string {
@@ -22,10 +22,10 @@ export function fingerprint(world: World, framing: StillFraming): string {
   };
   const eye = unseen(cameraFor(framing, 1440, 900, false).eye);
   for (const point of [...framing.bounds, ...framing.picture, eye]) point.forEach(number);
-  for (const layer of layersFor(eye)) {
+  for (const layer of LAYERS) {
     // The layer as the table has it; its picks are functions, told by what they pick.
     text(JSON.stringify(layer));
-    const picks = ['pick' in layer ? layer.pick : null, 'casters' in layer ? layer.casters : null];
+    const picks = ['pick' in layer ? layer.pick : null, 'behind' in layer ? (layer.behind ?? null) : null];
     for (const pick of picks) {
       if (!pick) continue;
       world.triangles.forEach((triangle, i) => {
