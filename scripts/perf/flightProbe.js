@@ -37,29 +37,42 @@
   // by running the page's frame callbacks only on the display frames that far apart; the others pass unseen.
   const realRaf = window.requestAnimationFrame.bind(window);
   const capMs = config.rafHz ? 1000 / config.rafHz : 0;
-  // A display link's frames come on a grid: the page's callbacks run on the first display frame of each cell of it
-  // (the grid starts a little ahead of a display frame, so one that comes a moment early or late stays in its cell).
-  // Taking the first frame "at least a cap after the last" instead lets the display's own jitter add up to a cell
-  // skipped now and then, a 50 ms frame no capped display shows.
+  // A display link's frames come on a grid, and so do the times it tells the page. Where this browser's own frames
+  // sit on that grid (Chromium's 120 or 60 a second under a cap of 30), the callbacks run on the first display frame
+  // of each cell of it (it starts a little ahead of a display frame, so one that comes a moment early or late stays
+  // in its cell), a request made later in a cell waits for the next tick, and every callback is told its tick's
+  // time. Where they do not (Playwright's WebKit ticks on a timer of its own, a little over sixty times a second:
+  // `rafEvery`), every nth display frame is a tick, so no frame comes sooner than the cap allows. Taking the first
+  // frame "at least a cap after the last" lets the display's jitter add up to a tick skipped now and then, and
+  // telling the callbacks a frame's own time gives intervals of 25 and 42 ms on a 120 Hz display whose page is busy:
+  // frames no capped display shows, which the room's governor rightly reads as a display that is not capped.
   let capOrigin = null;
   let capSlot = -1;
+  let capFrames = 0;
+  const capEvery = config.rafEvery ?? 0;
   let waiting = new Map();
   let nextHandle = 1e9;
-  const capped = (t) => {
+  const tickOf = (t) => {
+    capFrames++;
+    if (capEvery > 0) return capFrames % capEvery === 0 ? t : null;
     capOrigin ??= t - 4;
     const slot = Math.floor((t - capOrigin) / capMs);
-    if (slot <= capSlot) {
-      realRaf(capped);
-      return;
-    }
+    if (slot <= capSlot || t - capOrigin - slot * capMs > 8) return null;
     capSlot = slot;
+    return capOrigin + 4 + slot * capMs;
+  };
+  // Every display frame is seen, so they can be counted; the page's callbacks run on the ticks only.
+  const capped = (t) => {
+    realRaf(capped);
+    const tick = tickOf(t);
+    if (tick === null || waiting.size === 0) return;
     const run = waiting;
     waiting = new Map();
-    for (const callback of run.values()) callback(t);
+    for (const callback of run.values()) callback(tick);
   };
+  if (capMs) realRaf(capped);
   const nativeRaf = capMs
     ? (callback) => {
-        if (waiting.size === 0) realRaf(capped);
         waiting.set(++nextHandle, callback);
         return nextHandle;
       }

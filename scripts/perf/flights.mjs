@@ -312,7 +312,14 @@ async function run(server, index) {
     page.on('pageerror', (error) => errors.push(error.message));
     const client = engine === 'webkit' ? { send: async () => {} } : await context.newCDPSession(page);
     const afterWhole = option('after-whole', null);
-    const rafHz = option('raf', null) === null ? {} : { rafHz: Number(option('raf')) };
+    // WebKit's frames here do not sit on a display's grid: there every nth of them is a tick (flightProbe.js).
+    const rafHz =
+      option('raf', null) === null
+        ? {}
+        : {
+            rafHz: Number(option('raf')),
+            rafEvery: engine === 'webkit' ? Math.max(1, Math.round(60 / Number(option('raf')))) : 0,
+          };
     const timing =
       afterWhole !== null
         ? { leaveAfterWholeMs: Number(afterWhole), finishAtWhole: flag('finish') }
