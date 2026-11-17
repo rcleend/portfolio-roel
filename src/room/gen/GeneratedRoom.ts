@@ -157,7 +157,7 @@ export class GeneratedRoom {
   private shown = false;
   private complete = false;
   private hurried = false;
-  private waiting: (() => void)[] = [];
+  private waiting: ((lit: boolean) => void)[] = [];
   private disposed = false;
   private failed = false;
   private stopFrames: (() => void) | null = null;
@@ -285,10 +285,10 @@ export class GeneratedRoom {
    * The visitor wants to see the rest of the room: its bake stops going between the room's frames. The frames stand
    * still instead (the TV's picture, for `HURRY_HOLD_MS` at most) and the units follow each other as fast as the GPU
    * takes them, so the wait is the GPU's time for what is left and no more. Resolves once the whole room is baked (at
-   * once when it is).
+   * once when it is), with `false` when the wait ended because a lost context took the room's light instead.
    */
-  whenWhole(): Promise<void> {
-    if (this.complete || this.failed) return Promise.resolve();
+  whenWhole(): Promise<boolean> {
+    if (this.complete || this.failed) return Promise.resolve(true);
     if (!this.hurried) {
       this.hurried = true;
       // A unit queued behind the room's frames runs now instead; one whose fence is being waited for goes on by itself.
@@ -354,7 +354,7 @@ export class GeneratedRoom {
       group.removeFromParent();
     }
     this.radioParts?.dispose();
-    for (const resolve of this.waiting.splice(0)) resolve();
+    for (const resolve of this.waiting.splice(0)) resolve(true);
   }
 
   private get halfFloat(): boolean {
@@ -908,7 +908,7 @@ export class GeneratedRoom {
         this.complete = true;
         this.hurried = false;
         this.events.onComplete(this.stats as GeneratedStats);
-        for (const resolve of this.waiting.splice(0)) resolve();
+        for (const resolve of this.waiting.splice(0)) resolve(true);
         return;
       }
       baker.begin(late);
@@ -982,6 +982,11 @@ export class GeneratedRoom {
     const was = this.shown;
     this.shown = false;
     this.complete = false;
+    // Nobody waits for a light the context took with it: a camera held for the rest of the room is let go (it finds
+    // the room not whole and stays, the game going on: `createRoom` › `preflight`), and the bake after a restore is
+    // paced again.
+    this.hurried = false;
+    for (const resolve of this.waiting.splice(0)) resolve(false);
     this.lava?.sync();
     if (was) this.events.onLost();
   };
@@ -997,7 +1002,7 @@ export class GeneratedRoom {
     this.failed = true;
     this.stopWork();
     this.events.onFailed(error);
-    for (const resolve of this.waiting.splice(0)) resolve();
+    for (const resolve of this.waiting.splice(0)) resolve(true);
   }
 }
 

@@ -275,14 +275,23 @@ export function createRoom(options: CreateRoomOptions): Room {
     onWait: () => stage.oweFrame(),
   });
   let radioBoarded = false;
+  /** The waits under way that hold the frames (`preflight`). */
+  let preflights = 0;
   /** Makes what a flight to `view` shows, and resolves once the GPU is through with it. Rejects without the radio. */
   const preflight = async (view: RoomView, loaded: RoomScene): Promise<void> => {
     // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
     if (view === 'radio' && !radio.deck) await radio.load();
-    if (!generated.whole) await generated.whenWhole();
+    const lit = generated.whole || (await generated.whenWhole());
     if (disposed) return;
+    // The room's light went with a lost context while the camera waited for it: the camera stays (the request is
+    // dropped, and a game stopped for it goes on), since no view but the TV's shows a room without its light.
+    if (!lit) throw new Error('The room lost its light while the camera waited');
+    // A request made while the camera flies makes nothing: holding the frames would freeze the flight under way, and
+    // what is left waits for the landing like everything else.
+    if (views.moving) return;
     // The TV's picture stands still meanwhile (the game is paused): frames would only queue this work behind them.
-    stage.hold('preflight', true);
+    // Counted, so a second request's wait does not end the first one's hold.
+    if (++preflights === 1) stage.hold('preflight', true);
     try {
       await loaded.background.drain(view, PREFLIGHT_WORK_MS);
       if (view === 'radio') {
@@ -294,7 +303,7 @@ export function createRoom(options: CreateRoomOptions): Room {
       await posters.boarded(PREFLIGHT_WORK_MS);
       await stage.gpuIdle(PREFLIGHT_GPU_MS);
     } finally {
-      stage.hold('preflight', false);
+      if (--preflights === 0) stage.hold('preflight', false);
     }
   };
   // The props' glow and the radio's deck leave the first load. Neither is fetched in a flight, and what they make as
