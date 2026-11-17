@@ -293,6 +293,17 @@
       room = value;
       if (!value) return;
       F.mark('room-ready');
+      // The quality the room draws at, each time it changes (a change is a resize).
+      let drawnAt = '';
+      const watchQuality = () => {
+        const stats = room?.stats;
+        if (!stats) return;
+        const now = `${stats.quality.tier}×${stats.quality.scale}`;
+        if (now !== drawnAt) F.mark(`quality:${now}`);
+        drawnAt = now;
+        nativeTimeout(watchQuality, 200);
+      };
+      watchQuality();
       value.onViewChange((view) => F.mark(`change:${view}`));
       value.onSettle((view) => F.mark(`settle:${view}`));
       value.generatedReady?.then(() => {
@@ -332,6 +343,8 @@
     stats: room
       ? {
           quality: { ...room.stats.quality },
+          display: room.stats.display ? { ...room.stats.display } : null,
+          qualityChanges: room.stats.qualityChanges ?? null,
           programs: room.stats.programs,
           generated: room.stats.generated,
           posters: room.stats.posters,

@@ -464,6 +464,14 @@ try {
       `run ${index + 1}: ${engine} ${deviceName} cpu×${cpu}${query}${latencyMs ? ` latency ${latencyMs}` : ''} ${flag('headed') ? 'headed' : 'headless'} display ${first?.displayMs} ms  ${quality.tier}×${quality.scale}  ` +
         `ready ${Math.round(ready.at)} ms, whole ${whole ? Math.round(whole.at) : '—'} ms, left ${Math.round(first?.changedAt ?? 0)} ms  programs ${programs}  bake ${bake?.profile}${bake?.deferred ? ' deferred' : ''}  errors ${JSON.stringify(recording.errors)}`,
     );
+    // Every quality the room drew at, and when (ms): each change after the first is a resize.
+    const qualities = recording.marks.filter((mark) => mark.name.startsWith('quality:'));
+    if (qualities.length > 1 || recording.stats.display?.capped) {
+      const display = recording.stats.display;
+      console.log(
+        `  quality: ${qualities.map((mark) => `${mark.name.slice(8)}@${Math.round(mark.at)}`).join(' → ')}${display ? `  (frames expected every ${display.frameMs.toFixed(1)} ms${display.capped ? ', capped' : ''}, ${recording.stats.qualityChanges} changes)` : ''}`,
+      );
+    }
     const finished = recording.marks.find((mark) => mark.name.startsWith('gpu-finished-in:'));
     if (finished) console.log(`  the GPU, made to finish as the room turned whole, took ${finished.name.slice(16)} ms`);
     for (const flight of found) console.log(line(flight));
