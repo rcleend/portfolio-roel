@@ -16,10 +16,12 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
  */
 const VIEWPORTS: readonly (readonly [width: number, height: number, touch: boolean])[] = [
   [1440, 900, false],
+  [1920, 1080, false],
   [1000, 950, false],
   [1200, 500, false],
   [700, 1000, false],
   [844, 390, true],
+  [1024, 768, true],
   [390, 844, true],
   [768, 1024, true],
 ];
@@ -33,6 +35,7 @@ const PATCHES: Readonly<Record<string, readonly [number, number, number]>> = {
   'the casing over the glass': [2.154, 1.055, -0.32],
   'the lamp’s base': [2.268, 0.515, -0.84],
   'the plant’s pot': [2.219, 0.53, 0.121],
+  'the cabinet top between the plant and the opal lamp': [2.3, 0.486, 0.3],
   'the cabinet top’s edge': [2.12, 0.4715, -0.32],
   'a drawer’s front': [2.138, 0.34, -0.66],
 };

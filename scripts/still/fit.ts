@@ -20,6 +20,8 @@ interface Sample {
   readonly colour: Rgb;
   readonly shot: number;
   readonly pixel: number;
+  /** How much of the room it stands for: its pixel's side at its depth, squared, times the pixels it was picked from. */
+  readonly area: number;
 }
 
 /** A pixel this near (screenshot px) to another shape's is mixed with it. */
@@ -48,13 +50,23 @@ function band(colours: readonly Rgb[], from: number, to: number): Rgb {
   return [0, 1, 2].map((i) => part.reduce((sum, c) => sum + (c[i] as number), 0) / part.length) as unknown as Rgb;
 }
 
-/** Of the samples numbered, those of the best shot that has enough of them. */
+/**
+ * Of the samples numbered, those of the best shot: the first that has enough of them and shows at least half as much
+ * of the room there as the shot that shows the most. (The nominal view sees only the near end of the opal lamp's
+ * pool: what it sees of a ring round the lamp is the plant's shadow, and a wider shot has the ring.)
+ */
 function best(samples: readonly Sample[], numbers: readonly number[]): number[] {
-  const shots = [...new Set(numbers.map((i) => (samples[i] as Sample).shot))].sort((a, b) => a - b);
-  for (const shot of shots) {
-    const own = numbers.filter((i) => (samples[i] as Sample).shot === shot);
-    if (own.length >= ENOUGH) return own;
+  const shots = new Map<number, { own: number[]; area: number }>();
+  for (const i of numbers) {
+    const sample = samples[i] as Sample;
+    const shot = shots.get(sample.shot) ?? { own: [], area: 0 };
+    shot.own.push(i);
+    shot.area += sample.area;
+    shots.set(sample.shot, shot);
   }
+  const most = Math.max(...[...shots.values()].map((shot) => shot.area));
+  for (const [, shot] of [...shots].sort(([a], [b]) => a - b))
+    if (shot.own.length >= ENOUGH && shot.area >= most / 2) return shot.own;
   return [];
 }
 
@@ -156,6 +168,7 @@ export async function fitPaints(geometry: Geometry, framing: StillFraming, pictu
           colour: colourOf(picture, pixel),
           shot,
           pixel,
+          area: stride * ((depthAt[pixel] as number) / camera.scale) ** 2,
         });
       }
     });
@@ -182,7 +195,13 @@ export async function fitPaints(geometry: Geometry, framing: StillFraming, pictu
           const pixel = py * picture.width + px;
           // Not where a later shape is drawn over it: that pixel is the later shape's.
           if (((owners[shot] as Int16Array)[pixel] as number) > shape) continue;
-          found.push({ at: fromPlane(view, x + 0.5, y + 0.5, depth), colour: colourOf(picture, pixel), shot, pixel });
+          found.push({
+            at: fromPlane(view, x + 0.5, y + 0.5, depth),
+            colour: colourOf(picture, pixel),
+            shot,
+            pixel,
+            area: 1,
+          });
         }
       return found;
     }
@@ -220,7 +239,13 @@ export async function fitPaints(geometry: Geometry, framing: StillFraming, pictu
         ];
         if (px < 0 || py < 0 || px >= lit.width || py >= lit.height) return [];
         const pixel = py * lit.width + px;
-        return [-1, 0, 1].map((dx) => ({ at: point, colour: colourOf(lit, pixel + dx), shot: 0, pixel: pixel + dx }));
+        return [-1, 0, 1].map((dx) => ({
+          at: point,
+          colour: colourOf(lit, pixel + dx),
+          shot: 0,
+          pixel: pixel + dx,
+          area: 1,
+        }));
       });
     } else if (shape.kind === 'disc' && own.length === 0) {
       const flat = shape.paints[0]?.kind === 'flat';

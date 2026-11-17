@@ -156,7 +156,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
     kind: 'charts',
     pick: isWall,
     paints: [
-      { kind: 'linear', from: [WALL, 1, -1.9], to: [WALL, 1, 1.1], stops: 7 },
+      { kind: 'linear', from: [WALL, 1, -1.9], to: [WALL, 1, 1.1], stops: 6 },
       { kind: 'radial', centre: [WALL, lamp[1], lamp[2]], radius: 0.9, axis: 0, stops: 5, glow: true },
     ],
   },
@@ -184,11 +184,21 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
     name: 'top',
     kind: 'charts',
     pick: isTop,
-    paints: [
-      { kind: 'linear', from: [2.4, CABINET_TOP, -1.125], to: [2.4, CABINET_TOP, 0.675], stops: 7 },
-      // The opal lamp's pool.
-      { kind: 'radial', centre: [lamp[0], CABINET_TOP, lamp[2]], radius: 0.7, axis: 1, stops: 5, glow: true },
-    ],
+    paints: [{ kind: 'linear', from: [2.4, CABINET_TOP, -1.125], to: [2.4, CABINET_TOP, 0.675], stops: 6 }],
+  },
+  {
+    name: 'top-glow',
+    kind: 'pool',
+    over: 'top',
+    pick: isTop,
+    // The opal lamp's pool, the plant's shadow and the set's cut out of it. (The room's other lamps shadow the top
+    // there too, more softly: the still has the lamp's own shadow only.)
+    casters: (t) => t.of === 'desk-plant' || t.of === 'tv-set',
+    light: lamp,
+    centre: [lamp[0], CABINET_TOP, lamp[2]],
+    reach: 0.7,
+    tolerance: 2.5,
+    paints: [{ kind: 'radial', centre: [lamp[0], CABINET_TOP, lamp[2]], radius: 0.7, axis: 1, stops: 5, glow: true }],
   },
   {
     name: 'top-pool',
@@ -237,7 +247,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
     kind: 'disc',
     centre: bulb,
     radius: 0.16,
-    paints: [{ kind: 'radial', centre: bulb, radius: 0.16, axis: 3, stops: 6, glow: true }],
+    paints: [{ kind: 'radial', centre: bulb, radius: 0.16, axis: 3, stops: 5, glow: true }],
   },
   {
     name: 'cord',
@@ -249,7 +259,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       t.min[1] > CABINET_TOP - 0.001 &&
       t.max[0] < 2.69 &&
       luminance(t.albedo) < 0.15,
-    tolerance: 1,
+    tolerance: 1.2,
     coarse: 4,
     paints: [{ kind: 'flat' }],
   },
@@ -354,7 +364,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
     name: 'leaves',
     kind: 'outline',
     pick: (t) => t.of === 'desk-plant' && luminance(t.albedo) <= 0.2,
-    tolerance: 1.6,
+    tolerance: 1.8,
     coarse: 4,
     paints: [{ kind: 'flat' }],
   },
@@ -386,7 +396,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
         centre: [FACE, CABINET_TOP, TV_SPEC.bounds.min[2]],
         radius: 0.4,
         axis: 0,
-        stops: 6,
+        stops: 5,
         glow: true,
       },
     ],

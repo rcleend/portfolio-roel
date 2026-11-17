@@ -25,6 +25,8 @@ export interface Shot {
 /** The first shot that shows a shape gives its colours: the nominal view, then what only wider or taller ones show. */
 export const SHOTS: readonly Shot[] = [
   { name: 'nominal', width: 1440, height: 900, touch: false, density: 2, lit: false },
+  // The widest common window: the opal lamp's pool, without the lamp and so without the finish's bloom of it.
+  { name: 'desktop', width: 1920, height: 1080, touch: false, density: 1, lit: false },
   { name: 'wide', width: 2560, height: 1080, touch: false, density: 1, lit: false },
   { name: 'tall', width: 768, height: 1024, touch: true, density: 2, lit: false },
   { name: 'phone', width: 412, height: 915, touch: true, density: 2, lit: false },

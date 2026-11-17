@@ -37,7 +37,8 @@ export function stillPlugin(): Plugin {
         // The labs' pages have no still.
         if (!STILL.test(html)) return html;
         const script = await stillScript();
-        return html.replace(STILL, (element) => `${element}<script>${script}</script>`);
+        // The first response carries no indentation: the page reads the same, some eighty bytes lighter on the wire.
+        return html.replace(/\n\s+/g, '\n').replace(STILL, (element) => `${element}<script>${script}</script>`);
       },
     },
   };
