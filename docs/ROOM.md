@@ -198,7 +198,7 @@ The page does not wait for the room to show it (`app/startup/`, `app/hosts/Still
 - The first paint is a still of the room's TV view, the tube lit on a black picture, drawn in CSS in `index.html` (a few boxes and gradients: the wall, the casing, the lip round the glass, the plinth, the cabinet's top; no image is fetched) around four lengths, `--picture-*`, that place the picture exactly where the room will, with container units, at each framing of `tvViewpoint`: the whole set (landscape, tall enough), the picture between the pad's clusters (a phone on its side) and the picture across the width above the pad's 228 px (portrait, on coarse pointers). In development `__tvPicture()` says where the live picture lands (within half a pixel of the still's at 1440 × 900, 844 × 390 and 390 × 844). The bare-bulb lamp, the plant, the opal lamp's glow and the LED are not in it: they appear as it fades.
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room is made behind it (§ The generated room): its geometry in a worker from the moment the room's chunk runs, then the light of what the TV view shows, and then it is `ready` and lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The rest of the room is lit behind the running game. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
-- A visitor who leaves the TV before the whole room is lit waits for the rest (`ViewController.whenReady`): the room's frames then stand still, the bake has the GPU to itself, and the camera sets off when it is done; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready); it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
+- A visitor who leaves the TV before everything the flight shows is made waits for it (`ViewController.whenReady`, § Flights): the game stops at the click and its PAUSE comes up on the tube, the room's frames then stand still, the rest of the bake has the GPU to itself, the buffers and textures no frame has drawn are made, and the camera sets off once the GPU is through with all of it; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready) and nothing from half a second later on; it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
 - Should the room fail (no WebGL, no worker and no main-thread build, a bake that lights nothing), `ready` rejects, the flat host takes over and the still goes. Keep the still in step with the set (gen/props/tvSet.ts), its framing (tv/tvFraming.ts) and the room's light: its wall, cabinet top and lip are colours sampled from the live opening view at each framing (a change to the finish or to the rig near the TV means sampling them again).
 - A lost WebGL context takes the room's light (§ Lost canvases): `room.shown` turns false, and at the TV view the app puts the still back, the game playing on it, until the room is lit again.
 
@@ -238,7 +238,9 @@ room/
                         of frames (whose intervals measure the device) from frames that were only waited for
     quality.ts          pure: the quality tiers, the tier a device starts on, and the governor that moves the scale
                         and the tier with measured frame times (§ Quality)
-    IdleWork.ts         work ahead of need, in small units on idle time: never in motion, never making a frame late
+    IdleWork.ts         work ahead of need, in small units on idle time: never in a flight, never making a frame late;
+                        `drain` makes what a flight shows before it sets off
+    sceneWarmup.ts      every mesh drawn once out of sight before a frame draws it (§ Flights › Warming)
     softwareGpu.ts      pure: whether the GPU is software (2D canvases then paint on the CPU)
     slowDevice.ts       pure: whether the device is slow (a software GPU, or a first flight under 30 fps), for the radio and the posters
     stripUpload.ts      a large texture uploaded a 1 MB strip per background unit (the posters)
@@ -289,8 +291,8 @@ room/
     screenMapping.ts    pure: picture rect in UV space, UV → native pixel
   radio/                the CD player; only the door, the click target and the model lookup are in the room chunk
     RadioDeck.ts        the public RadioDoor and RadioDeck types
-    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts just
-                        after the first TV leave's first flight frame, on a prefetch or on a request for the radio view (which waits)
+    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts at the
+                        first landing away from the TV, on a prefetch or on a request for the radio view (which waits)
     RadioInteractable.ts the radio, its cabinet and the lava lamp as one click target (room chunk; the table below)
     radioModel.ts       the radio as `RADIO_SPEC` has it, with its cabinet and the lamp's bounds (room chunk)
     radioFixtures.ts    the radio's bounds and the framing table's viewports, for tests
@@ -349,7 +351,7 @@ room/
   spotlight/
     PropSpotlight.ts    the public PropSpotlight and LitProp types
     SpotlightDoor.ts    room.spotlight (room chunk): the pointer's prop, else the app's pick, while the camera rests in
-                        the room view; imports the chunk behind the first flight away from the TV
+                        the room view; imports the chunk from the TV behind the room's warming, or at the first landing
     spotlightKit.ts     the three.js classes the chunk draws with, handed over (room chunk)
     spotlightContract.ts the seam to the lazy chunk (types only)
     Spotlight.ts        the `propSpotlight` chunk: the glow passes, the jelly, the brighter colours, the label point
@@ -409,7 +411,11 @@ which the generated one was matched to (§ The generated room › Comparing it).
   rates, and always a whole number of display frames apart, so the frames are evenly spaced. (A timer asking sixty
   times a second drew a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) A one-off request (the
   lava's tick, a pointer move, the game's own frame) is drawn by the next of those frames, not by one of its own in
-  between; only an animation (a flight, the radio's choreography, the tube's turn-on) draws on every display frame.
+  between, and so is every step of an animation (a flight, the radio's choreography, the tube's turn-on): it moves by
+  the time its step is given, on the frames the room draws at rest, the ones its quality is governed for. (Flights
+  used to draw on every display frame: 120 a second on a 120 Hz display, twice what the room at rest asked of the
+  GPU, and one that held sixty but not 120 gave a mix of one- and two-frame gaps, § Flights.) Before the room is lit
+  the loop is not paced and an animation draws on every display frame.
   So a resting room draws sixty frames a second at the TV with the game
   paused, in the room view, at the computer and at the radio, under reduced motion too (`node scripts/room-shots.mjs
   --only perf` prints them). The slower clocks (the lava's 24 a second, the air's) decide
@@ -418,7 +424,8 @@ which the generated one was matched to (§ The generated room › Comparing it).
   counts at rest that these docs quoted from that time are gone (§ Known gaps).
 
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
-  - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
+  - the camera flies: nothing runs, urgent or not (`IdleMoment` `flying`, § Flights); what a flight shows was made before it set off, and whatever is left waits for the landing;
+  - the TV turns on or off (from the moment its LED lights), or the radio's lid and discs move: nothing runs but urgent work (the radio's prints at the radio), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`) also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed);
   - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, its own estimate, `estimateMs`, else the longest so far), so no frame is late, and a unit at the head of the queue that does not fit steps aside for the first behind it that does; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait, except a task's small uploads (`smallUploads`: the posters' 1 MB strips at the TV), which run like CPU units, each with an idle period to itself;
   - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
@@ -430,10 +437,12 @@ which the generated one was matched to (§ The generated room › Comparing it).
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
   - **The posters' atlas**, in 1 MB strips (§ Posters), and at the radio the discs' labels (§ The CD player).
   - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, a while after the TV turns on
-    (`assembleRoom` › `prewarm`) or at the latest when the visitor first leaves the TV. three uploads a texture the
-    first time a frame draws it, which would otherwise land in a flight. In the generated room this is little: the
-    baked pages are render targets, on the GPU since the bake, so what is left are the canvas textures a view has not
-    shown yet (the view outside the window, the monitor's still).
+    (`assembleRoom` › `prewarm`) or at the latest as the visitor first leaves the TV, before the camera sets off.
+    three uploads a texture the first time a frame draws it, which would otherwise land in a flight. In the generated
+    room this is little: the baked pages are render targets, on the GPU since the bake, so what is left are the
+    canvas textures a view has not shown yet (the view outside the window, the monitor's still).
+  - **Every mesh no frame has drawn yet** (`sceneWarmup.ts`, § Flights › Warming), a few to a unit, behind the
+    textures.
 
 - **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a
   mesh whose bounds the ray crosses, so `pickMeshes` cuts any registered mesh over 8,192 triangles into chunks of at
@@ -473,6 +482,63 @@ which the generated one was matched to (§ The generated room › Comparing it).
 
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. The room's own light goes with the context too: its baked pages are render targets, so the bake runs again and `room.shown` is false until what the camera shows is lit (§ The generated room › Loss and failure); at the TV the app covers the canvas with the startup still meanwhile. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
 
+## Flights
+
+A flight is the one moment the whole picture moves, so a frame that comes late in it is a jump the eye cannot miss.
+Three rules keep its frames to themselves (`e2e/flights.spec.ts` holds a cold first flight to them):
+
+- **Nothing else runs while the camera flies.** `IdleWork` has a moment for it, `flying`, in which no unit runs, urgent
+  or not: no bake unit (the bake's own stall timer asks the same question), no upload, no pick chunk, no still. What
+  a lazy chunk makes as it arrives (the spotlight's two programs and its target, the walls' reveal, the guide's and
+  the computer screen's mounting in the app) waits for the landing (`createRoom` › `atRest`, `PosterWall` ›
+  `#reveal`, `RoomHost` › `atRest`, `PcSlot`); no chunk is asked for in a flight (the spotlight's from the TV behind
+  the warming, the radio's deck at the first landing). The governor's changes of scale and tier wait for the landing
+  too (§ Quality). A reduced-motion cut held black is not a flight: what runs then is out of sight.
+- **What a flight shows is made before it sets off.** `ViewController.request` asks `whenReady`, which says whether
+  anything is left to make: the rest of the room's light (`GeneratedRoom.whenWhole`), the work `IdleWork` holds for
+  flights (`IdleTaskOptions.flight`: the textures no frame has drawn, the warming below, the walls' upload once they
+  are painted, the radio's discs for the flight to the radio), the walls' and the discs' programs. Normally nothing
+  is, and the camera sets off in the click's own task. Otherwise the game stops at the click (its PAUSE on the tube
+  is the cue; `ViewController` gives the game back if the visitor stays), the frames are held (`RoomStage.hold`),
+  `IdleWork.drain` runs that work unit after unit, and the camera leaves once the GPU's fence says it is through
+  (`RoomStage.gpuIdle`). Each step is bounded (`PREFLIGHT_WORK_MS`, `PREFLIGHT_GPU_MS`, 0.4 s each; the bake alone is
+  waited for however long, since no view may show a surface without its light): what is not made by then waits for
+  the landing like everything else. Walls still being painted are not waited for: they fade in once the camera has
+  landed.
+- **The camera moves by the clock, on the paced frames.** Every step takes the time of the frame it is drawn for and
+  places the camera where the curve says for that time (`CameraRig.flightStep`), so a frame that does come late shows
+  the camera where it should be by then, not a frame behind. The frames are the room's own (§ Rendering and
+  performance › Frames): sixty a second on a 60 and on a 120 Hz display, evenly spaced. The curve is the house ease
+  (`easeInOutCubic`): the camera starts and lands with no speed and no acceleration at any frame rate.
+
+### Warming
+
+three.js makes a mesh's vertex array and uploads its buffers the first time a frame draws it, and the driver builds
+its own state for a program the first time it draws with one vertex layout into one kind of target. For everything
+the TV view leaves out, that first time was a frame of the first flight, as the mesh came into the picture: 19
+vertex arrays and 0.55 MB of buffers between 0.29 and 0.58 s into the flight, the fastest part of it. So every mesh
+is drawn once where nobody sees it (`stage/sceneWarmup.ts`, `RoomStage.warm`): stand-ins with its geometry, its
+material and its place, on a layer only the warming's camera sees, into one pixel of a target like the one frames draw
+the room into (its format, its samples, its depth; `RoomAtmosphere.warm`). A few meshes a unit (24 k vertices), from
+the TV a while after it turns on (`prewarm`), each unit an upload with an idle period to itself; whatever is left when
+the visitor leaves is drawn before the camera sets off. The stand-ins share the meshes' programs (`e2e/programs.ts`
+would count a new one), a mesh hidden for now is warmed too, one that is never drawn says so
+(`userData.neverDrawn`: the pick meshes). A tier with other samples and a restored context are warmed again. A
+program must be compiled for the target it is drawn into: `RoomStage.prepare` and `prepareAsync` bind the finish's
+target first. (The walls' and the discs' programs were compiled for the screen: programs nothing drew with, while the
+ones that did draw were linked, the main thread waiting, in the flight's frame that first showed a poster or a disc.)
+
+### Measuring flights
+
+`node scripts/perf/flights.mjs` loads a production build cold and makes the first flight at a chosen moment
+(`--leave 0|1000|10000`, `--after-whole`, `--level`), then the others (`--path round|all`), on a desktop or a
+phone-sized viewport with a throttled CPU, headless or in a window on the real display (`--headed`), with the slow-GPU
+stand-in (`--config`), in Chromium or WebKit. `flightProbe.js` records every display frame, the camera the room drew
+from in it and what WebGL was asked to make; the script prints each flight's frames against the paced frame (the
+longest, how many came late, the largest step in speed) and what was made inside it, and `--timeline` everything that
+ran in the first. `--trace` takes a Chromium trace of it, which `flightTrace.mjs` reads: the frames the compositor
+dropped, which the page's own clock cannot see, and the long tasks of the page and of the GPU process.
+
 ## Quality
 
 How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
@@ -511,7 +577,8 @@ else.
     end-to-end tests always draw the starting tier; `scripts/perf` unsets it to measure what a visitor gets).
 - **A change is a resize**: the stage's resize listeners run (the CRT's and the dust's pixel ratio, the monitor's pose),
   and the next frame is drawn whole at the new size. It waits for the camera to land: a flight's frames have no room
-  for it (about 100 ms at 6× CPU).
+  for it (about 100 ms at 6× CPU). A tier with other samples is another kind of target, so the scene is warmed for
+  it again (§ Flights › Warming).
 - **The canvas is not multisampled** under a finish: the room is drawn into the finish's own target, and only two
   triangles and the dust onto the canvas. (The unprocessed bake, `mood: 'original'` at creation, draws straight onto
   the canvas and keeps its antialiasing.)
@@ -578,9 +645,13 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   more depth render a view and no light.
 - **Leaving early.** No view but the TV's is shown before the second pass is done: a request for another view waits
   for it (`GeneratedRoom.whenWhole`, through `ViewController.whenReady`), and while one waits the stage is held again, for 1.5 s at most
-  (`HURRY_HOLD_MS`): the TV's picture stands still, the units take 12 ms of GPU each and follow each other as fast as
+  (`HURRY_HOLD_MS`): the TV's picture stands still on the game's PAUSE, the units take 12 ms of GPU each and follow each other as fast as
   the GPU takes them, so the wait is the GPU's time for what is left and not a frame's time for every view. A GPU that
-  needs longer gets its frames back and the bake goes on a view at a time behind them. A viewport or inset change that
+  needs longer gets its frames back and the bake goes on a view at a time behind them. The room is whole when the GPU
+  says so: a pass's last unit is waited for like every other (a fence), the pass that lights the rest of the room
+  included, which reads nothing back. (It used to end the task after its last unit was handed over, with the
+  composing of every page still on the GPU, and the camera that had waited for it set off into that: § Flights.)
+  A viewport or inset change that
   makes the TV view show cells its pass left out hurries the rest the same way (`reframed`); a resized canvas gets its
   one frame while held.
 - **Picking.** A click is tested against the props' own triangles: the TV set and the monitor are meshes of their own
@@ -626,7 +697,11 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   views draw is under § Rendering and performance › Cost.
 - **Pacing** (`gen/bake/pace.ts`). A view is drawn in pieces (its shadow map, each page's light, the vertices' light:
   `Baker.step(pieces)`; the shadow map is the bake's own target and waits there between units), and a unit is as many
-  pieces as the GPU has been seen to finish in 4 ms, at least one. A reading (a timer query's, or the wait for the
+  pieces as the GPU has been seen to finish in 4 ms, at least one. After the views a pass composes its pages, and
+  that is pieces too: sixteen slices of about the same texel area a page (`composeSlices`), a page cleared by its
+  first slice ever and never again (a later pass draws over the pages the room's frames are showing), its mip chain
+  made with its last. In one piece the composing of the four pages was the bake's largest draw by far and no frame
+  got past it. A reading (a timer query's, or the wait for the
   unit's fence) can only be too long, a frame's work having been on the GPU ahead of the unit, so behind the room's
   frames a piece is taken to cost the smallest of the last three. IdleWork decides when the main thread runs a unit,
   between a playing game's frames; one it has not run for 100 ms runs anyway (a main thread that is never idle while
