@@ -99,7 +99,12 @@ const SIXTY_MARGIN = 1.2;
  * thirty frames a second, on a phone or a laptop, however quick its GPU.
  */
 export function expectedFrameMs(tickMs: number): number {
-  return tickMs < FRAME_MS * SIXTY_MARGIN ? FRAME_MS : tickMs;
+  return ticksAtSixty(tickMs) ? FRAME_MS : tickMs;
+}
+
+/** Whether frames `tickMs` apart are those of a display that hands out sixty a second or more. */
+export function ticksAtSixty(tickMs: number): boolean {
+  return tickMs < FRAME_MS * SIXTY_MARGIN;
 }
 
 const TIERS: readonly QualityTier[] = ['high', 'medium', 'low'];
@@ -215,11 +220,18 @@ export class QualityGovernor {
       this.expected = Math.max(this.expected, mean);
       return this.change(trial.from, now + REST_MS);
     }
-    // Frames well ahead of what was expected: the display ticks faster than that after all (Low Power Mode switched
-    // off, a main thread that is free again, a first look at the display that a busy page made too slow).
-    if (mean < this.expected * UNCAPPED) {
-      this.expected = Math.max(FRAME_MS, mean);
-      this.displayMs = Math.min(this.displayMs, this.expected);
+    // A display's tick is the one thing no frame beats. Four frames of the window well ahead of it: the display hands
+    // out frames faster than was taken (Low Power Mode switched off, a first look at the display that a busy page
+    // made too slow), whatever the others waited for. The quickest frames say how fast, never the mean: a GPU that
+    // misses frames of a 60 Hz display is slow, not capped.
+    const quick = Math.min(mean, kept[3] ?? mean);
+    if (quick < this.displayMs * UNCAPPED) {
+      this.displayMs = expectedFrameMs(quick);
+      this.expected = this.displayMs;
+    } else if (mean < this.expected * UNCAPPED) {
+      // Frames well ahead of how they came when a step down changed nothing (a main thread that is free again): the
+      // display's own are what to expect again.
+      this.expected = this.displayMs;
     }
     // What a 60 Hz frame's limits are for the frames expected here.
     const stretch = this.expected / FRAME_MS;

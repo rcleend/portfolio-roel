@@ -212,6 +212,63 @@ describe('QualityGovernor', () => {
     });
   });
 
+  describe('when frames come quicker than it expected', () => {
+    /** Feeds one window of frames that alternate between `a` and `b` ms. */
+    const mixed = (governor: QualityGovernor, clock: { now: number }, a: number, b: number): Quality | null => {
+      for (let i = 0; i < GOVERNOR_WINDOW; i++) {
+        const ms = i % 2 === 0 ? a : b;
+        clock.now += ms;
+        const changed = governor.sample(ms, clock.now);
+        if (changed) return changed;
+      }
+      return null;
+    };
+
+    it('takes a display wrongly taken for capped by its quickest frames, and steps a slow GPU down on it', () => {
+      // A busy page load showed no frame under 33 ms: the display was taken to hand out thirty a second.
+      const governor = new QualityGovernor({ tier: 'medium', scale: 1 });
+      governor.expect(expectedFrameMs(1000 / 30));
+      const clock = { now: 0 };
+      // The room's frames then come one and two display frames apart, 25 ms on average: a 60 Hz display and a GPU
+      // that misses every other frame of it. Judged against thirty a second that was never slow.
+      expect(mixed(governor, clock, 1000 / 60, 1000 / 30)).toEqual({ tier: 'medium', scale: 0.7 });
+      expect(governor.capped).toBe(false);
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+    });
+
+    it("expects the display's own frames again, not the mean of a window that was merely quicker", () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      // A step down that changed nothing: 30 ms is how the frames come, for now.
+      expect(run(governor, clock, 30)).toEqual({ tier: 'high', scale: 0.7 });
+      settle(clock);
+      expect(run(governor, clock, 30)).toEqual({ tier: 'high', scale: 1 });
+      expect(governor.frameMs).toBeCloseTo(30);
+      // The main thread is free again and frames come at 20 ms: sixty a second is what to expect, not fifty.
+      clock.now += 61_000;
+      expect(run(governor, clock, 20)).toBeNull();
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+      // So 24 ms frames are slow again, as on any 60 Hz display.
+      expect(run(governor, clock, 24)).not.toBeNull();
+    });
+
+    it('keeps a capped display capped through a few frames whose timestamps came early', () => {
+      const governor = new QualityGovernor({ tier: 'medium', scale: 1 });
+      governor.expect(expectedFrameMs(1000 / 30));
+      const clock = { now: 0 };
+      for (let window = 0; window < 20; window++) {
+        for (let i = 0; i < GOVERNOR_WINDOW; i++) {
+          // Three frames a window a display frame early, the next as much late: the grid holds.
+          const ms = i < 3 ? 1000 / 60 : i < 6 ? 50 : 1000 / 30;
+          clock.now += ms;
+          expect(governor.sample(ms, clock.now)).toBeNull();
+        }
+      }
+      expect(governor.capped).toBe(true);
+      expect(governor.changes).toBe(0);
+    });
+  });
+
   it("expects sixty frames a second of any display about that fast or faster, and a slower one's own", () => {
     for (const hz of [60, 62.5, 75, 90, 120, 144, 240]) expect(expectedFrameMs(1000 / hz)).toBeCloseTo(1000 / 60);
     // A little jitter either way is still sixty.

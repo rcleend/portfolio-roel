@@ -21,6 +21,7 @@ import {
   QualityGovernor,
   type QualityTier,
   startingTier,
+  ticksAtSixty,
 } from './quality';
 
 /** Frames `settle` draws at most: the first uploads what the view needs, the quickest of the others is the measure. */
@@ -78,6 +79,8 @@ export class RoomStage {
   private currentMood: RoomMood = 'original';
   private air: RoomAir = { haze: 1, dust: 1 };
   private readonly governor: QualityGovernor;
+  /** The frame `watchDisplay` waits for, while it watches. */
+  private displayWatch: number | null = null;
   private reading = false;
   /** The governor has changed the quality and the stage has yet to take it up. */
   private qualityDue = false;
@@ -189,26 +192,36 @@ export class RoomStage {
   /**
    * Finds how fast the display hands out frames, before the room draws any: about the quickest interval between
    * sixteen of its frames in a row (a busy main thread makes some longer, nothing makes one much shorter). The governor and the
-   * bake's pacing judge the room's frames against it (docs/ROOM.md › Quality › A capped display).
+   * bake's pacing judge the room's frames against it (docs/ROOM.md › Quality › A capped display). A display that looks
+   * capped is watched on for a while: a page busy loading shows few frames a single tick apart, and four of them,
+   * whenever they come, say the display is not capped after all.
    */
   private watchDisplay(): void {
     let last: number | null = null;
     const intervals: number[] = [];
-    let left = DISPLAY_WATCH_FRAMES;
+    let seen = 0;
+    let quick = 0;
     const frame = (now: number): void => {
-      if (last !== null && now > last) intervals.push(now - last);
-      last = now;
-      if (--left > 0) {
-        requestAnimationFrame(frame);
-        return;
+      this.displayWatch = null;
+      if (last !== null && now > last) {
+        intervals.push(now - last);
+        if (ticksAtSixty(now - last)) quick++;
       }
-      // The fourth quickest of the fifteen: a frame's timestamp may come a few milliseconds early (three of them
-      // may), and the long ones a busy page makes are at the other end.
-      const sorted = intervals.sort((a, b) => a - b);
-      const quickest = sorted[Math.min(3, sorted.length - 1)];
-      if (quickest !== undefined) this.governor.expect(expectedFrameMs(quickest));
+      last = now;
+      seen++;
+      if (seen === DISPLAY_WATCH_FRAMES) {
+        // The fourth quickest of the fifteen: a frame's timestamp may come a few milliseconds early (three of them
+        // may), and the long ones a busy page makes are at the other end.
+        const sorted = intervals.sort((a, b) => a - b);
+        const quickest = sorted[Math.min(3, sorted.length - 1)];
+        if (quickest !== undefined) this.governor.expect(expectedFrameMs(quickest));
+      } else if (seen > DISPLAY_WATCH_FRAMES && quick > 3) {
+        this.governor.expect(expectedFrameMs(0));
+      }
+      const watching = seen < DISPLAY_WATCH_FRAMES || (this.governor.capped && seen < DISPLAY_WATCH_LIMIT);
+      if (watching) this.displayWatch = requestAnimationFrame(frame);
     };
-    requestAnimationFrame(frame);
+    this.displayWatch = requestAnimationFrame(frame);
   }
 
   get lightning(): number {
@@ -356,6 +369,8 @@ export class RoomStage {
   }
 
   dispose(): void {
+    if (this.displayWatch !== null) cancelAnimationFrame(this.displayWatch);
+    this.displayWatch = null;
     this.loop.dispose();
     this.atmosphere?.dispose();
     this.resizeObserver.disconnect();
@@ -499,6 +514,8 @@ export class RoomStage {
 
 /** Display frames watched in a row as the stage is made (`watchDisplay`): a quarter of a second at sixty a second. */
 const DISPLAY_WATCH_FRAMES = 16;
+/** A display that looks capped after those is watched this many frames in all: eight seconds at thirty a second. */
+const DISPLAY_WATCH_LIMIT = 240;
 /** The layer only `RoomStage.warm`'s camera sees (the bake's casters are on 20 and 21). */
 const WARM_LAYER = 30;
 /**

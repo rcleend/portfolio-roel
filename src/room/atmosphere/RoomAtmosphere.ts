@@ -444,6 +444,9 @@ export class RoomAtmosphere {
     this.halation.dispose();
     this.screens.dispose();
     this.frame.dispose();
+    this.warmTarget?.depthTexture?.dispose();
+    this.warmTarget?.dispose();
+    this.warmTarget = null;
     this.highlights.dispose();
     this.extract.dispose();
     this.composite.dispose();
