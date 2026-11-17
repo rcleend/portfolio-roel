@@ -5,7 +5,9 @@ cd "$(dirname "$0")/../.." || exit 1
 L=.shots/flights/logs
 D=.shots/flights/dist-base
 SG='{"slowGpu":48,"slowBake":48}'
-run() { name=$1; shift; echo "### $name: $*" >> "$L/before-$name.log"; node scripts/perf/flights.mjs --dist $D "$@" >> "$L/before-$name.log" 2>&1; }
+# Nothing else measuring: wait (up to ten minutes) while another checkout's browsers or tests run, and say what the machine's load was.
+quiet() { n=0; while pgrep -f 'ms-playwright|playwright/lib|vitest' >/dev/null 2>&1 && [ $n -lt 120 ]; do sleep 5; n=$((n+1)); done; [ $n -ge 120 ] && echo "NOISY: others still running after ten minutes"; echo "load $(sysctl -n vm.loadavg) $(pmset -g batt | head -1)"; }
+run() { name=$1; shift; echo "### $name: $*" >> "$L/before-$name.log"; quiet >> "$L/before-$name.log"; node scripts/perf/flights.mjs --dist $D "$@" >> "$L/before-$name.log" 2>&1; }
 rm -f $L/before-*.log
 run desktop --leave 0 --path all --tv
 run desktop --leave 1000 --tv

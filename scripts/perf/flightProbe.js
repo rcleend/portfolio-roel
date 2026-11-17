@@ -37,15 +37,22 @@
   // by running the page's frame callbacks only on the display frames that far apart; the others pass unseen.
   const realRaf = window.requestAnimationFrame.bind(window);
   const capMs = config.rafHz ? 1000 / config.rafHz : 0;
-  let cappedAt = Number.NEGATIVE_INFINITY;
+  // A display link's frames come on a grid: the page's callbacks run on the first display frame of each cell of it
+  // (the grid starts a little ahead of a display frame, so one that comes a moment early or late stays in its cell).
+  // Taking the first frame "at least a cap after the last" instead lets the display's own jitter add up to a cell
+  // skipped now and then, a 50 ms frame no capped display shows.
+  let capOrigin = null;
+  let capSlot = -1;
   let waiting = new Map();
   let nextHandle = 1e9;
   const capped = (t) => {
-    if (t - cappedAt < capMs - 2) {
+    capOrigin ??= t - 4;
+    const slot = Math.floor((t - capOrigin) / capMs);
+    if (slot <= capSlot) {
       realRaf(capped);
       return;
     }
-    cappedAt = t;
+    capSlot = slot;
     const run = waiting;
     waiting = new Map();
     for (const callback of run.values()) callback(t);
