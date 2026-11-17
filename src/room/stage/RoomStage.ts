@@ -187,8 +187,8 @@ export class RoomStage {
   }
 
   /**
-   * Finds how fast the display hands out frames, before the room draws any: about the quickest interval between a few
-   * of its frames in a row (a busy main thread makes some longer, nothing makes one much shorter). The governor and the
+   * Finds how fast the display hands out frames, before the room draws any: about the quickest interval between
+   * sixteen of its frames in a row (a busy main thread makes some longer, nothing makes one much shorter). The governor and the
    * bake's pacing judge the room's frames against it (docs/ROOM.md › Quality › A capped display).
    */
   private watchDisplay(): void {
@@ -202,8 +202,10 @@ export class RoomStage {
         requestAnimationFrame(frame);
         return;
       }
-      // The second quickest: one frame's timestamp may have come a little early.
-      const quickest = intervals.sort((a, b) => a - b)[1];
+      // The fourth quickest of the fifteen: a frame's timestamp may come a few milliseconds early (three of them
+      // may), and the long ones a busy page makes are at the other end.
+      const sorted = intervals.sort((a, b) => a - b);
+      const quickest = sorted[Math.min(3, sorted.length - 1)];
       if (quickest !== undefined) this.governor.expect(expectedFrameMs(quickest));
     };
     requestAnimationFrame(frame);

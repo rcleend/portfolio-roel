@@ -203,7 +203,40 @@ What to expect after the fix, Low Power Mode on: `display 30/s capped`, `0 chang
 with `0 late`. Low Power Mode off: `display 60/s`, a flight of about 66 frames, `0 late`. A number of changes above 0
 on a first load, `late` above 1, or a `worst` over 50 ms (25 ms with Low Power Mode off) is what to send back.
 
-## Where this stands
+## Where this stands (2026-11-17, about 10:45)
 
-Fixes written, unit-tested (`pnpm typecheck`, `lint`, vitest) and committed; not yet measured on a build (the no-GPU
-runs had the machine), e2e suite and bundle report not yet run. After-tables to come.
+**Interrupted by the machine's battery.** The Mac went to 5 % on battery during the after-measurements. Chrome
+(Energy Saver, on below 20 % on battery) then hands out thirty frames a second, headless included: every run from
+that moment shows a 33 ms display tick, so none of them says anything about 60 or 120 Hz. The batch was stopped.
+
+Done and pushed (`fm/ship-portfolio-smooth-flights`): the diagnosis above; the fixes (bake's end, flights on the
+paced frames, nothing runs in a flight, what a flight shows is made first, the capped display, the readout); unit
+tests for all of it (`pnpm typecheck` and vitest pass; `pnpm lint` has two findings left in
+`scripts/perf/nogpuFlat.mjs`, a function named `describe`); docs/ROOM.md (structure; numbers still to add).
+
+Measured on the fixed build before the battery went (idle M4 Pro, headless, 120 Hz, desktop top tier):
+
+| Flight (first time each) | Wait before take-off | Frames | Longest | Late | Made inside the flight |
+| --- | --- | --- | --- | --- | --- |
+| TV to room, left the moment the room is ready | 227 ms | 66 at 16.6 ms | 17.4 ms | 0 | nothing (before: 6 programs, 19 vertex arrays, 40 buffers, 4.3 MP of texture) |
+| room to TV | 2 ms | 66 | 17.5 ms | 0 | nothing |
+| room to computer | 1 ms | 66 | 17.4 ms | 0 | nothing |
+| computer to room | 206 ms (the screen's own close) | 67 | 17.4 ms | 0 | nothing |
+| room to radio | 16 ms | 67 | 17.6 ms | 0 | 2 vertex arrays |
+| radio to room | 2 ms | 66 | 17.7 ms | 0 | nothing |
+
+Measured on the fixed build *after* the battery went, which is a real 30-a-second cap in Chromium (its own Energy
+Saver, not a stand-in), all 18 transitions each: desktop top and lowest tier, the phone stand-in (CPU 6x) on its tier
+and the lowest. Every flight is 33-35 frames at 33 ms, none late, the longest 34-40 ms; the page reports
+`capped`, frames expected every 29.6-32.7 ms, 0 changes of quality. On the slow-GPU stand-in under the same cap: the
+first pull-back waits 1.06-1.12 s for the rest of the bake and then flies 34 frames with none late (longest 34.4 and
+36.8 ms); one of the 36 flights there (room to TV, second time, desktop) had 5 of 27 frames late, the longest 58.6 ms,
+4 quality changes over 38 s (steps up after the waits, one back down). Logs: `.shots/flights/logs/after-*.log`.
+
+Not done: the after-matrix at 60 and 120 Hz (desktop, phone stand-in, slow-GPU stand-in, the leave at 1 s, 10 s and
+after a level, the TV view while the room warms), the before/after on WebKit and on the 30-a-second stand-in, the
+headed 120 Hz trace of the fixed build, the whole e2e suite (pinned program counts changed; the first leave is
+sometimes asynchronous now), `pnpm report:bundle`, the no-GPU section (the subagent's raw data and screenshots are
+in `.shots/flights/nogpu/`, its notes not yet written), the numbers in docs/ROOM.md, AGENTS.md. Scripts to rerun:
+`sh .shots/flights/after.sh` then `sh .shots/flights/before.sh` (the second needs `.shots/flights/dist-base`, a
+build of 7e4583a).
