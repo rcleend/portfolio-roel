@@ -575,6 +575,20 @@ else.
   - Not governed: a fixed tier (`quality: 'low'`), a software renderer (its frame times are the CPU's) and a browser
     under automation (`navigator.webdriver`: a test's paused clock or throttled CPU says nothing about the device, so
     end-to-end tests always draw the starting tier; `scripts/perf` unsets it to measure what a visitor gets).
+- **A capped display.** Everything above is measured against the interval frames are meant to come at, which is a
+  60 Hz frame only where the display hands out sixty a second or more. Safari in Low Power Mode hands out thirty,
+  on an iPhone or a Mac, however quick the GPU; nothing a page does adds a frame. So the stage looks at the display's
+  own frames before the room draws any (`RoomStage.watchDisplay`: sixteen in a row, the second quickest interval;
+  a busy main thread makes some longer and nothing makes one much shorter) and `expectedFrameMs` turns that into what
+  frames are expected at: a 60 Hz frame for a display about that fast or faster (the loop paces a faster one down),
+  the display's own tick for a slower one. The governor's limits stretch with it (at thirty a second: slow over 42 ms,
+  on time up to 34.8 ms), and so does the bake's idea of a late frame (§ The generated room › Pacing). A step down
+  that does not shorten the frames is not tried again a minute later: frames are then expected as they came (a cap
+  that began after the page opened, a main thread that is the limit), which costs one step down and back, once.
+  Frames a quarter quicker than expected end the cap. (Judged against sixty, a capped phone stepped its scale to the
+  floor and back every minute, two resizes each time, and baked the rest of the room at an eighth of the pace, every
+  frame counting as late.) `room.stats.display` says what is expected and whether it is a cap; `qualityChanges` counts
+  the resizes.
 - **A change is a resize**: the stage's resize listeners run (the CRT's and the dust's pixel ratio, the monitor's pose),
   and the next frame is drawn whole at the new size. It waits for the camera to land: a flight's frames have no room
   for it (about 100 ms at 6× CPU). A tier with other samples is another kind of target, so the scene is warmed for
@@ -593,8 +607,10 @@ else.
   (`fittingQuality`, `stage/quality.ts`: down the scales, then the tiers). The governor goes on from there. Not where
   the quality is fixed (`?quality=`, a software renderer, a browser under automation).
 - **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
-  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
-  phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
+  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner, the rate the display
+  hands out frames at and whether that is a cap, how often the quality changed, and the last flight's frames, late
+  frames and longest frame (the way to read them on a phone: `app/hosts/perfReadout.ts`, its own chunk), and
+  `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
 - **Measuring it.** `node scripts/perf/profile.mjs` drives a production build along the visitor's path (the game on
   the TV, the room, the computer, the radio) with a WebGL profiler injected ahead of the page (`glProfiler.js`: GPU
   timer queries, draw calls, the pixels of every pass, the main thread's time in each WebGL call), on a desktop or a
@@ -710,7 +726,8 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   over 5 ms, the units are spaced out to a quarter of the GPU's time and never more than 100 ms apart
   (`generatedStats.deferred`): the rest of the room arrives however slow the GPU, where it used to wait for a quiet
   moment that a visitor at the title screen never gives it. A game being played comes first: every frame of the room
-  that comes over 20 ms after the one before it halves what the bake's units take, down to an eighth, and rests the
+  that comes a fifth later than frames are meant to here (over 20 ms on a 60 Hz display, over 40 ms on one capped at
+  thirty a second: § Quality › A capped display) halves what the bake's units take, down to an eighth, and rests the
   bake up to 100 ms between them; frames on time give it back a tenth at a time (`BakePace.frame`). A visitor waiting
   to leave, and the opening pass, are not paced by frames at all. The bake's programs and the display materials' link
   without blocking where the GPU allows it.
