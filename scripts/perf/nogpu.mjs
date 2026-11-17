@@ -9,9 +9,20 @@
 //   --args         the browser's GPU flags. Playwright's own `--enable-unsafe-swiftshader` is taken out unless it is
 //                  given here (nogpuLib.mjs), so `--disable-gpu` alone is a visitor with hardware acceleration off.
 //   --early-leave  the visitor leaves the TV the moment the room is handed out: the wait for the rest of the bake.
+//                  The probe clicks the way out itself, shown or not. With --real-click the page's mouse does what a
+//                  visitor can: presses on the screen until the game has begun and "Explore the room" has risen,
+//                  then clicks that (a real press also hands the startup still over to the live room).
 //   --quick        a level at the TV as soon as the room is in, then the room and back: frame times at a size, quickly.
 //   --load-only    stops once the whole room is lit.
 //   --ecores       every process of the browser demoted to the efficiency cores (`taskpolicy -b`): a slower CPU.
+//   --dpr 0.5      the page is told the display's pixel ratio is this (the room then draws that many pixels a CSS
+//                  pixel, on a display that stays what `--dsf` says): a lighter tier's pixel count, as it would show.
+//   --reduced-motion  the visitor prefers reduced motion: every move is a cut through black, not a flight.
+//   --reduce-after-landing  with --early-leave: reduced motion is switched on once the camera has landed in the room.
+//   --pc           with --quick or --early-leave: the computer too (room → computer → room) at the end.
+//   --leave-after 10  with --real-click: seconds between "Explore the room" rising and the click on it.
+//   --moments 0.5,2,6  with --early-leave: seconds after the click at which the page is looked at and shot
+//   --wait-cap 420    with --early-leave: seconds after which the wait for the camera is given up (and reported).
 // Needs scripts/perf/flightProbe.js and glProfiler.js (injected, as scripts/perf/flights.mjs does).
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -50,6 +61,8 @@ const out = option('out', null);
 const viewport = option('viewport', null)?.split('x').map(Number) ?? null;
 const dsf = option('dsf', null);
 const earlyLeave = flag('early-leave');
+const dpr = option('dpr', null);
+const reducedMotion = flag('reduced-motion');
 
 /** In the page, before its scripts and after the two probes: when the page's milestones came, and a display ticker. */
 const MILESTONES = `(() => {
@@ -114,11 +127,20 @@ function flightOf(recording, change, settle, click, name) {
     flight: name,
     waitMs: click ? round(change.at - click.at, 0) : null,
     changeToSettleMs: round(settle.at - change.at, 0),
+    clickToSettleMs: click ? round(settle.at - click.at, 0) : null,
   };
   if (first < 0) return { ...result, frames: 0 };
   const frames = window.slice(first - 1, last + 1);
   const stats = intervalStats(frames.map((frame) => frame.tick.t));
-  return { ...result, toFirstMoveMs: round(frames[1].tick.t - change.at, 0), flightMs: stats.seconds * 1000, ...stats };
+  return {
+    ...result,
+    toFirstMoveMs: round(frames[1].tick.t - change.at, 0),
+    // From the click to the first frame drawn from somewhere else (a cut's one move is the cut itself, under black).
+    clickToFirstMoveMs: click ? round(frames[1].tick.t - click.at, 0) : null,
+    clickToLastMoveMs: click ? round(frames.at(-1).tick.t - click.at, 0) : null,
+    flightMs: stats.seconds * 1000,
+    ...stats,
+  };
 }
 
 function flightsOf(recording) {
@@ -152,6 +174,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const contextOptions = {
   ...(viewport ? { viewport: { width: viewport[0], height: viewport[1] } } : {}),
   ...(dsf ? { deviceScaleFactor: Number(dsf) } : {}),
+  ...(reducedMotion ? { reducedMotion: 'reduce' } : {}),
 };
 const { browser, context, close } = await launch({ browser: option('browser', 'cft'), args, device, contextOptions });
 const result = {
@@ -165,6 +188,8 @@ const result = {
   cpu,
   query,
   earlyLeave,
+  dprOverride: dpr === null ? null : Number(dpr),
+  reducedMotion,
   ecores: flag('ecores'),
   // What else the machine was doing: the load average (processes wanting a core) as the run began and ended.
   loadBefore: loadavg()[0],
@@ -188,13 +213,17 @@ try {
   const client = await context.newCDPSession(page);
   const browserSession = await browser.newBrowserCDPSession();
   await page.addInitScript(
-    `window.__flightConfig = ${JSON.stringify(earlyLeave ? { leaveAfterMs: 0 } : {})}; window.__perfConfig = ${JSON.stringify({ noTimerQuery: true, sync: flag('sync') })};`,
+    `window.__flightConfig = ${JSON.stringify(earlyLeave && !flag('real-click') ? { leaveAfterMs: 0 } : {})}; window.__perfConfig = ${JSON.stringify({ noTimerQuery: true, sync: flag('sync') })};`,
   );
   // `--probes dir`: the two probes from there (a copy of the committed ones while the working tree's are being edited).
   const here = option('probes', null) ? resolve(option('probes')) : dirname(fileURLToPath(import.meta.url));
   await page.addInitScript({ path: join(here, 'flightProbe.js') });
   await page.addInitScript({ path: join(here, 'glProfiler.js') });
   await page.addInitScript(MILESTONES);
+  if (dpr !== null)
+    await page.addInitScript(
+      `Object.defineProperty(window, 'devicePixelRatio', { configurable: true, get: () => ${Number(dpr)} });`,
+    );
   if (cpu > 1) await client.send('Emulation.setCPUThrottlingRate', { rate: cpu });
   await client.send('Performance.enable');
 
@@ -245,6 +274,8 @@ try {
   }
 
   const marks = () => page.evaluate(() => window.__flight.marks.map((mark) => mark.name));
+  // Where the run is, on stderr, so a long one can be watched.
+  const progress = (what) => console.error(`  [${label} +${((Date.now() - started) / 1000).toFixed(1)} s] ${what}`);
   const waitForMark = async (name, count = 1, timeout = 420_000) => {
     const from = Date.now();
     while ((await marks()).filter((mark) => mark === name).length < count) {
@@ -265,6 +296,7 @@ try {
     await page.evaluate((name) => window.__flight.mark(`click:${name}`), to);
     await act();
     await waitForMark(`settle:${to}`, settled[to]);
+    progress(`landed at ${to}`);
     await sleep(dwell);
   };
   const press = (name) =>
@@ -290,6 +322,7 @@ try {
   /** A stretch of the visit measured: a tick on every display frame, the room's drawn frames, the game's clock. */
   const windows = [];
   const record = async (name, ms) => {
+    progress(`measuring "${name}"`);
     const from = await page.evaluate(() => {
       window.__nogpu.ticker(true);
       window.__perf.start();
@@ -366,43 +399,128 @@ try {
   const host = await page.evaluate(() => document.querySelector('[data-host]')?.getAttribute('data-host') ?? null);
   result.host = host;
   if (host !== 'room') throw new Error(`The page shows the ${host} host: nogpuFlat.mjs measures that visit`);
+  progress('the game runs');
   if (earlyLeave) {
     // The visitor asked to leave the moment the room was handed out: what the page shows while the rest is lit.
     await waitForMark('room-ready');
-    await sleep(2000);
-    await shoot('early-leave-waiting-2s');
-    result.earlyLeaveState = await page.evaluate(() => ({
-      view: document.querySelector('.room-host')?.getAttribute('data-view'),
-      still: document.getElementById('tv-still')?.dataset.shown,
-      busy: [...document.querySelectorAll('[aria-busy="true"], [data-pending], [data-loading]')].map(
-        (element) => element.className,
-      ),
-      wayOut: document.querySelector('.tv-way-out, .way-out')?.outerHTML.slice(0, 200) ?? null,
-      scene: window.__arcade?.state().scene,
-    }));
+    result.qualityAtReady = await quality();
+    // What the page shows and says at several moments of the wait, until the camera has left.
+    let readyAt = Date.now();
+    const waitCap = Number(option('wait-cap', 420));
+    if (flag('real-click')) {
+      const size = page.viewportSize();
+      let pill = null;
+      let presses = 0;
+      while (Date.now() - readyAt < 30_000) {
+        pill = await page.evaluate(() => {
+          const button = document.querySelector('.tv-way-out[data-shown="true"]');
+          if (!button) return null;
+          const rect = button.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, text: button.textContent.trim() };
+        });
+        if (pill) break;
+        await page.mouse.click(size.width / 2, size.height / 2);
+        presses++;
+        await sleep(250);
+      }
+      if (!pill) throw new Error('"Explore the room" did not rise within 30 s of presses on the screen');
+      result.realClick = { pressesOnTheScreen: presses, pillAfterReadyMs: Date.now() - readyAt, pill };
+      progress(
+        `"${pill.text}" has risen after ${presses} presses, ${Date.now() - readyAt} ms after the room was ready`,
+      );
+      // `--leave-after 10`: the visitor looks at the title that many seconds before clicking the way out.
+      const lingerS = Number(option('leave-after', 0));
+      if (lingerS > 0) {
+        await sleep(lingerS * 1000);
+        result.realClick.clickedAfterReadyMs = Date.now() - readyAt;
+      }
+      await page.evaluate(() => window.__flight.mark('click:room'));
+      await page.mouse.click(pill.x, pill.y);
+      // The moments below count from the click.
+      readyAt = Date.now();
+    }
+    const left = async () => (await marks()).includes('change:room');
+    result.earlyLeaveLooks = [];
+    for (const moment of option('moments', '0.5,2,6,15,30,60,120,180').split(',').map(Number)) {
+      const waited = () => (Date.now() - readyAt) / 1000;
+      while (waited() < moment && waited() < waitCap && !(await left())) await sleep(50);
+      if ((await left()) || waited() >= waitCap) break;
+      const look = await page.evaluate(() => {
+        const state = window.__arcade?.state();
+        return {
+          at: Math.round(performance.now()),
+          view: document.querySelector('.room-host')?.getAttribute('data-view'),
+          still: document.getElementById('tv-still')?.dataset.shown,
+          busy: [...document.querySelectorAll('[aria-busy="true"], [data-pending], [data-loading]')].map(
+            (element) => element.className,
+          ),
+          wayOut: document.querySelector('.tv-way-out, .way-out')?.outerHTML.slice(0, 200) ?? null,
+          scene: state?.scene,
+          paused: state?.paused,
+          gameFrame: state?.frame,
+          generated: window.__room?.stats.generated,
+          live: document.querySelector('[aria-live]')?.textContent?.slice(0, 120) ?? null,
+        };
+      });
+      result.earlyLeaveLooks.push({ moment, ...look });
+      console.error(`  +${moment} s: ${JSON.stringify(look)}`);
+      await shoot(`early-leave-waiting-${moment}s`);
+    }
+    result.earlyLeaveState = result.earlyLeaveLooks.find((look) => look.moment === 2) ?? result.earlyLeaveLooks[0];
     settled.room = 1;
-    await waitForMark('settle:room', 1);
-    await sleep(1500);
-    await shoot('early-leave-room');
-    // A short tour: the room at rest, back to the TV for a level, and out again.
-    await record('room', restMs);
-    await memory('room');
-    await fly('tv', () => press('Play game'));
-    await page.evaluate(() =>
-      window.__arcade?.goTo('level', { levelId: 'luna', characterId: 'artsy', autopilot: true, skipIntro: true }),
+    // A wait that outlasts the cap is a result, not a failure of the run: what was recorded is still read.
+    const landed = await waitForMark(
+      'settle:room',
+      1,
+      Math.max(1, waitCap - (Date.now() - readyAt) / 1000) * 1000,
+    ).then(
+      () => true,
+      () => false,
     );
-    await sleep(1500);
-    await record('tv: level', levelMs);
-    await memory('tv, level');
-    await fly('room', () => page.evaluate(() => window.__flight.leave()));
+    if (!landed) {
+      result.earlyLeaveNeverLeftWithinS = waitCap;
+      progress('the camera has not left');
+      await shoot('early-leave-never-left');
+    } else {
+      progress('landed in the room');
+      await sleep(1500);
+      await shoot('early-leave-room');
+      // `--reduce-after-landing`: from here on the visitor prefers reduced motion (the media query is live), so every
+      // later move is a cut through black: the cuts measured without a page that was loaded that way.
+      if (flag('reduce-after-landing')) {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        result.reducedMotion = 'after the first landing';
+        await sleep(300);
+      }
+      // A short tour: the room at rest, back to the TV for a level, and out again.
+      await record('room', restMs);
+      await memory('room');
+      await fly('tv', () => press('Play game'));
+      await page.evaluate(() =>
+        window.__arcade?.goTo('level', { levelId: 'luna', characterId: 'artsy', autopilot: true, skipIntro: true }),
+      );
+      await sleep(1500);
+      await record('tv: level', levelMs);
+      await shoot('tv-level');
+      await memory('tv, level');
+      await fly('room', () => page.evaluate(() => window.__flight.leave()));
+      if (flag('pc')) {
+        await fly('pc', () => press('About me (CV)'), 2500);
+        await record('pc', restMs);
+        await shoot('pc');
+        await fly('room', () => page.keyboard.press('Escape'));
+      }
+    }
   } else {
     await waitForMark('room-ready');
     result.qualityAtReady = await quality();
+    progress(`the room is ready: ${JSON.stringify(result.qualityAtReady)}`);
     if (!flag('quick')) {
       await waitFor(
         () => page.evaluate(() => window.__flight.marks.some((mark) => mark.name === 'room-whole')),
         'the whole room',
       );
+      progress('the whole room is lit');
       await sleep(500);
       await memory('tv, whole room lit');
     }
@@ -418,11 +536,19 @@ try {
     await record('tv: level, the rest of the room still being lit', levelMs);
     await fly('room', () => page.evaluate(() => window.__flight.leave()));
     await record('room', restMs);
+    await shoot('room');
     await memory('room');
     await fly('tv', () => press('Play game'));
     await sleep(1000);
     await record('tv: level', levelMs);
+    await shoot('tv-level');
     await fly('room', () => page.evaluate(() => window.__flight.leave()));
+    if (flag('pc')) {
+      await fly('pc', () => press('About me (CV)'), 2500);
+      await record('pc', restMs);
+      await shoot('pc');
+      await fly('room', () => page.keyboard.press('Escape'));
+    }
   }
   if (!earlyLeave && !flag('load-only') && !flag('quick')) {
     // The title on the startup still, the lit room drawing underneath.
@@ -528,6 +654,15 @@ try {
     stretch('loading: game running → room ready', own.at.running, markAt('room-ready'));
   if (markAt('room-ready') !== null && markAt('room-whole') !== null)
     stretch('warming: room ready → whole room lit', markAt('room-ready'), markAt('room-whole'));
+  if (earlyLeave && markAt('click:room') !== null && markAt('change:room') !== null)
+    stretch('waiting: the click → the camera sets off', markAt('click:room'), markAt('change:room'));
+  // The camera never left within the cap: the frames of the whole wait, at the TV.
+  if (earlyLeave && markAt('click:room') !== null && markAt('change:room') === null && recording.ticks.length > 0)
+    stretch(
+      'waiting: the click → the watch ended (the camera had not left)',
+      markAt('click:room'),
+      recording.ticks.at(-1).t,
+    );
   for (const window of windows)
     stretch(window.name, window.from, window.to, {
       cores: window.cores,
@@ -553,7 +688,7 @@ const line = (stats) =>
     ? `${String(stats.fps).padStart(5)} fps  median ${String(stats.medianMs).padStart(6)}  p95 ${String(stats.p95Ms).padStart(6)}  max ${String(stats.maxMs).padStart(7)} ms  >20 ${String(stats.over20).padStart(5)}%  >33 ${String(stats.over33).padStart(5)}%  >50 ${String(stats.over50).padStart(5)}%  (${stats.frames} frames)`
     : 'no frames';
 console.log(
-  `${label}: ${result.product} ${args.join(' ')}  ${result.device} ${result.viewport.width}×${result.viewport.height}@${result.deviceScaleFactor} cpu×${cpu}${query}`,
+  `${label}: ${result.product} ${args.join(' ')}  ${result.device} ${result.viewport.width}×${result.viewport.height}@${result.deviceScaleFactor} cpu×${cpu}${query}${dpr !== null ? ` dpr told ${dpr}` : ''}${reducedMotion ? ' reduced motion' : ''}${flag('ecores') ? ' ecores' : ''}`,
 );
 console.log(`  renderer: ${result.renderer}`);
 if (result.error) console.log(`  ERROR ${result.error}`);
@@ -577,12 +712,13 @@ for (const [name, window] of Object.entries(result.windows)) {
 }
 for (const flight of result.flights ?? []) {
   console.log(
-    `  ${flight.flight.padEnd(13)} wait ${String(flight.waitMs).padStart(6)} ms, ${String(flight.changeToSettleMs).padStart(5)} ms  ${line(flight)}`,
+    `  ${flight.flight.padEnd(13)} wait ${String(flight.waitMs).padStart(6)} ms, ${String(flight.changeToSettleMs).padStart(5)} ms, click→first move ${flight.clickToFirstMoveMs ?? '—'}, click→settle ${flight.clickToSettleMs ?? '—'} ms  ${line(flight)}`,
   );
 }
 for (const [name, entry] of Object.entries(result.memory))
   console.log(
     `  memory [${name}] js heap ${entry.jsHeapUsedMB}/${entry.jsHeapTotalMB} MB, rss ${JSON.stringify(entry.rssMB)} total ${entry.rssTotalMB} MB`,
   );
-if (result.earlyLeaveState) console.log(`  early leave, 2 s into the wait: ${JSON.stringify(result.earlyLeaveState)}`);
+for (const look of result.earlyLeaveLooks ?? [])
+  console.log(`  early leave, +${look.moment} s: ${JSON.stringify(look)}`);
 console.log(`  errors ${JSON.stringify(result.errors)}  warnings ${JSON.stringify(result.warnings)}`);

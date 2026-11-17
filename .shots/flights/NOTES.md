@@ -269,41 +269,63 @@ on a first load, `late` above 1, or a `worst` over 50 ms (25 ms with Low Power M
 
 ## No GPU (the owner's added request) - summary; full notes in `.shots/flights/nogpu/NOTES.md`
 
-Measured by a subagent on the build *before* the fixes (`.shots/flights/dist-base`), Chrome for Testing 151 and
-Google Chrome 157, headless, M4 Pro. Not finished (battery): three items owed, listed at the end.
+Two rounds, both by a subagent on this M4 Pro, headless Chrome for Testing 151 (the first also Google Chrome 157):
+the first on the build before the fixes, the second (17 Nov, 14:00 to 15:15, on mains) on the fixed build frozen at
+`.shots/flights/nogpu/dist-fixed`. **This is an owner's decision and is not decided here**; the options and their
+numbers are below, the pictures are in `.shots/flights/nogpu/shots/` (not committed: 197 MB).
 
-- **Hardware acceleration switched off means no WebGL at all** in both browsers (plain `--disable-gpu`, and the real
-  settings switch in Local State): WebGL 1 and 2 are refused and the site shows the flat television, the game
-  running at 0.9 s. Chrome no longer falls back to software WebGL by itself; SwiftShader only comes with
+What a visitor without a GPU meets today:
+
+- **Hardware acceleration switched off means no WebGL at all** in current Chrome on a Mac (plain `--disable-gpu`,
+  and the real settings switch): WebGL 1 and 2 are refused and the site shows the flat television, the game running
+  at 0.9 s. Chrome no longer falls back to software WebGL by itself; SwiftShader only comes with
   `--enable-unsafe-swiftshader`. Playwright adds that flag to every macOS Chromium launch, so
   `PERF_CHROME_ARGS="--disable-gpu"` and the e2e suite's `ROOM_GL=swiftshader` test a path a Mac Chrome visitor no
-  longer gets.
-- **Software WebGL where it is forced**: tier `low` x 1 from start to finish (not governed, as documented: confirmed).
-  First paint 48-56 ms, game running 0.6 s, room ready 4.9-5.2 s (opening bake 3.4 s against 0.11 s on Metal), one
-  0.7 s main-thread freeze in the game at 0.65-1.4 s. Frames: TV with a level 22 a second, room 19, computer 17,
-  radio 20, flights 16-21 (worst frame 194 ms on the first pull-back); phone size 21-26. The GPU process holds 7-9.5
-  of 12 cores, at rest too. The whole room is lit only after 170-190 s (288 s at the phone's size), and a visitor
-  who clicks "Explore the room" as the room turns ready waits for that: 27 s, 66 s, 92 s, 222 s in four runs, not
-  gone after 177 s in a fifth, with no cue (on the fixed build the game now pauses at the click, but the wait is the
-  bake's and is as long). Nothing black or unlit in the four views; the discs' prints arrive about 20 s after
-  landing and the monitor showed its placeholder instead of the wallpaper at 1.5 s and 7 s.
-- **The flat television (WebGL refused)**: game running at 0.9 s, the display's rate held (worst frame 13.6 ms), under
-  half a core, 31 requests and 440 kB, no room file fetched, nothing left waiting. Gaps: the first picture is the
-  room's startup still, which cross-fades over 0.4 s into a differently shaped flat TV (two sets showing through each
-  other); the résumé is reachable only by keyboard (Tab twice, or the skip link), not by mouse or touch; the music
-  is unreachable (no radio); the X link is nowhere, LinkedIn, GitHub and e-mail only inside the résumé; the game
-  keeps running under the open résumé.
-- **Judgement to bring to the owner (needs-decision, not decided here)**: the software renderer does not hold a
-  usable rate in the 3D room on the lowest tier (17-26 frames a second with 8-9 fast cores busy, and a first
-  pull-back that can wait minutes). Options: (a) hand software-rendered visitors the flat television
-  (`failIfMajorPerformanceCaveat: true` is refused exactly in that case, so it can be told before the room's chunk
-  loads): full frame rate for half a core, but the flat host then needs a way to the résumé, the music and the links
-  by mouse and touch, and its hand-over from the still fixed; (b) keep the 3D room there and bound the bake (a far
-  shorter software profile) and the wait; (c) leave it, since Chrome on a Mac no longer reaches this path at all
-  (Windows uses WARP, not measured; Firefox and Safari not measured).
-- Owed: frame time against pixels and a 4-core stand-in on software WebGL; Chrome 157 software frames and the Metal
-  low/phone references (taken under the 30-a-second cap, discarded); case (c), `e2e/gpu-reset.spec.ts`, not run; the
-  fallbacks when the room fails after it was chosen (chunk blocked, WebGL 1 only).
+  longer gets. Windows (WARP), Linux, Firefox and Safari were not run.
+- **The GPU process lost mid-visit** (case c): `e2e/gpu-reset.spec.ts` passes in all three whole runs of the suite.
+- **Software WebGL, where a browser does give it**: the room at `low` x 1 from start to finish (a software
+  renderer's quality is fixed, `quality.ts`), which is option A below.
+
+### The options, measured on the fixed build (software WebGL, 1440 x 900 at device scale 2)
+
+| Option | What the visitor gets | Frames a second: TV with a level / room / computer / radio | CPU cores busy | Waits | Picture |
+| --- | --- | --- | --- | --- | --- |
+| **A. Leave it** | the whole site, slowly; all views lit and complete | 20.7 / 17.1 / 16.4 / 17.7; a flight is 15-23 frames, worst frame 141 ms on the first pull-back, 58-92 ms on the rest | 7.0-8.7 of 12, at rest too | game 0.8 s, room ready 5.7 s, whole room lit 211 s; **leaving the TV before that: 31 s, 32 s, about 62 s, 68 s, and three waits not over after 150 s, about 190 s and 385 s** (PAUSE on the tube, nothing else said) | `opt-a-swiftshader-room-view.jpg`, the wait: `opt-a-early-real-early-leave-waiting-2s-view.jpg` |
+| **B. Fewer pixels** (0.90 MP today) | the same room, softer; the page's own text stays sharp | 0.32 MP (`low` x 0.6, the governor's existing floor): 46.5-50.7 / 42.7-44.3; 0.16 MP: 61 / 59; 0.08 MP: 60.6 / 61.3 (computer, radio not run) | 7.3-9.2 at 0.32 MP; 4-7 only at 0.08 MP: fewer pixels buy frames, not CPU | leaving at once: 21.5 s and 31 s at 0.32 MP, 2.4-3.1 s below. **On the four efficiency cores at 0.32 MP: room ready 41.7 s, then 3.3 frames a second while the rest was lit** (at rest not reached) | `opt-b-room-crops.jpg` (0.90 / 0.32 / 0.16 / 0.08 MP side by side) |
+| **C. Cuts instead of flights** | A's room; a move is a fade, a cut and a fade back (what reduced motion gets today) | at rest as A | as A | click to the new view shown: TV to room 0.61 s, room to computer 0.60 s, **on a machine other jobs were starving**; by the code 0.3-0.4 s against a flight's 1.2 s (not measured clean). The early leaver's wait is A's | `opt-c-cuts-room-view.jpg` |
+| **D. The flat television** (`?host=flat` today) | the game at full rate in a CSS set; no room | 121 (worst frame 14.8 ms), game at 60 steps a second | 0.18 + 0.23 | game running 0.9 s; 31 requests, 444 kB, no room file | `opt-d-flat-level-view.jpg` |
+| **E. Telling them apart** | nothing by itself: the test A-D would hang on | - | - | one context asked for before the room's chunk loads | - |
+
+- **B's frame is nearly all pixels**: 3-4 ms fixed plus 52-61 ms a megapixel, so 30 frames a second needs about
+  0.5 MP and 60 about 0.16-0.2 MP **on twelve fast cores**. A machine without a GPU rarely has them; the one run on
+  four slow cores is the 3.3 frames a second above. At 0.32 MP poster titles read and their small print does not; at
+  0.16 MP edges are steps a blind's slat wide; at 0.08 MP it is a mosaic.
+- **A's first wait has no bound**: `createRoom.ts > preflight` awaits `GeneratedRoom.whenWhole()` with no deadline
+  (read in the code; seen as three waits that never ended, none followed to its end). Why the same click costs 31 s
+  one time and minutes another was not found; the bake's hurried units take 3 to 31 s each on this renderer.
+  On a GPU the whole room is lit within seconds, so this is the software renderer's wait alone.
+- **D reaches, with a mouse or a finger**: the game, the sound toggle, and the e-mail link through the game's menus
+  (three clicks; by touch the pad's START and A). **Not the resume** (keyboard focus or `#resume` only), **not the
+  music** (no radio, with a keyboard neither), **not LinkedIn, GitHub or X**, and nothing says they exist; the page
+  does not scroll (`opt-d-reach-touch-pad-level-select-after-view.jpg`). The first round also saw the startup still
+  cross-fade over 0.4 s into the differently shaped flat set. All of this is what the Mac Chrome visitor with
+  acceleration off meets **today**, whichever option is chosen.
+- **E works**: `getContext('webgl2', { failIfMajorPerformanceCaveat: true })` is null on the software browser only,
+  and the renderer's name says it (`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device ...` against `ANGLE (Apple,
+  ANGLE Metal Renderer: Apple M4 Pro ...`; `softwareGpu.ts` matches it already). One launch where the flag does not
+  tell (`--use-angle=swiftshader`) is told by the name.
+
+**How far to trust it.** Only D's run had the machine to itself; other checkouts started inside most of the others
+(`foreign.py watch` beside each; the full list is in the helper's notes, "The runs"). C's tour is a starved
+machine's and its frames are discarded; A's room stretch had 4.4 cores of other jobs. Not run: a 60 Hz display, a
+real machine without a GPU, Windows, Linux, Firefox, Safari, Chrome 157 on software WebGL, device scale 1, a picture
+at 0.5 MP, the room at rest on slow cores.
+
+**My reading, for the owner to overrule**: D with E (send a software-rendered visitor to the flat television before
+the room's chunk loads) is the only option that holds a full frame rate on a slow CPU, and it costs under half a
+core; B holds only on a fast one, and A and C leave a first wait nothing bounds. But D is worth choosing only
+together with giving the flat television a way to the resume and the links by mouse and touch, which is new work
+outside the camera and the render loop, and which today's acceleration-off visitor lacks already.
 
 ## Chrome's Energy Saver (found while measuring)
 
@@ -477,7 +499,7 @@ Read against the acceptance numbers (no interval over one and a half paced frame
   this branch. `e2e/flights.spec.ts` (new) passes in all three whole runs and in 7 of 8 runs alone; its longest-frame
   limit was then widened from 2.5 to 3.5 paced frames for the development server (said in the test). The gpu-reset
   test (case c of the no-GPU request) passes in all three runs.
-- `pnpm report:bundle`: **fails its budgets by what this work added**, and I have not raised them: the room's chunk 194.08 kB
+- `pnpm report:bundle`: **passes** (15:30, after the budgets were raised as below). Before the raise it failed by what this work added: the room's chunk 194.08 kB
   against 191.6 (this work: +2.60 kB of gzip, 1.4 %: the warming, the wait before a flight, the bake's sliced end,
   the capped display, the idle work's flight rule), the entry 215.12 against 215 (this work: +0.15 kB, the room
   host's waits), the posters' chunk 6.83 against 6.7 (+0.14 kB). Measured against the build before the fixes with the
@@ -529,18 +551,18 @@ rest, and the slow-GPU rows above for the governor (it changes the scale 3-5 tim
    bake's end and the idle units after ready (the rain's sound, the warming) are what this branch changed at that
    moment.
 2. **The second stage** (above): rest pacing, then the governor under overload.
-3. **The no-GPU decision** for the owner, with the option measurements on the fixed build
-   (`.shots/flights/nogpu/NOTES.md`).
+3. **The no-GPU decision** is with the owner (raised 17 Nov, 15:40, `needs-decision … [key=nogpu]`): the options
+   and their numbers are in "No GPU" above. Nothing of it is built; if the answer is the flat television, the ways
+   to the résumé and the links by mouse and touch are a task of their own.
 4. Steady state, before against after, was not measured as such in the first stage: frame time per view at rest and
    memory (`node scripts/perf/profile.mjs --dist .shots/flights/dist-base` against `--dist dist`); it belongs with
    the second stage's rest measurements. Room-ready times are in the tables' logs: desktop 549-634 ms before,
    564-701 ms after; phone stand-in 1523-1765 ms before, 1382-1580 ms after (they move with the machine's load).
 
-## Where this stands (17 Nov, 14:05)
+## Where this stands (17 Nov, 15:40)
 
 The first stage is done and pushed: diagnosis, fixes, the review's findings, the matrices, the tables above, the
-docs. Open: the no-GPU options (a needs-decision for the owner, numbers in `.shots/flights/nogpu/NOTES.md`; the
-option measurements on the fixed build are not made yet: `.shots/flights/nogpu/dist-fixed` is a frozen copy of
-the build for them), and the second stage above. To re-run any measurement: `sh .shots/flights/after.sh` (the
-whole matrix), `python3 .shots/flights/until-clean.py` (rows without a run alone, again), `python3
-.shots/flights/tables.py` (the tables).
+docs, the budgets (`pnpm report:bundle` passes). The no-GPU options are measured on the fixed build and raised to
+the owner. Open, in the order of the list above: the attribution of `e2e/room.spec.ts:18`, then the second stage.
+To re-run any measurement: `sh .shots/flights/after.sh` (the whole matrix), `python3 .shots/flights/until-clean.py`
+(rows without a run alone, again), `python3 .shots/flights/tables.py` (the tables).
