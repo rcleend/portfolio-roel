@@ -547,6 +547,18 @@ longest, how many came late, the largest step in speed) and what was made inside
 ran in the first. `--trace` takes a Chromium trace of it, which `flightTrace.mjs` reads: the frames the compositor
 dropped, which the page's own clock cannot see, and the long tasks of the page and of the GPU process.
 
+What it measures on an Apple M4 Pro (17 Nov 2026, a production build, each row a cold load; the tables are in
+`.shots/flights/NOTES.md`): the first pull-back, left the moment the room is ready, one and ten seconds later and
+after a level, is 66–71 frames 16.6 ms apart, the longest 17.3–19.1 ms, none late and nothing made inside it, on the
+desktop on its tier and the lowest, at a phone's size with the CPU six times slower on its tier and the lowest, and
+in WebKit; on a display that hands out thirty frames a second it is 33 frames, the longest 33–42 ms. The seventeen
+other transitions, first and second time, are the same, but for one frame of 29 ms in WebKit at the phone's size.
+Before this the first pull-back made 6 programs, 19 vertex arrays and 4.3 MP of texture in its own frames (4 late
+frames at the phone's size, the longest 34 ms; 15 late and 42 ms with the GPU overloaded). With the GPU made 48
+times slower the first pull-back is on time behind a wait of 0.9–1.0 s, and four to six of the other seventeen
+flights still have late frames (the longest 80 ms): the stand-in is a GPU that cannot hold sixty in the room at all.
+No phone has been measured (§ Known gaps).
+
 ## Quality
 
 How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
