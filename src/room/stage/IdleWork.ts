@@ -286,7 +286,13 @@ export class IdleWork {
             break;
           }
           empty = false;
-          this.step(next, false);
+          try {
+            this.step(next, false);
+          } catch (error) {
+            // A task that throws is finished (`step`). The camera waits for this promise with the frames held and
+            // the game paused: it settles whatever a unit does.
+            console.error('Work for a flight failed', error);
+          }
           if (performance.now() - from >= DRAIN_SLICE_MS) break;
         }
         soon(slice);

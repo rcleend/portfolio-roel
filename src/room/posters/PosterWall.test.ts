@@ -185,13 +185,15 @@ function setup(options: Setup = {}) {
   };
 
   const targets: { image: { width: number; height: number }; dispose: ReturnType<typeof vi.fn> }[] = [];
+  /** The frames the wall timed its first flight by, as it hands them to the slow-device rule. */
+  const slowFlight = vi.fn((_frames: readonly number[]) => false);
   /** What each upload was handed, and its size then (the canvas is let go after). */
   const uploaded: { canvas: unknown; width: number }[] = [];
   const kit = {
     flightMs: 1100,
     cutHoldMs: 1200,
     tier: () => '2k',
-    slowFlight: () => false,
+    slowFlight,
     quiet: QUIET,
     allocateStripTarget: (_renderer: unknown, width: number, height: number) => {
       const target = { image: { width, height }, dispose: vi.fn() };
@@ -251,6 +253,7 @@ function setup(options: Setup = {}) {
     meshes,
     moment,
     warm,
+    slowFlight,
   };
 }
 
@@ -372,6 +375,30 @@ describe('PosterWall', () => {
     wall.depart();
     expect(queue).toHaveLength(0);
     expect(background.hurry).toHaveBeenCalledOnce();
+  });
+
+  it('times the first flight from the frame the camera sets off in, however long the departure waited', async () => {
+    const { wall, flyTo, land, frame, animations, slowFlight } = setup();
+    await flush();
+    // The visitor leaves, and the camera waits while the room is made ready: frames drawn meanwhile (the one that
+    // shows the game's PAUSE) are not the flight's.
+    wall.depart();
+    const start = performance.now();
+    frame(start);
+    expect(animations).toHaveLength(0);
+    expect(slowFlight).not.toHaveBeenCalled();
+    // The camera sets off: every frame until it lands is timed.
+    flyTo('room');
+    for (let frames = 1; frames <= 15; frames++) frame(start + 400 + frames * 20);
+    expect(slowFlight).not.toHaveBeenCalled();
+    land();
+    frame(start + 720);
+    expect(slowFlight).toHaveBeenCalledOnce();
+    expect(slowFlight.mock.calls[0]?.[0]).toHaveLength(16);
+    // Once: a later flight is not timed.
+    flyTo('tv');
+    frame(start + 740);
+    expect(animations).toHaveLength(0);
   });
 
   it('on a software GPU, uploads nothing at the TV; the first departure puts it up, between frames', async () => {

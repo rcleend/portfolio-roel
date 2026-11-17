@@ -115,6 +115,8 @@ export class PosterWall {
   #disposed = false;
   /** The first flight was slow: the skirts go at the next moment nothing of the node is in frame. */
   #slow = false;
+  /** The first flight's frames are being timed, or have been. */
+  #measured = false;
   #stopFade: (() => void) | null = null;
   readonly #stops: (() => void)[] = [];
 
@@ -207,7 +209,6 @@ export class PosterWall {
   depart(): void {
     if (this.#departed) return;
     this.#departed = true;
-    this.#measureFlight();
     this.#queueUpload();
     // What is under way at the TV need not wait out a long request.
     this.#context.background.hurry();
@@ -492,6 +493,12 @@ export class PosterWall {
 
   /** Leaving a pose never pops anything: the node is drawn for every flight. */
   #leave(): void {
+    // The first flight is timed from the frame the camera sets off in, which may be a while after `depart`: the
+    // camera waits while the room is made ready, and those are not a flight's frames.
+    if (!this.#measured) {
+      this.#measured = true;
+      this.#measureFlight();
+    }
     if (this.#shown && this.#node) this.#node.root.visible = true;
   }
 

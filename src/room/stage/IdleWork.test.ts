@@ -710,6 +710,29 @@ describe('IdleWork', () => {
       expect(log).toEqual(['first', 'second:1']);
     });
 
+    it('settles past a task that throws, in whichever slice: the camera is never left waiting', async () => {
+      const failed = vi.spyOn(console, 'error').mockImplementation(() => {});
+      work.add(
+        (function* (): IdleTask {
+          // Long enough a unit that the next runs in a later slice, a task of its own.
+          now += 100;
+          log.push('broken:1');
+          yield;
+          throw new Error('broken');
+        })(),
+        { flight: true },
+      );
+      work.add(logging(log, 'after', 1), { flight: true });
+      work.start();
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(50);
+      await drained;
+      expect(log).toEqual(['broken:1', 'after:1']);
+      expect(work.flightPending('room')).toBe(false);
+      expect(failed).toHaveBeenCalledOnce();
+      failed.mockRestore();
+    });
+
     it('stops making things ready when its time is up: the camera never waits longer', async () => {
       work.add(logging(log, 'slow', 10, 100), { flight: true });
       work.start();
