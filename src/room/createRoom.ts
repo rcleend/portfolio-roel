@@ -266,13 +266,15 @@ export function createRoom(options: CreateRoomOptions): Room {
       const loaded = scene;
       loaded.prewarm();
       posters.depart();
-      const radioDue = view === 'radio' && (!radio.deck || radio.prepared === null);
+      // The radio's discs are made ready once, before the first flight to them.
+      const radioDue = view === 'radio' && !radioBoarded;
       if (generated.whole && !radioDue && !loaded.background.flightPending(view)) return null;
       return preflight(view, loaded);
     },
     // The frames are held while the room is made ready: the one that shows the game's PAUSE is drawn all the same.
     onWait: () => stage.oweFrame(),
   });
+  let radioBoarded = false;
   /** Makes what a flight to `view` shows, and resolves once the GPU is through with it. Rejects without the radio. */
   const preflight = async (view: RoomView, loaded: RoomScene): Promise<void> => {
     // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
@@ -287,6 +289,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         // The discs' program, for the target frames draw into, and whatever preparing them queued.
         await Promise.race([radio.deck?.board() ?? Promise.resolve(), pause(PREFLIGHT_WORK_MS)]);
         await loaded.background.drain(view, PREFLIGHT_WORK_MS);
+        radioBoarded = radio.prepared !== null;
       }
       await posters.boarded(PREFLIGHT_WORK_MS);
       await stage.gpuIdle(PREFLIGHT_GPU_MS);

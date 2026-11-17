@@ -791,7 +791,11 @@ class Device implements RadioDevice {
   board(): Promise<void> {
     this.#compileDiscs();
     return (this.#compiling ?? Promise.resolve()).then(() => {
-      if (!this.#disposed) this.#context.stage.warm([...this.#discs.group.children]);
+      if (this.#disposed) return;
+      // Everything the device hangs in the scene (the discs, the display), hidden or not.
+      const drawn: Object3D[] = [];
+      this.root.traverse((object) => void drawn.push(object));
+      this.#context.stage.warm(drawn);
     });
   }
 
