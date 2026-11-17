@@ -459,6 +459,8 @@ try {
           '#222',
           '-fill',
           'white',
+          '-font',
+          '/System/Library/Fonts/Supplemental/Arial.ttf',
           '-pointsize',
           '18',
           sheet,
@@ -509,7 +511,7 @@ console.log(
   `  requests ${result.requests?.length}, ${(total / 1024).toFixed(0)} kB over the wire; failed or not 200: ${JSON.stringify((result.requests ?? []).filter((entry) => entry.failed || (entry.status && entry.status !== 200)).map((entry) => `${entry.url} ${entry.status ?? entry.failed}`))}`,
 );
 console.log(
-  `  room-only files asked for: ${JSON.stringify((result.requests ?? []).filter((entry) => /room-|worker-|scene-|pictures-|RoomGuide|Spotlight|PosterWall|deckChunk|Radio|PcExperience|pcStill/.test(entry.url)).map((entry) => `${entry.url.split('/').pop()} ${entry.bytes ?? entry.failed}`))}`,
+  `  room-only files asked for: ${JSON.stringify((result.requests ?? []).filter((entry) => /room-|worker-|scene-|RoomGuide|Spotlight|PosterWall|deckChunk|Radio|PcExperience|pcStill/.test(entry.url)).map((entry) => `${entry.url.split('/').pop()} ${entry.bytes ?? entry.failed}`))}`,
 );
 if (result.tabOrder) {
   console.log(

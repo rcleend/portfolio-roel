@@ -87,28 +87,33 @@ export async function launch({
   const ignoreDefaultArgs =
     keepSwiftshaderFlag || args.includes('--enable-unsafe-swiftshader') ? [] : ['--enable-unsafe-swiftshader'];
   const options = { ...DEVICES[device], ...contextOptions };
-  if (prefOff) {
-    const profile = mkdtempSync(join(tmpdir(), 'nogpu-profile-'));
-    writeFileSync(join(profile, 'Local State'), JSON.stringify({ hardware_acceleration_mode: { enabled: false } }));
-    const context = await chromium.launchPersistentContext(profile, {
-      executablePath,
-      headless: true,
-      args,
-      ignoreDefaultArgs,
-      ...options,
-    });
-    return {
-      browser: context.browser(),
-      context,
-      close: async () => {
-        await context.close();
-        rmSync(profile, { recursive: true, force: true });
-      },
-    };
-  }
-  const instance = await chromium.launch({ executablePath, headless: true, args, ignoreDefaultArgs });
-  const context = await instance.newContext(options);
-  return { browser: instance, context, close: () => instance.close() };
+  // Always a temporary profile of its own, for its Local State. Chrome's Energy Saver (battery saver) caps every page
+  // at 30 frames a second on a laptop running on battery at 20 % or less (measured: a blank page's frames went from
+  // 30 to 121 a second with this one setting); a measurement must not depend on the machine's charge, so it is off.
+  const profile = mkdtempSync(join(tmpdir(), 'nogpu-profile-'));
+  const localState = {
+    performance_tuning: { battery_saver_mode: { state: 0 } },
+    ...(prefOff ? { hardware_acceleration_mode: { enabled: false } } : {}),
+  };
+  writeFileSync(join(profile, 'Local State'), JSON.stringify(localState));
+  const context = await chromium.launchPersistentContext(profile, {
+    executablePath,
+    headless: true,
+    args,
+    ignoreDefaultArgs,
+    ...options,
+  });
+  // A persistent context opens with a blank page of its own.
+  const blank = context.pages();
+  return {
+    browser: context.browser(),
+    context,
+    close: async () => {
+      await context.close();
+      rmSync(profile, { recursive: true, force: true });
+    },
+    blank,
+  };
 }
 
 /** What the browser says its GPU is: the feature status of chrome://gpu and the devices (CDP SystemInfo.getInfo). */
