@@ -8,7 +8,14 @@
   width: var(--picture-width);
   height: var(--picture-height);
   overflow: hidden;
-  border-radius: 1.2% / 1.6%;
+  /* The tube's raster: corners five game pixels round (tv/crtShader.ts › pictureCoverage). */
+  border-radius: 1.5625% / 2.0833%;
+  /* The box is the bounds of the picture on the glass, which the camera sees from above, four degrees down: its
+     corners sit a third of a percent under the box's top and half a percent over its foot, the lower ones nearly a
+     percent in from the sides. This lays the flat picture's corners on them (StillPicture.test.ts holds it to the
+     room's glass and camera); the glass's bow between the corners, under two pixels, is left. */
+  transform-origin: 50% 0;
+  transform: translateY(0.335%) perspective(calc(var(--picture-height) * 7.41)) rotateX(-8deg) scaleY(1.0204);
   background: #000;
   /* The tube adds its light to the glass: black is the still's dark glass, as it is the live tube's. */
   mix-blend-mode: screen;

@@ -20,7 +20,7 @@ export type PaintSpec =
     }
   /**
    * `stops` colours evenly out from a point to `radius` metres, on the plane across `axis` (0 x, 1 y, 2 z) or
-   * facing the viewer (3). `glow`: one colour whose strength falls outwards, over the paints before it; its radius
+   * facing the viewer (3). `glow`: colours whose strength falls outwards, over the paints before it; its radius
    * is then the most it may reach.
    */
   | {
@@ -30,10 +30,26 @@ export type PaintSpec =
       readonly axis: 0 | 1 | 2 | 3;
       readonly stops: number;
       readonly glow?: boolean;
+    }
+  /**
+   * The surface's light as a grid of `rows` lines of `columns` colours on its own plane, which the fit finds with
+   * the part of it any shot shows (encode.ts › Paint).
+   */
+  | {
+      readonly kind: 'field';
+      readonly columns: number;
+      readonly rows: number;
+      /** No piece of the still's image: a surface whose light the grid alone has to a level (the wall, the dark glass), where an image's own rounding would be the larger error. */
+      readonly plain?: boolean;
     };
 
 interface Common {
   readonly name: string;
+  /**
+   * The layer whose rendered picture has this one in it (the bulb's has its filament, the shell's its jacks): this
+   * one is then drawn only until that picture is in. The set's print is always in the shell's.
+   */
+  readonly on?: string;
   readonly paints: readonly PaintSpec[];
 }
 
@@ -43,7 +59,7 @@ export type LayerSpec =
   | (Common & {
       readonly kind: 'charts';
       readonly pick: (triangle: Triangle) => boolean;
-      readonly wide?: { readonly from: number; readonly stops: number };
+      readonly wide?: { readonly from: number; readonly columns: number; readonly rows: number };
     })
   /**
    * The outline of the picked triangles as the nominal camera sees them alone. `grow` widens a part too fine to
@@ -53,29 +69,23 @@ export type LayerSpec =
       readonly kind: 'outline';
       readonly pick: (triangle: Triangle) => boolean;
       readonly grow?: number;
+      /** Widened by `grow` and narrowed again by as much: its gaps and notches under that size closed, its edges where they were. */
+      readonly close?: boolean;
       readonly tolerance?: number;
       /** What hides part of it from every camera alike (the lip round the glass): only what is nearer than that is drawn. */
       readonly behind?: (triangle: Triangle) => boolean;
       /** The outline's points are kept two or four times coarser than the half millimetre (a soft or a small thing). */
       readonly coarse?: 2 | 4;
+      /**
+       * A window whose eye stands much nearer than the nominal view's (its width and height): the outline is traced
+       * from that eye as well, and drawn from there in the windows whose eye is nearer to it. A rounded body's
+       * outline is another line on it from another eye.
+       */
+      readonly near?: readonly [number, number];
       /** Only its largest outline: what is inside it is too small to tell. */
       readonly whole?: boolean;
       /** The part is round as the viewer sees it: a disc of its outline's size, and one of its hole's (`<name>-hole`). */
       readonly round?: boolean;
-    })
-  /**
-   * A lamp's pool on a flat surface: the part of the picked chart within `reach` metres of `centre` that `light`
-   * reaches past the `casters` (their shadow is cut out of it). Its paints go over those of the layer `over`.
-   */
-  | (Common & {
-      readonly kind: 'pool';
-      readonly over: string;
-      readonly pick: (triangle: Triangle) => boolean;
-      readonly casters: (triangle: Triangle) => boolean;
-      readonly light: Vec3;
-      readonly centre: Vec3;
-      readonly reach: number;
-      readonly tolerance?: number;
     })
   /** A disc facing the viewer. `lit`: a light of the set, there only when the set is on. */
   | (Common & { readonly kind: 'disc'; readonly centre: Vec3; readonly radius: number; readonly lit?: boolean })
@@ -89,8 +99,19 @@ export type LayerSpec =
       readonly centre: Vec3;
       readonly size: number;
     })
+  /** The finish's vignette over the whole page (finish.ts), but for the layer `except`, which the finish leaves as it is (a display). */
+  | (Common & { readonly kind: 'vignette'; readonly except: string })
   /** The game's picture's light along another layer's outline, on the half of `width` metres that is inside it: there with the set on. */
-  | (Common & { readonly kind: 'rim'; readonly of: string; readonly width: number });
+  | (Common & {
+      readonly kind: 'rim';
+      /** The layer whose outline the light runs along, or the picture's own outline. */
+      readonly of: string | 'picture';
+      /** The layer it is cut to. */
+      readonly within: string;
+      /** How far from the edge it reaches (metres), and in how many steps it falls. */
+      readonly width: number;
+      readonly steps: number;
+    });
 
 const CABINET_TOP = 0.486;
 const WALL = 2.8;
@@ -143,104 +164,24 @@ const LEGENDS: readonly (readonly [string, number])[] = [
   ['R', -0.2054],
 ];
 
-/** Where a lamp's reflection in a polished surface at height `y` is, for an eye: on the line to the lamp's mirror image. */
-function sheen(light: Vec3, eye: Vec3, y: number): Vec3 {
-  const t = (light[1] - y) / (eye[1] - y + light[1] - y);
-  return [light[0] + (eye[0] - light[0]) * t, y, light[2] + (eye[2] - light[2]) * t];
-}
-
-/** The layers, back to front, for the nominal view's eye. */
-export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
-  {
-    name: 'wall',
-    kind: 'charts',
-    pick: isWall,
-    paints: [
-      { kind: 'linear', from: [WALL, 1, -1.9], to: [WALL, 1, 1.1], stops: 6 },
-      { kind: 'radial', centre: [WALL, lamp[1], lamp[2]], radius: 0.9, axis: 0, stops: 5, glow: true },
-    ],
-  },
-  {
-    name: 'wall-pool',
-    kind: 'pool',
-    over: 'wall',
-    pick: isWall,
-    casters: of('tv-set'),
-    light: bulb,
-    centre: [WALL, bulb[1], bulb[2]],
-    reach: 0.9,
-    tolerance: 2.5,
-    paints: [{ kind: 'radial', centre: [WALL, bulb[1], bulb[2]], radius: 0.9, axis: 0, stops: 5, glow: true }],
-  },
+/** The layers, back to front. */
+export const LAYERS: readonly LayerSpec[] = [
+  { name: 'wall', kind: 'charts', pick: isWall, paints: [{ kind: 'field', columns: 20, rows: 12, plain: true }] },
   {
     name: 'cabinet',
     kind: 'charts',
     pick: (t) => t.of === 'chart' && t.mesh === 'cabinet' && !isTop(t),
-    // The lamps light the top's long edge unevenly from end to end.
-    wide: { from: 1.5, stops: 3 },
-    paints: [{ kind: 'flat' }],
+    // The lamps light the top's long edge and the fronts under it unevenly from end to end.
+    wide: { from: 1.5, columns: 16, rows: 3 },
+    paints: [{ kind: 'field', columns: 3, rows: 3 }],
   },
-  {
-    name: 'top',
-    kind: 'charts',
-    pick: isTop,
-    paints: [{ kind: 'linear', from: [2.4, CABINET_TOP, -1.125], to: [2.4, CABINET_TOP, 0.675], stops: 6 }],
-  },
-  {
-    name: 'top-glow',
-    kind: 'pool',
-    over: 'top',
-    pick: isTop,
-    // The opal lamp's pool, the plant's shadow and the set's cut out of it. (The room's other lamps shadow the top
-    // there too, more softly: the still has the lamp's own shadow only.)
-    casters: (t) => t.of === 'desk-plant' || t.of === 'tv-set',
-    light: lamp,
-    centre: [lamp[0], CABINET_TOP, lamp[2]],
-    reach: 0.7,
-    tolerance: 2.5,
-    paints: [{ kind: 'radial', centre: [lamp[0], CABINET_TOP, lamp[2]], radius: 0.7, axis: 1, stops: 5, glow: true }],
-  },
-  {
-    name: 'top-pool',
-    kind: 'pool',
-    over: 'top',
-    pick: isTop,
-    casters: of('tv-set'),
-    light: bulb,
-    centre: [base[0], CABINET_TOP, base[2]],
-    reach: 0.7,
-    tolerance: 2.5,
-    paints: [
-      { kind: 'radial', centre: [base[0], CABINET_TOP, base[2]], radius: 0.7, axis: 1, stops: 5, glow: true },
-      // The top is varnished: the bulb's reflection lies towards the viewer, most of it past the front edge.
-      { kind: 'radial', centre: sheen(bulb, eye, CABINET_TOP), radius: 0.6, axis: 1, stops: 6, glow: true },
-    ],
-  },
-  {
-    name: 'lamp-halo',
-    kind: 'disc',
-    centre: lamp,
-    // The finish's bloom is of the page, not of the room: it is there in the windows wide enough to show the globe,
-    // and the still draws a disc only where its middle is on the page.
-    radius: 0.35,
-    paints: [{ kind: 'radial', centre: lamp, radius: 0.35, axis: 3, stops: 5, glow: true }],
-  },
+  { name: 'top', kind: 'charts', pick: isTop, paints: [{ kind: 'field', columns: 28, rows: 12 }] },
   {
     name: 'lamp-foot',
     kind: 'outline',
     pick: of('opal-lamp', 'props'),
-    tolerance: 1,
-    coarse: 2,
-    paints: [{ kind: 'flat' }],
-  },
-  {
-    name: 'globe',
-    kind: 'outline',
-    pick: of('opal-lamp', 'globe'),
-    // A ball off to the side is an oval on the page, so its outline and not a disc.
-    tolerance: 0.7,
-    coarse: 2,
-    paints: [{ kind: 'radial', centre: lamp, radius: TV_LAMP_SPEC.radius * 1.02, axis: 3, stops: 4 }],
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 3, rows: 4 }],
   },
   {
     name: 'halo',
@@ -259,9 +200,8 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       t.min[1] > CABINET_TOP - 0.001 &&
       t.max[0] < 2.69 &&
       luminance(t.albedo) < 0.15,
-    tolerance: 1.2,
-    coarse: 4,
-    paints: [{ kind: 'flat' }],
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 4, rows: 2 }],
   },
   {
     name: 'switch',
@@ -272,10 +212,9 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       fromBase(t) > 0.046 &&
       t.min[1] > CABINET_TOP - 0.001 &&
       luminance(t.albedo) >= 0.15,
-    tolerance: 0.7,
-    coarse: 2,
+    tolerance: 0.35,
     whole: true,
-    paints: [{ kind: 'flat', bright: true }],
+    paints: [{ kind: 'field', columns: 3, rows: 2 }],
   },
   {
     name: 'base',
@@ -286,17 +225,9 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       fromBase(t) <= 0.046 &&
       luminance(t.albedo) > 0.12 &&
       t.max[1] < 0.56,
-    tolerance: 0.7,
-    coarse: 2,
+    tolerance: 0.35,
     // Across its near side, where the viewer sees it, from the end the wall's corner is at to the set's.
-    paints: [
-      {
-        kind: 'linear',
-        from: [base[0] - 0.042, 0.51, base[2] - 0.042],
-        to: [base[0] - 0.042, 0.51, base[2] + 0.042],
-        stops: 6,
-      },
-    ],
+    paints: [{ kind: 'field', columns: 6, rows: 5 }],
   },
   {
     name: 'base-top',
@@ -308,10 +239,9 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       luminance(t.albedo) > 0.12 &&
       t.max[1] < 0.56 &&
       t.normal[1] > 0.7,
-    tolerance: 0.7,
-    coarse: 2,
+    tolerance: 0.35,
     whole: true,
-    paints: [{ kind: 'flat' }],
+    paints: [{ kind: 'field', columns: 5, rows: 3 }],
   },
   {
     name: 'socket',
@@ -322,84 +252,61 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       fromBase(t) <= 0.046 &&
       luminance(t.albedo) <= 0.12 &&
       t.max[1] < 0.61,
-    tolerance: 0.9,
-    coarse: 2,
+    tolerance: 0.35,
     whole: true,
-    paints: [{ kind: 'flat' }],
+    paints: [{ kind: 'field', columns: 3, rows: 5 }],
   },
   {
     name: 'bulb',
     kind: 'outline',
     pick: of('bulb-lamp', 'bulb'),
-    tolerance: 0.7,
-    coarse: 2,
-    paints: [{ kind: 'radial', centre: bulb, radius: 0.076, axis: 3, stops: 6 }],
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 6, rows: 8 }],
   },
   {
     name: 'filament',
+    on: 'bulb',
     kind: 'outline',
     pick: of('bulb-lamp', 'filament'),
-    grow: 0.5,
-    tolerance: 0.6,
-    coarse: 2,
-    paints: [{ kind: 'flat', bright: true }],
+    grow: 0.25,
+    tolerance: 0.35,
+    paints: [{ kind: 'flat' }],
   },
   {
     name: 'pot',
     kind: 'outline',
     pick: (t) => t.of === 'desk-plant' && luminance(t.albedo) > 0.2,
-    tolerance: 0.7,
-    coarse: 2,
+    tolerance: 0.35,
     // Across its near side.
-    paints: [
-      {
-        kind: 'linear',
-        from: [2.268 - 0.049, 0.53, 0.121 - 0.049],
-        to: [2.268 - 0.049, 0.53, 0.121 + 0.049],
-        stops: 6,
-      },
-    ],
+    paints: [{ kind: 'field', columns: 7, rows: 6 }],
   },
   {
     name: 'leaves',
     kind: 'outline',
     pick: (t) => t.of === 'desk-plant' && luminance(t.albedo) <= 0.2,
-    tolerance: 1.8,
-    coarse: 4,
-    paints: [{ kind: 'flat' }],
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 10, rows: 8 }],
   },
   {
     name: 'plinth',
     kind: 'outline',
     pick: (t) => t.of === 'tv-set' && t.max[1] < PLINTH_TOP,
     // Nearly all of it is behind the shell.
-    tolerance: 0.5,
-    coarse: 2,
-    paints: [{ kind: 'flat' }],
+    tolerance: 0.35,
+    // Its notches closed (a pixel's worth): the gaps under it between its feet are the cabinet's top in the dark,
+    // which no shot shows.
+    grow: 1,
+    close: true,
+    paints: [{ kind: 'field', columns: 8, rows: 3 }],
   },
   {
     name: 'shell',
     kind: 'outline',
     pick: isShell,
+    // The short landscape windows frame the picture alone from close by, and see round the casing's sides.
+    near: [1200, 500],
     tolerance: 0.35,
-    // Across the face.
-    paints: [
-      {
-        kind: 'linear',
-        from: [FACE, 0.8, TV_SPEC.bounds.min[2]],
-        to: [FACE, 0.8, TV_SPEC.bounds.max[2]],
-        stops: 7,
-      },
-      // The bare bulb lights the face's near corner, low on the side it stands on.
-      {
-        kind: 'radial',
-        centre: [FACE, CABINET_TOP, TV_SPEC.bounds.min[2]],
-        radius: 0.4,
-        axis: 0,
-        stops: 5,
-        glow: true,
-      },
-    ],
+    paints: [{ kind: 'field', columns: 20, rows: 12 }],
   },
   // The lip round the glass, as far out as it turns onto the face: the shell's own colour until the set is on,
   // then the edge the picture's light runs along (screen-light).
@@ -415,8 +322,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
       t.min[1] > 0.62 &&
       t.max[1] < 1.05,
     whole: true,
-    tolerance: 0.5,
-    coarse: 2,
+    tolerance: 0.35,
     paints: [{ kind: 'flat' }],
   },
   {
@@ -424,21 +330,13 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
     kind: 'outline',
     pick: of('glass'),
     behind: isShell,
-    tolerance: 0.4,
-    // The dark tube's sheen is brightest a third of the way down it.
-    paints: [
-      {
-        kind: 'radial',
-        centre: [TV_SPEC.glass.front, TV_SPEC.glass.top - (TV_SPEC.glass.top - TV_SPEC.glass.bottom) / 3, -0.32],
-        radius: 0.36,
-        axis: 0,
-        stops: 4,
-      },
-    ],
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 10, rows: 9, plain: true }],
   },
   ...JACKS.map(
     (colour, i): LayerSpec => ({
       name: `jack-${i}`,
+      on: 'shell',
       kind: 'outline',
       pick: (t) => t.of === 'tv-set' && near(t.albedo, colour),
       round: true,
@@ -447,6 +345,7 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
   ),
   {
     name: 'legends',
+    on: 'shell',
     kind: 'text',
     words: LEGENDS,
     centre: [FACE, printY(104), 0],
@@ -455,22 +354,78 @@ export const layersFor = (eye: Vec3): readonly LayerSpec[] => [
   },
   {
     name: 'wordmark',
+    on: 'shell',
     kind: 'text',
     words: [['reo·leo', -0.32]],
     centre: [FACE, printY(42), 0],
     size: printSize(40),
     paints: [{ kind: 'flat', bright: true }],
   },
+  { name: 'vignette', kind: 'vignette', except: 'glass', paints: [] },
+  // The opal lamp is bright enough at the page's edge that black laid over it would dull it: it and its bloom are
+  // drawn over the vignette, in the colours the room shows them in.
+  {
+    name: 'lamp-halo',
+    kind: 'disc',
+    centre: lamp,
+    // The finish's bloom is of the page, not of the room: it is there in the windows wide enough to show the globe,
+    // and the still draws a disc only where its middle is on the page.
+    radius: 0.35,
+    paints: [{ kind: 'radial', centre: lamp, radius: 0.35, axis: 3, stops: 5, glow: true }],
+  },
+  {
+    name: 'globe',
+    kind: 'outline',
+    pick: of('opal-lamp', 'globe'),
+    // A ball off to the side is an oval on the page, so its outline and not a disc.
+    tolerance: 0.35,
+    paints: [{ kind: 'field', columns: 4, rows: 4 }],
+  },
   // What the set shows only when it is on, last: the page shows these with the game's picture.
   {
     name: 'led-halo',
     kind: 'disc',
     centre: TV_SPEC.led,
-    radius: 2 * LED.halo,
+    radius: 3 * LED.halo,
     lit: true,
-    paints: [{ kind: 'radial', centre: TV_SPEC.led, radius: 2 * LED.halo, axis: 3, stops: 5, glow: true }],
+    paints: [{ kind: 'radial', centre: TV_SPEC.led, radius: 3 * LED.halo, axis: 3, stops: 9, glow: true }],
   },
   { name: 'led', kind: 'disc', centre: TV_SPEC.led, radius: LED.lens, lit: true, paints: [{ kind: 'flat' }] },
-  // The picture's light on the lip round the glass: a band along the lip's outer edge, where it turns onto the face.
-  { name: 'screen-light', kind: 'rim', of: 'lip', width: 0.01, paints: [{ kind: 'flat' }] },
+  // What the picture lights, in the picture's colour (index.html › --tube): the lip round the glass, brightest along
+  // its outer edge where it turns onto the face, and the tube's dark border round the picture, brightest beside it.
+  { name: 'tube-lip', kind: 'rim', of: 'lip', within: 'lip', width: 0.012, steps: 6, paints: [] },
+  { name: 'tube-border', kind: 'rim', of: 'picture', within: 'glass', width: 0.024, steps: 8, paints: [] },
 ];
+
+/** The set's own layers and the room's flat surfaces: everything else is a prop beside the set. */
+const SET = /^(wall|cabinet|top|plinth|shell|lip|glass|jack|legends|wordmark|vignette|led|tube)/;
+
+/**
+ * The layers made lighter, for pricing what each part of the still costs (build.ts › --variant):
+ * `coarse-fields` gives every surface's grid six tenths of its lines, `flat-props` paints the lamps, the plant and
+ * the cord each in one colour, `loose-props` traces them to 0.7 px and keeps their points to the millimetre, and
+ * `no-props-detail` is the last two together.
+ */
+export function variantOf(names: readonly string[]): readonly LayerSpec[] {
+  const has = (name: string): boolean =>
+    names.includes(name) || (name !== 'coarse-fields' && names.includes('no-props-detail'));
+  return LAYERS.map((layer): LayerSpec => {
+    let made = layer;
+    const prop = !SET.test(layer.name) && layer.kind === 'outline';
+    if (prop && has('flat-props') && layer.paints[0]?.kind === 'field') made = { ...made, paints: [{ kind: 'flat' }] };
+    if (prop && has('loose-props') && made.kind === 'outline') made = { ...made, tolerance: 0.7, coarse: 2 };
+    if (has('coarse-fields')) {
+      const fewer = (count: number): number => Math.max(2, Math.round(count * 0.6));
+      made = {
+        ...made,
+        paints: made.paints.map((paint) =>
+          paint.kind === 'field' ? { ...paint, columns: fewer(paint.columns), rows: fewer(paint.rows) } : paint,
+        ),
+        ...(made.kind === 'charts' && made.wide
+          ? { wide: { ...made.wide, columns: fewer(made.wide.columns), rows: fewer(made.wide.rows) } }
+          : {}),
+      } as LayerSpec;
+    }
+    return made;
+  });
+}

@@ -72,6 +72,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
           scenes={services.director}
           powered={powering}
           still={startup.still}
+          clear={startup.clear}
           insets={touch ? padInsets : NO_INSETS}
           events={events}
           muted={audio.muted}
@@ -82,7 +83,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
         <TouchPad
           actions={PAD_ACTIONS}
           sink={game.input.virtual}
-          visible={running && view === 'tv' && begun}
+          visible={running && view === 'tv' && begun && startup.clear}
           layout={landscape ? 'sides' : 'bottom'}
           onInsetsChange={setPadInsets}
         />
@@ -93,7 +94,8 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
 
 /**
  * Whether the visitor has pressed past the title (round six, item 33): the touch pad fades in only then, so the start
- * screen shows the game alone with "PRESS TO BEGIN", and a tap anywhere begins. Once begun it stays.
+ * screen shows the game alone with "PRESS TO BEGIN", and a tap anywhere begins. Once begun it stays. The pad also
+ * waits for the startup still to be out of sight (`startup.clear`), so it never arrives as part of the hand-over.
  */
 function useBegun(scenes: SceneSignal): boolean {
   const [begun, setBegun] = useState(false);

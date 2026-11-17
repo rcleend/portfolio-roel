@@ -197,11 +197,12 @@ test('the room is lit again after the GPU process restarts, the startup still ov
   test.setTimeout(60_000);
   const { browser, page } = await launch(playwright);
   try {
-    // The visitor has pressed (the still has gone), the game rests on one frame and the whole room is baked. In that
-    // order: behind a playing game the rest of the bake takes the GPU a few views at a time, and on a GPU that other
-    // pages keep busy (a full suite's) it is put off to a quiet moment, such as this pause (docs/ROOM.md › Pacing).
+    // The still has gone (in the boot's blackout, or the black frames after the press: docs/ROOM.md › Startup), the
+    // game rests on one frame and the whole room is baked. In that order: behind a playing game the rest of the bake
+    // takes the GPU a few views at a time, and on a GPU that other pages keep busy (a full suite's) it is put off to
+    // a quiet moment, such as this pause (docs/ROOM.md › Pacing).
     await page.keyboard.press('Enter');
-    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false', { timeout: 30_000 });
     await pauseOnCharacterSelect(page);
     await page.evaluate(() => window.__arcade?.pause());
     await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');

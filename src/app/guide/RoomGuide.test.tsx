@@ -35,7 +35,7 @@ function stubRoom(): Room {
   return { spotlight, radio, focusPc() {}, focusRadio() {}, focusTv() {}, showRoom() {} } as unknown as Room;
 }
 
-const scenes: SceneSignal = { current: 'title', onSceneChange: () => () => {} };
+const scenes: SceneSignal = { current: 'title', dark: false, onSceneChange: () => () => {} };
 
 describe('the props’ tour', () => {
   let host: HTMLDivElement;
@@ -63,6 +63,7 @@ describe('the props’ tour', () => {
           room={stubRoom()}
           view="room"
           settled={true}
+          clear={true}
           scenes={scenes}
           handOver={{ current: false }}
           onFocusStage={() => {}}
@@ -135,6 +136,7 @@ describe('the overview menu', () => {
           room={stubRoom()}
           view="room"
           settled={true}
+          clear={true}
           scenes={scenes}
           handOver={{ current: false }}
           onFocusStage={() => {}}
@@ -201,6 +203,7 @@ describe('the overview’s first show', () => {
             room={stubRoom()}
             view={view}
             settled={settled}
+            clear={true}
             scenes={scenes}
             handOver={{ current: false }}
             onFocusStage={() => {}}

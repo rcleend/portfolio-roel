@@ -5,24 +5,30 @@ import { pointerKind } from '../cursors/gameCursor';
 import { TV_STILL_ID } from '../startup/TvStill';
 import { REDUCED_MOTION, useMediaQuery } from '../useMediaQuery';
 import { toNativePixels } from './integerScale';
+import { followTube } from './tubeLight';
+import type { SceneSignal } from './types';
 import './StillPicture.css';
 
 export interface StillPictureProps {
   readonly surface: GameSurface;
+  readonly scenes: SceneSignal;
   /** Turns the picture on; `onLit` once it is up. */
   readonly powered: boolean;
   readonly onLit: () => void;
   /** The pointer goes to the room's stage underneath (once it is in, the room maps it onto its own picture). */
   readonly passThrough: boolean;
+  /** The still is up or still fading: its light follows the picture. */
+  readonly inSight: boolean;
 }
 
 /**
  * The game on the startup still (docs/ROOM.md › Startup): the game's canvas laid flat where the room will show its
  * picture, under scanlines like the tube's, so boot and title play while the room downloads behind. It lives in the
- * still's own element, so the two fade out as one picture. It turns on with a quick bloom (at once under reduced
- * motion), and takes the pointer until the room is in to take it itself.
+ * still's own element, so the two fade out as one picture where the still fades. It turns on with a quick bloom (at
+ * once under reduced motion), takes the pointer until the room is in to take it itself, and lights the still's
+ * drawing as the tube lights the room.
  */
-export function StillPicture({ surface, powered, onLit, passThrough }: StillPictureProps) {
+export function StillPicture({ surface, scenes, powered, onLit, passThrough, inSight }: StillPictureProps) {
   const screen = useRef<HTMLDivElement>(null);
   const reduced = useMediaQuery(REDUCED_MOTION);
   const lit = useEffectEvent(onLit);
@@ -41,6 +47,12 @@ export function StillPicture({ surface, powered, onLit, passThrough }: StillPict
   useEffect(() => {
     if (powered && reduced) lit();
   }, [powered, reduced]);
+
+  // Through the still's fade too: under it the live room's light follows the same picture.
+  useEffect(() => {
+    const still = document.getElementById(TV_STILL_ID);
+    if (powered && inSight && still) return followTube(surface, () => scenes.dark, still);
+  }, [surface, scenes, powered, inSight]);
 
   const sendPointer = (event: PointerEvent<HTMLDivElement>): void => {
     const rect = surface.canvas.getBoundingClientRect();

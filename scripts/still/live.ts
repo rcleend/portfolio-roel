@@ -1,8 +1,9 @@
 /**
  * The live room's opening view, for the startup still's colours (docs/ROOM.md › Startup): a production build served
- * here and opened in Chromium on the real GPU at top quality, the still hidden, at the few viewports that between them
- * show every shape of the still. `?debug&capture` keeps the tube dark and the page's controls out, so nothing of
- * the game's picture is in the room's light; one more shot with the set on gives the power lamp.
+ * here and opened in Chromium on the real GPU at top quality, the still and the page's controls hidden, at the few
+ * viewports that between them show every shape of the still. The set is on and its picture is black, as it is on the
+ * frame the still hands over on (the game on its title, every frame of it painted over before the room takes it);
+ * one more shot with the picture white gives what the tube lights.
  */
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -10,6 +11,7 @@ import { join } from 'node:path';
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
 import { build, preview } from 'vite';
+import { fillPicture, showRoom } from './page';
 
 export interface Shot {
   readonly name: string;
@@ -18,7 +20,7 @@ export interface Shot {
   readonly touch: boolean;
   /** Screenshot pixels a CSS pixel. */
   readonly density: number;
-  /** The set on, the game's title on it. */
+  /** The picture white rather than black: what the tube lights. */
   readonly lit: boolean;
 }
 
@@ -32,6 +34,9 @@ export const SHOTS: readonly Shot[] = [
   { name: 'phone', width: 412, height: 915, touch: true, density: 2, lit: false },
   { name: 'narrow', width: 360, height: 800, touch: false, density: 2, lit: false },
   { name: 'tablet', width: 1024, height: 768, touch: true, density: 2, lit: false },
+  // Nearer and further eyes than the rest: what is of the room stays on its surface between them, a lamp's bloom goes with the lamp.
+  { name: 'short', width: 1200, height: 500, touch: false, density: 1, lit: false },
+  { name: 'square', width: 1000, height: 950, touch: false, density: 1, lit: false },
   { name: 'lit', width: 1440, height: 900, touch: false, density: 2, lit: true },
 ];
 
@@ -49,7 +54,13 @@ const cachedChromium = join(
 );
 
 /** Builds the app into `dist`, serves it on `port` and writes each shot as `<dir>/<name>.png`. */
-export async function shoot(dist: string, port: number, dir: string): Promise<void> {
+export async function shoot(
+  dist: string,
+  port: number,
+  dir: string,
+  /** The quality tier the room is shot on (the still is made from the top one; another is for looking at). */
+  tier: 'high' | 'medium' | 'low' = 'high',
+): Promise<void> {
   await build({ logLevel: 'warn', build: { outDir: dist, emptyOutDir: true } });
   const server = await preview({
     logLevel: 'warn',
@@ -72,21 +83,8 @@ export async function shoot(dist: string, port: number, dir: string): Promise<vo
         isMobile: shot.touch,
       });
       const page = await context.newPage();
-      // Lit: on the game's title, which is the picture the still hands over on.
-      await page.goto(`http://127.0.0.1:${port}/?debug&quality=high${shot.lit ? '&seed=1&scene=title' : '&capture'}`);
-      await page.addStyleTag({
-        content:
-          '#tv-still{visibility:hidden !important;transition:none !important}.sound-toggle{visibility:hidden !important}',
-      });
-      await page.waitForFunction(
-        () => document.querySelector('.room-host')?.getAttribute('data-ready') === 'true',
-        null,
-        {
-          timeout: 90_000,
-        },
-      );
-      // The rest of the room's light is baked behind the first frame, and the governor settles.
-      await page.waitForTimeout(shot.lit ? 6000 : 2500);
+      await showRoom(page, `http://127.0.0.1:${port}/`, tier);
+      await fillPicture(page, shot.lit ? '#fff' : '#000');
       await page.screenshot({ path: join(dir, `${shot.name}.png`) });
       await context.close();
     }

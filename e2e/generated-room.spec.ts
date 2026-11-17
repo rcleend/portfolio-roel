@@ -10,7 +10,9 @@ test.use({
 
 const stats = (page: import('@playwright/test').Page) => page.evaluate(() => window.__roomLab?.room.stats);
 
-test('the page asks for no model, texture or still: the room is made in the browser', async ({ page }) => {
+test('the page asks for no model or texture, and one small picture for the startup still: the room is made in the browser', async ({
+  page,
+}) => {
   const errors = trackErrors(page);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));
@@ -19,9 +21,13 @@ test('the page asks for no model, texture or still: the room is made in the brow
   await page.evaluate(() => window.__room?.showRoom());
   await expect.poll(() => page.evaluate(() => window.__room?.view === 'room' && window.__room.settled)).toBe(true);
   await page.waitForTimeout(1500);
-  // Nothing under /room/ or /startup/, and no model or image of the room's from anywhere.
-  expect(requests.filter((path) => /^\/(room|startup)\//.test(path))).toEqual([]);
-  expect(requests.filter((path) => /\.(glb|gltf|ktx2|webp)$/.test(path))).toEqual([]);
+  // Nothing under /room/, and no model or image of the room's from anywhere but the startup still's one picture
+  // (docs/ROOM.md › Startup): the size this window takes, in one format, fetched once.
+  expect(requests.filter((path) => path.startsWith('/room/'))).toEqual([]);
+  const still = requests.filter((path) => path.startsWith('/startup/'));
+  expect(still).toHaveLength(1);
+  expect(still[0]).toMatch(/^\/startup\/(still|small)-[0-9a-f]{8}\.(avif|webp)$/);
+  expect(requests.filter((path) => /\.(glb|gltf|ktx2|webp)$/.test(path) && !path.startsWith('/startup/'))).toEqual([]);
   expect(errors).toEqual([]);
 });
 
