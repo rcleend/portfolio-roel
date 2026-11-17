@@ -11,6 +11,8 @@ export const STRAINED_SHARE = 0.25;
 export const MAX_GAP_MS = 100;
 /** A frame of the room that came later than this after the one before it was late (ms): a 60 Hz frame and a fifth. */
 export const LATE_FRAME_MS = 20;
+/** The same for frames that are meant to come `expectedMs` apart: a fifth over. */
+const LATE = LATE_FRAME_MS / (1000 / 60);
 /** The least of a unit's GPU time the bake keeps while the room's frames are late. */
 export const LEAST_SHARE = 1 / 8;
 
@@ -54,10 +56,12 @@ export class BakePace {
    * A frame of the room came `ms` after the one before it while the bake goes between them. A late one halves what the
    * bake's units take, down to `LEAST_SHARE`, and rests it longer between them; frames on time give it back a tenth at
    * a time. Whatever makes the frames late (the bake's own work, or a device that cannot hold sixty anyway), a game
-   * being played comes first and the rest of the room later.
+   * being played comes first and the rest of the room later. `expectedMs`: what frames are meant to come at here, a
+   * 60 Hz frame unless the display ticks slower: where it hands out thirty a second (Safari in Low Power Mode) every
+   * frame came "late", and the rest of the room was baked at an eighth of the pace for as long as the game was on.
    */
-  frame(ms: number): void {
-    this.share = ms > LATE_FRAME_MS ? Math.max(LEAST_SHARE, this.share / 2) : Math.min(1, this.share * 1.1);
+  frame(ms: number, expectedMs = 1000 / 60): void {
+    this.share = ms > expectedMs * LATE ? Math.max(LEAST_SHARE, this.share / 2) : Math.min(1, this.share * 1.1);
   }
 
   /** What a piece costs: `paced`, the smallest of the last readings; otherwise the latest. */

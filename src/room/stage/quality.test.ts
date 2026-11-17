@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  expectedFrameMs,
   FAST_FRAME_MS,
   FIT_MARGIN,
   fittingQuality,
@@ -160,9 +161,65 @@ describe('QualityGovernor', () => {
     const rested = clock.now;
     expect(run(governor, clock, 25, 20)).toBeNull();
     expect(clock.now - rested).toBeLessThan(60_000);
-    // After the rest it may try again.
+    // After the rest it does not try the same again: this is how the frames come here, whatever their pixels.
     clock.now = rested + 61_000;
-    expect(run(governor, clock, 25)).toEqual({ tier: 'high', scale: 0.7 });
+    expect(run(governor, clock, 25, 20)).toBeNull();
+    expect(governor.frameMs).toBeCloseTo(25);
+    expect(governor.changes).toBe(2);
+    // Frames slower still are slow again.
+    expect(run(governor, clock, 40)).toEqual({ tier: 'high', scale: 0.7 });
+  });
+
+  describe('on a display that hands out thirty frames a second (Safari in Low Power Mode)', () => {
+    const capped = (start: Quality = { tier: 'medium', scale: 1 }): QualityGovernor => {
+      const governor = new QualityGovernor(start);
+      governor.expect(expectedFrameMs(1000 / 30));
+      return governor;
+    };
+
+    it('never changes the quality for frames that come as the display hands them out', () => {
+      const governor = capped();
+      const clock = { now: 0 };
+      // Ten minutes of them: judged against sixty a second this stepped to the floor and back every minute.
+      expect(run(governor, clock, 1000 / 30, 600)).toBeNull();
+      expect(governor.quality).toEqual({ tier: 'medium', scale: 1 });
+      expect(governor.changes).toBe(0);
+      expect(governor.capped).toBe(true);
+      expect(governor.frameMs).toBeCloseTo(33.3, 1);
+    });
+
+    it("still steps down when the GPU cannot even hold the thirty, aiming under the display's frame", () => {
+      const governor = capped({ tier: 'high', scale: 1 });
+      expect(run(governor, { now: 0 }, 50)).toEqual({ tier: 'high', scale: 0.7 });
+    });
+
+    it("steps back up while every frame comes on the display's time", () => {
+      const governor = capped({ tier: 'medium', scale: 0.7 });
+      const clock = { now: 0 };
+      clock.now = 20_000;
+      expect(run(governor, clock, 1000 / 30)).toEqual({ tier: 'medium', scale: 0.85 });
+    });
+
+    it('judges by sixty a second again once the cap is gone', () => {
+      const governor = capped({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      run(governor, clock, 1000 / 30, 3);
+      // The charger is plugged in: frames come sixty a second.
+      expect(run(governor, clock, 1000 / 60, 3)).toBeNull();
+      expect(governor.capped).toBe(false);
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+      expect(run(governor, clock, 25)).toEqual({ tier: 'high', scale: 0.7 });
+    });
+  });
+
+  it("expects sixty frames a second of any display about that fast or faster, and a slower one's own", () => {
+    for (const hz of [60, 62.5, 75, 90, 120, 144, 240]) expect(expectedFrameMs(1000 / hz)).toBeCloseTo(1000 / 60);
+    // A little jitter either way is still sixty.
+    expect(expectedFrameMs(15.4)).toBeCloseTo(1000 / 60);
+    expect(expectedFrameMs(19.5)).toBeCloseTo(1000 / 60);
+    expect(expectedFrameMs(1000 / 30)).toBeCloseTo(33.3, 1);
+    expect(expectedFrameMs(32.4)).toBeCloseTo(32.4);
+    expect(expectedFrameMs(1000 / 24)).toBeCloseTo(41.7, 1);
   });
 
   it('steps back up only after a wait that every step down doubles', () => {

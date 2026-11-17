@@ -5,7 +5,8 @@
 //                                 [--leave 0|1000|10000] [--level 8000] [--press] [--path first|round|all]
 //                                 [--config '{"slowGpu":48,"slowBake":48}'] [--headed] [--runs 3]
 //                                 [--trace file.json] [--out file.json] [--frames] [--timeline] [--tv]
-//                                 [--browser webkit] [--latency 80] [--position -205,-1200]
+//                                 [--browser webkit] [--latency 80] [--position -205,-1200] [--raf 30]
+//   --raf     the display hands out at most that many frames a second (30: Safari in Low Power Mode, a stand-in).
 //   --leave   ms after the room is handed out (`ready`) at which the visitor leaves the TV (0: the same task).
 //   --after-whole  ms after the whole room is lit instead (nothing waits for the bake then).
 //   --level   plays a level that long first (the visitor's key, then autopilot) and leaves from it.
@@ -311,12 +312,14 @@ async function run(server, index) {
     page.on('pageerror', (error) => errors.push(error.message));
     const client = engine === 'webkit' ? { send: async () => {} } : await context.newCDPSession(page);
     const afterWhole = option('after-whole', null);
-    const inPage =
+    const rafHz = option('raf', null) === null ? {} : { rafHz: Number(option('raf')) };
+    const timing =
       afterWhole !== null
         ? { leaveAfterWholeMs: Number(afterWhole), finishAtWhole: flag('finish') }
         : levelMs === null && !(tracePath && leaveAfterMs >= 500)
           ? { leaveAfterMs }
           : {};
+    const inPage = { ...timing, ...rafHz };
     await page.addInitScript(
       `window.__flightConfig = ${JSON.stringify(inPage)}; window.__perfConfig = ${JSON.stringify(config)};`,
     );

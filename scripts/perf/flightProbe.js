@@ -7,7 +7,7 @@
 // resources fetched, long tasks and long animation frames with their scripts, and the room's own view changes.
 // `window.__flightConfig`: { leaveAfterMs } leaves the TV that long after the room is handed out (`ready`),
 // { leaveAfterWholeMs } that long after the whole room is lit, { finishAtWhole } waits there for the GPU first
-// (a one-pixel read) and marks how long that took.
+// (a one-pixel read) and marks how long that took; { rafHz } caps the page's frames at that many a second.
 (() => {
   const config = window.__flightConfig ?? {};
   const now = () => performance.now();
@@ -33,7 +33,36 @@
   // --- Frames -----------------------------------------------------------------------------------------------------
   let tick = null;
   let inFrame = 0;
-  const nativeRaf = window.requestAnimationFrame.bind(window);
+  // `rafHz`: a display that hands out that many frames a second at most (Safari in Low Power Mode: 30), stood in for
+  // by running the page's frame callbacks only on the display frames that far apart; the others pass unseen.
+  const realRaf = window.requestAnimationFrame.bind(window);
+  const capMs = config.rafHz ? 1000 / config.rafHz : 0;
+  let cappedAt = Number.NEGATIVE_INFINITY;
+  let waiting = new Map();
+  let nextHandle = 1e9;
+  const capped = (t) => {
+    if (t - cappedAt < capMs - 2) {
+      realRaf(capped);
+      return;
+    }
+    cappedAt = t;
+    const run = waiting;
+    waiting = new Map();
+    for (const callback of run.values()) callback(t);
+  };
+  const nativeRaf = capMs
+    ? (callback) => {
+        if (waiting.size === 0) realRaf(capped);
+        waiting.set(++nextHandle, callback);
+        return nextHandle;
+      }
+    : realRaf;
+  if (capMs) {
+    const realCancel = window.cancelAnimationFrame.bind(window);
+    window.cancelAnimationFrame = (handle) => {
+      if (!waiting.delete(handle)) realCancel(handle);
+    };
+  }
   window.requestAnimationFrame = (callback) =>
     nativeRaf((t) => {
       if (!tick || tick.t !== t) {

@@ -60,7 +60,13 @@ export function pixelRatioFor(quality: Quality, width: number, height: number, d
   return Math.min(devicePixelRatio, tier.maxPixelRatio, Math.sqrt(tier.maxPixels / (width * height))) * quality.scale;
 }
 
-/** A run's mean frame interval above which the scale steps down: under about 47 frames a second. */
+/** The interval frames are meant to come at unless the display says otherwise: a 60 Hz frame (ms). */
+export const FRAME_MS = 1000 / 60;
+/**
+ * A run's mean frame interval above which the scale steps down: under about 47 frames a second. This and the two
+ * below are for frames meant to come sixty a second; where they are meant to come slower (`QualityGovernor.expect`)
+ * all three stretch with them.
+ */
 export const SLOW_FRAME_MS = 21;
 /** The interval a step down aims for: a 60 Hz frame, with some room. */
 const TARGET_FRAME_MS = 15;
@@ -81,6 +87,20 @@ const RESPONDS = 0.92;
 const REST_MS = 60_000;
 /** Slow windows at the floor before the tier drops. */
 const FLOOR_HITS = 2;
+/** Frames this much quicker than they were expected to come say the display ticks faster again (a cap that went). */
+const UNCAPPED = 0.75;
+/** A display whose frames come within this of sixty a second is taken to tick at sixty. */
+const SIXTY_MARGIN = 1.2;
+
+/**
+ * The interval the room's frames are meant to come at on a display whose own frames come `tickMs` apart (the quickest
+ * seen before the room draws anything): a 60 Hz frame for anything about that fast or faster (the loop paces a faster
+ * display down, RenderLoop.pace), the display's own for one that ticks slower. Safari in Low Power Mode hands out
+ * thirty frames a second, on a phone or a laptop, however quick its GPU.
+ */
+export function expectedFrameMs(tickMs: number): number {
+  return tickMs < FRAME_MS * SIXTY_MARGIN ? FRAME_MS : tickMs;
+}
 
 const TIERS: readonly QualityTier[] = ['high', 'medium', 'low'];
 
@@ -112,7 +132,13 @@ export function fittingQuality(start: Quality, frameMs: number, pixelsOf: (quali
  * pixels being what a frame's GPU time is mostly made of; at the floor and still slow twice, the tier drops, and never
  * comes back this page load. While every frame is on time the scale tries a step back up, after a wait every step
  * down doubles, so a device on the edge settles instead of pumping. A step down that does not shorten the frames
- * undoes itself and rests the governor a minute: whatever was slow was not the pixels (a busy main thread).
+ * undoes itself and rests the governor a minute: whatever was slow was not the pixels (a busy main thread, a display
+ * that ticks no faster), and from then on frames are expected to come as they did, so it is not tried again every
+ * minute for as long as the page is open.
+ *
+ * All of it is measured against the interval frames are meant to come at (`expect`): a 60 Hz frame, or the display's
+ * own where it ticks slower. A phone in Low Power Mode draws thirty frames a second whatever it is asked: judged
+ * against sixty it looked slow for good, and the scale went to its floor and back, a resize each way, every minute.
  */
 export class QualityGovernor {
   private current: Quality;
@@ -123,6 +149,11 @@ export class QualityGovernor {
   private floorHits = 0;
   /** The step down under trial: where it came from and the interval it has to beat. */
   private trial: { readonly from: Quality; readonly ms: number } | null = null;
+  /** The interval frames are meant to come at (ms): what the display hands out, and no step of quality changes. */
+  private expected = FRAME_MS;
+  /** `expected` as the display said it (`expect`), or as quicker frames have since shown it. */
+  private displayMs = FRAME_MS;
+  private changed = 0;
 
   constructor(
     start: Quality,
@@ -145,6 +176,28 @@ export class QualityGovernor {
     return this.fixed;
   }
 
+  /** The interval frames are meant to come at (ms), and judged against. */
+  get frameMs(): number {
+    return this.expected;
+  }
+
+  /** The display hands out fewer frames than sixty a second (Low Power Mode's thirty): nothing here can add any. */
+  get capped(): boolean {
+    return this.displayMs >= FRAME_MS * SIXTY_MARGIN;
+  }
+
+  /** How often the quality has changed this page load (each one a resize). */
+  get changes(): number {
+    return this.changed;
+  }
+
+  /** The display hands out a frame every `frameMs` (`expectedFrameMs`): what frames are judged against from now on. */
+  expect(frameMs: number): void {
+    this.displayMs = frameMs;
+    this.expected = frameMs;
+    this.samples.length = 0;
+  }
+
   /** A frame of a run came `ms` after the one before it, at `now`. Returns the new quality when it changes it. */
   sample(ms: number, now: number): Quality | null {
     if (this.fixed || now < this.settledAt || ms > PAUSE_MS) return null;
@@ -158,15 +211,25 @@ export class QualityGovernor {
     this.trial = null;
     if (trial && mean > trial.ms * RESPONDS) {
       this.upAt = now + REST_MS;
+      // Whatever the frames wait for, it is not their pixels: this is how they come.
+      this.expected = Math.max(this.expected, mean);
       return this.change(trial.from, now + REST_MS);
     }
+    // Frames well ahead of what was expected: the display ticks faster than that after all (Low Power Mode switched
+    // off, a main thread that is free again, a first look at the display that a busy page made too slow).
+    if (mean < this.expected * UNCAPPED) {
+      this.expected = Math.max(FRAME_MS, mean);
+      this.displayMs = Math.min(this.displayMs, this.expected);
+    }
+    // What a 60 Hz frame's limits are for the frames expected here.
+    const stretch = this.expected / FRAME_MS;
     const step = QUALITY_SCALES.indexOf(this.current.scale);
-    if (mean > SLOW_FRAME_MS) {
+    if (mean > SLOW_FRAME_MS * stretch) {
       this.upDelay = Math.min(UP_DELAY_CAP_MS, this.upDelay * 2);
       this.upAt = now + this.upDelay;
       if (step < QUALITY_SCALES.length - 1) {
         // A frame's time goes with its pixels, the square of the scale.
-        const wanted = this.current.scale * Math.sqrt(TARGET_FRAME_MS / mean);
+        const wanted = this.current.scale * Math.sqrt((TARGET_FRAME_MS * stretch) / mean);
         let next = step + 1;
         while (next < QUALITY_SCALES.length - 1 && (QUALITY_SCALES[next] ?? 0) > wanted) next++;
         this.floorHits = 0;
@@ -181,7 +244,7 @@ export class QualityGovernor {
       return null;
     }
     this.floorHits = 0;
-    if (mean <= FAST_FRAME_MS && step > 0 && now >= this.upAt) {
+    if (mean <= FAST_FRAME_MS * stretch && step > 0 && now >= this.upAt) {
       this.upAt = now + this.upDelay;
       return this.change({ tier: this.current.tier, scale: QUALITY_SCALES[step - 1] ?? 1 }, now);
     }
@@ -189,6 +252,7 @@ export class QualityGovernor {
   }
 
   private change(next: Quality, now: number): Quality {
+    if (next.tier !== this.current.tier || next.scale !== this.current.scale) this.changed++;
     this.current = next;
     this.settledAt = now + SETTLE_MS;
     return next;

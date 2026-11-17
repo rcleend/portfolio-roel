@@ -99,6 +99,24 @@ describe('BakePace behind late frames', () => {
   });
 });
 
+describe('BakePace on a display that hands out thirty frames a second', () => {
+  it('takes frames that come as the display hands them out for on time', () => {
+    const pace = new BakePace(0.1);
+    for (let frame = 0; frame < 30; frame++) pace.frame(1000 / 30, 1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(40);
+    expect(pace.gapMs()).toBe(0);
+    // Judged against sixty a second, every one of them was late, and the rest of the room came at an eighth the pace.
+    for (let frame = 0; frame < 30; frame++) pace.frame(1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(5);
+  });
+
+  it('still gives way to frames that come late for that display', () => {
+    const pace = new BakePace(0.1);
+    for (let frame = 0; frame < 10; frame++) pace.frame(50, 1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(5);
+  });
+});
+
 describe('overBudget', () => {
   it('says when the opening pass would keep the visitor waiting', () => {
     // An Apple M4: 0.6 ms a view, 143 views.

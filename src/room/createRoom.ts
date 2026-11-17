@@ -160,6 +160,13 @@ export interface RoomStats {
   readonly pixelRatio: number;
   /** The tier and scale frames are drawn at (docs/ROOM.md › Quality). */
   readonly quality: Quality;
+  /** How often the quality has changed this page load: each change is a resize. */
+  readonly qualityChanges: number;
+  /**
+   * The interval the room's frames are meant to come at (ms): a 60 Hz frame, or the display's own where it hands out
+   * fewer (`capped`: Safari in Low Power Mode draws thirty a second). What the governor judges frames against.
+   */
+  readonly display: { readonly frameMs: number; readonly capped: boolean };
   /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
   readonly programs: number;
   /** Pixels of the monitor's texture (0 in standby before the first paint). */
@@ -525,6 +532,8 @@ export function createRoom(options: CreateRoomOptions): Room {
         triangles,
         pixelRatio: stage.size.pixelRatio,
         quality: stage.quality,
+        qualityChanges: stage.qualityChanges,
+        display: { frameMs: stage.frameMs, capped: stage.displayCapped },
         programs: renderer.info.programs?.length ?? 0,
         pcTexturePixels: scene?.monitor.texturePixels ?? 0,
         backgroundPending: scene?.background.pending ?? false,

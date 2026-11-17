@@ -934,7 +934,7 @@ export class GeneratedRoom {
       // The rest of the bake gives way to frames that come late (bake/pace.ts).
       this.stopLate ??= context.stage.onRender(() => {
         const interval = context.stage.loop.runInterval;
-        if (interval !== null && this.paced && !this.complete) this.pace.frame(interval);
+        if (interval !== null && this.paced && !this.complete) this.pace.frame(interval, context.stage.frameMs);
       });
       this.events.onShown(this.stats as GeneratedStats);
       done();

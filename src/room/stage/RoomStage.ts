@@ -12,6 +12,7 @@ import {
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
 import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
 import {
+  expectedFrameMs,
   FIT_MARGIN,
   fittingQuality,
   pixelRatioFor,
@@ -113,6 +114,7 @@ export class RoomStage {
     // time, a throttled CPU) and says nothing about the device.
     this.governor = new QualityGovernor({ tier, scale: 1 }, fixed !== null || this.softwareGpu || navigator.webdriver);
     this.samples = QUALITY_TIERS[tier].samples;
+    this.watchDisplay();
 
     this.canvas = this.renderer.domElement;
     this.canvas.style.display = 'block';
@@ -167,6 +169,44 @@ export class RoomStage {
   /** The tier and scale frames are drawn at now (docs/ROOM.md › Quality). */
   get quality(): Quality {
     return this.governor.quality;
+  }
+
+  /** The interval frames are meant to come at here (ms): a 60 Hz frame, or the display's own where it ticks slower. */
+  get frameMs(): number {
+    return this.governor.frameMs;
+  }
+
+  /** How often the quality has changed this page load. */
+  get qualityChanges(): number {
+    return this.governor.changes;
+  }
+
+  /** The display hands out fewer than sixty frames a second (docs/ROOM.md › Quality › A capped display). */
+  get displayCapped(): boolean {
+    return this.governor.capped;
+  }
+
+  /**
+   * Finds how fast the display hands out frames, before the room draws any: about the quickest interval between a few
+   * of its frames in a row (a busy main thread makes some longer, nothing makes one much shorter). The governor and the
+   * bake's pacing judge the room's frames against it (docs/ROOM.md › Quality › A capped display).
+   */
+  private watchDisplay(): void {
+    let last: number | null = null;
+    const intervals: number[] = [];
+    let left = DISPLAY_WATCH_FRAMES;
+    const frame = (now: number): void => {
+      if (last !== null && now > last) intervals.push(now - last);
+      last = now;
+      if (--left > 0) {
+        requestAnimationFrame(frame);
+        return;
+      }
+      // The second quickest: one frame's timestamp may have come a little early.
+      const quickest = intervals.sort((a, b) => a - b)[1];
+      if (quickest !== undefined) this.governor.expect(expectedFrameMs(quickest));
+    };
+    requestAnimationFrame(frame);
   }
 
   get lightning(): number {
@@ -353,13 +393,14 @@ export class RoomStage {
       const frame = (): void => {
         const started = performance.now();
         this.render();
-        // In the next task: whatever stands in for a slow GPU by drawing the frame again has done so by then.
-        setTimeout(() => {
+        // In the next task: whatever stands in for a slow GPU by drawing the frame again has done so by then. Never on
+        // a timer: a browser that slows timers down (a phone saving power) would have the frame look that slow.
+        later(() => {
           const sync = this.contextLost ? null : gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
           gl.flush();
           const poll = (): void => {
             if (sync && !this.contextLost && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED) {
-              setTimeout(poll, 1);
+              later(poll);
               return;
             }
             if (sync) gl.deleteSync(sync);
@@ -454,6 +495,8 @@ export class RoomStage {
   };
 }
 
+/** Display frames watched in a row as the stage is made (`watchDisplay`): a quarter of a second at sixty a second. */
+const DISPLAY_WATCH_FRAMES = 16;
 /** The layer only `RoomStage.warm`'s camera sees (the bake's casters are on 20 and 21). */
 const WARM_LAYER = 30;
 /**
