@@ -14,6 +14,38 @@ export interface MeshData {
   readonly albedo: Float32Array;
   /** Occlusion the part knows about itself (a recess, a slot), 0–1, multiplied into the ambient light. */
   readonly shade: Float32Array;
+  /** Where a mesh has parts in two makings (`Making`): the indices a frame draws, one run for each (`twiceMade`). */
+  readonly index?: Uint32Array;
+  readonly shown?: Shown;
+}
+
+/**
+ * A part that is made twice (docs/ROOM.md › Lines without multisampling): `built`, as geometry, for frames drawn with
+ * multisampling, and `drawn`, flat with its lines in the baked surface, for frames drawn without.
+ */
+export type Making = 'built' | 'drawn';
+/** The run of a mesh's indices that each making draws: where it starts and how many it is. */
+export interface Shown {
+  readonly built: readonly [first: number, count: number];
+  readonly drawn: readonly [first: number, count: number];
+}
+
+/**
+ * The indices of a mesh whose triangles are in two makings, `kinds` saying which each is of (0 both, 1 built, 2
+ * drawn), every drawn one after the others. The built making's run is the mesh without the drawn making, triangle
+ * for triangle in the order it was built (so a frame that draws it draws what it drew before there were two); the
+ * drawn making's run names the triangles of both again, then its own.
+ */
+export function twiceMade(kinds: ArrayLike<number>): { index: Uint32Array; shown: Shown } {
+  const all = Array.from(kinds);
+  const corners = (keep: (kind: number) => boolean): number[] =>
+    all.flatMap((kind, t) => (keep(kind) ? [t * 3, t * 3 + 1, t * 3 + 2] : []));
+  const built = corners((kind) => kind !== 2);
+  const drawn = [...corners((kind) => kind === 0), ...corners((kind) => kind === 2)];
+  return {
+    index: new Uint32Array([...built, ...drawn]),
+    shown: { built: [0, built.length], drawn: [built.length, drawn.length] },
+  };
 }
 
 /** A rigid placement: rotation (row-major 3 × 3) then translation. */
@@ -86,9 +118,30 @@ export class MeshBuilder {
   private placement: Placement = IDENTITY;
   private occlusion: ((point: Vec3) => number) | null = null;
   private tone: ((point: Vec3) => number) | null = null;
+  /** Where the making changes: from which triangle on, and to what. */
+  private readonly makings: [from: number, making: Making | null][] = [];
 
   get triangles(): number {
     return this.positions.length / 9;
+  }
+
+  /** The triangles that are not the drawn making's: what the mesh was before it had two, in the same order. */
+  get standing(): number {
+    return this.triangles - this.kinds().reduce((sum, kind) => sum + (kind === 2 ? 1 : 0), 0);
+  }
+
+  /** What is added from here on belongs to `making` alone (null: to both). */
+  make(making: Making | null): void {
+    this.makings.push([this.triangles, making]);
+  }
+
+  /** Each triangle's making: 0 both, 1 built, 2 drawn. */
+  private kinds(): Uint8Array {
+    const kinds = new Uint8Array(this.triangles);
+    this.makings.forEach(([from, making], i) => {
+      kinds.fill(making === 'built' ? 1 : making === 'drawn' ? 2 : 0, from, this.makings[i + 1]?.[0] ?? kinds.length);
+    });
+    return kinds;
   }
 
   /**
@@ -523,12 +576,37 @@ export class MeshBuilder {
 
   /** The finished mesh, its normals smoothed across edges shallower than `creaseDegrees`. */
   finish(creaseDegrees = 38): MeshData {
-    const positions = new Float32Array(this.positions);
+    const kinds = this.kinds();
+    if (!kinds.some((kind) => kind > 0)) {
+      const positions = new Float32Array(this.positions);
+      return {
+        positions,
+        normals: creasedNormals(positions, creaseDegrees),
+        albedo: new Float32Array(this.albedo),
+        shade: new Float32Array(this.shade),
+      };
+    }
+    // The drawn making's triangles go after the others, which keep their order and are smoothed among themselves:
+    // the mesh a multisampled frame draws is the mesh it was before it had two makings, vertex for vertex.
+    const order = [0, 1].flatMap((last) => [...kinds.keys()].filter((t) => (kinds[t] === 2 ? 1 : 0) === last));
+    const pick = (from: readonly number[], size: number): Float32Array => {
+      const picked = new Float32Array(from.length);
+      order.forEach((t, i) => {
+        for (let k = 0; k < size; k++) picked[i * size + k] = from[t * size + k] as number;
+      });
+      return picked;
+    };
+    const positions = pick(this.positions, 9);
+    const standing = order.findIndex((t) => kinds[t] === 2) * 9;
+    const normals = new Float32Array(positions.length);
+    normals.set(creasedNormals(positions.subarray(0, standing), creaseDegrees));
+    normals.set(creasedNormals(positions.subarray(standing), creaseDegrees), standing);
     return {
       positions,
-      normals: creasedNormals(positions, creaseDegrees),
-      albedo: new Float32Array(this.albedo),
-      shade: new Float32Array(this.shade),
+      normals,
+      albedo: pick(this.albedo, 9),
+      shade: pick(this.shade, 3),
+      ...twiceMade(order.map((t) => kinds[t] as number)),
     };
   }
 }

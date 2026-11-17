@@ -490,8 +490,8 @@ How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a
 rate and a laptop shows everything. Every tier keeps the room's look: the finish, the TV's and the lamps' light on the
 room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, the baked pages' texel
 density and, on the lowest, multisampling, the width of the bloom's filter and half the bake's light samples; nothing
-else. What multisampling was hiding, lines thinner than a pixel, the room built for the lowest tier draws instead of
-building (§ The generated room › Lines without multisampling).
+else. What multisampling was hiding, lines thinner than a pixel, a frame without it draws from the baked surface
+instead of from geometry, however the device came to that tier (§ The generated room › Lines without multisampling).
 
 | Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Baked pages, for a device that starts there | Starts on |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -742,35 +742,58 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
 - **Lines without multisampling.** The lowest tier draws the scene without multisampling (§ Quality), and a line of
   geometry thinner than a pixel is then drawn only where a pixel's middle happens to fall in it: dashes, which crawl
   when the camera moves. Across the room a pixel is 6 mm at 1440 × 900 and 12 mm on a phone; the blind's gaps are
-  4 mm and its slats' lit lips 2.4 mm, the dresser's gaps 3 mm, the casing's mouldings 8–12 mm proud. So the room built
-  for that tier (`detail` under 0.5) has no such geometry, and its lines are in its charts, where the bake's surface
-  function draws them once (`gen/materials.ts`): a texel takes the share of it the line covers, and the page's filter
-  and mips keep the line whole at any distance. A frame costs nothing for it: the same draws, programs and pages.
+  4 mm and its slats' lit lips 2.4 mm, the dresser's gaps 3 mm, the casing's mouldings 8–12 mm proud. A device
+  reaches that tier three ways: it starts there (a software renderer), the measurement before the first frame puts
+  it there, or the governor drops it there later; in the last two the room was built for the tier it started on,
+  because the generators run once, before that measurement. So the parts that dash are **made twice**
+  (`PropSink.making`): *built*, as geometry, which a multisampled frame draws, and *drawn*, flat with its lines in the
+  baked surface, which a frame without multisampling draws. A room built for `high` or `medium` has both; one built
+  for `low` has the drawn making alone, as plain parts.
+  - *The flip* (`gen/makings.ts`). A mesh's two makings are two runs of its index buffer: the built one's is the mesh
+    without the drawn making, triangle for triangle in the order it always had; the drawn one's names the shared
+    triangles again and then its own, whose vertices are the mesh's last. Which run a frame draws is a draw range,
+    set in the scene's `onBeforeRender` from that frame's own target (`samples`), so the frame in which the sample
+    count changes is already right, nothing is built or baked again, and no draw call or program is added. The
+    bake's shadow maps (cameras on the casters' layers) always get the built making: it casts the room's shadows
+    whichever is shown, and both makings are lit in the one bake. While multisampled, a room with both makings is
+    the room it was, pixel for pixel.
+  - *The drawn lines* are in charts, where the bake's surface function draws them once (`gen/materials.ts`): a texel
+    takes the share of it the line covers, and the page's filter and mips keep the line whole at any distance. A
+    drawn chart is packed late (`Chart.late`), into the room the page's shelves have left, so it moves and shrinks
+    no other chart: a chart's dither is its place's, and the TV view, which the startup still is matched to, stays
+    the same picture on every tier.
   - *The blind* is one flat sheet in the plane of the slats' room-side edges (`MATERIAL.slats`, `SLATS`): twenty
     bands, each a face that darkens towards the slat above, the lip the desk lamp catches and the gap over it, the
     pitch closing to the right where the cords draw the blind up, and the two ladder cords. It is a chart of the
-    walls' (no varnish, no draw of its own), lit with one normal between a slat's face and its lip (`Chart.lit`), which
-    puts its tones within a few levels of the built slats', and packed late (`Chart.late`) into the room the walls'
-    first shelf leaves in their page, so no wall moves or shrinks for it: the TV view, which the startup still is
-    matched to, is the same picture pixel for pixel. A plain sheet behind it shadows what the slats did. The glazing
-    bar's shadow, which the slats' vertices held as a hard streak, is a soft bar on the sheet's texels.
+    walls' (no varnish, no draw of its own), lit with one normal between a slat's face and its lip (`Chart.lit`),
+    which puts its tones within a few levels of the built slats'. Where there are no slats (`low`), a plain sheet
+    behind it shadows what they did. The glazing bar's shadow, which the slats' vertices hold as a hard streak, is
+    a soft bar on the sheet's texels.
   - *The dresser's front* is flat, in the plane of its posts' faces: the drawer and the doors reach over their 3 mm
     gaps and carry them as joints (`JOINT`, two bits an edge in a stained chart's `params.a`), the panels carry their
     beads. A joint lies a texel inside its own chart's edge, so the chart beside it knows nothing of it and no edge of
     geometry crosses it: a line at an edge is cut by that edge's staircase and dashes again.
-  - *What cannot be a chart is not built that thin.* The casing has no bead, its band falls to the board in a chamfer
-    as wide as the band is proud, the jamb takes the stops in and starts inside the casing (no groove between eased
-    boards); the two lift cords are one cord a pixel thick in the tone the two leave on the casing; the guitar has no
-    strings, frets, inlays, screws or pole pieces, and its board has the tone they left on it.
-  - Measured on the lowest tier at 1440 × 900, the room view at rest and four flights (`fl-*` frames, each line through
-    that frame's camera; a point of a line is drawn where its tone is at least half the line's own): the blind's gaps
-    are drawn along 97 % of their length where 45 % was, in runs of 180 px where 28 px were; the dresser's joints
-    along 92 % where 43 % was (a phone: 89 % where 51 % was). With each surface brought back to its own rectangle
-    frame by frame, what changes at fine scale between two frames of a flight is 1.0 level on the blind where it was
-    4.3, 0.23 on the dresser's front where it was 0.46, against 0.30 on a plain piece of wall.
-  - Only a room *built* for the lowest tier has this: the generators run once, for the tier a device starts on. A
-    device the governor drops to `low` keeps the room it built for `medium` or `high`, and draws its thin lines
-    without multisampling (§ Known gaps).
+  - *What cannot be a chart is not built that thin.* The drawn making's casing has its bead as a strip lying on the
+    leg, the leg's own paint at the strip's two edges and the bead's top and the shade beside it as tones of its
+    vertices (a line that is a ramp a pixel wide either side is whole where a face 8 mm deep is not); its band falls
+    to the board in a chamfer as wide as the band is proud, and the jamb takes the stops in and starts inside the
+    casing (no groove between eased boards). The two lift cords are one cord a pixel thick in the tone the two leave
+    on the casing. The guitar is without its strings (1.2–1.5 mm) and frets (1.8 mm): a quarter of a pixel in the
+    room's view (7.9 mm a pixel there at 1440 × 900, 6.8 on a phone), the one view at rest that shows it, and a
+    pixel only in the few closest frames of the flight to the radio; its inlays, screws and pole pieces, dots of
+    several pixels in that flight, are in both makings.
+  - *What both makings cost* (the top tier): 1,062 triangles more in memory (128.5 k; a frame draws either making's,
+    never both), an index buffer of 0.93 MB for the props' mesh, 2 % more chart texels in the same four pages, and
+    no draw, program or texture.
+  - Measured at 1440 × 900 in a room built for the top tier and drawn as the lowest draws (the scene's target
+    without samples, the narrow bloom), the room view at rest and four flights of 41 standing frames each, every line
+    through its frame's camera (a point of a line is drawn where its tone is at least half the line's own): the
+    blind's gaps are drawn along 96 % of their length where 51 % was, in runs of 160 px where 35 px were, its lips
+    along 87 % where 32 % was; the dresser's joints along 88 % where 44 % was (a phone's room built for `medium`:
+    90 % where 52 % was). A room built for the lowest tier reads the same (97 %, 84 %, 87 %). With each surface
+    brought back to its own rectangle frame by frame, what changes at fine scale between two frames of a flight is
+    1.2 levels on the blind where it was 4.2, 0.24 on the dresser's front where it was 0.48, 0.76 on the casing's
+    left leg where it was 1.65, against 0.31 on a plain piece of wall.
 - **The TV set** (`gen/props/tvSet.ts`; 11.0 k triangles at full detail, 5.6 k and 4.9 k below it, against 15.9 k for
   the model it stands for) is built to that model's sections: a front shell whose outline is a squircle (superellipse
   corners 6 cm long), its face crowned and its chin's edge a smile, a steep lip to the glass, a soft shoulder, a seam,
@@ -1226,7 +1249,7 @@ Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a 
 - The numbers the room's code shares with its generators are copies held together by tests, not one source: `TV_SCREEN_APERTURE` (`tv/tvModel.ts`) against the set's lip, `DECK` and `LID_FRAMING` against `RADIO_SPEC`, the finish's lamp intensities in `gen/tiers.ts`. Moving a prop means changing the spec (`gen/roomSpec.ts`, `gen/props/radioSpec.ts`) and following the tests that fail.
 - The startup still is generated from the room (§ Startup), but not as the room is built: a change to the set, the cabinet, the lamps, the plant, their light or the TV view's framing needs `pnpm build:still` (a test fails until then), and `src/app/startup/still/camera.ts` repeats `tv/tvFraming.ts` and `camera/framing.ts` in plain numbers (a test holds it to them).
 - The bake has no indirect light: a pool and a bounce light in the rig stand for it (§ The generated room › The night's rig).
-- Thin lines are solid without multisampling only in a room built for the lowest tier (§ The generated room › Lines without multisampling): a device that starts higher and is dropped to `low` by the governor keeps its built slats, gaps and mouldings, which then break into dashes. Left as geometry on every tier, and dotted across the room on the lowest: the wire basket, the desk lamp's springs, the drawer pulls, the radio's aerial, the dresser's side rails seen edge-on.
+- Left as geometry in every making, and dotted across the room in a frame without multisampling: the wire basket, the desk lamp's springs, the drawer pulls, the radio's aerial, the dresser's side rails seen edge-on (§ The generated room › Lines without multisampling).
 - A mood changed after the bake (the lab's `setMood`) keeps the lamp pools it was baked with.
 - Under software GL the room is fill-bound everywhere, and the bake's shadow maps run on the CPU; the room starts on the lowest tier there and is not governed.
 - Lab screenshots and every number in this file come from Apple-GPU headless Chromium; real low-end GPUs are untested as well.

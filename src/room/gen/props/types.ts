@@ -1,5 +1,5 @@
 import type { ArtRect } from '../art';
-import type { MeshBuilder, Rgb, Vec3 } from '../kit/builder';
+import type { Making, MeshBuilder, Rgb, Vec3 } from '../kit/builder';
 import type { Chart } from '../kit/charts';
 
 /** A printed or self-lit quad drawn over a prop with the art page: unlit, tinted, alpha from the print. */
@@ -44,6 +44,15 @@ export interface PropSink {
    * segments and into the small parts it leaves out; its budget is for 1.
    */
   readonly detail: number;
+  /**
+   * A part with lines thinner than a pixel is made twice (docs/ROOM.md › Lines without multisampling): `built`, as
+   * geometry, for frames drawn with multisampling, and `drawn`, flat with its lines in the baked surface, for frames
+   * drawn without. Whatever `make` adds, to any mesh or as charts, is that making's alone; a room that is never
+   * multisampled has the drawn making only (`only`), as plain parts.
+   */
+  making(making: Making, make: () => void): void;
+  /** The one making this room has, where it has one. */
+  readonly only: Making | null;
   /** The vertex-lit mesh `name`'s builder. */
   mesh(name: MeshName): MeshBuilder;
   chart(...charts: Chart[]): void;

@@ -1,5 +1,5 @@
 import { ART_SIZE, artUv } from './art';
-import { MeshBuilder, type MeshData } from './kit/builder';
+import { type Making, MeshBuilder, type MeshData } from './kit/builder';
 import { type Chart, type ChartMeshes, chartMeshes, type PackedPage, packCharts } from './kit/charts';
 import { cabinet } from './props/cabinet';
 import { bulbLamp, opalLamp } from './props/cabinetLamps';
@@ -98,14 +98,38 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
   const flat = (): number =>
     charts.reduce((sum, chart) => sum + (chart.relief ? chart.relief.cells[0] * chart.relief.cells[1] * 2 : 2), 0) +
     decals.length * 2;
+  // The tier that draws without multisampling has the drawn making of everything, and nothing to choose between.
+  const only: Making | null = (request.detail ?? 1) < 0.5 ? 'drawn' : null;
+  let current: Making | null = null;
+  const making = (next: Making | null): void => {
+    current = next;
+    for (const name of MESHES) builders[name].make(next);
+  };
   for (const prop of PROPS) {
     const counts = MESHES.map((name) => builders[name].triangles);
+    const standing = MESHES.map((name) => builders[name].standing);
     const before = counts.reduce((sum, count) => sum + count, 0) + flat();
     const firstDecal = decals.length;
     prop.build({
       detail: request.detail ?? 1,
+      only,
+      making: (which, make) => {
+        if (only) {
+          if (which === only) make();
+          return;
+        }
+        making(which);
+        make();
+        making(null);
+      },
       mesh: (name) => builders[name],
-      chart: (...added) => void charts.push(...added),
+      // A drawn chart is packed late: the built room's charts stay where they were without it.
+      chart: (...added) =>
+        void charts.push(
+          ...added.map((chart) =>
+            current ? { ...chart, making: current, late: current === 'drawn' || chart.late } : chart,
+          ),
+        ),
       decal: (decal) => void decals.push(decal),
     });
     // The monitor is a mesh of its own (the spotlight lights and bounces it apart from the desk): whatever of the
@@ -120,8 +144,9 @@ export function buildScene(request: GenRequest, now: () => number = () => perfor
     const after = MESHES.reduce((sum, name) => sum + builders[name].triangles, 0) + flat();
     const ranges: Partial<Record<MeshName, readonly [number, number]>> = {};
     MESHES.forEach((name, index) => {
-      const added = builders[name].triangles - (counts[index] as number);
-      if (added > 0) ranges[name] = [(counts[index] as number) * 3, added * 3];
+      // The drawn making's triangles are kept after every prop's (MeshBuilder.finish), outside these ranges.
+      const added = builders[name].standing - (standing[index] as number);
+      if (added > 0) ranges[name] = [(standing[index] as number) * 3, added * 3];
     });
     props.push({
       name: prop.name,
@@ -174,9 +199,11 @@ function decalQuads(decals: readonly Decal[]): GenScene['decals'] {
 /** Every buffer of a scene, for a transfer out of the worker without a copy. */
 export function transferables(scene: GenScene): ArrayBuffer[] {
   const buffers: ArrayBuffer[] = [];
-  const take = (array: Float32Array) => buffers.push(array.buffer as ArrayBuffer);
-  for (const mesh of Object.values(scene.meshes)) for (const array of Object.values(mesh)) take(array as Float32Array);
-  for (const mesh of scene.charts.display) for (const array of [mesh.positions, mesh.normals, mesh.uvs]) take(array);
+  const take = (array: Float32Array | Uint32Array) => buffers.push(array.buffer as ArrayBuffer);
+  for (const mesh of Object.values(scene.meshes))
+    for (const array of Object.values(mesh)) if (ArrayBuffer.isView(array)) take(array as Float32Array);
+  for (const mesh of scene.charts.display)
+    for (const array of [mesh.positions, mesh.normals, mesh.uvs, ...(mesh.index ? [mesh.index] : [])]) take(array);
   for (const mesh of scene.charts.bake)
     for (const array of [
       mesh.positions,
