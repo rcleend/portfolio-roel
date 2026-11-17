@@ -41,7 +41,7 @@ describe('warmObjects', () => {
     expect(run(root, warmed).units).toEqual([]);
   });
 
-  it('warms a mesh that is hidden for now, and leaves alone what is never drawn', () => {
+  it('warms a mesh that is hidden for now or whose material is off, and leaves alone what is never drawn', () => {
     const root = new Group();
     const hidden = named(new Mesh(geometry(3), new MeshBasicMaterial()), 'hidden for now');
     hidden.visible = false;
@@ -49,6 +49,7 @@ describe('warmObjects', () => {
     pick.userData.neverDrawn = true;
     const off = named(new Mesh(geometry(3), new MeshBasicMaterial({ visible: false })), 'material off');
     root.add(hidden, pick, off, named(new Group(), 'group'));
-    expect(run(root).units).toEqual([['hidden for now']]);
+    // A mesh's buffers go up as it comes into view, whether its material draws anything or not.
+    expect(run(root).units).toEqual([['hidden for now', 'material off']]);
   });
 });

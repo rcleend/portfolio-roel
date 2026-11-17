@@ -130,7 +130,13 @@
         entry.amount += amount;
       }
     }
-    if (amount > 0 || ms >= 0.5) F.gl.push({ at: now() - ms, name, ms, amount, inFrame: inFrame > 0 });
+    if (amount > 0 || ms >= 0.5) {
+      const entry = { at: now() - ms, name, ms, amount, inFrame: inFrame > 0 };
+      // `stacks`: who made a buffer (for an unminified build: `vite build --minify false`).
+      if (window.__perfConfig?.stacks && name === 'bufferData')
+        entry.stack = new Error().stack.split('\n').slice(3, 16);
+      F.gl.push(entry);
+    }
   }
   const bytesOf = (data) => (typeof data === 'number' ? data : (data?.byteLength ?? 0));
   const sizeOf = (source) => (source?.width ?? source?.videoWidth ?? 0) * (source?.height ?? source?.videoHeight ?? 0);
