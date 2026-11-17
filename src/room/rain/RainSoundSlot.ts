@@ -26,7 +26,8 @@ export class RainSoundSlot {
   private *load(background: IdleWork): Generator<void> {
     void import('./RainSound')
       .then(({ RainSound }) => {
-        if (!this.disposed) this.cancel = background.add(this.make(RainSound));
+        // `apart`: the tenth of a second it takes says nothing about what any other task's unit will.
+        if (!this.disposed) this.cancel = background.add(this.make(RainSound), { apart: true });
       })
       .catch(() => {});
   }

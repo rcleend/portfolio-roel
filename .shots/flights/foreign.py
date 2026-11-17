@@ -28,19 +28,24 @@ def foreign(own):
     me = os.getpid()
     found = []
     for pid, (ppid, command) in table.items():
-        if not PATTERN.search(command) or '--type=' in command or 'foreign.py' in command:
+        # A browser's helpers (its crash handler is its own orphan: parent 1) are not a measurement of their own.
+        if not PATTERN.search(command) or '--type=' in command or 'crashpad' in command or 'foreign.py' in command:
             continue
         if descends(table, pid, me) or (own and descends(table, pid, own)):
+            continue
+        # WebKit's own helpers are launchd's children, not the run's: a WebKit run cannot tell another's from its own.
+        if OWN_WEBKIT and 'ms-playwright/webkit' in command:
             continue
         found.append(command)
     return found
 
 def short(command):
-    name = re.search(r'handover\.mjs|vitest|playwright test|chrome-headless-shell|Chrome for Testing|playwright', command)
+    name = re.search(r'handover\.mjs|vitest|playwright test|chrome-headless-shell|Chrome for Testing', command) or re.search(r'playwright', command)
     where = re.search(r'portfolio-roel-[0-9a-f]+/(\d+)/', command)
     return (name.group(0) if name else command[:40]) + (f' (checkout {where.group(1)})' if where else '')
 
 mode = sys.argv[1]
+OWN_WEBKIT = 'webkit' in sys.argv[3:]
 if mode == 'wait':
     waited = 0
     while foreign(None) and waited < 600:
@@ -53,11 +58,13 @@ else:
     seen = set()
     hits = 0
     samples = 0
-    while True:
-        try:
-            os.kill(own, 0)
-        except OSError:
-            break
+    started = time.time()
+    # A finished run that nobody has waited for yet is a zombie: gone as far as this is concerned (a signal still
+    # reaches one, so `kill -0` says it lives). Twenty minutes at most, whatever the run does.
+    def alive(pid):
+        state = subprocess.run(['ps', '-o', 'stat=', '-p', str(pid)], capture_output=True, text=True).stdout.strip()
+        return bool(state) and not state.startswith('Z')
+    while alive(own) and time.time() - started < 1200:
         samples += 1
         now = foreign(own)
         if now:
