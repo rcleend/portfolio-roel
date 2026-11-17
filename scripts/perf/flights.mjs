@@ -278,9 +278,12 @@ async function run(server, index) {
           executablePath,
           headless: !headed,
           args: [
-            '--use-angle=metal',
-            '--enable-gpu',
-            '--ignore-gpu-blocklist',
+            // PERF_CHROME_ARGS replaces the GPU's flags: `--disable-gpu` (hardware acceleration off), `--disable-3d-apis`.
+            ...(process.env.PERF_CHROME_ARGS?.split(' ').filter(Boolean) ?? [
+              '--use-angle=metal',
+              '--enable-gpu',
+              '--ignore-gpu-blocklist',
+            ]),
             ...(headed ? [`--window-position=${option('position', '0,0')}`, '--window-size=1460,1000'] : []),
           ],
         });
