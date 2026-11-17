@@ -295,8 +295,10 @@ export function createRoom(options: CreateRoomOptions): Room {
     try {
       await loaded.background.drain(view, PREFLIGHT_WORK_MS);
       if (view === 'radio') {
-        // The discs' program, for the target frames draw into, and whatever preparing them queued.
-        await Promise.race([radio.deck?.board() ?? Promise.resolve(), pause(PREFLIGHT_WORK_MS)]);
+        // The discs' program, for the target frames draw into, and the app's half (its player and controls, mounted
+        // while the camera still rests: `RadioDoor.onBoarding`); then whatever preparing them queued.
+        const boarded = Promise.all([radio.deck?.board() ?? Promise.resolve(), radio.boardApp()]);
+        await Promise.race([boarded, pause(PREFLIGHT_WORK_MS)]);
         await loaded.background.drain(view, PREFLIGHT_WORK_MS);
         radioBoarded = radio.prepared !== null;
       }

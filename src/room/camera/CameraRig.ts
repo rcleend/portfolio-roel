@@ -186,8 +186,17 @@ export class CameraRig {
     onArrive: () => void,
   ): (now: number) => boolean {
     const from = cloneViewpoint(this.current);
+    let stood = false;
     let start: number | null = null;
     return (now) => {
+      // The first frame shows the camera where it stands, and the clock starts with the second. What the click itself
+      // set going falls into that first frame (the page's interface takes the change of view: its style, its layout
+      // and its paint, 22 ms of a slow phone's main thread), so the frame after it comes late however little the room
+      // draws; with the clock already running that was the flight's first step, a late one (docs/ROOM.md › Flights).
+      if (!stood) {
+        stood = true;
+        return true;
+      }
       start ??= now;
       const t = Math.min(1, (now - start) / FLIGHT_MS);
       // Read every frame, so a resize mid-flight lands on the new viewport's pose.

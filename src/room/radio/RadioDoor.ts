@@ -28,6 +28,7 @@ export class RadioDoorHandle implements RadioDoor {
   #failed = false;
   #disposed = false;
   readonly #availability = new Set<(available: boolean) => void>();
+  readonly #boarding = new Set<() => Promise<unknown> | undefined>();
 
   readonly #container: HTMLElement;
   readonly #reducedMotion: MediaQueryList;
@@ -61,6 +62,17 @@ export class RadioDoorHandle implements RadioDoor {
   onAvailableChange(listener: (available: boolean) => void): () => void {
     this.#availability.add(listener);
     return () => this.#availability.delete(listener);
+  }
+
+  onBoarding(listener: () => Promise<unknown> | undefined): () => void {
+    this.#boarding.add(listener);
+    return () => this.#boarding.delete(listener);
+  }
+
+  /** The camera is about to set off for the radio: resolves once the app's half is ready, whatever became of it. */
+  boardApp(): Promise<void> {
+    const waits = [...this.#boarding].map((listener) => Promise.resolve(listener()).catch(ignore));
+    return Promise.all(waits).then(ignore);
   }
 
   prefetch(reason: 'idle' | 'intent'): void {
@@ -120,6 +132,7 @@ export class RadioDoorHandle implements RadioDoor {
     this.#deck = null;
     this.#host = null;
     this.#availability.clear();
+    this.#boarding.clear();
   }
 
   #emit(available: boolean): void {

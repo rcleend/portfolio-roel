@@ -505,12 +505,18 @@ Three rules keep its frames to themselves (`e2e/flights.spec.ts` holds a cold fi
   (`RoomStage.gpuIdle`). Each step is bounded (`PREFLIGHT_WORK_MS`, `PREFLIGHT_GPU_MS`, 0.4 s each; the bake alone is
   waited for however long, since no view may show a surface without its light): what is not made by then waits for
   the landing like everything else. Walls still being painted are not waited for: they fade in once the camera has
-  landed.
+  landed. The first flight to the radio waits for the app's half the same way (`RadioDoor.onBoarding`: the CD
+  player and its controls load and mount while the camera still rests; their layout alone is 23 ms of a slow phone's
+  main thread, and stood 70 ms into that flight). A request made while the camera already flies makes nothing and
+  holds no frame: the flight under way is not stopped for the next.
 - **The camera moves by the clock, on the paced frames.** Every step takes the time of the frame it is drawn for and
   places the camera where the curve says for that time (`CameraRig.flightStep`), so a frame that does come late shows
   the camera where it should be by then, not a frame behind. The frames are the room's own (§ Rendering and
   performance › Frames): sixty a second on a 60 and on a 120 Hz display, evenly spaced. The curve is the house ease
-  (`easeInOutCubic`): the camera starts and lands with no speed and no acceleration at any frame rate.
+  (`easeInOutCubic`): the camera starts and lands with no speed and no acceleration at any frame rate. The clock
+  starts with the flight's second frame: the first shows the camera where it stands, because the click's own work
+  falls into it (the page's interface takes the change of view: style, layout and paint, 22 ms on a phone-speed main
+  thread), and the frame behind such a one comes late however little the room draws.
 
 ### Warming
 

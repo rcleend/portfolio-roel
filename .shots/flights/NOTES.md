@@ -251,15 +251,42 @@ room as Safari's Low Power Mode. To measure on battery: `chromium.launchPersiste
 writing that file, as `scripts/perf/nogpuLib.mjs` > `launch` does (`node scripts/perf/nogpuRate.mjs` prints the bare
 frame rate as a check); `scripts/perf/flights.mjs` does not do this yet. Simpler: measure on mains.
 
-## Where this stands (2026-11-17, about 10:45)
+## Where this stands (2026-11-17, about 11:25, second worker after a relaunch)
 
-**Interrupted by the machine's battery.** The Mac went to 5 % on battery during the after-measurements. Chrome
-(Energy Saver, on below 20 % on battery) then hands out thirty frames a second, headless included: every run from
-that moment shows a 33 ms display tick, so none of them says anything about 60 or 120 Hz. The batch was stopped.
+On mains power since about 10:40; Chrome no longer caps frames (a blank headless page reads 8.3 ms a frame, and every
+run's first line says `display 7.5-8.3 ms`). PR 19's branch is merged in (0b7a36a, its startup still).
 
-Done and pushed (`fm/ship-portfolio-smooth-flights`): the diagnosis above; the fixes (bake's end, flights on the
-paced frames, nothing runs in a flight, what a flight shows is made first, the capped display, the readout); unit
-tests for all of it (`pnpm typecheck`, `pnpm lint` and vitest pass); docs/ROOM.md (structure; numbers still to add).
+Done since the relaunch:
+
+- **The after-matrix at 60 and 120 Hz, WebKit and the 30-a-second stand-in** on the build as it stood at 2ac252e
+  plus the merge (`.shots/flights/logs/after-*.log`; each run's second line gives the machine's load: another
+  checkout's e2e suite ran through parts of it). Desktop, top and lowest tier: all 18 transitions 66-67 frames at
+  16.6 ms, the longest 17.4-19.9 ms, none late. It also showed what was still wrong, below.
+- **An independent review of the whole change** (a fresh agent, reading only). Five findings, all confirmed by reading
+  and fixed with tests (commits 38a565c, 35ca62f, 2587465): the posters' slow-device rule measured nothing when the
+  first departure waited; `IdleWork.drain` never settled if a unit threw in a later slice (the camera would wait
+  for ever, the game paused); a request made mid-flight could hold the frames mid-flight; the governor's expected
+  frame time could stick 20-35 % too long and a display wrongly taken for capped at a busy load stayed capped; a
+  context lost while the camera waited left the game paused.
+- **Two more causes of late frames on the phone stand-in, traced and fixed (uncommitted as this is written, unit
+  tests pass; not yet measured)**: (1) the frame after the click comes late because the page's interface takes the
+  change of view in the first frame (style and layout 11 ms, paint 5 ms at 6x CPU: 22 ms in one frame), so the
+  flight's clock now starts with its second frame (`CameraRig.flightStep`); (2) the CD player's controls mounted 70 ms
+  into the first flight to the radio (layout 23 ms, a 35 ms frame; 142 ms under a 30-a-second cap), so the camera's
+  first flight to the radio now waits for the app's half (`RadioDoor.onBoarding`, RoomHost, RadioSlot). Trace:
+  `.shots/flights/traces/phone-low-round.json`, read with `node scripts/perf/flightTrace.mjs <file> --tasks 7`.
+- The capped-display stand-in (`--raf 30`) now ticks on a grid; the old one let WebKit's jitter add up to 50 ms frames
+  that no capped display shows (the governor stepped the scale on them: `after-webkit30.log` of 10:50-11:10).
+
+Running now: `sh .shots/flights/before.sh` (the build before the fixes, for the before/after tables).
+
+Still to do, in order: rebuild and re-run the phone, WebKit-30 and radio rows of the after-matrix; find the long
+frame at the TV while the room warms (`tv while warming` in the logs: one frame of 116-262 ms in ten seconds at the
+TV; compare with the before-build) and the three buffers made in a desktop first flight left a second or more after
+ready (`buffers+3`); `pnpm check`, the whole `pnpm e2e`, `pnpm report:bundle`; the no-GPU options and its
+needs-decision; the tables below; docs/ROOM.md numbers; AGENTS.md.
+
+The numbers of the first worker, kept:
 
 Measured on the fixed build before the battery went (idle M4 Pro, headless, 120 Hz, desktop top tier):
 
@@ -280,23 +307,3 @@ first pull-back waits 1.06-1.12 s for the rest of the bake and then flies 34 fra
 36.8 ms); one of the 36 flights there (room to TV, second time, desktop) had 5 of 27 frames late, the longest 58.6 ms,
 4 quality changes over 38 s (steps up after the waits, one back down). Logs: `.shots/flights/logs/after-*.log`.
 
-Not done: the after-matrix at 60 and 120 Hz (desktop, phone stand-in, slow-GPU stand-in, the leave at 1 s, 10 s and
-after a level, the TV view while the room warms), the before/after on WebKit and on the 30-a-second stand-in, the
-headed 120 Hz trace of the fixed build, the whole e2e suite (pinned program counts changed; the first leave is
-sometimes asynchronous now), `pnpm report:bundle`, the no-GPU section (the subagent's raw data and screenshots are
-in `.shots/flights/nogpu/`, its notes not yet written), the numbers in docs/ROOM.md, AGENTS.md. Scripts to rerun:
-`sh .shots/flights/after.sh` then `sh .shots/flights/before.sh` (the second needs `.shots/flights/dist-base`, a
-build of 7e4583a).
-
-For whoever picks this up (a relaunch with a fresh context): read this file top to bottom first; then, on mains
-power, `pnpm build`, `sh .shots/flights/after.sh`, `sh .shots/flights/before.sh`, read the summaries with
-`grep -E "^###|^run|→|quality:|tv while" .shots/flights/logs/after-*.log | grep -v "^  [a-z]*→"`; a headed 120 Hz
-trace (`node scripts/perf/flights.mjs --leave 0 --path round --headed --trace t.json --trace-light`, then
-`node scripts/perf/flightTrace.mjs t.json`); `E2E_PORT=4391 pnpm e2e` (expect fallout in tests that leave the TV under
-a paused clock and in pinned program counts: `e2e/programs.ts` was updated by reasoning, not by a run);
-`pnpm report:bundle` (the room chunk grew: check `bundle-budgets.json`); then the numbers into docs/ROOM.md
-(§ Flights, § Startup, § Known gaps), an AGENTS.md line for the flight rule, the no-GPU needs-decision above, and
-the done line. Open questions worth a look: the two vertex arrays still made in the first flight to the radio; the
-ease is unchanged (cubic in and out: at thirty frames a second its largest step in speed is 6-9 % of the top speed,
-at sixty 3 %); under the 30-a-second cap on the slow-GPU stand-in the governor stepped up twice and back once in
-38 s (its ordinary waits), and one flight of 36 had 5 late frames.

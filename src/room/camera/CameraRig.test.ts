@@ -5,7 +5,7 @@ import { RADIO_FIXTURE } from '../radio/radioFixtures';
 import { radioPoseSolver } from '../radio/radioFraming';
 import { type FrameScheduler, RenderLoop } from '../stage/RenderLoop';
 import { type TvFramingModel, tvViewpoint } from '../tv/tvFraming';
-import { CameraRig, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
+import { CameraRig, FLIGHT_MS, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
 import { regionFromInsets } from './framing';
 import type { ScreenFade } from './ScreenFade';
 
@@ -100,6 +100,28 @@ describe('CameraRig', () => {
     const { instance } = rig(false);
     instance.setRadioFraming(null);
     expect(instance.viewpoint('radio').position.distanceTo(instance.viewpoint('room').position)).toBe(0);
+  });
+
+  it("starts a flight's clock with its second frame: a late frame after the click moves nothing", () => {
+    const { instance, frames, camera } = rig(false);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    const arrived = vi.fn();
+    const stood = camera.position.clone();
+    instance.goTo('room', arrived);
+    // The frame of the click, and one that comes 60 ms late behind the page's own work: the camera has not left.
+    frames.run(1000);
+    expect(camera.position.distanceTo(stood)).toBe(0);
+    frames.run(1060);
+    expect(camera.position.distanceTo(stood)).toBe(0);
+    // From there it moves by the clock: a little after one frame, and it lands a flight's length after the second.
+    frames.run(1077);
+    const first = camera.position.distanceTo(stood);
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(0.001);
+    for (let t = 1094; t < 1060 + FLIGHT_MS; t += 17) frames.run(t);
+    expect(arrived).not.toHaveBeenCalled();
+    frames.run(1060 + FLIGHT_MS);
+    expect(arrived).toHaveBeenCalledOnce();
   });
 
   it('holds a reduced-motion cut black while asked, then fades back and arrives', () => {
