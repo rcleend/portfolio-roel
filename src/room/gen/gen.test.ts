@@ -4,9 +4,12 @@ import { ROOM_MOODS } from '../atmosphere/moods';
 import { TV_LAMP_INTENSITY as ROOM_LAMP_INTENSITY } from '../atmosphere/tvLamp';
 import { QUALITY_TIERS } from '../stage/quality';
 import { rigViews } from './bake/Baker';
-import { BAKE_CELL, BLEED, chartMeshes, packCharts } from './kit/charts';
+import { MeshBuilder } from './kit/builder';
+import { BAKE_CELL, BLEED, type Chart, chartMeshes, packCharts } from './kit/charts';
 import { hash2, hash32, seeded } from './kit/hash';
+import { MATERIAL, SLATS } from './materials';
 import { LAVA } from './props/lavaWax';
+import { BLIND } from './props/shell';
 import { FLOOR, type MeshName } from './props/types';
 import { RIG } from './rig';
 import { BULB_SPEC, LAVA_BOUNDS, PC_SPEC, PICK_PROPS, TV_LAMP_SPEC, TV_SPEC } from './roomSpec';
@@ -56,6 +59,57 @@ describe('the generated room', () => {
         (scene.pages[index]?.width ?? 0) * (scene.pages[index]?.height ?? 0),
       );
     });
+  });
+});
+
+describe('the lines drawn where the scene has no multisampling (docs/ROOM.md › Detail by tier)', () => {
+  /** A tier's charts, as its generators add them. */
+  const chartsOf = (tier: keyof typeof GENERATED_TIERS): Chart[] => {
+    const charts: Chart[] = [];
+    const builder = new MeshBuilder();
+    for (const prop of PROPS)
+      prop.build({
+        detail: GENERATED_TIERS[tier].detail,
+        mesh: () => builder,
+        chart: (...added) => void charts.push(...added),
+        decal: () => {},
+      });
+    return charts;
+  };
+  const drawn = (chart: Chart): boolean =>
+    chart.material === MATERIAL.slats || (chart.material === MATERIAL.stained && chart.params[3] >= 1);
+  const low = chartsOf('low');
+
+  it('are only in the lowest tier, which is the one drawn without it', () => {
+    expect(QUALITY_TIERS.low.samples).toBe(0);
+    expect(low.filter(drawn).length).toBeGreaterThan(0);
+    for (const tier of ['high', 'medium'] as const) {
+      expect(QUALITY_TIERS[tier].samples).toBeGreaterThan(0);
+      expect(chartsOf(tier).filter(drawn)).toEqual([]);
+    }
+  });
+
+  it("draws the blind's slats where its generator builds them", () => {
+    const sheet = low.find((chart) => chart.material === MATERIAL.slats);
+    if (!sheet) throw new Error('The lowest tier has no drawn blind');
+    expect(SLATS.count).toBe(BLIND.slats);
+    expect(SLATS.pitch).toBeCloseTo((BLIND.top - BLIND.bottom) / (BLIND.slats - 1), 4);
+    expect(SLATS.closes).toBeCloseTo(BLIND.skew / (BLIND.slats - 1), 4);
+    // Its u runs up it from the lowest slat's foot, its v from the right end along the crooked bottom rail.
+    expect(sheet.origin[1] - BLIND.skew).toBeCloseTo(BLIND.bottom - SLATS.foot, 6);
+    expect(sheet.u[0]).toBe(0);
+    expect(sheet.v[1]).toBeCloseTo(-BLIND.skew, 6);
+    expect(sheet.origin[1] + sheet.u[1] - BLIND.skew).toBeCloseTo(BLIND.head, 6);
+  });
+
+  it('moves and shrinks no other chart of the page the blind is packed into', () => {
+    const tier = GENERATED_TIERS.low;
+    const place = (charts: readonly Chart[]) =>
+      packCharts(charts, tier.density, tier.pageSize).map((page) =>
+        page.charts.filter((chart) => !chart.late).map(({ x, y, w, h }) => [x, y, w, h]),
+      );
+    expect(low.some((chart) => chart.late)).toBe(true);
+    expect(place(low)).toEqual(place(low.filter((chart) => !chart.late)));
   });
 });
 

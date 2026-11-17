@@ -1,7 +1,7 @@
 import { cross, dot, type MeshBuilder, place, type Rgb, sub, type Vec3 } from '../kit/builder';
 import { boxCharts, type Chart } from '../kit/charts';
-import { MATERIAL } from '../materials';
-import { mottled, noise3, skin, slab, type Tone, tint } from './form';
+import { MATERIAL, SLATS } from '../materials';
+import { mix, mottled, noise3, skin, slab, type Tone, tint } from './form';
 import { FLOOR, GROUP, PAGE, type Prop } from './types';
 
 /** The room: 5.6 m × 4.8 m, 3.28 m high on the left, sloping from x = 0.95 down to a 1.88 m knee wall on the right. */
@@ -144,7 +144,7 @@ const MEETING = 1.65;
  * The blind, hung on the casing's face in front of the opening: twenty slats 50 mm deep on a 36 mm pitch, tilted open
  * with their room-side edges low, the right end drawn up `skew` higher than the left by an uneven pull on its cords.
  */
-const BLIND = { z: -2.279, depth: 0.05, slats: 20, top: 2.462, bottom: 1.775, skew: 0.047, head: 2.492 };
+export const BLIND = { z: -2.279, depth: 0.05, slats: 20, top: 2.462, bottom: 1.775, skew: 0.047, head: 2.492 };
 /** The window's aged brass, the blind's clear wand, its cords and the turned wooden pull. */
 const BRASS: Rgb = [0.3, 0.22, 0.09];
 const BRASS_WORN: Rgb = [0.42, 0.32, 0.14];
@@ -172,6 +172,9 @@ export const windowFrame: Prop = {
     const b = sink.mesh('props');
     const { detail } = sink;
     const fine = detail >= 0.8;
+    // The tier drawn without multisampling (docs/ROOM.md › Detail by tier): a face of a moulding, a gap or a cord
+    // thinner than a pixel across the room breaks into dashes there, so nothing that thin is built for it.
+    const coarse = detail < 0.5;
     const { x0, x1, y0, y1 } = WINDOW;
     const [zOut, wallZ] = [-2.45, ROOM.z0];
     const { wide, face } = CASING;
@@ -184,24 +187,27 @@ export const windowFrame: Prop = {
       slab(b, min, max, axis, ease, tone, { corner, cuts, ease, turns: 1 });
     };
 
-    // The casing's legs: a flat board, a bead standing at its inner edge and a band at its outer one.
+    // The casing's legs: a flat board, a bead standing at its inner edge and a band at its outer one. The coarse
+    // tier has no bead (its sides are 8 mm deep), and its band falls to the board in a chamfer as wide as the band
+    // is proud, which the eye sees two pixels of where it saw a sliver of the band's side.
     for (const side of [-1, 1]) {
       const inner = side < 0 ? x0 : x1;
       const outer = inner + side * wide;
       board([Math.min(inner, outer), y0 - 0.02, wallZ], [Math.max(inner, outer), y1 + 0.004, face], 1, paint, 0.004);
-      board(
-        [Math.min(inner - side * 0.004, inner + side * 0.016), y0 - 0.016, face - 0.006],
-        [Math.max(inner - side * 0.004, inner + side * 0.016), BLIND.head - 0.001, face + 0.008],
-        1,
-        paint,
-        0.005,
-      );
+      if (!coarse)
+        board(
+          [Math.min(inner - side * 0.004, inner + side * 0.016), y0 - 0.016, face - 0.006],
+          [Math.max(inner - side * 0.004, inner + side * 0.016), BLIND.head - 0.001, face + 0.008],
+          1,
+          paint,
+          0.005,
+        );
       board(
         [Math.min(outer - side * 0.018, outer + side * 0.008), y0 - 0.02, wallZ],
         [Math.max(outer - side * 0.018, outer + side * 0.008), y1 + 0.064, face + 0.012],
         1,
         paint,
-        0.005,
+        coarse ? 0.012 : 0.005,
       );
     }
     // The head: its board, the bed mould and the cap standing over them.
@@ -214,8 +220,11 @@ export const windowFrame: Prop = {
     // The jamb: its two sides, its head, and its own sill the lower sash shuts on.
     const jamb = -2.345;
     const [l, r] = [x0 + 0.03, x1 - 0.03];
-    board([x0, y0 - 0.016, zOut], [l, y1, jamb], 1);
-    board([r, y0 - 0.016, zOut], [x1, y1, jamb], 1);
+    // Where lines are not drawn but built (the tier without multisampling), the jamb's sides take the stops in and
+    // start inside the casing: the groove between two eased boards is a line thinner than a pixel.
+    const [stop, tuck] = coarse ? [0.012, 0.006] : [0, 0];
+    board([x0 - tuck, y0 - 0.016, zOut], [l + stop, y1, jamb], 1);
+    board([r - stop, y0 - 0.016, zOut], [x1 + tuck, y1, jamb], 1);
     board([l, y1 - 0.03, zOut], [r, y1, jamb], 0);
     board([l, y0 - 0.016, zOut], [r, y0 + 0.035, jamb], 0);
 
@@ -232,8 +241,10 @@ export const windowFrame: Prop = {
     sash(MEETING - 0.018, y1 - 0.03, -2.425, false);
     sash(y0 + 0.035, MEETING + 0.018, -2.395, true);
     // The stops that keep the lower sash in its run.
-    board([l, y0 + 0.035, -2.3665], [l + 0.012, y1 - 0.03, jamb - 0.0005], 1);
-    board([r - 0.012, y0 + 0.035, -2.3665], [r, y1 - 0.03, jamb - 0.0005], 1);
+    if (!coarse) {
+      board([l, y0 + 0.035, -2.3665], [l + 0.012, y1 - 0.03, jamb - 0.0005], 1);
+      board([r - 0.012, y0 + 0.035, -2.3665], [r, y1 - 0.03, jamb - 0.0005], 1);
+    }
 
     // The blind's head rail on the casing's face, and the valance before it.
     const slat: Rgb = [0.62, 0.6, 0.57];
@@ -243,37 +254,73 @@ export const windowFrame: Prop = {
     board([x0 - 0.015, BLIND.head, face], [x1 + 0.015, 2.545, -2.247], 0, metal, 0.003);
     board([x0 - 0.03, 2.4895, -2.2465], [x1 + 0.03, 2.5505, -2.235], 0, metal, 0.003);
     // The slats: shallow arches across their depth, lit above and seen from below, no two tilted quite alike.
-    const pieces = fine ? 8 : 4;
-    // Where a slat is cut along its length: evenly, and closely where the upper sash's glazing bar throws its shadow
-    // through the blind (the night's light stands a little right of the window's middle, so the shadow falls a
-    // little left of it). A slat's light is its vertices': a shadow a hand wide between cuts 20 cm apart is a blotch.
-    const shadow = (x0 + x1) / 2 - 0.0067;
-    const cuts = [
-      ...Array.from({ length: pieces + 1 }, (_, k) => k / pieces),
-      ...(fine ? [-0.05, -0.03, -0.012, 0.026, 0.046] : [-0.042, -0.018, 0.03]).map(
-        (offset) => (shadow + offset - left) / (right - left),
-      ),
-    ].sort((a, b) => a - b);
-    const crown = 0.004;
+    // Without multisampling their gaps and lips, under a pixel wide across the room, break into dashes: there the
+    // blind is one sheet in the plane of the slats' room-side edges, lit as a slat's face is, with the slats, their
+    // lips and the ladder cords drawn in it (materials.ts › SLATS), its lower edge along the crooked bottom rail and its
+    // upper one inside the head rail; and behind it a plain sheet shadows what the slats did, the drawn one being a
+    // chart of the wall's, which shadows nothing.
+    const drawn = detail < 0.5;
     const pitchOf = (i: number): number => 0.8 + 0.05 * Math.sin(i * 2.4 + 1);
-    for (let i = 0; i < slats; i++) {
-      const [cp, sp] = [Math.cos(pitchOf(i)), Math.sin(pitchOf(i))];
-      const line = (across: number, drop = 0): Vec3[] =>
-        cuts.map((s): Vec3 => {
-          const [up, out] = [crown * (1 - across * across) - drop, (across * depth) / 2];
-          return [left + (right - left) * s, slatHeight(i, s) + up * cp - out * sp, zc + up * sp + out * cp];
-        });
-      const edge = line(1);
-      skin(b, [line(-1), line(0), edge], () => slat, {
-        facing: { along: [0, 1, 0] },
-        closed: false,
-        shade: () => 0.9,
-        back: () => tint(slat, 0.82),
+    if (drawn) {
+      const foot = slatHeight(slats - 1, 0) - SLATS.foot;
+      const [run, rise] = [right - left, BLIND.head - foot];
+      // Steeper than a slat's face (0.8): its lip faces down, into the desk lamp's light, and the sheet has one normal
+      // for both. At this one its tones are the built slats' within a few levels, by the lamp and away from it.
+      const LIT = 0.95;
+      // Up the page and from the right, and packed late: the sheet stands in the room the walls' first shelf leaves
+      // in the shell's page, so no wall moves or shrinks for it (gen.test.ts). Eight texels a slat there.
+      sink.chart({
+        page: PAGE.shell,
+        group: GROUP.wall,
+        material: MATERIAL.slats,
+        params: [slat[0], slat[1], slat[2], 0],
+        density: 470,
+        shade: 0.9,
+        late: true,
+        origin: [right, foot + BLIND.skew, zc + (Math.cos(0.8) * depth) / 2],
+        u: [0, rise, 0],
+        v: [-run, -BLIND.skew, 0],
+        lit: [0, Math.cos(LIT), Math.sin(LIT)],
       });
-      // The rolled edge towards the room: what catches the light along every slat.
-      const lip = line(1.04, 0.0024);
-      for (let k = 0; k + 1 < cuts.length; k++)
-        b.quad(lip[k] as Vec3, lip[k + 1] as Vec3, edge[k + 1] as Vec3, edge[k] as Vec3, slat, 1);
+      b.quad(
+        [left, foot, zc],
+        [right, foot + BLIND.skew, zc],
+        [right, BLIND.head + BLIND.skew, zc],
+        [left, BLIND.head, zc],
+        tint(slat, 0.82),
+      );
+    } else {
+      const pieces = fine ? 8 : 4;
+      // Where a slat is cut along its length: evenly, and closely where the upper sash's glazing bar throws its shadow
+      // through the blind (the night's light stands a little right of the window's middle, so the shadow falls a
+      // little left of it). A slat's light is its vertices': a shadow a hand wide between cuts 20 cm apart is a blotch.
+      const shadow = (x0 + x1) / 2 - 0.0067;
+      const cuts = [
+        ...Array.from({ length: pieces + 1 }, (_, k) => k / pieces),
+        ...(fine ? [-0.05, -0.03, -0.012, 0.026, 0.046] : [-0.042, -0.018, 0.03]).map(
+          (offset) => (shadow + offset - left) / (right - left),
+        ),
+      ].sort((a, b) => a - b);
+      const crown = 0.004;
+      for (let i = 0; i < slats; i++) {
+        const [cp, sp] = [Math.cos(pitchOf(i)), Math.sin(pitchOf(i))];
+        const line = (across: number, drop = 0): Vec3[] =>
+          cuts.map((s): Vec3 => {
+            const [up, out] = [crown * (1 - across * across) - drop, (across * depth) / 2];
+            return [left + (right - left) * s, slatHeight(i, s) + up * cp - out * sp, zc + up * sp + out * cp];
+          });
+        const edge = line(1);
+        skin(b, [line(-1), line(0), edge], () => slat, {
+          facing: { along: [0, 1, 0] },
+          closed: false,
+          shade: () => 0.9,
+          back: () => tint(slat, 0.82),
+        });
+        // The rolled edge towards the room: what catches the light along every slat.
+        const lip = line(1.04, 0.0024);
+        for (let k = 0; k + 1 < cuts.length; k++)
+          b.quad(lip[k] as Vec3, lip[k + 1] as Vec3, edge[k + 1] as Vec3, edge[k] as Vec3, slat, 1);
+      }
     }
     // The bottom rail under the last slat, hanging as crooked as it does.
     const run = right - left;
@@ -282,7 +329,7 @@ export const windowFrame: Prop = {
       board([0, -0.013, -0.022], [run / Math.cos(lean), 0.013, 0.022], 0, metal, 0.005),
     );
     // The ladder cords the slats lie in, before and behind them, a rung under every slat.
-    for (const x of [x0 + 0.23, x1 - 0.23]) {
+    for (const x of drawn ? [] : [x0 + 0.23, x1 - 0.23]) {
       const s = (x - left) / run;
       const foot = slatHeight(slats - 1, s) - 0.021;
       for (const side of [-1, 1]) {
@@ -481,7 +528,10 @@ function windowFittings(b: MeshBuilder, detail: number): void {
   const cordX = x1 - 0.0005;
   const pull: Vec3 = [cordX + 0.003, 1.672, front + 0.004];
   const steps = fine ? 11 : 6;
-  for (const side of [-1, 1]) {
+  // Two cords 2 mm thick are a third of a pixel across the room, and dots without multisampling: there they are one
+  // cord a pixel thick, in the tone the two leave on the casing behind them.
+  const one = detail < 0.5;
+  for (const side of one ? [0] : [-1, 1]) {
     const path: Vec3[] = [];
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -494,7 +544,7 @@ function windowFittings(b: MeshBuilder, detail: number): void {
         front + 0.001 + (pull[2] - front - 0.001) * t + kink * 0.5,
       ]);
     }
-    b.tube(path, 0.0011, 3, CORD, 1, false);
+    b.tube(path, one ? 0.0035 : 0.0011, 3, one ? mix(FRAME, CORD, 0.6) : CORD, 1, false);
   }
   b.lathe(
     pull,
