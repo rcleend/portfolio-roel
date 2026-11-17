@@ -80,7 +80,7 @@ export class RoomStage {
   private reading = false;
   /** The governor has changed the quality and the stage has yet to take it up. */
   private qualityDue = false;
-  /** The canvas has a new size and no frame of it yet: it is blank until one is drawn. */
+  /** The canvas has a new size and no frame of it yet (it is blank until one is drawn), or is owed one (`oweFrame`). */
   private blank = false;
   /** The samples of the target frames draw into, as the atmosphere was last told. */
   private samples: number;
@@ -230,6 +230,15 @@ export class RoomStage {
     else this.renderer.compile(object, this.camera, this.scene);
   }
 
+  /**
+   * One more frame is drawn although the frames are held: what the screen shows changed as the hold began (the TV's
+   * PAUSE, as a visitor leaves the game before the room is all made).
+   */
+  oweFrame(): void {
+    this.blank = true;
+    this.loop.invalidate();
+  }
+
   /** As `prepare`, linking in the background where the browser can; resolves once the programs are ready to draw. */
   prepareAsync(object: Object3D): Promise<unknown> {
     if (this.atmosphere) return this.atmosphere.prepareAsync(this.scene, object, this.camera);
@@ -277,7 +286,7 @@ export class RoomStage {
       const poll = (): void => {
         const waiting = sync !== null && !this.contextLost && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED;
         if (waiting && performance.now() - started < maxMs) {
-          setTimeout(poll, GPU_POLL_MS);
+          later(poll);
           return;
         }
         if (sync && !this.contextLost) gl.deleteSync(sync);
@@ -447,8 +456,24 @@ export class RoomStage {
 
 /** The layer only `RoomStage.warm`'s camera sees (the bake's casters are on 20 and 21). */
 const WARM_LAYER = 30;
-/** How often `gpuIdle` looks at its fence (ms). */
-const GPU_POLL_MS = 2;
+/**
+ * Runs `task` once nothing more urgent is queued, without a timer (as the bake looks at its fences, GeneratedRoom): a
+ * timer's clamp is four milliseconds once timers nest, and a test's paused clock never fires one.
+ */
+function later(task: () => void): void {
+  const tasks = (globalThis as { scheduler?: { postTask?(task: () => void, options: { priority: string }): unknown } })
+    .scheduler;
+  if (typeof tasks?.postTask === 'function') {
+    void tasks.postTask(task, { priority: 'background' });
+    return;
+  }
+  const { port1, port2 } = new MessageChannel();
+  port1.onmessage = () => {
+    port1.close();
+    task();
+  };
+  port2.postMessage(null);
+}
 
 /** A mesh or points with `object`'s geometry, material and place, seen only by the warming camera, wherever it looks. */
 function standInFor(object: Object3D): Object3D | null {

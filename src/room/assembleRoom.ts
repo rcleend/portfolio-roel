@@ -132,25 +132,29 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   // a unit and else in a quiet moment; or, at the latest, as the visitor leaves the TV, before the camera sets off
   // (`IdleWork.drain`). On a phone the flight that did it in its own frames lagged (round six, item 32).
   let warmQueued = false;
-  const warmed = new WeakSet<Object3D>();
+  let warmed = new WeakSet<Object3D>();
+  const warmOptions = { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS, flight: true };
   const queueWarm = (): void => {
     if (warmQueued) return;
     warmQueued = true;
-    const options = { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS, flight: true };
-    background.add(uploadTextures(scene, stage.renderer), options);
+    background.add(uploadTextures(scene, stage.renderer), warmOptions);
     background.add(
       warmObjects(scene, (objects) => stage.warm(objects), warmed),
-      options,
+      warmOptions,
     );
   };
-  // A tier with other samples draws into another kind of target: the driver's state for it is made again.
-  const stopRetarget = stage.onRetarget(() => {
+  // A tier with other samples draws into another kind of target, and a restored context has nothing of the lost one:
+  // what was warmed is warmed again.
+  const rewarm = (): void => {
     if (!warmQueued) return;
+    warmed = new WeakSet();
     background.add(
-      warmObjects(scene, (objects) => stage.warm(objects), new WeakSet()),
-      { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS, flight: true },
+      warmObjects(scene, (objects) => stage.warm(objects), warmed),
+      warmOptions,
     );
-  });
+  };
+  const stopRetarget = stage.onRetarget(rewarm);
+  stage.canvas.addEventListener('webglcontextrestored', rewarm);
   // What waited for the camera to land need not wait out a timer as well.
   const stopWake = views.onSettle(() => background.wake());
   const monitor = new Monitor({
@@ -320,6 +324,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     dispose() {
       background.dispose();
       stopRetarget();
+      stage.canvas.removeEventListener('webglcontextrestored', rewarm);
       stopWake();
       stopResize();
       stopRender();

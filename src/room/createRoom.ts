@@ -263,6 +263,8 @@ export function createRoom(options: CreateRoomOptions): Room {
       if (generated.whole && !radioDue && !loaded.background.flightPending(view)) return null;
       return preflight(view, loaded);
     },
+    // The frames are held while the room is made ready: the one that shows the game's PAUSE is drawn all the same.
+    onWait: () => stage.oweFrame(),
   });
   /** Makes what a flight to `view` shows, and resolves once the GPU is through with it. Rejects without the radio. */
   const preflight = async (view: RoomView, loaded: RoomScene): Promise<void> => {

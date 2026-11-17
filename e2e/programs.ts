@@ -42,7 +42,8 @@ export const POSTERS_PROGRAMS = POSTERS_PATH === 'lite' ? 0 : 1;
 
 /**
  * The props' spotlight (docs/ROOM.md › The spotlight): its mask-and-blur program and its glow's, compiled as its chunk
- * arrives behind the first flight away from the TV, so that the first hover never stalls.
+ * arrives, from the TV behind the room's warming or at the first landing away from it, never in a flight, so that the
+ * first hover never stalls.
  */
 export const SPOTLIGHT_PROGRAMS = 2;
 
@@ -60,11 +61,13 @@ export const ROOM_PROGRAMS = BASE_PROGRAMS + POSTERS_PROGRAMS + SPOTLIGHT_PROGRA
 const FINISH_PROGRAMS = 4 + 1 + 1;
 
 /**
- * Under a finish the full poster path holds four programs, not one: the cards no longer share the charts' varnished
- * program, and cards and skirts are both precompiled for the screen (compileAsync, before the walls show) and then
- * drawn into the finish's linear target. The lite path's cards add their one linear program.
+ * Under a finish the full poster path holds two programs, not one: the cards no longer share the charts' varnished
+ * program. Both are compiled for the finish's linear target, which is what frames draw them into
+ * (RoomStage.prepareAsync); compiled for the screen, as they once were, they were two more that nothing drew with,
+ * and the two that did draw were linked in the first flight's frame that showed a poster. The lite path's cards add
+ * their one linear program.
  */
-const FINISHED_POSTERS_PROGRAMS = POSTERS_PATH === 'lite' ? 1 : 4;
+const FINISHED_POSTERS_PROGRAMS = POSTERS_PATH === 'lite' ? 1 : 2;
 
 /** Night finishes: what they add to ROOM_PROGRAMS. */
 export const ATMOSPHERE_PROGRAMS = FINISH_PROGRAMS + FINISHED_POSTERS_PROGRAMS - POSTERS_PROGRAMS;
@@ -74,12 +77,12 @@ export const ATMOSPHERE_PROGRAMS = FINISH_PROGRAMS + FINISHED_POSTERS_PROGRAMS -
  * the cut's veil is compiled with the scene (program 11).
  */
 export const FINISHED_ROOM_PROGRAMS = ROOM_PROGRAMS + ATMOSPHERE_PROGRAMS;
-/** The CD's one material prewarms in screen output (compileAsync), then draws into the finish's linear target. */
-export const FINISHED_RADIO_PROGRAMS = 2;
+/** The CD's one material, compiled for the finish's linear target before the camera leaves for the radio. */
+export const FINISHED_RADIO_PROGRAMS = 1;
 
 /**
  * Waits until the spotlight's chunk is in (RoomStats.spotlight), so a program count is deterministic: it is imported
- * after the first flight's first frame, in real time.
+ * from the TV a while after it turns on, or at the first landing away from it, in real time.
  */
 export async function spotlightIn(page: Page, stats: () => Promise<RoomStats | undefined>): Promise<void> {
   const deadline = Date.now() + 15_000;

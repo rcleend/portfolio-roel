@@ -27,6 +27,8 @@ export interface ViewControllerOptions {
    * begins, not as it ends.
    */
   readonly whenReady?: (view: RoomView) => Promise<unknown> | null;
+  /** A request away from the TV waits, and the game has just been stopped for it: show that. */
+  readonly onWait?: () => void;
 }
 
 /**
@@ -77,6 +79,7 @@ export class ViewController {
       this.leaving = true;
       this.run('disableInput', 'tv');
       this.run('pauseGame', 'tv');
+      this.options.onWait?.();
     }
     wait.then(
       () => {
