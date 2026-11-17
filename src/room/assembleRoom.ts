@@ -269,7 +269,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   if (views.view !== 'tv') monitor.prepare('tv', views.view);
   queueUploads(views.view);
   if (import.meta.env.DEV) {
-    // Where the picture lands, in CSS px: what the startup still's lengths in index.html are held to.
+    // Where the picture lands, in CSS px: what the startup still's own camera is held to (e2e/still.spec.ts).
     (globalThis as { __tvPicture?: () => readonly number[] }).__tvPicture = () => {
       const { width, height } = stage.size;
       const points = picture.map((point) => point.clone().project(camera));

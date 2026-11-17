@@ -3,9 +3,10 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 import { glslMinifyPlugin } from './scripts/glslMinify.ts';
 import { pngSlimPlugin } from './scripts/pngSlim.ts';
+import { stillPlugin } from './scripts/stillPlugin.ts';
 
 export default defineConfig({
-  plugins: [glslMinifyPlugin(), react(), pngSlimPlugin()],
+  plugins: [glslMinifyPlugin(), react(), pngSlimPlugin(), stillPlugin()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

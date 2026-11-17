@@ -22,6 +22,7 @@
     "build:radio-placeholders": "tsx --tsconfig tsconfig.node.json scripts/radio/render-placeholders.ts",
     "build:cursors": "tsx --tsconfig tsconfig.node.json scripts/build-cursors.ts",
     "build:art": "tsx --tsconfig tsconfig.node.json scripts/build-art.ts",
+    "build:still": "tsx --tsconfig tsconfig.node.json scripts/still/build.ts",
     "verify:radio": "tsx --tsconfig tsconfig.node.json scripts/verify-radio.ts",
     "report:bundle": "vite build --manifest && node scripts/bundle-report.mjs"
   },

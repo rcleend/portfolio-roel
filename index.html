@@ -111,106 +111,39 @@
         </p>
       </main>
     </noscript>
-    <!--
-      The startup still (docs/ROOM.md › Startup): the room's TV view drawn in CSS, placed as the room will frame it
-      (room/tv/tvFraming.ts), so it is the first picture on the page, before any script and without a request. The app
-      lays the game's picture into it and fades it out as the live room takes over. The set at night is three boxes
-      around the picture (its casing, the lip round the glass, the cabinet's top); each framing's lengths are the
-      live picture's (`__tvPicture()` in development), in units of the still's container (the viewport):
-      - set (landscape, tall enough for the whole set): fitted to the height and centred.
-      - landscape (a phone on its side): the picture fills the height between the pad's clusters.
-      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height).
-    -->
-    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true"><i></i></div>
+    <!-- The startup still, drawn by the script the build puts after it: docs/ROOM.md › Startup. Every byte counts. -->
     <style>
-      .tv-still i,
-      .tv-still i::before,
-      .tv-still::after {
-        position: absolute;
-        content: "";
-      }
-      .tv-still::after {
-        top: calc(var(--picture-top) + var(--picture-height) * 1.136);
-        right: 0;
-        bottom: 0;
-        left: 0;
-        /* The cabinet's top in lamplight: amber at the bare bulb's end, in the set's shadow towards the other. */
-        background:
-          linear-gradient(90deg, rgb(10 8 12 / 0) 20%, rgb(10 8 12 / 0.7) 80%, rgb(10 8 12 / 0.5)),
-          linear-gradient(
-            #2b1d1d,
-            #3c2927 calc(var(--picture-height) * 0.04),
-            #7d523a calc(var(--picture-height) * 0.2),
-            #5a3d2e calc(var(--picture-height) * 0.326),
-            #20161a calc(var(--picture-height) * 0.33)
-          );
-      }
-      .tv-still i {
-        z-index: 1;
-        top: calc(var(--picture-top) - var(--picture-height) * 0.148);
-        left: calc(var(--picture-left) - var(--picture-width) * 0.115);
-        width: calc(var(--picture-width) * 1.23);
-        height: calc(var(--picture-height) * 1.499);
-        /* The chin's bottom edge hangs lowest at its middle. */
-        border-radius: calc(var(--picture-width) * 0.03) calc(var(--picture-width) * 0.03) 50% 50% /
-          calc(var(--picture-width) * 0.03) calc(var(--picture-width) * 0.03) 6.7% 6.7%;
-        background: #05050a;
-        box-shadow: 0 calc(var(--picture-height) * 0.194) 0 calc(var(--picture-width) * -0.0937) #030103;
-      }
-      .tv-still i::before {
-        top: 6.89%;
-        left: 7.14%;
-        width: 85.72%;
-        height: 72.7%;
-        border-radius: calc(var(--picture-width) * 0.015);
-        background: #0d0f11;
-        box-shadow: 0 0 0 calc(var(--picture-width) * 0.015) #13121c;
-      }
       .tv-still {
         position: fixed;
         inset: 0;
         z-index: 5;
         overflow: hidden;
-        background: linear-gradient(90deg, #241d22, #231f25 45%, #29242a);
-        container-type: size;
+        padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+        background: #1c1a21;
         pointer-events: none;
         transition: opacity 400ms ease, visibility 0s 400ms;
-        --picture-left: calc(50cqw - 36.788cqh);
-        --picture-top: 14.549cqh;
-        --picture-width: 73.573cqh;
-        --picture-height: 55.145cqh;
+      }
+      .tv-still svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      .tv-still text {
+        font-family: Helvetica, Arial, sans-serif;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: central;
+        white-space: pre;
+      }
+      .tv-still g {
+        opacity: 0;
+      }
+      .tv-still:has([data-powered="true"]) g {
+        opacity: 1;
       }
       .tv-still[data-shown="false"] {
         opacity: 0;
         visibility: hidden;
-      }
-      @media (orientation: landscape) and (max-height: 544.98px) {
-        .tv-still {
-          --picture-left: calc(50cqw - 71.423cqh);
-          --picture-top: 0.1cqh;
-          --picture-width: 133.615cqh;
-          --picture-height: 99.8cqh;
-        }
-      }
-      @media (orientation: portrait) {
-        .tv-still {
-          --pad: 0px;
-          background: #131118;
-          --picture-left: 0.1cqw;
-          --picture-top: calc(50cqh - var(--pad) / 2 - 37.556cqw);
-          --picture-width: 99.8cqw;
-          --picture-height: 75.113cqw;
-        }
-        /* From closer and lower the cabinet's top is an edge under the set's plinth, its front below. */
-        .tv-still::after {
-          top: calc(var(--picture-top) + var(--picture-height) * 1.42);
-          background: linear-gradient(#2a1d21, #1e1418 8px);
-        }
-      }
-      @media (orientation: portrait) and (pointer: coarse) {
-        .tv-still {
-          --pad: calc(228px + env(safe-area-inset-bottom, 0px));
-        }
       }
       @media (prefers-reduced-motion: reduce) {
         .tv-still {
@@ -223,6 +156,7 @@
         }
       }
     </style>
+    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>
