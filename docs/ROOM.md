@@ -492,8 +492,8 @@ Three rules keep its frames to themselves (`e2e/flights.spec.ts` holds a cold fi
   or not: no bake unit (the bake's own stall timer asks the same question), no upload, no pick chunk, no still. What
   a lazy chunk makes as it arrives (the spotlight's two programs and its target, the walls' reveal, the guide's and
   the computer screen's mounting in the app) waits for the landing (`createRoom` › `atRest`, `PosterWall` ›
-  `#reveal`, `RoomHost` › `atRest`, `PcSlot`); no chunk is asked for in a flight (the spotlight's from the TV behind
-  the warming, the radio's deck at the first landing). The governor's changes of scale and tier wait for the landing
+  `#reveal`, `RoomHost` › `atRest`, `PcSlot`, `RainSoundSlot`, whose sound is an idle unit); no chunk is asked for in
+  a flight (the spotlight's from the TV behind the warming, the radio's deck at the first landing). The governor's changes of scale and tier wait for the landing
   too (§ Quality). A reduced-motion cut held black is not a flight: what runs then is out of sight.
 - **What a flight shows is made before it sets off.** `ViewController.request` asks `whenReady`, which says whether
   anything is left to make: the rest of the room's light (`GeneratedRoom.whenWhole`), the work `IdleWork` holds for
@@ -529,8 +529,9 @@ material and its place, on a layer only the warming's camera sees, into one pixe
 the room into (its format, its samples, its depth; `RoomAtmosphere.warm`). A few meshes a unit (24 k vertices), from
 the TV a while after it turns on (`prewarm`), each unit an upload with an idle period to itself; whatever is left when
 the visitor leaves is drawn before the camera sets off. The stand-ins share the meshes' programs (`e2e/programs.ts`
-would count a new one), a mesh hidden for now is warmed too, one that is never drawn says so
-(`userData.neverDrawn`: the pick meshes). A tier with other samples and a restored context are warmed again. A
+would count a new one), a mesh hidden for now is warmed too, and so is one whose material is switched off (three.js
+uploads a mesh's buffers as it comes into view, before it looks at the material: the monitor's bezel glow); one that
+is never drawn says so (`userData.neverDrawn`: the pick meshes). A tier with other samples and a restored context are warmed again. A
 program must be compiled for the target it is drawn into: `RoomStage.prepare` and `prepareAsync` bind the finish's
 target first. (The walls' and the discs' programs were compiled for the screen: programs nothing drew with, while the
 ones that did draw were linked, the main thread waiting, in the flight's frame that first showed a poster or a disc.)
@@ -1017,7 +1018,10 @@ The startup still does not show the lamp either.
 
 ### Rain audio
 
-`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on. The supplied
+`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on, and makes the sound in
+a unit of idle work of its own once the code is in, never as it arrives: making it makes the page's first audio
+context, which holds Chromium's main thread for a tenth of a second (118 ms on an Apple M4; 3 ms in WebKit), and idle
+work never runs while the camera flies (§ Flights). The supplied
 `public/audio/attic-rain.mp3` is decoded once at 24 kHz stereo (~23 MB) and driven by one looping AudioBufferSourceNode.
 An offline equal-power crossfade blends its final eight seconds into the first eight; the loop resumes at t=8,
 continuing the incoming samples without MP3 padding or a JS timer seam. The original file is retained verbatim.
