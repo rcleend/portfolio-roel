@@ -305,7 +305,11 @@ try {
     // read after each (the GPU's time to finish the frame).
     const profiled = await page.evaluate(() => {
       const { frames } = window.__perf.stop();
-      const sorted = (key) => frames.map((frame) => frame[key]).filter((value) => typeof value === 'number').sort((x, y) => x - y);
+      const sorted = (key) =>
+        frames
+          .map((frame) => frame[key])
+          .filter((value) => typeof value === 'number')
+          .sort((x, y) => x - y);
       const sync = sorted('syncMs');
       const last = frames.at(-1);
       let pixels = 0;
@@ -524,8 +528,12 @@ try {
     stretch('loading: game running → room ready', own.at.running, markAt('room-ready'));
   if (markAt('room-ready') !== null && markAt('room-whole') !== null)
     stretch('warming: room ready → whole room lit', markAt('room-ready'), markAt('room-whole'));
-    for (const window of windows)
-    stretch(window.name, window.from, window.to, { cores: window.cores, quality: window.quality, profiled: window.profiled });
+  for (const window of windows)
+    stretch(window.name, window.from, window.to, {
+      cores: window.cores,
+      quality: window.quality,
+      profiled: window.profiled,
+    });
   result.flights = flightsOf(recording);
   if (flag('raw')) result.recording = recording;
 } catch (error) {

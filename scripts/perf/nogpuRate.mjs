@@ -28,7 +28,9 @@ try {
   );
   const early = intervalStats(times.filter((t) => t - times[0] < 1000));
   const late = intervalStats(times.filter((t) => t - times[0] >= 2000));
-  console.log(`${option('browser', 'cft')} ${args.join(' ') || '(no flags)'}: first second ${early.fps} fps (median ${early.medianMs} ms), third second ${late.fps} fps (median ${late.medianMs} ms)`);
+  console.log(
+    `${option('browser', 'cft')} ${args.join(' ') || '(no flags)'}: first second ${early.fps} fps (median ${early.medianMs} ms), third second ${late.fps} fps (median ${late.medianMs} ms)`,
+  );
 } finally {
   await close();
 }

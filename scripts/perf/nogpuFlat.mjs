@@ -257,7 +257,7 @@ try {
     };
 
     // What a visitor can reach. Everything a click or a key could act on, and whether it can be seen.
-    const describe = () =>
+    const listControls = () =>
       page.evaluate(() => {
         const visible = (element) => {
           const style = getComputedStyle(element);
@@ -297,7 +297,7 @@ try {
           }),
         );
       });
-    result.controls = await describe();
+    result.controls = await listControls();
     const active = () =>
       page.evaluate(() => {
         const element = document.activeElement;
@@ -342,7 +342,7 @@ try {
     await sleep(600);
     result.afterBack = await active();
     // A mouse alone: is there anything to click that leads to the résumé, the music or the links?
-    result.mouseReachable = (await describe())
+    result.mouseReachable = (await listControls())
       .filter((control) => control.visible)
       .map((control) => `${control.tag} "${control.text}"${control.href ? ` → ${control.href}` : ''}`);
     await sleep(3000);

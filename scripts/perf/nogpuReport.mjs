@@ -19,10 +19,26 @@ const seconds = (ms) => (ms === null || ms === undefined ? null : (ms / 1000).to
 if (!only || only === 'load') {
   console.log('Load (ms on the page clock unless marked s):\n');
   table(
-    ['run', 'renderer', 'tier × scale, buffer', 'first paint', 'first contentful paint', 'game running', 'room ready (s)', 'opening view bake (s)', 'whole room lit (s)', 'bake wall (s)', 'other jobs (cores, median/max)'],
+    [
+      'run',
+      'renderer',
+      'tier × scale, buffer',
+      'first paint',
+      'first contentful paint',
+      'game running',
+      'room ready (s)',
+      'opening view bake (s)',
+      'whole room lit (s)',
+      'bake wall (s)',
+      'other jobs (cores, median/max)',
+    ],
     runs.map((run) => [
       run.label,
-      /SwiftShader/.test(run.renderer ?? '') ? 'SwiftShader' : /Metal/.test(run.renderer ?? '') ? 'Metal' : run.renderer,
+      /SwiftShader/.test(run.renderer ?? '')
+        ? 'SwiftShader'
+        : /Metal/.test(run.renderer ?? '')
+          ? 'Metal'
+          : run.renderer,
       run.quality ? `${run.quality.tier} × ${run.quality.scale}, ${run.quality.buffer?.join('×')}` : null,
       run.load?.['first-paint'],
       run.load?.['first-contentful-paint'],
@@ -60,24 +76,75 @@ if (!only || only === 'windows') {
       ]);
     }
   }
-  table(['run', 'stretch', 's', 'fps', 'median ms', 'p95 ms', 'worst ms', '> 20 ms %', '> 33 ms %', '> 50 ms %', 'game steps/s', 'main thread ms/frame', 'GPU process cores', 'other jobs cores'], rows);
+  table(
+    [
+      'run',
+      'stretch',
+      's',
+      'fps',
+      'median ms',
+      'p95 ms',
+      'worst ms',
+      '> 20 ms %',
+      '> 33 ms %',
+      '> 50 ms %',
+      'game steps/s',
+      'main thread ms/frame',
+      'GPU process cores',
+      'other jobs cores',
+    ],
+    rows,
+  );
 }
 if (!only || only === 'flights') {
   console.log('Flights (the frames the camera moved in):\n');
   const rows = [];
   for (const run of runs) {
     for (const flight of run.flights ?? []) {
-      rows.push([run.label, flight.flight, flight.waitMs, flight.frames, flight.fps, flight.medianMs, flight.maxMs, flight.over20, flight.over33, flight.over50]);
+      rows.push([
+        run.label,
+        flight.flight,
+        flight.waitMs,
+        flight.frames,
+        flight.fps,
+        flight.medianMs,
+        flight.maxMs,
+        flight.over20,
+        flight.over33,
+        flight.over50,
+      ]);
     }
   }
-  table(['run', 'flight', 'wait before it ms', 'frames', 'fps', 'median ms', 'worst ms', '> 20 ms %', '> 33 ms %', '> 50 ms %'], rows);
+  table(
+    [
+      'run',
+      'flight',
+      'wait before it ms',
+      'frames',
+      'fps',
+      'median ms',
+      'worst ms',
+      '> 20 ms %',
+      '> 33 ms %',
+      '> 50 ms %',
+    ],
+    rows,
+  );
 }
 if (!only || only === 'memory') {
   console.log('Memory (MB; resident size of each process from ps):\n');
   const rows = [];
   for (const run of runs) {
     for (const [name, entry] of Object.entries(run.memory ?? {})) {
-      rows.push([run.label, name, `${entry.jsHeapUsedMB} / ${entry.jsHeapTotalMB}`, entry.rssMB.renderer, entry.rssMB.GPU, entry.rssMB.browser, entry.rssTotalMB]);
+      rows.push([
+        run.label,
+        name,
+        `${entry.jsHeapUsedMB} / ${entry.jsHeapTotalMB}`,
+        entry.rssMB.renderer,
+        entry.rssMB.GPU,
+        entry.rssMB.browser,
+        entry.rssTotalMB,
+      ]);
     }
   }
   table(['run', 'where', 'JS heap used / total', 'renderer', 'GPU process', 'browser', 'all processes'], rows);

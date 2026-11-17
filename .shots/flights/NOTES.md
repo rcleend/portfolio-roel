@@ -203,6 +203,54 @@ What to expect after the fix, Low Power Mode on: `display 30/s capped`, `0 chang
 with `0 late`. Low Power Mode off: `display 60/s`, a flight of about 66 frames, `0 late`. A number of changes above 0
 on a first load, `late` above 1, or a `worst` over 50 ms (25 ms with Low Power Mode off) is what to send back.
 
+## No GPU (the owner's added request) - summary; full notes in `.shots/flights/nogpu/NOTES.md`
+
+Measured by a subagent on the build *before* the fixes (`.shots/flights/dist-base`), Chrome for Testing 151 and
+Google Chrome 157, headless, M4 Pro. Not finished (battery): three items owed, listed at the end.
+
+- **Hardware acceleration switched off means no WebGL at all** in both browsers (plain `--disable-gpu`, and the real
+  settings switch in Local State): WebGL 1 and 2 are refused and the site shows the flat television, the game
+  running at 0.9 s. Chrome no longer falls back to software WebGL by itself; SwiftShader only comes with
+  `--enable-unsafe-swiftshader`. Playwright adds that flag to every macOS Chromium launch, so
+  `PERF_CHROME_ARGS="--disable-gpu"` and the e2e suite's `ROOM_GL=swiftshader` test a path a Mac Chrome visitor no
+  longer gets.
+- **Software WebGL where it is forced**: tier `low` x 1 from start to finish (not governed, as documented: confirmed).
+  First paint 48-56 ms, game running 0.6 s, room ready 4.9-5.2 s (opening bake 3.4 s against 0.11 s on Metal), one
+  0.7 s main-thread freeze in the game at 0.65-1.4 s. Frames: TV with a level 22 a second, room 19, computer 17,
+  radio 20, flights 16-21 (worst frame 194 ms on the first pull-back); phone size 21-26. The GPU process holds 7-9.5
+  of 12 cores, at rest too. The whole room is lit only after 170-190 s (288 s at the phone's size), and a visitor
+  who clicks "Explore the room" as the room turns ready waits for that: 27 s, 66 s, 92 s, 222 s in four runs, not
+  gone after 177 s in a fifth, with no cue (on the fixed build the game now pauses at the click, but the wait is the
+  bake's and is as long). Nothing black or unlit in the four views; the discs' prints arrive about 20 s after
+  landing and the monitor showed its placeholder instead of the wallpaper at 1.5 s and 7 s.
+- **The flat television (WebGL refused)**: game running at 0.9 s, the display's rate held (worst frame 13.6 ms), under
+  half a core, 31 requests and 440 kB, no room file fetched, nothing left waiting. Gaps: the first picture is the
+  room's startup still, which cross-fades over 0.4 s into a differently shaped flat TV (two sets showing through each
+  other); the résumé is reachable only by keyboard (Tab twice, or the skip link), not by mouse or touch; the music
+  is unreachable (no radio); the X link is nowhere, LinkedIn, GitHub and e-mail only inside the résumé; the game
+  keeps running under the open résumé.
+- **Judgement to bring to the owner (needs-decision, not decided here)**: the software renderer does not hold a
+  usable rate in the 3D room on the lowest tier (17-26 frames a second with 8-9 fast cores busy, and a first
+  pull-back that can wait minutes). Options: (a) hand software-rendered visitors the flat television
+  (`failIfMajorPerformanceCaveat: true` is refused exactly in that case, so it can be told before the room's chunk
+  loads): full frame rate for half a core, but the flat host then needs a way to the résumé, the music and the links
+  by mouse and touch, and its hand-over from the still fixed; (b) keep the 3D room there and bound the bake (a far
+  shorter software profile) and the wait; (c) leave it, since Chrome on a Mac no longer reaches this path at all
+  (Windows uses WARP, not measured; Firefox and Safari not measured).
+- Owed: frame time against pixels and a 4-core stand-in on software WebGL; Chrome 157 software frames and the Metal
+  low/phone references (taken under the 30-a-second cap, discarded); case (c), `e2e/gpu-reset.spec.ts`, not run; the
+  fallbacks when the room fails after it was chosen (chunk blocked, WebGL 1 only).
+
+## Chrome's Energy Saver (found while measuring)
+
+On battery at 20 % or less, Chrome hands out thirty frames a second, headless Chrome for Testing included (proven:
+a blank page reads 33.3 ms; the same launch with a profile whose `Local State` holds
+`{"performance_tuning":{"battery_saver_mode":{"state":0}}}` reads 8.3 ms; `--disable-features=BatterySaverModeAvailable`
+does not lift it). A real visitor on a laptop under 20 % battery gets this cap too, which is the same thing to the
+room as Safari's Low Power Mode. To measure on battery: `chromium.launchPersistentContext(tmpProfile, ...)` after
+writing that file, as `scripts/perf/nogpuLib.mjs` > `launch` does (`node scripts/perf/nogpuRate.mjs` prints the bare
+frame rate as a check); `scripts/perf/flights.mjs` does not do this yet. Simpler: measure on mains.
+
 ## Where this stands (2026-11-17, about 10:45)
 
 **Interrupted by the machine's battery.** The Mac went to 5 % on battery during the after-measurements. Chrome
@@ -211,8 +259,7 @@ that moment shows a 33 ms display tick, so none of them says anything about 60 o
 
 Done and pushed (`fm/ship-portfolio-smooth-flights`): the diagnosis above; the fixes (bake's end, flights on the
 paced frames, nothing runs in a flight, what a flight shows is made first, the capped display, the readout); unit
-tests for all of it (`pnpm typecheck` and vitest pass; `pnpm lint` has two findings left in
-`scripts/perf/nogpuFlat.mjs`, a function named `describe`); docs/ROOM.md (structure; numbers still to add).
+tests for all of it (`pnpm typecheck`, `pnpm lint` and vitest pass); docs/ROOM.md (structure; numbers still to add).
 
 Measured on the fixed build before the battery went (idle M4 Pro, headless, 120 Hz, desktop top tier):
 
@@ -240,3 +287,16 @@ sometimes asynchronous now), `pnpm report:bundle`, the no-GPU section (the subag
 in `.shots/flights/nogpu/`, its notes not yet written), the numbers in docs/ROOM.md, AGENTS.md. Scripts to rerun:
 `sh .shots/flights/after.sh` then `sh .shots/flights/before.sh` (the second needs `.shots/flights/dist-base`, a
 build of 7e4583a).
+
+For whoever picks this up (a relaunch with a fresh context): read this file top to bottom first; then, on mains
+power, `pnpm build`, `sh .shots/flights/after.sh`, `sh .shots/flights/before.sh`, read the summaries with
+`grep -E "^###|^run|→|quality:|tv while" .shots/flights/logs/after-*.log | grep -v "^  [a-z]*→"`; a headed 120 Hz
+trace (`node scripts/perf/flights.mjs --leave 0 --path round --headed --trace t.json --trace-light`, then
+`node scripts/perf/flightTrace.mjs t.json`); `E2E_PORT=4391 pnpm e2e` (expect fallout in tests that leave the TV under
+a paused clock and in pinned program counts: `e2e/programs.ts` was updated by reasoning, not by a run);
+`pnpm report:bundle` (the room chunk grew: check `bundle-budgets.json`); then the numbers into docs/ROOM.md
+(§ Flights, § Startup, § Known gaps), an AGENTS.md line for the flight rule, the no-GPU needs-decision above, and
+the done line. Open questions worth a look: the two vertex arrays still made in the first flight to the radio; the
+ease is unchanged (cubic in and out: at thirty frames a second its largest step in speed is 6-9 % of the top speed,
+at sixty 3 %); under the 30-a-second cap on the slow-GPU stand-in the governor stepped up twice and back once in
+38 s (its ordinary waits), and one flight of 36 had 5 late frames.
