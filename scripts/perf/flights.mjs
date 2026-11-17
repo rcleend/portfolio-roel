@@ -218,7 +218,7 @@ function frameReport(step, recording) {
       .filter((entry) => entry.at < tick.end && entry.at + entry.ms > previous.end)
       .map(
         (entry) =>
-          `${Math.round(entry.ms)}ms: ${entry.scripts.map((script) => `${script.invoker.split('/').pop()} ${script.fn} ${Math.round(script.ms)}`).join('; ')}`,
+          `${Math.round(entry.ms)}ms: ${entry.scripts.map((script) => `${script.invoker.split('/').pop()} ${script.fn} ${script.url ?? ''} ${Math.round(script.ms)}`).join('; ')}`,
       ),
     events: recording.events.filter(between).map((event) => event.kind + (event.name ? ` ${event.name}` : '')),
     fetched: recording.resources
@@ -551,6 +551,15 @@ try {
       // The TV view while the room warms: the frames drawn from ready until the visitor left.
       const tv = recording.ticks.filter((tick) => tick.draws > 0 && tick.t >= ready.at && tick.t <= first.changedAt);
       const gaps = tv.slice(1).map((tick, i) => tick.t - tv[i].t);
+      // The longest of them, with when they came (ms after ready) and what ran in them.
+      const longest = tv
+        .slice(1)
+        .map((tick, i) => ({ tick, previous: tv[i], interval: tick.t - tv[i].t, at: tick.t - ready.at, moved: 0 }))
+        .filter((step) => step.interval > 33)
+        .sort((a, b) => b.interval - a.interval)
+        .slice(0, 3);
+      for (const step of longest)
+        console.log(`  tv +${round(step.at)} ms after ready: ${JSON.stringify(frameReport(step, recording))}`);
       console.log(
         `  tv while warming: ${tv.length} frames, median ${round(median(gaps) ?? 0)} ms, max ${round(Math.max(0, ...gaps))} ms, over 20 ms ${gaps.filter((gap) => gap > 20).length}, over 33 ms ${gaps.filter((gap) => gap > 33).length}`,
       );
