@@ -17,7 +17,14 @@ this file is kept current as the work goes; the last section says where it stand
   throttled 6×: not a phone's GPU. "Slow GPU" is PR 19's stand-in (`slowGpu: 48, slowBake: 48`: every frame's and
   every bake draw's calls asked of the GPU 48 times): not a phone either.
 - Other workers' browsers were using this GPU during the runs (19 % device utilisation seen from one of them); runs
-  were made one at a time.
+  were made one at a time. From 12:14 on 17 Nov every row of the matrices waits until no other checkout's browser or
+  test run is alive (`.shots/flights/foreign.py wait`) and says whether one was while it ran (`foreign.py watch`: the
+  line `alone throughout` or `FOREIGN hh:mm:ss ...` under each row); a row another measurement ran through was run
+  again, and which those were is said with the tables. The rows of before that were made one at a time behind a
+  simpler check at their start only, each with the machine's load average beside it.
+- A CPU profile names what a trace cannot (work in a promise's continuation): Playwright's CDP session,
+  `Profiler.start` at 200 us on a build with source maps (`vite build --sourcemap --outDir <dir>`), the longest busy
+  stretch of the main thread after the room is ready. That is how the rain's audio context was found.
 
 ## Diagnosis (before any change)
 
@@ -81,6 +88,42 @@ flight that was waiting sets off, its frames queued behind that work.
 3. Leaving before the room is whole holds the picture still for the rest of the bake (0.2 s on the M4, 0.4–1.1 s on
    the stand-ins) with nothing on screen to say so: latency before the flight, not a frame of it.
 
+### Found on the second pass, with the first fixes in (17 Nov, after the relaunch)
+
+The first after-matrix was clean on the desktop and showed late frames on the phone stand-in (6x CPU) that the first
+pass had not explained. Each was traced before it was touched:
+
+4. **The page's first audio context is made at an arbitrary moment after the room is ready, and making it holds
+   Chromium's main thread for a tenth of a second.** `RainSoundSlot` imported the rain's code in an idle unit and made
+   the sound in the import's `then`, whenever the chunk came in. `new AudioContext()` is 97-119 ms on the main thread
+   the first time a page makes one (Chromium, Apple M4; 1-5 ms for a second one; WebKit: 3 ms to make, 12-15 ms for
+   each `resume()`). On a local server that was 14 ms after `ready`: one frame of 108-134 ms at the TV (in the build
+   before the fixes too: 108-116 ms), inside the bake's hold when the visitor leaves at once. On a real network the
+   chunk comes in later, and a visitor who leaves the TV in that moment has the block in the first flight. Found by
+   CPU profile: 134 ms of self time in the `RainSound` chunk's class body, called from the room chunk's
+   `import.then`. This is the one cause here that depends on the network, so no local run shows it in a flight; it
+   fits "sometimes laggy, the first time only" on a deployed preview better than anything else found.
+5. **The click's own work lands in the flight's first frame.** The interface takes the change of view as the camera
+   sets off (the overview mounts): style and layout 11.2 ms, paint 4.6 ms at 6x CPU, 21.8 ms in one frame's
+   `BeginMainFrame` (trace `traces/phone-low-round.json`). The frame behind it came 25-37 ms after it, and with the
+   flight's clock started on the first frame that was the flight's first step, a late one (the camera had moved
+   half a millimetre by then: not a visible jump, but a frame over the limit, in every first flight on a slow main
+   thread and in most later ones).
+6. **The CD player mounted inside the first flight to the radio.** By design ("hidden by the flight"): the player's
+   chunk was asked for when the view became `radio` and mounted as it came in, 70 ms into the flight: style and
+   layout 23 ms (layout 18 ms) in a 34.6 ms frame at 6x CPU, more at +155, +199 and +599 ms; 4 late frames, the
+   longest 66 ms; under a 30-a-second cap on the same stand-in one frame of 142 ms.
+7. **A mesh whose material is switched off was not warmed, and three.js uploads its buffers all the same** when it
+   first comes into view: the monitor's bezel glow (off under the finish), three buffers of 128 bytes 0.66 s into a
+   first flight left a second or more after the room was ready, once the monitor's still is painted (desktop; on a
+   phone in the first flight to the computer). No late frame (0.1 ms), but something made in a flight, which the
+   cold-flight test rejects. Found by recording who called `bufferData` on an unminified build.
+
+Looked at and left: two vertex arrays are still made in the first flight to the radio (every device, 17.5 ms the
+longest frame of those flights); the monitor's still, when it has gone stale out of sight, is painted and uploaded
+at take-off before the camera moves (0.47 MP, `Monitor.prepare`, as designed before this work); the TV's own picture
+(320 x 240) goes up in any frame the game draws one.
+
 ## Fixes (commits on `fm/ship-portfolio-smooth-flights`)
 
 1. **The bake's end** (`201d3d5`, `src/room/gen/GeneratedRoom.ts`, `gen/bake/Baker.ts`, `gen/bake/pace.ts`). A
@@ -105,12 +148,33 @@ flight that was waiting sets off, its frames queued behind that work.
    ready and two seconds later; fails when anything is made inside the flight, when a frame is long or when the
    camera's speed jumps.
 
+6. **The review's five findings** (`38a565c`, `35ca62f`, `2587465`; a fresh agent read the whole change): the
+   posters' slow-device rule is timed from the frame the camera leaves in (it was started at the click, before a
+   waiting camera had set off, and measured nothing); `IdleWork.drain` settles whatever a unit does (a unit that
+   threw in a later slice left the camera waiting for ever, the game paused); a request made while the camera flies
+   holds no frames; a context lost while the camera waits lets it go and gives the game back; two waits share the
+   hold. The governor finds a display wrongly taken for capped by its quickest frames (four of a window well ahead
+   of the tick), expects the display's own frames again after a failed step down rather than a window's mean, and
+   the stage watches a capped-looking display for up to 240 frames instead of 16.
+7. **The clock starts with the flight's second frame** (`3e2e270`, `camera/CameraRig.ts`): the first frame shows the
+   camera where it stands and takes the click's own work. One frame of latency (16.7 ms; 33 ms on a capped
+   display) before the camera moves, every flight.
+8. **The first flight to the radio waits for the app's half** (`3e2e270`): the room asks the app before the camera
+   sets off (`RadioDoor.onBoarding`, answered by `RoomHost`), the glue and the player load and mount while the
+   camera rests, their layout forced then, and the camera leaves when that is done or after 0.4 s. The player never
+   mounts in a flight any more (`RadioSlot`: at rest only).
+9. **The rain's sound is made in a unit of idle work** (`908df35`, `rain/RainSoundSlot.ts`), which never runs while
+   the camera flies. It still costs its tenth of a second once, at the TV (as before) or at the landing.
+10. **Switched-off materials are warmed** (`2c1e659`, `stage/sceneWarmup.ts`).
+
 Files touched outside the camera and the render loop: `src/room/stage/IdleWork.ts`, `RoomStage.ts`,
 `sceneWarmup.ts` (new), `src/room/atmosphere/RoomAtmosphere.ts`, `src/room/gen/GeneratedRoom.ts`,
 `gen/bake/Baker.ts`, `gen/bake/pace.ts`, `src/room/assembleRoom.ts`, `createRoom.ts`, `ViewController.ts`,
 `src/room/posters/PosterWall.ts`, `PostersSlot.ts`, `src/room/spotlight/SpotlightDoor.ts`,
 `src/room/radio/RadioDeckHandle.ts`, `deviceContract.ts`, `device/RadioDevice.ts`, `device/Discs.ts`,
-`src/app/hosts/RoomHost.tsx`, `src/app/pc/PcSlot.tsx`, `e2e/programs.ts`, `e2e/flights.spec.ts` (new),
+`src/room/radio/RadioDoor.ts`, `RadioDeck.ts`, `src/room/rain/RainSoundSlot.ts`, `src/room/stage/quality.ts`,
+`src/app/hosts/RoomHost.tsx`, `src/app/pc/PcSlot.tsx`, `src/app/radio/RadioSlot.tsx`, `lab/FakeDeck.ts`, `lab/main.tsx`,
+`e2e/programs.ts`, `e2e/flights.spec.ts` (new),
 `docs/ROOM.md`, `scripts/perf/flights.mjs`, `flightProbe.js`, `flightTrace.mjs` (new). Not touched: `index.html`,
 `src/app/startup/`, `scripts/still/`, the camera's paths and framings, the ease.
 
