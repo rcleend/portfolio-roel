@@ -16,7 +16,10 @@ const events = [];
 for await (const line of createInterface({ input: createReadStream(file), crlfDelay: Number.POSITIVE_INFINITY })) {
   if (!line.startsWith('{"')) continue;
   const quick =
-    line.includes('"ph":"M"') || line.includes('flight:') || line.includes('"name":"Frame') || line.includes('"ph":"X"');
+    line.includes('"ph":"M"') ||
+    line.includes('flight:') ||
+    line.includes('"name":"Frame') ||
+    line.includes('"ph":"X"');
   if (!quick) continue;
   let event;
   try {
@@ -38,9 +41,12 @@ const marks = events.filter((event) => event.name?.startsWith('flight:')).sort((
 /** The sequence a tracker follows (RAF, CanvasAnimation, …), by the id its frames carry. */
 const trackers = {};
 for (const event of events) {
-  if (event.name === 'FrameSequenceTrackerV3' && event.ph === 'b') trackers[event.id2?.local ?? event.id] = event.args.name ?? event.args.data?.name;
+  if (event.name === 'FrameSequenceTrackerV3' && event.ph === 'b')
+    trackers[event.id2?.local ?? event.id] = event.args.name ?? event.args.data?.name;
 }
-const frames = events.filter((event) => event.cat === 'cc,benchmark' && /^Frame *$/.test(event.name) && event.ph === 'b');
+const frames = events.filter(
+  (event) => event.cat === 'cc,benchmark' && /^Frame *$/.test(event.name) && event.ph === 'b',
+);
 
 let from = 'tv';
 for (let i = 0; i < marks.length; i++) {
@@ -53,7 +59,9 @@ for (let i = 0; i < marks.length; i++) {
   const bySequence = {};
   for (const frame of frames) {
     if (frame.ts < start || frame.ts > end) continue;
-    (bySequence[`${trackers[frame.id2.local] ?? frame.id2.local}${frame.name.slice(5).length}`] ??= []).push(frame);
+    const sequence = `${trackers[frame.id2.local] ?? frame.id2.local}${frame.name.slice(5).length}`;
+    bySequence[sequence] ??= [];
+    bySequence[sequence].push(frame);
   }
   for (const [name, list] of Object.entries(bySequence)) {
     if (!/^(RAF|CanvasAnimation)/.test(name)) continue;
@@ -66,7 +74,9 @@ for (let i = 0; i < marks.length; i++) {
       if (now > dropped) drops.push(`+${Math.round((frame.ts - start) / 1000)}ms×${now - dropped}`);
       dropped = now;
     }
-    lines.push(`${name.padEnd(17)} expected ${last.expected - first.expected}, dropped ${last.dropped_v4 - first.dropped_v4} ${drops.slice(0, 24).join(' ')}`);
+    lines.push(
+      `${name.padEnd(17)} expected ${last.expected - first.expected}, dropped ${last.dropped_v4 - first.dropped_v4} ${drops.slice(0, 24).join(' ')}`,
+    );
   }
   console.log(`${from}→${to}  ${Math.round((end - start) / 1000)} ms`);
   for (const line of [...new Set(lines)].sort()) console.log(`  ${line}`);
@@ -74,12 +84,17 @@ for (let i = 0; i < marks.length; i++) {
     const long = events
       .filter((event) => event.ph === 'X' && event.ts >= start && event.ts <= end && event.dur >= tasksFrom * 1000)
       .filter((event) => /RunTask$/.test(event.name) === false)
-      .map((event) => ({ event, thread: `${processes[event.pid]}/${threads[`${event.pid}:${event.tid}`] ?? event.tid}` }))
+      .map((event) => ({
+        event,
+        thread: `${processes[event.pid]}/${threads[`${event.pid}:${event.tid}`] ?? event.tid}`,
+      }))
       .filter(({ thread }) => /CrRendererMain|CrGpuMain|VizCompositor|Compositor$/.test(thread))
       .sort((a, b) => a.event.ts - b.event.ts);
     for (const { event, thread } of long.slice(0, 60)) {
       const detail = event.args?.data?.url ?? event.args?.data?.functionName ?? event.args?.data?.type ?? '';
-      console.log(`    +${String(Math.round((event.ts - start) / 1000)).padStart(5)} ms  ${(event.dur / 1000).toFixed(1).padStart(6)} ms  ${thread.padEnd(28)} ${event.name} ${String(detail).split('/').pop()}`);
+      console.log(
+        `    +${String(Math.round((event.ts - start) / 1000)).padStart(5)} ms  ${(event.dur / 1000).toFixed(1).padStart(6)} ms  ${thread.padEnd(28)} ${event.name} ${String(detail).split('/').pop()}`,
+      );
     }
   }
   from = to;

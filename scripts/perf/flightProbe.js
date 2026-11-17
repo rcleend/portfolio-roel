@@ -87,7 +87,8 @@
       tick.glMs += ms;
       if (amount > 0 || ms >= 0.3) {
         tick.work ??= {};
-        const entry = (tick.work[name] ??= { calls: 0, ms: 0, amount: 0 });
+        tick.work[name] ??= { calls: 0, ms: 0, amount: 0 };
+        const entry = tick.work[name];
         entry.calls++;
         entry.ms += ms;
         entry.amount += amount;
@@ -144,7 +145,13 @@
       }
     };
   }
-  for (const name of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced', 'drawRangeElements']) {
+  for (const name of [
+    'drawElements',
+    'drawArrays',
+    'drawElementsInstanced',
+    'drawArraysInstanced',
+    'drawRangeElements',
+  ]) {
     const inner = proto[name];
     proto[name] = function (...args) {
       if (inFrame > 0 && tick) tick.draws++;

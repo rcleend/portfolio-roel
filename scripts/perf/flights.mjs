@@ -117,7 +117,9 @@ function flightOf(recording, change, settle, click, label) {
   // The display's own frame, from every callback's timestamp; the paced frame is what the room draws at rest.
   const all = recording.ticks.filter((tick) => tick.t >= change.at - 2000 && tick.t <= settle.at + 300);
   const display = median(all.slice(1).map((tick, i) => tick.t - all[i].t)) ?? 1000 / 60;
-  const window = poses.filter((frame) => frame.tick.t >= change.at - 2 * display && frame.tick.t <= settle.at + display);
+  const window = poses.filter(
+    (frame) => frame.tick.t >= change.at - 2 * display && frame.tick.t <= settle.at + display,
+  );
   const moved = (a, b) =>
     distance(a.camera.position, b.camera.position) > 1e-6 || Math.abs(a.camera.fov - b.camera.fov) > 1e-5;
   let first = -1;
@@ -184,19 +186,21 @@ function flightOf(recording, change, settle, click, label) {
       .sort((a, b) => b.interval - a.interval)
       .slice(0, 4)
       .filter((step) => step.interval > paced * 1.2)
-      .map((step) => describe(step, recording)),
+      .map((step) => frameReport(step, recording)),
     steps,
   };
 }
 
 /** What a frame's interval had in it: its own callbacks, and whatever ran between it and the frame before. */
-function describe(step, recording) {
+function frameReport(step, recording) {
   const { tick, previous } = step;
   const between = (entry) => entry.at >= previous.end - 0.5 && entry.at < tick.end;
   const work = (frame) =>
     Object.entries(frame.work ?? {})
       .filter(([, entry]) => entry.ms >= 0.3 || entry.amount > 0)
-      .map(([name, entry]) => `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`);
+      .map(
+        ([name, entry]) => `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`,
+      );
   return {
     at: round(step.at),
     interval: round(step.interval),
@@ -238,7 +242,9 @@ function flights(recording) {
     const mark = marks[i];
     if (!mark.name.startsWith('change:')) continue;
     const to = mark.name.slice(7);
-    const settle = marks.slice(i + 1).find((later) => later.name.startsWith('settle:') || later.name.startsWith('change:'));
+    const settle = marks
+      .slice(i + 1)
+      .find((later) => later.name.startsWith('settle:') || later.name.startsWith('change:'));
     if (!settle?.name.startsWith('settle:')) {
       from = to;
       continue;
@@ -246,7 +252,15 @@ function flights(recording) {
     const click = marks.slice(0, i).findLast((earlier) => earlier.name.startsWith('click:'));
     const key = `${from}→${to}`;
     counts[key] = (counts[key] ?? 0) + 1;
-    found.push(flightOf(recording, mark, settle, click && click.at > (found.at(-1)?.settledAt ?? 0) ? click : null, `${key}#${counts[key]}`));
+    found.push(
+      flightOf(
+        recording,
+        mark,
+        settle,
+        click && click.at > (found.at(-1)?.settledAt ?? 0) ? click : null,
+        `${key}#${counts[key]}`,
+      ),
+    );
     found.at(-1).settledAt = settle.at;
     found.at(-1).changedAt = mark.at;
     from = to;
@@ -257,7 +271,10 @@ function flights(recording) {
 function line(flight) {
   if (!flight.frames) return `${flight.label.padEnd(14)} no frames moved`;
   const made = Object.entries(flight.made)
-    .map(([key, value]) => `${key}+${key.endsWith('Bytes') ? `${(value / 1e6).toFixed(2)}MB` : key.endsWith('Pixels') ? `${(value / 1e6).toFixed(2)}MP` : value}`)
+    .map(
+      ([key, value]) =>
+        `${key}+${key.endsWith('Bytes') ? `${(value / 1e6).toFixed(2)}MB` : key.endsWith('Pixels') ? `${(value / 1e6).toFixed(2)}MP` : value}`,
+    )
     .join(' ');
   return (
     `${flight.label.padEnd(14)} wait ${String(flight.waitMs).padStart(6)}+${String(flight.toFirstMoveMs).padStart(5)} ms  ` +
@@ -300,7 +317,9 @@ async function run(server, index) {
         : levelMs === null && !(tracePath && leaveAfterMs >= 500)
           ? { leaveAfterMs }
           : {};
-    await page.addInitScript(`window.__flightConfig = ${JSON.stringify(inPage)}; window.__perfConfig = ${JSON.stringify(config)};`);
+    await page.addInitScript(
+      `window.__flightConfig = ${JSON.stringify(inPage)}; window.__perfConfig = ${JSON.stringify(config)};`,
+    );
     await page.addInitScript({ path: fileURLToPath(new URL('./flightProbe.js', import.meta.url)) });
     // The room does not govern its quality under automation; glProfiler.js says it is a visitor's browser, and stands
     // in for a slow GPU when asked.
@@ -446,7 +465,8 @@ try {
     if (finished) console.log(`  the GPU, made to finish as the room turned whole, took ${finished.name.slice(16)} ms`);
     for (const flight of found) console.log(line(flight));
     for (const flight of found) {
-      for (const frame of flight.worst ?? []) console.log(`  ${flight.label} +${frame.at} ms: ${JSON.stringify(frame)}`);
+      for (const frame of flight.worst ?? [])
+        console.log(`  ${flight.label} +${frame.at} ms: ${JSON.stringify(frame)}`);
     }
     if (flag('frames') && first?.steps) {
       for (const step of first.steps) {
@@ -465,24 +485,53 @@ try {
         // The TV's picture makes its mip chain in every frame it changed: not one-time work.
         const work = Object.entries(tick.work ?? {})
           .filter(([name, entry]) => name !== 'generateMipmap' || entry.calls > 1 || entry.ms > 0.3)
-          .map(([name, entry]) => `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`);
+          .map(
+            ([name, entry]) =>
+              `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`,
+          );
         if (work.length || tick.end - tick.start > 1.5)
-          rows.push([tick.start, `frame cpu ${(tick.end - tick.start).toFixed(1)} draws ${tick.draws}  ${work.join(', ')}`]);
+          rows.push([
+            tick.start,
+            `frame cpu ${(tick.end - tick.start).toFixed(1)} draws ${tick.draws}  ${work.join(', ')}`,
+          ]);
       }
-      for (const entry of recording.tasks) rows.push([entry.at, `${entry.kind} ${entry.ms.toFixed(1)} ms${entry.left !== undefined ? ` (idle left ${entry.left.toFixed(1)})` : ''}`]);
+      for (const entry of recording.tasks)
+        rows.push([
+          entry.at,
+          `${entry.kind} ${entry.ms.toFixed(1)} ms${entry.left !== undefined ? ` (idle left ${entry.left.toFixed(1)})` : ''}`,
+        ]);
       const offFrame = {};
       for (const entry of recording.gl.filter((entry) => !entry.inFrame)) {
-        const bucket = (offFrame[Math.floor(entry.at / 4) * 4] ??= {});
-        const item = (bucket[entry.name] ??= { calls: 0, ms: 0, amount: 0 });
+        const at = Math.floor(entry.at / 4) * 4;
+        offFrame[at] ??= {};
+        offFrame[at][entry.name] ??= { calls: 0, ms: 0, amount: 0 };
+        const item = offFrame[at][entry.name];
         item.calls++;
         item.ms += entry.ms;
         item.amount += entry.amount;
       }
       for (const [at, names] of Object.entries(offFrame))
-        rows.push([Number(at), `gl off-frame: ${Object.entries(names).map(([name, entry]) => `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`).join(', ')}`]);
-      for (const entry of recording.resources) rows.push([entry.end, `fetched ${entry.name} (${entry.bytes} B, asked at +${(entry.at - origin).toFixed(0)})`]);
-      for (const entry of recording.events) rows.push([entry.at, `${entry.kind}${entry.name ? ` ${entry.name}` : ''}${entry.ms ? ` ${entry.ms.toFixed(0)} ms` : ''}`]);
-      for (const entry of recording.longFrames) rows.push([entry.at, `long frame ${entry.ms.toFixed(0)} ms: ${entry.scripts.map((script) => `${script.invoker.split('/').pop()} ${script.fn} ${Math.round(script.ms)}`).join('; ')}`]);
+        rows.push([
+          Number(at),
+          `gl off-frame: ${Object.entries(names)
+            .map(
+              ([name, entry]) =>
+                `${name}×${entry.calls} ${entry.ms.toFixed(1)}ms${entry.amount ? ` ${entry.amount}` : ''}`,
+            )
+            .join(', ')}`,
+        ]);
+      for (const entry of recording.resources)
+        rows.push([entry.end, `fetched ${entry.name} (${entry.bytes} B, asked at +${(entry.at - origin).toFixed(0)})`]);
+      for (const entry of recording.events)
+        rows.push([
+          entry.at,
+          `${entry.kind}${entry.name ? ` ${entry.name}` : ''}${entry.ms ? ` ${entry.ms.toFixed(0)} ms` : ''}`,
+        ]);
+      for (const entry of recording.longFrames)
+        rows.push([
+          entry.at,
+          `long frame ${entry.ms.toFixed(0)} ms: ${entry.scripts.map((script) => `${script.invoker.split('/').pop()} ${script.fn} ${Math.round(script.ms)}`).join('; ')}`,
+        ]);
       for (const mark of recording.marks) rows.push([mark.at, `— ${mark.name}`]);
       for (const [at, text] of rows.filter(([at]) => at >= origin - 250 && at <= end + 200).sort((a, b) => a[0] - b[0]))
         console.log(`    ${(at - origin).toFixed(1).padStart(8)}  ${text}`);
@@ -495,7 +544,11 @@ try {
         `  tv while warming: ${tv.length} frames, median ${round(median(gaps) ?? 0)} ms, max ${round(Math.max(0, ...gaps))} ms, over 20 ms ${gaps.filter((gap) => gap > 20).length}, over 33 ms ${gaps.filter((gap) => gap > 33).length}`,
       );
     }
-    results.push({ flights: found.map(({ steps, ...rest }) => rest), recording: flag('raw') ? recording : undefined, stats: recording.stats });
+    results.push({
+      flights: found.map(({ steps, ...rest }) => rest),
+      recording: flag('raw') ? recording : undefined,
+      stats: recording.stats,
+    });
   }
 } finally {
   server.close();
@@ -503,5 +556,8 @@ try {
 const out = option('out', null);
 if (out) {
   mkdirSync(dirname(resolve(out)), { recursive: true });
-  writeFileSync(out, `${JSON.stringify({ dist, device: deviceName, cpu, query, config, leaveAfterMs, levelMs, path, results }, null, 1)}\n`);
+  writeFileSync(
+    out,
+    `${JSON.stringify({ dist, device: deviceName, cpu, query, config, leaveAfterMs, levelMs, path, results }, null, 1)}\n`,
+  );
 }
