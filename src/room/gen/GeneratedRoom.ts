@@ -315,7 +315,7 @@ export class GeneratedRoom {
    */
   private hold(held: boolean): void {
     clearTimeout(this.bound);
-    this.context.stage.held = held;
+    this.context.stage.hold('bake', held);
   }
 
   /**
@@ -620,6 +620,8 @@ export class GeneratedRoom {
     const mesh = new k.Mesh(geometry, props.material);
     mesh.name = `Pick ${names.join(' ')}`;
     mesh.visible = false;
+    // Nor is it warmed for a frame (stage/sceneWarmup.ts).
+    mesh.userData.neverDrawn = true;
     this.picks.push(mesh);
     return mesh;
   }
@@ -730,7 +732,8 @@ export class GeneratedRoom {
     );
     const stalled = (): void => {
       // Not into a flight's frames, nor the tube's turn-on: nothing but the TV's view is shown before the bake ends.
-      if (request.background.moment() === 'moving') this.timer = setTimeout(stalled, STALL_MS);
+      const moment = request.background.moment();
+      if (moment === 'moving' || moment === 'flying') this.timer = setTimeout(stalled, STALL_MS);
       else {
         this.dropTask?.();
         this.unit(baker);

@@ -99,8 +99,11 @@ function setup(options: Setup = {}) {
 
   // IdleWork's contract: a drop takes the task off the queue and ends it, so its `finally` runs.
   const queue: { task: IdleTask; options: IdleTaskOptions }[] = [];
+  /** What the screen is doing, as IdleWork would say: a test that flies sets it. */
+  const moment = { now: 'quiet' as 'quiet' | 'flying' };
   const background = {
     hurry: vi.fn(),
+    moment: () => moment.now,
     add: (task: IdleTask, taskOptions: IdleTaskOptions = {}) => {
       const queued = { task, options: taskOptions };
       queue.push(queued);
@@ -126,6 +129,7 @@ function setup(options: Setup = {}) {
   };
 
   const animations: ((now: number) => boolean)[] = [];
+  const warm = vi.fn();
   const canvas = new EventTarget();
   /** Resolves each deferred compileAsync, in call order. */
   const compiles: (() => void)[] = [];
@@ -136,10 +140,11 @@ function setup(options: Setup = {}) {
     canvas,
     scene,
     camera: {},
-    renderer: {
-      compileAsync: () =>
-        options.deferCompile === true ? new Promise<void>((resolve) => compiles.push(resolve)) : Promise.resolve(),
-    },
+    renderer: {},
+    // The stage compiles for the target frames draw into (RoomStage.prepareAsync) and warms what it is given.
+    prepareAsync: () =>
+      options.deferCompile === true ? new Promise<void>((resolve) => compiles.push(resolve)) : Promise.resolve(),
+    warm,
     loop: {
       invalidate: vi.fn(),
       animate: (step: (now: number) => boolean) => {
@@ -244,6 +249,8 @@ function setup(options: Setup = {}) {
     land,
     node,
     meshes,
+    moment,
+    warm,
   };
 }
 
@@ -514,6 +521,56 @@ describe('PosterWall', () => {
     inView = true;
     land();
     expect(node()?.visible).toBe(true);
+  });
+
+  it('shows walls that are ready in the middle of a flight only once the camera has landed, warmed first', async () => {
+    const { wall, runUnits, compiles, moment, warm, flyTo, land, meshes } = await staged({ deferCompile: true });
+    runUnits();
+    expect(wall.shown).toBe(false);
+    // The camera flies, and the program links meanwhile: nothing is made in a flight.
+    moment.now = 'flying';
+    flyTo('room');
+    for (const compiled of compiles) compiled();
+    await flush();
+    expect(wall.shown).toBe(false);
+    expect(warm).not.toHaveBeenCalled();
+    moment.now = 'quiet';
+    land();
+    expect(wall.shown).toBe(true);
+    const { cards, skirts } = meshes();
+    expect(warm).toHaveBeenCalledTimes(1);
+    expect(warm).toHaveBeenCalledWith([cards, skirts]);
+  });
+
+  it('keeps a flight waiting for painted walls until they are up, and not for walls still being painted', async () => {
+    // Still with the painter: a flight does not wait for a worker.
+    const painting = setup();
+    let free = false;
+    void painting.wall.boarded(60_000).then(() => (free = true));
+    await flush();
+    expect(free).toBe(true);
+
+    // Painted, with the upload and the program left: the room runs those, and the flight waits for the walls.
+    const { wall, runUnits, compiles } = await staged({ deferCompile: true });
+    let boarded = false;
+    void wall.boarded(60_000).then(() => (boarded = true));
+    runUnits();
+    await flush();
+    expect(boarded).toBe(false);
+    for (const compiled of compiles) compiled();
+    await flush();
+    expect(wall.shown).toBe(true);
+    expect(boarded).toBe(true);
+  });
+
+  it('lets a flight go after its bounded wait when the walls are not up by then', async () => {
+    const { wall, runUnits } = await staged({ deferCompile: true });
+    let boarded = false;
+    void wall.boarded(5).then(() => (boarded = true));
+    runUnits();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(wall.shown).toBe(false);
+    expect(boarded).toBe(true);
   });
 
   it('fades a late arrival in when a piece is already in frame, and ends on the opaque program', async () => {

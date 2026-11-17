@@ -101,7 +101,10 @@ export const COMPOSE_SLICES_A_PAGE = 16;
  * other pieces and no frame gets past it; a slice at a time it goes between frames like the rest. A page without
  * charts is one empty slice (it is still cleared).
  */
-export function composeSlices(clip: ArrayLike<number>, slices = COMPOSE_SLICES_A_PAGE): { start: number; count: number }[] {
+export function composeSlices(
+  clip: ArrayLike<number>,
+  slices = COMPOSE_SLICES_A_PAGE,
+): { start: number; count: number }[] {
   const triangles = Math.floor(clip.length / 6);
   const areas = new Float64Array(triangles);
   let total = 0;

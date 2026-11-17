@@ -169,6 +169,8 @@ void main() {
 /** Two post passes over one room render, followed by one draw of fine dust. No additional assets or scene renders. */
 export class RoomAtmosphere {
   private readonly frame: WebGLRenderTarget;
+  /** One pixel of the same kind as `frame`, for `warm`. */
+  private warmTarget: WebGLRenderTarget | null = null;
   private readonly highlights: WebGLRenderTarget;
   private readonly passScene = new Scene();
   private readonly geometry = new BufferGeometry();
@@ -289,6 +291,41 @@ export class RoomAtmosphere {
     if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
     this.renderer.compile(object, camera, scene);
     this.renderer.setRenderTarget(previous);
+  }
+
+  /** As `prepare`, off the frame where the browser can link a program in the background; resolves once it has. */
+  prepareAsync(scene: Scene, object: Object3D, camera: PerspectiveCamera): Promise<unknown> {
+    const previous = this.renderer.getRenderTarget();
+    if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
+    // The programs are chosen as this is called, for the target bound now; the promise only waits for them to link.
+    const compiled = this.renderer.compileAsync(object, camera, scene);
+    this.renderer.setRenderTarget(previous);
+    return compiled;
+  }
+
+  /**
+   * Draws what `camera` sees of `scene` into one pixel of a target like the one frames draw the room into (its
+   * format, its samples, its depth): whatever a frame would make the first time it draws those objects is made now,
+   * where nobody sees it (docs/ROOM.md › Warming). Nothing under the unprocessed bake, which draws onto the canvas.
+   */
+  warm(scene: Scene, camera: PerspectiveCamera): void {
+    if (this.mood === 'original') return;
+    const renderer = this.renderer;
+    if (this.warmTarget?.samples !== this.frame.samples) {
+      this.warmTarget?.dispose();
+      this.warmTarget = new WebGLRenderTarget(1, 1, { type: this.frame.texture.type, samples: this.frame.samples });
+      this.warmTarget.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
+    }
+    const previous = renderer.getRenderTarget();
+    // The frame's counts (RoomStats.drawCalls, triangles) stay the last frame's.
+    const counted = { ...renderer.info.render };
+    try {
+      renderer.setRenderTarget(this.warmTarget);
+      renderer.render(scene, camera);
+    } finally {
+      renderer.setRenderTarget(previous);
+      Object.assign(renderer.info.render, counted);
+    }
   }
 
   setMood(mood: RoomMood): void {

@@ -228,6 +228,11 @@ export class RadioDeckHandle implements RadioDeck {
     else this.#pendingApproach = now;
   }
 
+  /** The camera is about to set off for the radio: resolves once its discs are ready to be drawn (RadioDevice.board). */
+  board(): Promise<void> {
+    return this.#device?.board() ?? Promise.resolve();
+  }
+
   /** The view state's `revealRadio`: landed. */
   reveal(): void {
     this.#layer.reveal();

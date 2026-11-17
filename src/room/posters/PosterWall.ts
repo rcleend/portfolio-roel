@@ -98,6 +98,8 @@ export class PosterWall {
   #target: DataTexture | null = null;
   #painting = false;
   #departed = false;
+  /** Flights waiting for the walls to show (`boarded`). */
+  readonly #boarding: (() => void)[] = [];
   #dropBuild: (() => void) | null = null;
   #dropPaint: (() => void) | null = null;
   #dropUpload: (() => void) | null = null;
@@ -181,7 +183,27 @@ export class PosterWall {
     return now - this.#heldSince < this.#kit.cutHoldMs;
   }
 
-  /** The camera leaves the TV for the first time: what is left is urgent now, and goes between the flight's frames. */
+  /**
+   * The camera is about to fly: resolves once the walls are shown, when all that was left was the upload and the
+   * program; at once while the atlas is still being painted (it then arrives after the landing), and after `maxMs`
+   * whatever happened.
+   */
+  boarded(maxMs: number): Promise<void> {
+    if (!this.#staged || this.#shown || this.#failed || this.#disposed) return Promise.resolve();
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, maxMs);
+      const waiting = this.#boarding;
+      function done(): void {
+        clearTimeout(timer);
+        const at = waiting.indexOf(done);
+        if (at >= 0) waiting.splice(at, 1);
+        resolve();
+      }
+      waiting.push(done);
+    });
+  }
+
+  /** The camera is about to leave the TV for the first time: what is left is wanted now. */
   depart(): void {
     if (this.#departed) return;
     this.#departed = true;
@@ -357,6 +379,8 @@ export class PosterWall {
       ...this.#urgency(),
       smallUploads: true,
       estimateMs: UPLOAD_ESTIMATE_MS,
+      // Painted, the walls go up before a flight sets off rather than in it.
+      flight: true,
     });
   }
 
@@ -373,7 +397,7 @@ export class PosterWall {
   /** Unit 1: the program (off the frame where the browser can) and the storage; then 8 (2K) or 4 (1K) strips. */
   *#upload(image: ImageBitmap | HTMLCanvasElement, node: PostersNode): IdleTask {
     const { stage, anisotropy } = this.#context;
-    const { renderer, scene, camera } = stage;
+    const { renderer, scene } = stage;
     try {
       const target = this.#kit.allocateStripTarget(renderer, image.width, image.height, anisotropy);
       this.#target = target;
@@ -381,8 +405,11 @@ export class PosterWall {
       if (!node.root.parent) scene.add(node.root);
       this.#compiled = false;
       const generation = this.#generation;
-      // The lite path draws the cards with the room's own opaque program, which already exists.
-      const compiled = this.#lite ? Promise.resolve() : renderer.compileAsync(node.root, camera, scene);
+      // The lite path draws the cards with the room's own opaque program, which already exists. The full path's are
+      // compiled for the target frames draw the room into (the finish's, in linear light): compiled for the screen,
+      // as they were, they were two programs nothing drew with, and the two that did draw were compiled, with the
+      // main thread waiting, in the frame of the first flight that showed a poster.
+      const compiled = this.#lite ? Promise.resolve() : stage.prepareAsync(node.root);
       compiled.then(
         () => {
           if (generation !== this.#generation) return;
@@ -414,8 +441,13 @@ export class PosterWall {
   #reveal(): void {
     const node = this.#node;
     if (!node || !this.#complete || !this.#compiled || this.#shown || this.#disposed) return;
+    const { views, stage, background } = this.#context;
+    // Nothing is made in a flight: walls that are ready in the middle of one show once the camera has landed.
+    if (background.moment() === 'flying') return;
+    // Their vertex arrays and buffers, and the driver's state for their programs, before a frame draws them.
+    stage.warm([node.cards, node.skirts]);
     this.#shown = true;
-    const { views, stage } = this.#context;
+    for (const done of [...this.#boarding]) done();
     const inView = this.#kit.anyInView(node.boxes, stage.camera);
     if (!views.moving && views.view !== 'room' && !inView) node.root.visible = false;
     else if (inView && !this.#lite) this.#fade(node);
@@ -468,6 +500,8 @@ export class PosterWall {
    * the resting frustum; in the room view it is always drawn.
    */
   #settle(view: RoomView): void {
+    // Walls that were ready mid-flight.
+    this.#reveal();
     const node = this.#node;
     if (!this.#shown || !node) return;
     const inView = view === 'room' || this.#kit.anyInView(node.boxes, this.#context.stage.camera);

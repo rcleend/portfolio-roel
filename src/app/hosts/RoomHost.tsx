@@ -74,6 +74,18 @@ function WayOut({
   );
 }
 
+/** Runs `run` while the camera rests: at once, or in a task of its own just after it lands. */
+function atRest(room: Room | null, run: () => void): void {
+  if (!room || room.settled) {
+    run();
+    return;
+  }
+  const stop = room.onSettle(() => {
+    stop();
+    setTimeout(run, 0);
+  });
+}
+
 declare global {
   interface Window {
     /** Development, or production with `?debug`: the room, so tests and measurements can read its render stats. */
@@ -250,11 +262,12 @@ function AtticStage({
     if (!tvOn || guideDue) return;
     return whenIdle(() => {
       import('../guide/RoomGuide').then(
-        () => startTransition(() => setGuideDue(true)),
+        // Mounting it is not a flight's work: a guide that arrives while the camera flies mounts once it has landed.
+        () => atRest(room, () => startTransition(() => setGuideDue(true))),
         (error: unknown) => console.warn("The room's guide failed to load", error),
       );
     });
-  }, [tvOn, guideDue]);
+  }, [tvOn, guideDue, room]);
 
   // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
   // suspension and the commit), so it waits for the landing, out of the click and the flight, as a transition. The

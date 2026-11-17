@@ -96,7 +96,13 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     // On the way to the radio (and there) its preparation is what the flight waits for: it may go between the
     // flight's frames, where they leave room for it.
     background: {
-      add: (task, options) => host.background.add(task, { ...options, urgent: () => host.views.view === 'radio' }),
+      add: (task, options) =>
+        host.background.add(task, {
+          ...options,
+          urgent: () => host.views.view === 'radio',
+          // And a flight to the radio waits for it before it sets off: nothing runs while the camera flies.
+          flight: (to) => to === 'radio',
+        }),
     },
     anisotropy: host.anisotropy,
     software: stage.softwareGpu,
@@ -782,10 +788,21 @@ class Device implements RadioDevice {
     });
   }
 
-  /** Compiles the disc program on the way to the radio, never before, so other views keep their program count. */
+  board(): Promise<void> {
+    this.#compileDiscs();
+    return (this.#compiling ?? Promise.resolve()).then(() => {
+      if (!this.#disposed) this.#context.stage.warm([...this.#discs.group.children]);
+    });
+  }
+
+  /**
+   * Compiles the disc program as the camera is about to leave for the radio, never before, so other views keep their
+   * program count; for the target frames draw into (compiled for the screen it was a program nothing drew with, and
+   * the one that did draw was compiled in the flight's frame that first showed a disc).
+   */
   #compileDiscs(): void {
     if (this.#compiling) return;
-    this.#compiling = this.#discs.compile(this.#context.renderer, this.#context.camera, this.#context.scene).then(
+    this.#compiling = this.#discs.compile(this.#context.stage).then(
       () => {
         if (this.#revealOnceCompiled && !this.#disposed) {
           this.#revealOnceCompiled = false;

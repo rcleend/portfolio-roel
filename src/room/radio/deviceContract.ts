@@ -1,4 +1,4 @@
-import type { Group, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
+import type { Group, Object3D, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
 import type { RadioPoseSolver } from '../camera/CameraRig';
 import type { Viewpoint } from '../camera/cameraPath';
 import type { InteractionHit } from '../interaction/Interactable';
@@ -33,6 +33,10 @@ export interface RadioHost {
     readonly size: ViewportSize;
     /** The GPU is software (read once when the renderer was made: asking again would wait for the GPU). */
     readonly softwareGpu: boolean;
+    /** Compiles an object's programs for the target frames draw into, in the background (RoomStage.prepareAsync). */
+    prepareAsync(object: Object3D): Promise<unknown>;
+    /** Draws objects once out of sight, so no frame is the first to draw them (RoomStage.warm). */
+    warm(objects: readonly Object3D[]): void;
   };
   readonly views: { readonly view: RoomView; readonly moving: boolean; request(view: RoomView): void };
   readonly background: Pick<IdleWork, 'add'>;
@@ -61,8 +65,13 @@ export interface RadioDeviceContext {
   /** The GPU is software: the slow tier and the smallest labels. */
   readonly software: boolean;
   readonly reducedMotion: MediaQueryList;
-  /** The stage canvas is on screen and the tab visible; its CSS size and pixel ratio. */
-  readonly stage: { readonly visible: boolean; readonly size: ViewportSize };
+  /** The stage canvas is on screen and the tab visible; its CSS size and pixel ratio; its compile and its warming. */
+  readonly stage: {
+    readonly visible: boolean;
+    readonly size: ViewportSize;
+    prepareAsync(object: Object3D): Promise<unknown>;
+    warm(objects: readonly Object3D[]): void;
+  };
   readonly views: { readonly view: RoomView; readonly moving: boolean };
   /** The settled pose at the radio for the current viewport and the slots it frames. */
   pose(): Viewpoint;
@@ -113,6 +122,11 @@ export interface RadioDevice {
   setPointer(ndc: Vector2 | null): void;
   /** The camera set off for the radio at `at` (performance.now()). */
   approach(at: number): void;
+  /**
+   * The camera is about to set off for the radio: the discs' program is compiled now, and they are drawn once out of
+   * sight; resolves when no frame of the flight will be the first to draw them.
+   */
+  board(): Promise<void>;
   reveal(): void;
   conceal(): void;
   /** The slots or the pose changed (resize, disc count, insets): retarget resting discs. */

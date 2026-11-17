@@ -660,4 +660,64 @@ describe('IdleWork', () => {
     work.add(logging(log, 'b', 1));
     expect(idle.waiting).toBe(0);
   });
+  describe('while the camera flies', () => {
+    it('runs nothing, urgent or not, and goes on at the landing', () => {
+      moment = 'flying';
+      work.add(logging(log, 'a', 2));
+      work.add(logging(log, 'urgent', 1), { urgent: () => true, sliceMs: 5 });
+      work.start();
+      idle.idle();
+      expect(log).toEqual([]);
+      // It looks again later, by itself; the landing need not wait for that.
+      expect(idle.waiting).toBe(0);
+      moment = 'quiet';
+      work.wake();
+      idle.idle();
+      expect(log).toEqual(['urgent:1', 'a:1', 'a:2']);
+    });
+
+    it('makes what a flight shows before it sets off, whatever plays, and leaves the rest queued', async () => {
+      moment = 'playing';
+      work.add(logging(log, 'other', 2));
+      work.add(uploading(log, 'textures'), { flight: true });
+      work.add(logging(log, 'discs', 1), { flight: (to) => to === 'radio' });
+      work.start();
+      expect(work.flightPending('room')).toBe(true);
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await drained;
+      expect(log).toEqual(['textures:cpu', 'textures:quiet']);
+      expect(work.flightPending('room')).toBe(false);
+      // The radio's discs wait for a flight to the radio.
+      expect(work.flightPending('radio')).toBe(true);
+      const boarded = work.drain('radio', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await boarded;
+      expect(log).toEqual(['textures:cpu', 'textures:quiet', 'discs:1']);
+      expect(work.pending).toBe(true);
+    });
+
+    it('takes up a task queued by the last unit of another, a task later', async () => {
+      function* chained(): IdleTask {
+        log.push('first');
+        void Promise.resolve().then(() => work.add(logging(log, 'second', 1), { flight: true }));
+      }
+      work.add(chained(), { flight: true });
+      work.start();
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await drained;
+      expect(log).toEqual(['first', 'second:1']);
+    });
+
+    it('stops making things ready when its time is up: the camera never waits longer', async () => {
+      work.add(logging(log, 'slow', 10, 100), { flight: true });
+      work.start();
+      const drained = work.drain('room', 250);
+      await vi.advanceTimersByTimeAsync(50);
+      await drained;
+      expect(log).toEqual(['slow:1', 'slow:2', 'slow:3']);
+      expect(work.flightPending('room')).toBe(true);
+    });
+  });
 });

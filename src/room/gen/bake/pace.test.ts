@@ -138,7 +138,14 @@ describe('composeSlices', () => {
     const area = (slice: { start: number; count: number }): number => {
       let sum = 0;
       for (let v = slice.start; v < slice.start + slice.count; v += 3) {
-        const [ax, ay, bx, by, cx, cy] = clip.slice(v * 2, v * 2 + 6) as [number, number, number, number, number, number];
+        const [ax, ay, bx, by, cx, cy] = clip.slice(v * 2, v * 2 + 6) as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ];
         sum += Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2;
       }
       return sum;

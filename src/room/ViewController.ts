@@ -21,8 +21,10 @@ export interface ViewControllerOptions {
   /** The camera is about to leave the radio (or turn back on the way there): hide its controls, close it up. */
   readonly concealRadio: () => void;
   /**
-   * A view whose code is still loading (the radio's, which leaves the first load): a promise the request waits for
-   * before the camera sets off, else null. A later request supersedes a waiting one; a rejected wait drops it.
+   * What a flight to `view` shows is not all made yet (the rest of the room's light, buffers and textures no frame
+   * has drawn, the radio's code): a promise the request waits for before the camera sets off, else null. A later
+   * request supersedes a waiting one; a rejected wait drops it. Leaving the TV, the game is paused as the wait
+   * begins, not as it ends.
    */
   readonly whenReady?: (view: RoomView) => Promise<unknown> | null;
 }
@@ -39,6 +41,8 @@ export class ViewController {
   private readonly settleListeners = new Set<(view: RoomView) => void>();
   /** Counts requests, so a request waiting for its view's code knows whether a later one superseded it. */
   private requests = 0;
+  /** A request away from the TV waits (`whenReady`) and has already stopped the game. */
+  private leaving = false;
 
   constructor(private readonly options: ViewControllerOptions) {
     options.surface.setInputEnabled(true);
@@ -61,13 +65,38 @@ export class ViewController {
     const request = ++this.requests;
     const wait = view === this.state.view ? null : (this.options.whenReady?.(view) ?? null);
     if (!wait) {
+      // A later request for the view the camera is at takes back what a waiting one had begun.
+      if (view === this.state.view) this.stay();
+      else this.leaving = false;
       this.apply(reduceView(this.state, { type: 'request', view }));
       return;
     }
+    // The camera waits; the visitor's click does not. Leaving the TV, the game stops and takes no more input at
+    // once (its PAUSE is on the tube while the room is made ready): the cue that the click was taken.
+    if (this.atTv && !this.leaving) {
+      this.leaving = true;
+      this.run('disableInput', 'tv');
+      this.run('pauseGame', 'tv');
+    }
     wait.then(
-      () => request === this.requests && this.apply(reduceView(this.state, { type: 'request', view })),
-      () => undefined,
+      () => {
+        if (request !== this.requests) return;
+        this.leaving = false;
+        this.apply(reduceView(this.state, { type: 'request', view }));
+      },
+      () => {
+        if (request === this.requests) this.stay();
+      },
     );
+  }
+
+  /** The camera stays at the TV after all: what leaving had stopped at the click goes on. */
+  private stay(): void {
+    if (!this.leaving) return;
+    this.leaving = false;
+    if (!this.atTv) return;
+    this.run('resumeGame', 'tv');
+    this.run('enableInput', 'tv');
   }
 
   /** Called as the camera sets off towards a new view. */
