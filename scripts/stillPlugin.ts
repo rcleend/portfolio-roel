@@ -38,7 +38,9 @@ export function stillPlugin(): Plugin {
         if (!STILL.test(html)) return html;
         const script = await stillScript();
         // The first response carries no indentation: the page reads the same, some eighty bytes lighter on the wire.
-        return html.replace(/\n\s+/g, '\n').replace(STILL, (element) => `${element}<script>${script}</script>`);
+        // A visitor the startup gate sent to the résumé has no still (scripts/gatePlugin.ts): nothing drawn, nothing fetched.
+        const guarded = `if(!document.documentElement.dataset.page){${script}}`;
+        return html.replace(/\n\s+/g, '\n').replace(STILL, (element) => `${element}<script>${guarded}</script>`);
       },
     },
   };

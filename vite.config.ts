@@ -1,12 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { gatePlugin } from './scripts/gatePlugin.ts';
 import { glslMinifyPlugin } from './scripts/glslMinify.ts';
 import { pngSlimPlugin } from './scripts/pngSlim.ts';
 import { stillPlugin } from './scripts/stillPlugin.ts';
 
 export default defineConfig({
-  plugins: [glslMinifyPlugin(), react(), pngSlimPlugin(), stillPlugin()],
+  plugins: [glslMinifyPlugin(), react(), pngSlimPlugin(), stillPlugin(), gatePlugin()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

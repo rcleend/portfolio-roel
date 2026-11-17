@@ -107,6 +107,24 @@ for (const [name, starter] of Object.entries(WORKERS)) {
     problems.push(`${name} contains three.js`);
 }
 
+// The résumé page of a visitor without a GPU (scripts/gatePlugin.ts) is built apart and emitted as an asset: all that
+// visitor runs, so it must stay markup and a few lines, with nothing of the site in it.
+const cvFile = readdirSync(join(DIST, 'assets')).find((file) => /^cv-.*\.js$/.test(file));
+if (cvFile) {
+  rows.push(row('cvPage', await gzipped([`assets/${cvFile}`]), budgets.cvPage));
+  const found = await threeIn([`assets/${cvFile}`]);
+  if (found) problems.push(`cvPage contains three.js (${found})`);
+} else problems.push('cvPage: the résumé page’s script is missing from the build');
+// The built page as the gate needs it (docs/ROOM.md › No GPU): nothing of the site named in the markup, where the
+// browser would fetch it before the gate has run; the gate ahead of the stylesheet, so it runs while that loads.
+const page = await readFile(join(DIST, 'index.html'), 'utf8');
+if (/<script type="module"[^>]* src=|<link rel="modulepreload"/.test(page))
+  problems.push('index.html names a module in its markup: a visitor without a GPU would fetch it');
+const gateAt = page.indexOf('<script data-site=');
+if (gateAt < 0 || gateAt > page.indexOf('<link rel="stylesheet"'))
+  problems.push('index.html: the startup gate must stand in the head ahead of the stylesheet');
+if (cvFile && !page.includes(`assets/${cvFile}`)) problems.push('index.html does not lead to the résumé page’s script');
+
 console.table(Object.fromEntries(rows.map(({ name, ...rest }) => [name, rest])));
 for (const { name, size, budget } of rows)
   if (budget !== undefined && size !== undefined && size > budget) problems.push(`${name}: ${size} kB > ${budget} kB`);

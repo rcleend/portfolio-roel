@@ -1,7 +1,8 @@
 # Roel Leenders — arcade portfolio
 
 Roel's portfolio as a 16-bit, Neo Geo-style arcade game running on a CRT in a 3D attic room.
-Every screen renders at a native 320 × 240 and is presented by a host: the three.js room, or a flat CSS television when WebGL is unavailable.
+Every screen renders at a native 320 × 240 and is presented by a host: the three.js room, or a flat CSS television where the room cannot be made.
+A browser with no GPU to draw the room with gets the résumé as the page instead (`?host=cv` shows it anywhere).
 The same content is always available as a plain HTML résumé for screen readers, crawlers and visitors who would rather read.
 
 ## Run it
