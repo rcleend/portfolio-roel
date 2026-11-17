@@ -7,7 +7,8 @@
  * A room that draws all the time (the generated room, docs/ROOM.md › Frames) asks for that with `pace`: the loop then
  * follows the display's own frames and draws on every one of them, or on every second (third) of a display faster
  * than 95 Hz, so the frames are evenly spaced whatever the display. One-off requests are drawn by the next of those
- * frames rather than by one of their own in between; only an animation draws on every display frame.
+ * frames rather than by one of their own in between, and so is an animation's every step: a flight moves on the
+ * frames the room draws at rest, the ones its quality is governed for, and never asks the GPU for twice as many.
  */
 export type AnimationStep = (now: number) => boolean;
 
@@ -22,8 +23,8 @@ const browserScheduler: FrameScheduler = {
 };
 
 /**
- * A run is frames drawn as fast as they come: an animation's (a flight, the tube's turn-on), each asked for as the one
- * before it ends, the paced room's, and the game's, each asked for (`invalidate(true)`) within this long of the one
+ * A run is frames drawn as fast as they come (or, of a paced loop, as fast as it draws): an animation's (a flight, the
+ * tube's turn-on), each asked for as the one before it ends, the paced room's, and the game's, each asked for (`invalidate(true)`) within this long of the one
  * before it. The time between a run's frames is what the device took over one. A frame the lava or the air asked for
  * of a loop that is not paced was only waited for, however soon it came.
  */
@@ -130,7 +131,10 @@ export class RenderLoop {
     };
   }
 
-  /** Runs `step` before every draw until it returns `false` or the returned stop is called. */
+  /**
+   * Runs `step` before every draw until it returns `false` or the returned stop is called. A paced loop draws those
+   * frames at its own pace, so `step` must move by the time it is given, never by a count of frames.
+   */
   animate(step: AnimationStep): () => void {
     this.steps.add(step);
     this.invalidate();
@@ -186,18 +190,17 @@ export class RenderLoop {
     }
     this.previousTick = null;
     const pacing = this.wanted?.() ?? false;
-    if (this.steps.size === 0 && (pacing || !this.demanded)) {
-      if (!pacing) {
-        // The paced loop's own look at a display frame, and frames are not wanted (any more).
-        if (this.wanted !== null) this.waitUntilWanted();
-        return;
-      }
+    if (pacing) {
       if (now - this.lastFrame < this.pacedGap()) {
-        // A fast display's frame in between: whatever was asked for is drawn by the next.
+        // A fast display's frame in between: whatever was asked for, an animation's step too, is drawn by the next.
         this.previousTick = now;
         this.request();
         return;
       }
+    } else if (this.steps.size === 0 && !this.demanded) {
+      // The paced loop's own look at a display frame, and frames are not wanted (any more).
+      if (this.wanted !== null) this.waitUntilWanted();
+      return;
     }
     this.demanded = false;
     for (const step of [...this.steps]) {

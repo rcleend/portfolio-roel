@@ -231,17 +231,34 @@ describe('RenderLoop, paced', () => {
     expect(new Set(gaps(drawn.slice(before)))).toEqual(new Set([16.7]));
   });
 
-  it('draws every display frame while an animation runs, and falls back into step after it', () => {
+  it('draws an animation on the paced frames, in step with the frames before and after it', () => {
     const { frames, drawn, loop } = paced(120);
     frames(120);
-    let left = 30;
     const from = drawn.length;
+    const stepped: number[] = [];
+    loop.animate((now) => {
+      stepped.push(now);
+      return stepped.length < 30;
+    });
+    // Thirty steps take sixty frames of a 120 Hz display: a flight draws sixty a second there, as the room at rest.
+    frames(60);
+    expect(stepped).toHaveLength(30);
+    expect(new Set(gaps(stepped))).toEqual(new Set([16.7]));
+    frames(60);
+    // One even run, into the animation and out of it: never a gap of one display frame.
+    expect(new Set(gaps(drawn.slice(from - 1)))).toEqual(new Set([16.7]));
+    expect(loop.animating).toBe(false);
+  });
+
+  it('draws an animation on every display frame while it is not paced (before the room is lit)', () => {
+    const { frames, drawn, loop, stop } = paced(120);
+    frames(120);
+    stop();
+    const from = drawn.length;
+    let left = 30;
     loop.animate(() => --left > 0);
     frames(30);
     expect(drawn.length - from).toBe(30);
-    const after = drawn.length;
-    frames(60);
-    expect(new Set(gaps(drawn.slice(after - 1)))).toEqual(new Set([16.7]));
   });
 
   it('runs the riders in every frame drawn, and never draws one for them', () => {
