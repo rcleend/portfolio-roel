@@ -482,8 +482,12 @@ Read against the acceptance numbers (no interval over one and a half paced frame
   the capped display, the idle work's flight rule), the entry 215.12 against 215 (this work: +0.15 kB, the room
   host's waits), the posters' chunk 6.83 against 6.7 (+0.14 kB). Measured against the build before the fixes with the
   report's own gzip: room 191.48 to 194.08, index 212.72 to 212.87, PosterWall 6.69 to 6.83; the debug readout's
-  chunk 0.38 to 0.73 (loaded with `?debug=perf` only, no budget row). The brief says code size must not get worse,
-  so this is the owner's call: raise the three budgets by those amounts, or have the bytes found elsewhere.
+  chunk 0.38 to 0.73 (loaded with `?debug=perf` only, no budget row). Firstmate's answer (message 007): check
+  that nothing debug-only is in those chunks, then raise the budgets to the measured figures plus the usual small
+  headroom and say so in the budget file. Checked: the readout is its own chunk, imported only with `?debug=perf`
+  (`RoomHost.tsx`), and the measuring probe is never built; what the room's chunk gained is the fix itself. Budgets
+  raised in `bundle-budgets.json` with the itemised note: room 191.6 to 194.2, entry JS 215.0 to 215.2, posterWall
+  6.7 to 6.9.
 
 ## Not verified on a real phone
 
@@ -514,7 +518,25 @@ Where to start: `src/room/stage/RenderLoop.ts` (`pace`, `ride`, the wanted poll)
 (`FLOOR_HITS`, the scale ladder), docs/ROOM.md › Frames and › Quality, `node scripts/perf/profile.mjs` for a view at
 rest, and the slow-GPU rows above for the governor (it changes the scale 3-5 times a minute there).
 
-## Where this stands (17 Nov, 13:55)
+## To do next, in this order (for whoever picks this up)
+
+1. **Attribute `e2e/room.spec.ts:18`** (firstmate, message 007: before integration, not left open). It failed in
+   two of three whole e2e runs on this branch and passes alone. Cheapest test: the whole suite three times on the
+   merge-base (PR 19's branch at d96cfed, which this branch merged in 0b7a36a) in a scratch checkout, on a quiet
+   machine (`python3 .shots/flights/foreign.py wait` first), and compare. If it fails there too it is the still's
+   work in progress or the machine's load: say which. If only here: the test screenshots the game's picture on the
+   still right after `scene === 'title'`, and found 23 % of the pixels differing where it wants over 50 %; the
+   bake's end and the idle units after ready (the rain's sound, the warming) are what this branch changed at that
+   moment.
+2. **The second stage** (above): rest pacing, then the governor under overload.
+3. **The no-GPU decision** for the owner, with the option measurements on the fixed build
+   (`.shots/flights/nogpu/NOTES.md`).
+4. Steady state, before against after, was not measured as such in the first stage: frame time per view at rest and
+   memory (`node scripts/perf/profile.mjs --dist .shots/flights/dist-base` against `--dist dist`); it belongs with
+   the second stage's rest measurements. Room-ready times are in the tables' logs: desktop 549-634 ms before,
+   564-701 ms after; phone stand-in 1523-1765 ms before, 1382-1580 ms after (they move with the machine's load).
+
+## Where this stands (17 Nov, 14:05)
 
 The first stage is done and pushed: diagnosis, fixes, the review's findings, the matrices, the tables above, the
 docs. Open: the no-GPU options (a needs-decision for the owner, numbers in `.shots/flights/nogpu/NOTES.md`; the
