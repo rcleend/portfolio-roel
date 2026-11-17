@@ -142,7 +142,8 @@ uniform float uWarmth;
 uniform vec3 uStatic;
 
 // Scene-linear light under a filmic curve with a little toe: the display values the room's surfaces hold (the modelled
-// room's bake held AgX at medium-high contrast, which this curve stands in for), then the finish's static lights in the finish's own terms (RoomGloss).
+// room's bake held AgX at medium-high contrast, which this curve stands in for), then the lamps' pools in tungsten amber
+// and the finish's static lights in the finish's own terms (RoomGloss).
 vec3 display(vec3 albedo, vec4 light, vec3 world) {
   vec3 c = albedo * light.rgb * uDecode.rgb * uExposure;
   c = pow(max(c, vec3(0.0)), vec3(1.4));
@@ -150,7 +151,7 @@ vec3 display(vec3 albedo, vec4 light, vec3 world) {
   float lava = length(world - vec3(0.49, 1.28, -1.97));
   float desk = length(world - vec3(-2.05, 1.03, -1.88));
   float pool = exp(-lava * lava * 2.2) + exp(-desk * desk * 1.8) * 0.65;
-  c *= vec3(1.0) + vec3(0.9, 0.26, 0.025) * pool * uWarmth;
+  c *= vec3(1.0) + vec3(0.9, 0.42, 0.07) * pool * uWarmth;
   c += min(c * 25.0, vec3(0.85)) * uStatic * light.a * uDecode.a;
   return c;
 }

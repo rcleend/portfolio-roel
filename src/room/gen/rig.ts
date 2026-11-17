@@ -2,9 +2,12 @@ import type { Rgb, Vec3 } from './kit/vec';
 import { BULB_SPEC, TV_LAMP_SPEC } from './roomSpec';
 
 /**
- * The night's light, as a table. The colours began as those of the modelled room's rig (its lights' names are quoted
- * below; docs/gen/reference is that room's record); the places are read off the room. Every light is static, so each is rendered once, at load, from several points of its emitter
- * (soft shadows by accumulation), into the room's light maps and vertex colours (bake/Baker.ts).
+ * The night's light, as a table. Each light has a job and something in the room that explains it
+ * (docs/ROOM-ART-DIRECTION.md › The light): the lamps are the warm keys, the window the cool counter-key, and the fills
+ * are the room's own bounce, kept well under any lamp's pool. The lights began as those of the modelled room's rig (its
+ * lights' names are quoted below; docs/gen/reference is that room's record); the places are read off the room. Every
+ * light is static, so each is rendered once, at load, from several points of its emitter (soft shadows by
+ * accumulation), into the room's light maps and vertex colours (bake/Baker.ts).
  *
  * `scene` lights are the room's own, in scene-linear light under the bake's display curve. `finish` lights are the two
  * small practicals on the TV cabinet, in the finish's own terms (atmosphere/tvLamp.ts, bulbLamp.ts): the opal lamp and
@@ -83,14 +86,14 @@ const DESK_WALL = {
 const DESK_LIGHT = {
   space: 'scene',
   position: DESK_BULB,
-  color: [0.38, 0.135, 0.035],
+  color: [0.4, 0.2, 0.06],
   soften: 0.03,
   reach: [0.5, 1.9],
   wrap: 0,
 } as const;
 
-/** The colour of the room's ambient light from above and from below (bounce off the oak). */
-export const AMBIENT = { sky: [0.043, 0.05, 0.072] as Rgb, ground: [0.1, 0.072, 0.083] as Rgb };
+/** The room's ambient light: the night's blue from above, the oak's warm bounce from below. A shadow is made of it. */
+export const AMBIENT = { sky: [0.036, 0.05, 0.08] as Rgb, ground: [0.095, 0.075, 0.06] as Rgb };
 
 export const RIG: readonly RigLight[] = [
   // What reaches a surface from all around: the dim blue world through the window and the room's own bounce, as a dome
@@ -109,15 +112,16 @@ export const RIG: readonly RigLight[] = [
     casters: 'local',
     extent: 4.2,
   },
-  // The broad overhead practical ("Warm attic practical"): a soft pool on the middle of the floor that ends short of
-  // the walls and the TV cabinet.
+  // What the three lamps send round the room between them ("Warm attic practical", which had no fitting and was
+  // lilac): a soft, dim, warm pool on the middle of the floor that ends short of the walls and the TV cabinet. It
+  // stands in for indirect light and is no lamp of its own, so it stays well under what any lamp puts on its own top.
   {
     name: 'pool',
     kind: 'spot',
     space: 'scene',
     position: [0.9, 2.9, -1.9],
     target: [1.3, 0, -0.5],
-    color: [8.5, 7.0, 9.8],
+    color: [5.6, 4.5, 3.6],
     size: 0.6,
     samples: [12, 6],
     cone: [0.25, 0.5],
@@ -125,16 +129,16 @@ export const RIG: readonly RigLight[] = [
     wrap: 0,
     casters: 'all',
   },
-  // What that pool sends back up: the lit oak as a wide, low emitter. It is the pink on the cabinet's drawer fronts and
-  // inside its shelves, and most of the light the wall behind the set gets. (A path tracer would trace this bounce; here
-  // it is one more light.)
+  // What that pool sends back up: the lit oak as a wide, low emitter, in the oak's colour. It is the warmth on the
+  // cabinet's drawer fronts and inside its shelves, and most of the light the wall behind the set gets. (A path tracer
+  // would trace this bounce; here it is one more light.)
   {
     name: 'bounce',
     kind: 'spot',
     space: 'scene',
     position: [-1.3, 0.85, -1.7],
     target: [-1.3, 2, -1.7],
-    color: [0.85, 0.6, 0.68],
+    color: [0.85, 0.62, 0.46],
     size: 0.8,
     samples: [8, 4],
     cone: [1.1, 1.45],
@@ -142,7 +146,7 @@ export const RIG: readonly RigLight[] = [
     wrap: 0,
     casters: 'local',
   },
-  // And what the lit boards send back up at the furniture standing round them: the pink on the drawer fronts, the
+  // And what the lit boards send back up at the furniture standing round them: the warmth on the drawer fronts, the
   // dresser's doors and the guitar.
   {
     name: 'floor',
@@ -150,7 +154,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.0, 0.05, -0.3],
     target: [0.0, 1, -0.3],
-    color: [0.44, 0.31, 0.4],
+    color: [0.44, 0.33, 0.25],
     size: 1.2,
     samples: [12, 6],
     cone: [1.2, 1.5],
@@ -160,35 +164,36 @@ export const RIG: readonly RigLight[] = [
     casters: 'local',
   },
   // The set's own glow on the room ("TV screen reflected blue"): the bake's standing light on the tube's face, a disc
-  // that shines one way. The boards before the cabinet are the brightest in the room, nothing behind the glass's plane
-  // takes any (the knee wall, the boards past the cabinet's end), the cabinet's top edge shades the boards at its foot
-  // and the console and the cases throw their shadows away from the set. (The picture's light of the moment is the
-  // finish's, every frame.)
+  // that shines one way. It is the shadows the picture's light has no way to cast: the cabinet's top edge shades the
+  // boards at its foot and the console and the cases throw theirs away from the set; nothing behind the glass's plane
+  // takes any (the knee wall, the boards past the cabinet's end). The picture's light of the moment is the finish's,
+  // every frame, and is the brighter of the two; this one is dim and ends before the rug's near squares, which lie in
+  // shadow under the page's name.
   {
     name: 'tv-glow',
     kind: 'spot',
     space: 'scene',
     position: [2.14, 0.84, -0.32],
     target: [1.14, 0.84, -0.32],
-    color: [0.3, 0.31, 0.7],
+    color: [0.16, 0.22, 0.42],
     size: 0.2,
     samples: [4, 2],
     cone: [1.0, 1.3],
     soften: 0.3,
-    reach: [3.5, 5.0],
+    reach: [2.4, 3.6],
     wrap: 0,
     casters: 'local',
   },
-  // The night through the window ("Blue hour window fill"): a small emitter outside and above it, so what it sends in
-  // fans out, down onto the desk and past the desk's end onto the floor. This is what comes under the blind, through
-  // the lower sash: the bright patch with an edge.
+  // The night through the window ("Blue hour window fill"), rain blue: a small emitter outside and above it, so what it
+  // sends in fans out, down onto the desk and past the desk's end onto the floor. This is what comes under the blind,
+  // through the lower sash: the bright patch with an edge, the one bright cool thing in the room that is not a screen.
   {
     name: 'moon',
     kind: 'spot',
     space: 'scene',
     position: MOON,
     target: [-0.6, 0.2, -0.9],
-    color: [11.4, 12, 13.9],
+    color: [8.6, 11.2, 14.6],
     size: 0.2,
     samples: [8, 4],
     cone: [0.45, 0.62],
@@ -207,7 +212,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: MOON,
     target: [-0.6, 0.2, -0.9],
-    color: [10, 10.6, 12.2],
+    color: [7.5, 9.9, 12.8],
     size: 0.3,
     samples: [8, 4],
     cone: [0.45, 0.62],
@@ -242,7 +247,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.49, 1.21, -1.97],
     target: [0.49, 1.21, -1.97],
-    color: [0.44, 0.09, 0.012],
+    color: [0.46, 0.13, 0.02],
     size: 0.04,
     samples: [1, 1],
     soften: 0.2,
@@ -260,7 +265,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [0.49, 1.21, -1.97],
     target: [2.6, 0.9, -0.9],
-    color: [0.7, 0.2, 0.035],
+    color: [0.7, 0.24, 0.045],
     size: 0,
     samples: [1, 1],
     cone: [0.5, 0.9],
@@ -309,7 +314,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: [-1.4, 1.9, -1.35],
     target: [-1.38, 0.8, -1.37],
-    color: [1.06, 0.92, 0.88],
+    color: [0.95, 0.74, 0.52],
     size: 0.25,
     samples: [3, 2],
     cone: [0.2, 0.42],
@@ -363,7 +368,7 @@ export const RIG: readonly RigLight[] = [
     space: 'scene',
     position: MOON,
     target: [-1.3, 1.9, -2.36],
-    color: [0.75, 0.84, 1.0],
+    color: [0.34, 0.47, 0.62],
     // Small enough that the glazing bar's shadow on the slats is one soft bar from two points of it, not two bars.
     size: 0.12,
     samples: [4, 2],
@@ -375,14 +380,15 @@ export const RIG: readonly RigLight[] = [
     through: 0.05,
     portal: { center: [-1.3, 1.8235, -2.405], u: [0.8, 0, 0], v: [0, 0.6965, 0] },
   },
-  // And the room's own light on the blind's face: the slats glow a little, the rest of the wall does not.
+  // And the room's own light on the blind's face, warm and dim: the slats glow a little, the rest of the wall does not.
+  // The blind is the largest pale thing in the overview, so it is lit by what is in the room and no more.
   {
     name: 'blind',
     kind: 'sun',
     space: 'scene',
     position: [-1.3, 2.1, 0.4],
     target: [-1.3, 2.12, -2.4],
-    color: [0.22, 0.21, 0.23],
+    color: [0.15, 0.125, 0.105],
     size: 0.2,
     samples: [2, 2],
     soften: 0,

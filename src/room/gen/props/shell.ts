@@ -521,8 +521,8 @@ const PILE = FLOOR + THICK;
 /** A square of the pattern, the backing's jute, and the two yarns seen at the rug's edge. */
 const CHECK = RUG / 5;
 const JUTE: Rgb = [0.21, 0.195, 0.175];
-const NAVY: Rgb = [0.014, 0.03, 0.105];
-const IVORY: Rgb = [0.6, 0.6, 0.63];
+const NAVY: Rgb = [0.024, 0.04, 0.088];
+const IVORY: Rgb = [0.4, 0.37, 0.315];
 
 const smooth = (a: number, b: number, t: number): number => {
   const x = Math.min(1, Math.max(0, (t - a) / (b - a)));

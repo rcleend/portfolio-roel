@@ -44,8 +44,8 @@ vec4 oakBoards(vec2 p) {
   ivec2 id = ivec2(int(col), int(row));
   vec2 f = vec2(shifted - col * len, p.y - row * W);
   float tone = hash2(id);
-  vec3 base = mix(vec3(0.36, 0.175, 0.135), vec3(0.6, 0.33, 0.26), tone);
-  base = mix(base, vec3(0.46, 0.24, 0.18), hash2(id + ivec2(91, 7)) * 0.5);
+  vec3 base = mix(vec3(0.36, 0.185, 0.11), vec3(0.6, 0.35, 0.205), tone);
+  base = mix(base, vec3(0.46, 0.255, 0.15), hash2(id + ivec2(91, 7)) * 0.5);
   // Long grain: streaks stretched 40:1 along the board, bent by a slow warp; latewood lines; fine pores.
   vec2 g = vec2(p.x * 0.9 + hash2(id + ivec2(2, 0)) * 20.0, p.y * 38.0 + tone * 50.0);
   g.y += fbm(vec2(p.x * 1.3, p.y * 2.0) + vec2(id)) * 5.0;
@@ -126,7 +126,7 @@ vec3 surface(float material, vec2 metres, vec2 st, vec4 params, out float cavity
     + (0.14 * (stroke - 0.5) + 0.12 * (sweep - 0.5)) * (1.0 + 3.0 * navy);
   float pile = 0.87 + (0.12 * tuft + 0.07 * (clump - 0.5)) * (1.0 + 1.5 * navy)
     + 0.06 * rows * (weft - 0.5) * (1.0 + 2.0 * navy) + nap;
-  vec3 yarn = mix(vec3(0.6, 0.6, 0.63) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.019, 0.034, 0.108), navy);
+  vec3 yarn = mix(vec3(0.4, 0.37, 0.315) * (0.97 + 0.06 * hash2(ivec2(knot) + ivec2(7, 3))), vec3(0.03, 0.045, 0.092), navy);
   return yarn * max(pile, 0.3);
 }
 `;
