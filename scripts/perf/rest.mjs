@@ -6,6 +6,9 @@
 //                              [--seconds 8] [--settle 4] [--raf 30] [--browser webkit] [--json file.json]
 //                              [--label text] [--foreign .shots/flights/foreign.py]
 //   node scripts/perf/rest.mjs --report file.json     prints a saved run's table again
+//   --capture dir   also records what reached the screen in each state's window (CDP screencast, every compositor
+//                   frame, its timestamp in the name) for a slowed look at the motion; it costs the page frames, so
+//                   a run with it measures nothing worth comparing.
 // The states, each reached the visitor's way, left alone for `--settle` seconds and then measured for `--seconds`:
 //   tv-still      the TV view before any input: the title playing flat on the startup still, the lit room under it
 //   tv-title      the TV view after the hand-over to the live room (the visitor's first key), the game on its title
@@ -63,6 +66,7 @@ const settleMs = Number(option('settle', 4)) * 1000;
 const rafHz = option('raf', null) === null ? null : Number(option('raf'));
 const engine = option('browser', 'chromium');
 const label = option('label', '');
+const captureDir = option('capture', null);
 const wanted = option('states', STATES.join(','))
   .split(',')
   .map((name) => name.trim())
@@ -414,6 +418,25 @@ async function measureBuild() {
     };
 
     /** One state's window: `ms` of the page left alone, between two readings of everything. */
+    /** `--capture`: the compositor's frames from now until the returned stop, into `<dir>/<state>/<ms>.jpg`. */
+    const capture = async (name) => {
+      if (!captureDir || !client) return async () => {};
+      const dir = join(resolve(captureDir), name);
+      mkdirSync(dir, { recursive: true });
+      let first = null;
+      const onFrame = ({ data, metadata, sessionId }) => {
+        first ??= metadata.timestamp;
+        const ms = String(Math.round((metadata.timestamp - first) * 1000)).padStart(6, '0');
+        writeFileSync(join(dir, `${ms}.jpg`), Buffer.from(data, 'base64'));
+        client.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+      };
+      client.on('Page.screencastFrame', onFrame);
+      await client.send('Page.startScreencast', { format: 'jpeg', quality: 85, everyNthFrame: 1 });
+      return async () => {
+        await client.send('Page.stopScreencast');
+        client.off('Page.screencastFrame', onFrame);
+      };
+    };
     const measure = async (name, ms, expected, notes = []) => {
       progress(`measuring ${name} for ${ms / 1000} s`);
       const flags = [...notes];
@@ -425,7 +448,9 @@ async function measureBuild() {
       });
       const cpuBefore = await processes();
       const mainBefore = await mainThread();
+      const stopCapture = await capture(name);
       await sleep(ms);
+      await stopCapture();
       const mainAfter = await mainThread();
       const cpuAfter = await processes();
       const after = await page.evaluate(() => {

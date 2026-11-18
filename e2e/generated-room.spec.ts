@@ -204,6 +204,43 @@ test("the lava lamp's wax moves by the clock and stands still on request", async
   expect(errors).toEqual([]);
 });
 
+test('a hidden page draws nothing and moves nothing, and rests as before once it is shown again', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/room-lab.html?clean&mood=rose&view=room');
+  await page.waitForFunction(() => window.__roomLab !== undefined);
+  await expectRest(page, 'in the room view', ['air', 'lava']);
+  // The tab goes to the back (as the browser says it: document.hidden and its event). The rain and the lava move by
+  // the time of the frame they are drawn in, so with no frame they do not move either.
+  const lamp = () =>
+    page.evaluate(() => {
+      type Wax = { geometry: { getAttribute(name: string): { array: Float32Array } } };
+      const room = (globalThis as unknown as { __generatedRoom: { lava: { meshes: Wax[] } } }).__generatedRoom;
+      const positions = room.lava.meshes[0]?.geometry.getAttribute('position').array ?? new Float32Array();
+      return positions.reduce((sum, value, index) => sum + value * (index % 7), 0);
+    });
+  const setHidden = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => (value ? 'hidden' : 'visible'),
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  await setHidden(true);
+  await expect.poll(async () => (await roomPace(page))?.pace).toBe('still');
+  const frames = async () => (await stats(page))?.framesRendered ?? 0;
+  await page.waitForTimeout(150);
+  const [drawn, wax] = [await frames(), await lamp()];
+  await page.waitForTimeout(1500);
+  expect(await frames(), 'frames drawn while hidden').toBe(drawn);
+  expect(await lamp(), 'the wax while hidden').toBe(wax);
+  await setHidden(false);
+  await expectRest(page, 'shown again', ['air', 'lava']);
+  await expect.poll(lamp).not.toBe(wax);
+  expect(errors).toEqual([]);
+});
+
 test("the deck moves the generated CD player's parts", async ({ page }) => {
   const errors = trackErrors(page);
   const requests: string[] = [];
