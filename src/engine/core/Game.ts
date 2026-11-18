@@ -53,6 +53,8 @@ export class Game<A extends string> implements GameSurface {
   #lastTime: number | null = null;
   #paused = false;
   #hidden = false;
+  /** Between `start` and `stop`. */
+  #running = false;
   /** A lost context wiped the frame or the caches it is drawn from: the next animation frame renders, paused or not. */
   #redrawDue = false;
   #stopRestore: (() => void) | null = null;
@@ -89,19 +91,22 @@ export class Game<A extends string> implements GameSurface {
 
   /** Begins the animation-frame loop. Idempotent. */
   start(): void {
-    if (this.#handle !== null) return;
+    if (this.#running) return;
+    this.#running = true;
     this.#visibility?.addEventListener('visibilitychange', this.#onVisibilityChange);
     this.#hidden = this.#visibility?.hidden ?? false;
     this.#lastTime = null;
-    this.#handle = this.#scheduler.request(this.#tick);
+    this.#schedule(true);
     // A GPU reset (a laptop's sleep, a display change) gives the canvas back blank with its context's state reset, and
     // a paused game drew nothing more: the TV showed a blank picture until the game resumed.
     const restored = onCanvasRestored(this.canvas, () => {
       this.gfx.ctx.imageSmoothingEnabled = false;
       this.#redrawDue = true;
+      this.#schedule(true);
     });
     const repainted = onCanvasesRepainted(() => {
       this.#redrawDue = true;
+      this.#schedule(true);
     });
     this.#stopRestore = () => {
       restored();
@@ -111,6 +116,7 @@ export class Game<A extends string> implements GameSurface {
 
   /** Stops the loop and detaches listeners; the game can be started again. */
   stop(): void {
+    this.#running = false;
     if (this.#handle !== null) this.#scheduler.cancel(this.#handle);
     this.#handle = null;
     this.#visibility?.removeEventListener('visibilitychange', this.#onVisibilityChange);
@@ -128,6 +134,7 @@ export class Game<A extends string> implements GameSurface {
     // Without this the time spent paused would be replayed as catch-up steps.
     this.#lastTime = null;
     this.#loop.reset();
+    this.#schedule();
   }
 
   setInputEnabled(enabled: boolean): void {
@@ -171,12 +178,23 @@ export class Game<A extends string> implements GameSurface {
     return () => this.#cursorListeners.delete(listener);
   }
 
+  /**
+   * Asks for the next animation frame while the game runs: not while it is paused or the page hidden, where it draws
+   * nothing and nothing should wake the page for it (`resume`, the page shown again or a redraw due ask again).
+   * `once`: one frame whatever (the first, a redraw).
+   */
+  #schedule(once = false): void {
+    if (!this.#running || this.#handle !== null) return;
+    if (once || this.#redrawDue || (!this.#paused && !this.#hidden)) this.#handle = this.#scheduler.request(this.#tick);
+  }
+
   readonly #tick = (timeMs: number): void => {
-    this.#handle = this.#scheduler.request(this.#tick);
+    this.#handle = null;
     const last = this.#lastTime;
     this.#lastTime = timeMs;
     const redraw = this.#redrawDue;
     this.#redrawDue = false;
+    this.#schedule();
     const steps = last === null || this.#paused || this.#hidden ? 0 : this.#loop.advance(timeMs - last);
     for (let i = 0; i < steps; i++) this.#simulate();
     if (steps > 0 || redraw) this.render();
@@ -194,6 +212,7 @@ export class Game<A extends string> implements GameSurface {
     if (!this.#hidden) {
       this.#lastTime = null;
       this.#loop.reset();
+      this.#schedule();
     }
   };
 }
