@@ -115,7 +115,11 @@ export class RoomStage {
     // Not governed: a software renderer, whose frame times are the CPU's, which the page's own work moves more than
     // the pixels do; and a browser under automation, whose clock is the test's (a paused clock stepped a frame at a
     // time, a throttled CPU) and says nothing about the device.
-    this.governor = new QualityGovernor({ tier, scale: 1 }, fixed !== null || this.softwareGpu || navigator.webdriver);
+    this.governor = new QualityGovernor(
+      { tier, scale: 1 },
+      fixed !== null || this.softwareGpu || navigator.webdriver,
+      (quality) => this.ratioAt(quality, this.viewport.width, this.viewport.height) ** 2,
+    );
     this.samples = QUALITY_TIERS[tier].samples;
     this.watchDisplay();
 
@@ -182,6 +186,11 @@ export class RoomStage {
   /** How often the quality has changed this page load. */
   get qualityChanges(): number {
     return this.governor.changes;
+  }
+
+  /** The governor has yet to see the quality hold over a window of full-pace frames (`QualityGovernor.judging`). */
+  get judging(): boolean {
+    return this.governor.judging;
   }
 
   /** The display hands out fewer than sixty frames a second (docs/ROOM.md › Quality › A capped display). */
