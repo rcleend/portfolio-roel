@@ -133,11 +133,19 @@ export async function expectRest(page: Page, where: string, moving: readonly str
   expect([...(pace?.moving ?? [])].sort(), `what moves ${where}`).toEqual([...moving].sort());
   if (moving.length === 0) {
     // The frame already asked for may still come. And a clock that turns over meanwhile (the monitor's minute) asks
-    // for the one frame that shows it: after one such frame the room is looked at once more.
+    // for the one frame that shows it: after one such frame the room is looked at once more. A room just made, or
+    // just arrived at, may still be finishing what it was asked for (a few seconds at most): it has to come to rest,
+    // and something that keeps asking never lets it.
     await page.waitForTimeout(150);
-    let drawn = await framesDrawn(page, 600);
-    if (drawn === 1) drawn = await framesDrawn(page, 600);
-    expect(drawn, `frames drawn ${where}`).toBe(0);
+    await expect
+      .poll(
+        async () => {
+          const drawn = await framesDrawn(page, 600);
+          return drawn === 1 ? framesDrawn(page, 600) : drawn;
+        },
+        { message: `frames drawn ${where}`, timeout: 8_000, intervals: [0] },
+      )
+      .toBe(0);
     return;
   }
   const asked = pace?.rate ?? 0;
