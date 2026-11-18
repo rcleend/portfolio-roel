@@ -79,9 +79,14 @@ draw();
 addEventListener('resize', draw);
 new MutationObserver(draw).observe(still, { attributes: true, attributeFilter: ['data-shown', 'data-gone'] });
 
-// The image: asked for now, behind everything the page needs first, decoded off the paint's path, and shown by the
-// page's own rule (index.html › [data-image]) from then on. AVIF, or WebP where that will not decode.
-// Nothing of this may stop the page: a browser without `decode` or without either format keeps the gradients.
+// The image: asked for once the room is ready (RoomHost's `data-ready`), decoded off the paint's path, and shown by
+// the page's own rule (index.html › [data-image]) from then on. AVIF, or WebP where that will not decode.
+// Not sooner: on a slow link its bytes share the line with the app's and the room's, and asked for at once (low
+// priority or not) it put the tube on 0.1-0.17 s later on Slow 4G; asked for at the room's readiness it costs nothing
+// measurable and still lands seconds before the hand-over, which waits for the room (docs/ROOM.md › Startup). Until
+// then the still shows its gradients, which the image eases in over. A page whose room never comes (no WebGL, the CV
+// alone) never fetches it. Nothing of this may stop the page: a browser without `decode` or either format keeps the
+// gradients.
 if (able && STILL_IMAGE && 'decode' in Image.prototype) {
   /** Fetches and decodes the image in one format (a new element each time: Firefox does not decode a second address on one that failed). */
   const load = (ending: string): Promise<void> => {
@@ -93,5 +98,10 @@ if (able && STILL_IMAGE && 'decode' in Image.prototype) {
       still.dataset.image = '';
     });
   };
-  load('avif').catch(() => load('webp').catch(() => {}));
+  const ready = new MutationObserver(() => {
+    if (!document.querySelector('.room-host[data-ready="true"]')) return;
+    ready.disconnect();
+    load('avif').catch(() => load('webp').catch(() => {}));
+  });
+  ready.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-ready'] });
 }
