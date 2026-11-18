@@ -107,6 +107,12 @@ export interface RadioDoor {
   load(): Promise<RadioDeck>;
   /** The deck once `load` has brought it, else null. */
   readonly deck: RadioDeck | null;
+  /**
+   * The camera is about to set off for the radio for the first time and still rests where it is: `listener` makes the
+   * app's half ready (the player, its controls) and the camera waits for what it returns, a bounded moment, so none
+   * of that is mounted in the flight's frames (docs/ROOM.md › Flights). Returns its unsubscribe.
+   */
+  onBoarding(listener: () => Promise<unknown> | undefined): () => void;
 }
 
 export interface RadioDeck {

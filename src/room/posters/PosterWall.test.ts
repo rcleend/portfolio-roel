@@ -99,8 +99,11 @@ function setup(options: Setup = {}) {
 
   // IdleWork's contract: a drop takes the task off the queue and ends it, so its `finally` runs.
   const queue: { task: IdleTask; options: IdleTaskOptions }[] = [];
+  /** What the screen is doing, as IdleWork would say: a test that flies sets it. */
+  const moment = { now: 'quiet' as 'quiet' | 'flying' };
   const background = {
     hurry: vi.fn(),
+    moment: () => moment.now,
     add: (task: IdleTask, taskOptions: IdleTaskOptions = {}) => {
       const queued = { task, options: taskOptions };
       queue.push(queued);
@@ -126,6 +129,7 @@ function setup(options: Setup = {}) {
   };
 
   const animations: ((now: number) => boolean)[] = [];
+  const warm = vi.fn();
   const canvas = new EventTarget();
   /** Resolves each deferred compileAsync, in call order. */
   const compiles: (() => void)[] = [];
@@ -136,10 +140,11 @@ function setup(options: Setup = {}) {
     canvas,
     scene,
     camera: {},
-    renderer: {
-      compileAsync: () =>
-        options.deferCompile === true ? new Promise<void>((resolve) => compiles.push(resolve)) : Promise.resolve(),
-    },
+    renderer: {},
+    // The stage compiles for the target frames draw into (RoomStage.prepareAsync) and warms what it is given.
+    prepareAsync: () =>
+      options.deferCompile === true ? new Promise<void>((resolve) => compiles.push(resolve)) : Promise.resolve(),
+    warm,
     loop: {
       invalidate: vi.fn(),
       animate: (step: (now: number) => boolean) => {
@@ -180,13 +185,15 @@ function setup(options: Setup = {}) {
   };
 
   const targets: { image: { width: number; height: number }; dispose: ReturnType<typeof vi.fn> }[] = [];
+  /** The frames the wall timed its first flight by, as it hands them to the slow-device rule. */
+  const slowFlight = vi.fn((_frames: readonly number[]) => false);
   /** What each upload was handed, and its size then (the canvas is let go after). */
   const uploaded: { canvas: unknown; width: number }[] = [];
   const kit = {
     flightMs: 1100,
     cutHoldMs: 1200,
     tier: () => '2k',
-    slowFlight: () => false,
+    slowFlight,
     quiet: QUIET,
     allocateStripTarget: (_renderer: unknown, width: number, height: number) => {
       const target = { image: { width, height }, dispose: vi.fn() };
@@ -244,6 +251,9 @@ function setup(options: Setup = {}) {
     land,
     node,
     meshes,
+    moment,
+    warm,
+    slowFlight,
   };
 }
 
@@ -365,6 +375,30 @@ describe('PosterWall', () => {
     wall.depart();
     expect(queue).toHaveLength(0);
     expect(background.hurry).toHaveBeenCalledOnce();
+  });
+
+  it('times the first flight from the frame the camera sets off in, however long the departure waited', async () => {
+    const { wall, flyTo, land, frame, animations, slowFlight } = setup();
+    await flush();
+    // The visitor leaves, and the camera waits while the room is made ready: frames drawn meanwhile (the one that
+    // shows the game's PAUSE) are not the flight's.
+    wall.depart();
+    const start = performance.now();
+    frame(start);
+    expect(animations).toHaveLength(0);
+    expect(slowFlight).not.toHaveBeenCalled();
+    // The camera sets off: every frame until it lands is timed.
+    flyTo('room');
+    for (let frames = 1; frames <= 15; frames++) frame(start + 400 + frames * 20);
+    expect(slowFlight).not.toHaveBeenCalled();
+    land();
+    frame(start + 720);
+    expect(slowFlight).toHaveBeenCalledOnce();
+    expect(slowFlight.mock.calls[0]?.[0]).toHaveLength(16);
+    // Once: a later flight is not timed.
+    flyTo('tv');
+    frame(start + 740);
+    expect(animations).toHaveLength(0);
   });
 
   it('on a software GPU, uploads nothing at the TV; the first departure puts it up, between frames', async () => {
@@ -514,6 +548,56 @@ describe('PosterWall', () => {
     inView = true;
     land();
     expect(node()?.visible).toBe(true);
+  });
+
+  it('shows walls that are ready in the middle of a flight only once the camera has landed, warmed first', async () => {
+    const { wall, runUnits, compiles, moment, warm, flyTo, land, meshes } = await staged({ deferCompile: true });
+    runUnits();
+    expect(wall.shown).toBe(false);
+    // The camera flies, and the program links meanwhile: nothing is made in a flight.
+    moment.now = 'flying';
+    flyTo('room');
+    for (const compiled of compiles) compiled();
+    await flush();
+    expect(wall.shown).toBe(false);
+    expect(warm).not.toHaveBeenCalled();
+    moment.now = 'quiet';
+    land();
+    expect(wall.shown).toBe(true);
+    const { cards, skirts } = meshes();
+    expect(warm).toHaveBeenCalledTimes(1);
+    expect(warm).toHaveBeenCalledWith([cards, skirts]);
+  });
+
+  it('keeps a flight waiting for painted walls until they are up, and not for walls still being painted', async () => {
+    // Still with the painter: a flight does not wait for a worker.
+    const painting = setup();
+    let free = false;
+    void painting.wall.boarded(60_000).then(() => (free = true));
+    await flush();
+    expect(free).toBe(true);
+
+    // Painted, with the upload and the program left: the room runs those, and the flight waits for the walls.
+    const { wall, runUnits, compiles } = await staged({ deferCompile: true });
+    let boarded = false;
+    void wall.boarded(60_000).then(() => (boarded = true));
+    runUnits();
+    await flush();
+    expect(boarded).toBe(false);
+    for (const compiled of compiles) compiled();
+    await flush();
+    expect(wall.shown).toBe(true);
+    expect(boarded).toBe(true);
+  });
+
+  it('lets a flight go after its bounded wait when the walls are not up by then', async () => {
+    const { wall, runUnits } = await staged({ deferCompile: true });
+    let boarded = false;
+    void wall.boarded(5).then(() => (boarded = true));
+    runUnits();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(wall.shown).toBe(false);
+    expect(boarded).toBe(true);
   });
 
   it('fades a late arrival in when a piece is already in frame, and ends on the opaque program', async () => {

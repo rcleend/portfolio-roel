@@ -1,11 +1,11 @@
-import { Box3, PerspectiveCamera, Vector3 } from 'three';
+import { Box3, PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { PcFramingModel } from '../pc/pcFraming';
 import { RADIO_FIXTURE } from '../radio/radioFixtures';
 import { radioPoseSolver } from '../radio/radioFraming';
 import { type FrameScheduler, RenderLoop } from '../stage/RenderLoop';
 import { type TvFramingModel, tvViewpoint } from '../tv/tvFraming';
-import { CameraRig, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
+import { CameraRig, FLIGHT_MS, MAX_CUT_HOLD_MS, NO_INSETS, REDUCED_FADE_MS } from './CameraRig';
 import { regionFromInsets } from './framing';
 import type { ScreenFade } from './ScreenFade';
 
@@ -100,6 +100,59 @@ describe('CameraRig', () => {
     const { instance } = rig(false);
     instance.setRadioFraming(null);
     expect(instance.viewpoint('radio').position.distanceTo(instance.viewpoint('room').position)).toBe(0);
+  });
+
+  it("starts a flight's clock with its second frame: a late frame after the click moves nothing", () => {
+    const { instance, frames, camera } = rig(false);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    const arrived = vi.fn();
+    const stood = camera.position.clone();
+    instance.goTo('room', arrived);
+    // The frame of the click, and one that comes 60 ms late behind the page's own work: the camera has not left.
+    frames.run(1000);
+    expect(camera.position.distanceTo(stood)).toBe(0);
+    frames.run(1060);
+    expect(camera.position.distanceTo(stood)).toBe(0);
+    // From there it moves by the clock: a little after one frame, and it lands a flight's length after the second.
+    frames.run(1077);
+    const first = camera.position.distanceTo(stood);
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(0.001);
+    for (let t = 1094; t < 1060 + FLIGHT_MS; t += 17) frames.run(t);
+    expect(arrived).not.toHaveBeenCalled();
+    frames.run(1060 + FLIGHT_MS);
+    expect(arrived).toHaveBeenCalledOnce();
+  });
+
+  it('follows a pointer in the room view once it is far enough to see, and asks for no frame nearer than that', () => {
+    const { instance, frames, camera } = rig(false);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    instance.goTo('room', () => undefined);
+    for (let t = 1000; t <= 1100 + FLIGHT_MS; t += 17) frames.run(t);
+    const settled = camera.position.clone();
+    let pending = 0;
+    const asked = (): boolean => {
+      // A frame was asked for if running the scheduler runs anything: the camera's step moves by the time given.
+      const before = camera.position.clone();
+      frames.run(5000 + ++pending * 17);
+      frames.run(5000 + ++pending * 17);
+      return camera.position.distanceTo(before) > 0;
+    };
+    // A phone's tilt sensor at rest, a mouse that shivers: a hundredth of a pixel of parallax is none.
+    instance.setParallaxPointer(new Vector2(0.003, -0.002));
+    expect(asked()).toBe(false);
+    expect(camera.position.distanceTo(settled)).toBe(0);
+    // A pointer that went somewhere is followed, all the way.
+    instance.setParallaxPointer(new Vector2(0.5, 0));
+    expect(asked()).toBe(true);
+    for (let i = 0; i < 200; i++) frames.run(6000 + i * 17);
+    const followed = camera.position.distanceTo(settled);
+    expect(followed).toBeGreaterThan(0.02);
+    // And leaving puts the camera back exactly, however little is left to go.
+    instance.setParallaxPointer(new Vector2(0.501, 0));
+    instance.setParallaxPointer(null);
+    for (let i = 0; i < 300; i++) frames.run(10000 + i * 17);
+    expect(camera.position.distanceTo(settled)).toBe(0);
   });
 
   it('holds a reduced-motion cut black while asked, then fades back and arrives', () => {

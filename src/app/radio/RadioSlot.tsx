@@ -14,6 +14,10 @@ export interface RadioSlotProps {
   readonly settled: boolean;
   /** True once the TV's picture is up: nothing radio-related happens before. */
   readonly powered: boolean;
+  /** The camera is about to set off for the radio and waits a moment for the player (RoomHost): it loads now. */
+  readonly boarding: boolean;
+  /** The player is mounted, its layout done: a camera waiting for it may leave. Stable across renders. */
+  readonly onMounted: () => void;
   /** The site's sound preference (the sound toggle). */
   readonly muted: boolean;
   /** Leave the radio for the room view (Escape in the controls, the bar's back button). */
@@ -54,14 +58,24 @@ function loadExperience(): Promise<Experience> {
 
 /**
  * The CD player as the room host mounts it (docs/RADIO.md › Loading): nothing on first
- * load but this glue. The player loads at once on the way to the radio, hidden by the
- * flight, or at idle once the visitor has been looking around the room for a moment, when
- * the room starts preparing its half too. A player loaded at idle first mounts (and paints
- * the discs' prints) only while the camera rests, so a flight that sets off meanwhile
- * never pays for it. Once mounted it stays for the page, so the music plays on wherever
+ * load but this glue. The player loads as the camera is about to set off for the radio
+ * (the camera waits a bounded moment for it: `RadioDoor.onBoarding`), or at idle once the
+ * visitor has been looking around the room for a moment, when the room starts preparing
+ * its half too. It first mounts (and paints the discs' prints) only while the camera
+ * rests, so no flight ever pays for it. Once mounted it stays for the page, so the music plays on wherever
  * the visitor goes. Renders a portal into the room's controls slot only.
  */
-export function RadioSlot({ door, view, settled, powered, muted, onLeave, onFocusStage }: RadioSlotProps): ReactNode {
+export function RadioSlot({
+  door,
+  view,
+  settled,
+  powered,
+  boarding,
+  onMounted,
+  muted,
+  onLeave,
+  onFocusStage,
+}: RadioSlotProps): ReactNode {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -76,20 +90,29 @@ export function RadioSlot({ door, view, settled, powered, muted, onLeave, onFocu
 
   useEffect(() => {
     if (!door.available || loaded) return;
-    // On the way to the radio: now, hidden by the flight.
-    if (view === 'radio') return load(door, setLoaded);
+    // About to set off for the radio (the camera waits a moment for this), or on the way there: now.
+    if (view === 'radio' || boarding) return load(door, setLoaded);
     if (!lookingAround) return;
     return afterIdleDelay(PLAYER_PREFETCH_AFTER_SETTLED_MS, () => door.available && load(door, setLoaded));
-  }, [door, view, lookingAround, loaded]);
+  }, [door, view, boarding, lookingAround, loaded]);
 
-  // Mounting (the player, its controls, the prints) waits for the camera to rest, except on the way to the radio,
-  // where the flight hides it and the discs want their prints before they rise.
-  const mountable = loaded !== null && (settled || view === 'radio');
+  // Mounting (the player, its controls, the prints) is never a flight's work (docs/ROOM.md › Flights): it waits for
+  // the camera to rest. On the way to the radio that is before the camera sets off, which waits for it; a player
+  // whose code comes later than that wait allows mounts at the landing.
+  const mountable = loaded !== null && settled;
   useEffect(() => {
     if (mountable) setMounted(true);
   }, [mountable]);
 
-  if (!loaded || !(mounted || mountable)) return null;
+  const shown = loaded !== null && (mounted || mountable);
+  useEffect(() => {
+    if (!shown || !loaded) return;
+    // Its style and layout now, while the camera rests, rather than in the first frame it moves in.
+    void loaded.deck.controls.offsetHeight;
+    onMounted();
+  }, [shown, loaded, onMounted]);
+
+  if (!loaded || !shown) return null;
   const { Player, deck } = loaded;
   return createPortal(
     Player === 'failed' ? (

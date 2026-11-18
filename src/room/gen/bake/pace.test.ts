@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BakePace,
+  COMPOSE_SLICES_A_PAGE,
+  composeSlices,
   LATE_FRAME_MS,
   LEAST_SHARE,
   MAX_GAP_MS,
@@ -97,6 +99,24 @@ describe('BakePace behind late frames', () => {
   });
 });
 
+describe('BakePace on a display that hands out thirty frames a second', () => {
+  it('takes frames that come as the display hands them out for on time', () => {
+    const pace = new BakePace(0.1);
+    for (let frame = 0; frame < 30; frame++) pace.frame(1000 / 30, 1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(40);
+    expect(pace.gapMs()).toBe(0);
+    // Judged against sixty a second, every one of them was late, and the rest of the room came at an eighth the pace.
+    for (let frame = 0; frame < 30; frame++) pace.frame(1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(5);
+  });
+
+  it('still gives way to frames that come late for that display', () => {
+    const pace = new BakePace(0.1);
+    for (let frame = 0; frame < 10; frame++) pace.frame(50, 1000 / 30);
+    expect(pace.pieces(4, 60, 1, true)).toBe(5);
+  });
+});
+
 describe('overBudget', () => {
   it('says when the opening pass would keep the visitor waiting', () => {
     // An Apple M4: 0.6 ms a view, 143 views.
@@ -105,5 +125,62 @@ describe('overBudget', () => {
     expect(overBudget(OPENING_BUDGET_MS / 143 + 0.01, 143)).toBe(true);
     // The lowest tier's sample counts take the same GPU about half as long.
     expect(overBudget(8, 77)).toBe(false);
+  });
+});
+
+describe('composeSlices', () => {
+  /** A quad as two triangles, `width` × `height`, at `x`. */
+  const quad = (x: number, width: number, height: number): number[] => [
+    ...[x, 0, x + width, 0, x + width, height],
+    ...[x, 0, x + width, height, x, height],
+  ];
+
+  it('cuts a page into runs of whole triangles that cover every vertex once, in order', () => {
+    const clip = Array.from({ length: 40 }, (_, i) => quad(i, 1, 1)).flat();
+    const slices = composeSlices(clip, 8);
+    expect(slices).toHaveLength(8);
+    let next = 0;
+    for (const slice of slices) {
+      expect(slice.start).toBe(next);
+      expect(slice.count % 3).toBe(0);
+      expect(slice.count).toBeGreaterThan(0);
+      next += slice.count;
+    }
+    expect(next).toBe(clip.length / 2);
+  });
+
+  it('gives every slice about the same area, however unequal the charts', () => {
+    // One chart as large as the sixty small ones together.
+    const clip = [...quad(0, 60, 1), ...Array.from({ length: 60 }, (_, i) => quad(100 + i, 1, 1)).flat()];
+    const slices = composeSlices(clip, 4);
+    const area = (slice: { start: number; count: number }): number => {
+      let sum = 0;
+      for (let v = slice.start; v < slice.start + slice.count; v += 3) {
+        const [ax, ay, bx, by, cx, cy] = clip.slice(v * 2, v * 2 + 6) as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ];
+        sum += Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2;
+      }
+      return sum;
+    };
+    const areas = slices.map(area);
+    expect(areas.reduce((sum, value) => sum + value, 0)).toBeCloseTo(120);
+    // No slice holds more than a share and the one triangle that carried it over.
+    for (const value of areas) expect(value).toBeLessThanOrEqual(120 / 4 + 30);
+    expect(slices.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('cuts a single chart where its triangles end, and gives a page without charts one empty slice', () => {
+    expect(composeSlices(quad(0, 1, 1))).toEqual([
+      { start: 0, count: 3 },
+      { start: 3, count: 3 },
+    ]);
+    expect(composeSlices([])).toEqual([{ start: 0, count: 0 }]);
+    expect(COMPOSE_SLICES_A_PAGE).toBeGreaterThan(1);
   });
 });

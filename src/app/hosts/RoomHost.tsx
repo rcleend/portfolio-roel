@@ -75,6 +75,18 @@ function WayOut({
   );
 }
 
+/** Runs `run` while the camera rests: at once, or in a task of its own just after it lands. */
+function atRest(room: Room | null, run: () => void): void {
+  if (!room || room.settled) {
+    run();
+    return;
+  }
+  const stop = room.onSettle(() => {
+    stop();
+    setTimeout(run, 0);
+  });
+}
+
 declare global {
   interface Window {
     /** Development, or production with `?debug`: the room, so tests and measurements can read its render stats. */
@@ -130,6 +142,10 @@ function AtticStage({
   const [tvOn, setTvOn] = useState(false);
   // The camera has rested away from the TV (or headed for the radio): the CD player's glue loads (see RadioSlot above).
   const [radioDue, setRadioDue] = useState(false);
+  // The camera is about to set off for the radio and waits for the CD player to be mounted (below).
+  const [radioBoarding, setRadioBoarding] = useState(false);
+  const radioMounted = useRef(false);
+  const radioWaiting = useRef<(() => void) | null>(null);
   // The TV's picture is up and the page idle: the guide loads (see RoomGuide above).
   const [guideDue, setGuideDue] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
@@ -257,11 +273,12 @@ function AtticStage({
     if (!tvOn || guideDue) return;
     return whenIdle(() => {
       import('../guide/RoomGuide').then(
-        () => startTransition(() => setGuideDue(true)),
+        // Mounting it is not a flight's work: a guide that arrives while the camera flies mounts once it has landed.
+        () => atRest(room, () => startTransition(() => setGuideDue(true))),
         (error: unknown) => console.warn("The room's guide failed to load", error),
       );
     });
-  }, [tvOn, guideDue]);
+  }, [tvOn, guideDue, room]);
 
   // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
   // suspension and the commit), so it waits for the landing, out of the click and the flight, as a transition. The
@@ -270,6 +287,27 @@ function AtticStage({
     if (radioDue || view === 'tv' || !(settled || view === 'radio')) return;
     startTransition(() => setRadioDue(true));
   }, [radioDue, view, settled]);
+
+  // Mounting the CD player is not a flight's work either. The room asks before the camera first sets off for the
+  // radio (it still rests then) and waits, a bounded moment, for the promise this returns: the glue and the player
+  // load and mount now, and the camera leaves once their layout is done (RadioSlot's `onMounted`).
+  useEffect(() => {
+    if (!room) return;
+    return room.radio.onBoarding(() => {
+      if (radioMounted.current) return undefined;
+      setRadioBoarding(true);
+      setRadioDue(true);
+      return new Promise<void>((resolve) => {
+        radioWaiting.current?.();
+        radioWaiting.current = resolve;
+      });
+    });
+  }, [room]);
+  const onRadioMounted = useCallback((): void => {
+    radioMounted.current = true;
+    radioWaiting.current?.();
+    radioWaiting.current = null;
+  }, []);
 
   const { top, right, bottom, left } = insets;
   useEffect(() => {
@@ -375,6 +413,8 @@ function AtticStage({
             view={view}
             settled={settled}
             powered={tvOn}
+            boarding={radioBoarding}
+            onMounted={onRadioMounted}
             muted={muted}
             onLeave={showRoom}
             onFocusStage={focusStage}

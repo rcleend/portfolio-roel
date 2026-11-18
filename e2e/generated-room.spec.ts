@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { expectSixtyFrames, trackErrors } from './helpers';
+import { expectRest, expectSixtyFrames, frameRate, roomPace, trackErrors } from './helpers';
 
 test.use({
   launchOptions: { args: GPU_LAUNCH_ARGS },
@@ -60,9 +60,18 @@ test('the room builds in a worker and lights what the TV view shows before the r
   expect(built?.triangles).toBeLessThan(130_000);
   await page.evaluate(() => window.__roomLab?.room.powerOn());
   await expect.poll(async () => (await stats(page))?.triangles).toBeLessThan(70_000);
-  // Sixty frames a second whether or not anything moves: the paused game still gets frames.
+  // The whole room is lit, so it rests (docs/ROOM.md › Frames › At rest). A game that runs gets each of its frames,
+  // sixty a second; a paused one is a still picture in a view where nothing else moves (the air is the room's, not
+  // this view's, and the lava lamp is out of sight), and the room draws no frame for it.
+  await page.evaluate(() => window.__roomLab?.surface.resume());
+  await expectSixtyFrames(page, 'with the game running at the TV');
+  expect((await stats(page))?.pace, 'what the room draws by itself at the TV').toMatchObject({
+    pace: 'still',
+    moving: [],
+    why: '',
+  });
   await page.evaluate(() => window.__roomLab?.surface.pause());
-  await expectSixtyFrames(page, 'with the game paused at the TV');
+  await expectRest(page, 'with the game paused at the TV', []);
   // The set's plastic is dark; the wall behind it and the cabinet under it are not black: the bake reached them.
   const shot = sharp(await page.locator('#stage canvas').screenshot());
   const { width = 1, height = 1 } = await shot.metadata();
@@ -176,19 +185,63 @@ test("the lava lamp's wax moves by the clock and stands still on request", async
       return { wax: positions.reduce((sum, value, index) => sum + value * (index % 7), 0) };
     });
   await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(true);
+  // The wax is posed in the frames the room draws, and the room at rest draws them for it: it says the lamp moves.
+  expect((await roomPace(page))?.moving).toContain('lava');
   const before = await lamp();
   await expect.poll(async () => (await lamp()).wax).not.toBe(before.wax);
-  // Reduced motion: one pose, and nothing asks for it to change.
+  // Reduced motion: one pose, and nothing asks for it to change. The rain and the dust stand still too, so the room
+  // draws no frame at all.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(false);
   const still = await lamp();
-  await page.waitForTimeout(400);
+  await expectRest(page, 'under reduced motion', []);
   expect((await lamp()).wax).toBe(still.wax);
   // At the TV the lamp is out of sight and rests.
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(true);
   await page.evaluate(() => window.__roomLab?.room.focusTv());
   await expect.poll(async () => (await stats(page))?.lavaRunning).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('a hidden page draws nothing and moves nothing, and rests as before once it is shown again', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/room-lab.html?clean&mood=rose&view=room');
+  await page.waitForFunction(() => window.__roomLab !== undefined);
+  // The first seconds after the room is whole are drawn at full pace (the camera arrives, the last of its making is
+  // shown); then it rests at the pace of the rain.
+  await expect.poll(async () => (await stats(page))?.lavaRunning, { timeout: 20_000 }).toBe(true);
+  await expect.poll(() => frameRate(page), { timeout: 20_000, intervals: [0] }).toBeLessThanOrEqual(36);
+  await expectRest(page, 'in the room view', ['air', 'lava']);
+  // The tab goes to the back (as the browser says it: document.hidden and its event). The rain and the lava move by
+  // the time of the frame they are drawn in, so with no frame they do not move either.
+  const lamp = () =>
+    page.evaluate(() => {
+      type Wax = { geometry: { getAttribute(name: string): { array: Float32Array } } };
+      const room = (globalThis as unknown as { __generatedRoom: { lava: { meshes: Wax[] } } }).__generatedRoom;
+      const positions = room.lava.meshes[0]?.geometry.getAttribute('position').array ?? new Float32Array();
+      return positions.reduce((sum, value, index) => sum + value * (index % 7), 0);
+    });
+  const setHidden = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => (value ? 'hidden' : 'visible'),
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  await setHidden(true);
+  await expect.poll(async () => (await roomPace(page))?.pace).toBe('still');
+  const frames = async () => (await stats(page))?.framesRendered ?? 0;
+  await page.waitForTimeout(150);
+  const [drawn, wax] = [await frames(), await lamp()];
+  await page.waitForTimeout(1500);
+  expect(await frames(), 'frames drawn while hidden').toBe(drawn);
+  expect(await lamp(), 'the wax while hidden').toBe(wax);
+  await setHidden(false);
+  await expectRest(page, 'shown again', ['air', 'lava']);
+  await expect.poll(lamp).not.toBe(wax);
   expect(errors).toEqual([]);
 });
 

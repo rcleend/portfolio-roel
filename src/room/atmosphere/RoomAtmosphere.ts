@@ -49,6 +49,12 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
+/**
+ * The frames a second the moving air needs of a room at rest (`RenderLoop.ambient`): the rain runs down the pane, the
+ * dust alone drifts (docs/ROOM.md › Frames › At rest).
+ */
+const RAIN_FRAMES = 30;
+const DUST_FRAMES = 20;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -169,6 +175,8 @@ void main() {
 /** Two post passes over one room render, followed by one draw of fine dust. No additional assets or scene renders. */
 export class RoomAtmosphere {
   private readonly frame: WebGLRenderTarget;
+  /** One pixel of the same kind as `frame`, for `warm`. */
+  private warmTarget: WebGLRenderTarget | null = null;
   private readonly highlights: WebGLRenderTarget;
   private readonly passScene = new Scene();
   private readonly geometry = new BufferGeometry();
@@ -206,7 +214,11 @@ export class RoomAtmosphere {
     this.frame = new WebGLRenderTarget(1, 1, { type, samples: tier.samples });
     this.frame.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
     this.dust = new RoomDust(this.frame.depthTexture, this.frame.texture);
-    this.motion = new AirMotion(loop, () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView));
+    this.motion = new AirMotion(
+      loop,
+      () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView),
+      () => (this.windowInView ? RAIN_FRAMES : DUST_FRAMES),
+    );
     this.highlights = new WebGLRenderTarget(1, 1, {
       type,
       depthBuffer: false,
@@ -289,6 +301,41 @@ export class RoomAtmosphere {
     if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
     this.renderer.compile(object, camera, scene);
     this.renderer.setRenderTarget(previous);
+  }
+
+  /** As `prepare`, off the frame where the browser can link a program in the background; resolves once it has. */
+  prepareAsync(scene: Scene, object: Object3D, camera: PerspectiveCamera): Promise<unknown> {
+    const previous = this.renderer.getRenderTarget();
+    if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
+    // The programs are chosen as this is called, for the target bound now; the promise only waits for them to link.
+    const compiled = this.renderer.compileAsync(object, camera, scene);
+    this.renderer.setRenderTarget(previous);
+    return compiled;
+  }
+
+  /**
+   * Draws what `camera` sees of `scene` into one pixel of a target like the one frames draw the room into (its
+   * format, its samples, its depth): whatever a frame would make the first time it draws those objects is made now,
+   * where nobody sees it (docs/ROOM.md › Warming). Nothing under the unprocessed bake, which draws onto the canvas.
+   */
+  warm(scene: Scene, camera: PerspectiveCamera): void {
+    if (this.mood === 'original') return;
+    const renderer = this.renderer;
+    if (this.warmTarget?.samples !== this.frame.samples) {
+      this.warmTarget?.dispose();
+      this.warmTarget = new WebGLRenderTarget(1, 1, { type: this.frame.texture.type, samples: this.frame.samples });
+      this.warmTarget.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
+    }
+    const previous = renderer.getRenderTarget();
+    // The frame's counts (RoomStats.drawCalls, triangles) stay the last frame's.
+    const counted = { ...renderer.info.render };
+    try {
+      renderer.setRenderTarget(this.warmTarget);
+      renderer.render(scene, camera);
+    } finally {
+      renderer.setRenderTarget(previous);
+      Object.assign(renderer.info.render, counted);
+    }
   }
 
   setMood(mood: RoomMood): void {
@@ -407,6 +454,9 @@ export class RoomAtmosphere {
     this.halation.dispose();
     this.screens.dispose();
     this.frame.dispose();
+    this.warmTarget?.depthTexture?.dispose();
+    this.warmTarget?.dispose();
+    this.warmTarget = null;
     this.highlights.dispose();
     this.extract.dispose();
     this.composite.dispose();

@@ -2,7 +2,7 @@ import { type Browser, expect, type Page, type Request, test } from '@playwright
 import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { trackErrors, untilDrawn } from './helpers';
 import { POSTERS_PATH, POSTERS_PROGRAMS, postersShown } from './programs';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
@@ -36,17 +36,6 @@ function trackPosterRequests(page: Page): string[] {
   return names;
 }
 
-/**
- * Waits for the room's next frames. It draws sixty a second in every view (docs/ROOM.md › The generated room), so
- * there is no idle loop to wait for: a change is on screen, and in `stats.drawCalls`, a frame or two after it.
- */
-async function nextFrames(page: Page, count = 3): Promise<void> {
-  const drawn = (await stats(page))?.framesRendered ?? 0;
-  await page.waitForFunction((wanted) => (window.__roomLab?.room.stats.framesRendered ?? 0) >= wanted, drawn + count, {
-    timeout: 10_000,
-  });
-}
-
 /** The lab at the TV, powered on and running; `query` adds lab parameters (`&posters=0`, `&mockradio=1`). */
 async function atTv(page: Page, query = ''): Promise<void> {
   await page.goto(`/room-lab.html?clean${query}`);
@@ -74,7 +63,7 @@ async function settleAt(page: Page, view: 'tv' | 'room' | 'pc' | 'radio'): Promi
       }),
     view,
   );
-  await nextFrames(page);
+  await untilDrawn(page);
 }
 
 /** Cuts from the TV to the room view and reads the posters' state at the first frame the veil lifts. */
@@ -101,7 +90,7 @@ function postersWhenTheVeilLifts(page: Page): Promise<string | undefined> {
 }
 
 interface Resting {
-  /** Draw calls of the last frame at rest at the TV, before and after the room view, at the PC and at the radio. */
+  /** Draw calls of a frame at rest at the TV, before and after the room view, at the PC and at the radio. */
   readonly tvBefore: number;
   readonly room: number;
   readonly tv: number;
@@ -111,33 +100,44 @@ interface Resting {
   readonly programs: number;
 }
 
-/** Draw calls of the last frame at rest in each view, after one room view (where the posters go up, if `decorated`). */
+/**
+ * Draw calls of a frame of the view the camera rests in. The room at rest draws no frame of its own where nothing
+ * moves (docs/ROOM.md › Frames › At rest), and `stats.drawCalls` are those of the renderer's last render, which
+ * is one of the bake's until the room draws again: the paused game shows a frame of its test card, the room draws the
+ * frame that shows it, and that frame is counted.
+ */
+async function frameCalls(page: Page): Promise<number> {
+  const drawn = (await stats(page))?.framesRendered ?? 0;
+  await page.evaluate(() => window.__roomLab?.surface.showFrame(40));
+  await page.waitForFunction((count) => (window.__roomLab?.room.stats.framesRendered ?? 0) > count, drawn, {
+    timeout: 10_000,
+  });
+  return (await stats(page))?.drawCalls ?? -1;
+}
+
+/** Draw calls of a frame at rest in each view, after one room view (where the posters go up, if `decorated`). */
 async function restingCalls(page: Page, decorated: boolean): Promise<Resting> {
-  const calls = async (): Promise<number> => (await stats(page))?.drawCalls ?? -1;
   await atTv(page, decorated ? '&mockradio=1' : '&mockradio=1&posters=0');
   // A paused game draws the same as a playing one.
   await page.evaluate(() => window.__roomLab?.surface.pause());
   // The rest of the room is lit behind the game (docs/ROOM.md › The generated room), a few views a unit, and each is
-  // a render of its own: the last frame's draw calls are the room's once that is done.
+  // a render of its own: a frame's draw calls are the room's once that is done.
   await page.waitForFunction(() => window.__roomLab?.room.stats.generated === 'ready', null, { timeout: 20_000 });
-  await nextFrames(page);
-  const tvBefore = await calls();
+  const tvBefore = await frameCalls(page);
   await settleAt(page, 'room');
   if (decorated) await postersShown(page, () => stats(page));
   // The radio prepares on the room view's idle time (the playing TV leaves it none), so both pages wait for it here.
   await page.waitForFunction(() => window.__roomLab?.room.stats.radioReady === true, null, { timeout: 20_000 });
-  await nextFrames(page);
-  const room = await calls();
+  const room = await frameCalls(page);
   const programs = (await stats(page))?.programs ?? -1;
   await settleAt(page, 'pc');
-  const pc = await calls();
+  const pc = await frameCalls(page);
   await settleAt(page, 'tv');
-  const tv = await calls();
+  const tv = await frameCalls(page);
   await settleAt(page, 'radio');
   // The lid's swing and the discs' rise run on after the landing (the discs are up 1.4 s after it), each disc a call.
   await page.waitForTimeout(2500);
-  await nextFrames(page);
-  return { tvBefore, room, tv, pc, radio: await calls(), programs };
+  return { tvBefore, room, tv, pc, radio: await frameCalls(page), programs };
 }
 
 test.describe('the decorated walls', () => {
@@ -194,7 +194,7 @@ test.describe('the decorated walls', () => {
     // And it is a picture: the cluster over the radio reads as paper and ink in the night's light, not as the black
     // or the blank grey a painting lost on its way to the GPU leaves (a bitmap of GPU pixels from a worker did).
     await page.evaluate(() => window.__roomLab?.surface.pause());
-    await nextFrames(page);
+    await untilDrawn(page);
     const cluster = await page.screenshot({ clip: { x: 570, y: 165, width: 420, height: 270 } });
     const { channels } = await sharp(cluster).removeAlpha().stats();
     const mean = channels.reduce((sum, channel) => sum + channel.mean, 0) / channels.length;
@@ -422,7 +422,7 @@ async function roomFrame(browser: Browser, hidden: readonly PosterPart[]): Promi
   });
   await settleAt(page, 'room');
   await postersShown(page, () => stats(page));
-  await nextFrames(page);
+  await untilDrawn(page);
   const png = await page.locator('canvas').first().screenshot();
   await page.close();
   return sharp(png).removeAlpha().raw().toBuffer();

@@ -80,11 +80,20 @@ export class PostersSlot {
     this.#queuePrepare(context, this.#departed);
   }
 
-  /** The camera sets off from the TV (first time only matters): a TV unit still queued goes between its frames. */
+  /** The camera is about to leave the TV (first time only matters): what is left is wanted now. */
   depart(): void {
     if (!this.#departed && this.#context && this.#dropPrepare) this.#queuePrepare(this.#context, true);
     this.#departed = true;
     this.#wall?.depart();
+  }
+
+  /**
+   * The camera is about to fly: resolves once the walls are up, if they are painted and only their upload and program
+   * were left (which the room has just run: IdleWork.drain), or after `maxMs`; at once while they are still being
+   * painted, since those arrive after the landing instead.
+   */
+  boarded(maxMs: number): Promise<void> {
+    return this.#wall?.boarded(maxMs) ?? Promise.resolve();
   }
 
   /** A reduced-motion cut to `to` waits while the posters are painted and uploaded (see PosterWall.holdsCut). */

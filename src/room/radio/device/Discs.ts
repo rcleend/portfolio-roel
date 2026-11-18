@@ -1,5 +1,4 @@
 import {
-  type Camera,
   CanvasTexture,
   DataTexture,
   Group,
@@ -205,13 +204,9 @@ export class Discs {
   }
 
   /** Compiles the discs' program off the frame (KHR_parallel_shader_compile where available). */
-  async compile(
-    renderer: { compileAsync(scene: Object3D, camera: Camera, target?: Object3D | null): Promise<unknown> },
-    camera: Camera,
-    scene: Object3D,
-  ): Promise<void> {
+  async compile(stage: { prepareAsync(object: Object3D): Promise<unknown> }): Promise<void> {
     if (this.#compiled) return;
-    await renderer.compileAsync(this.group, camera, scene);
+    await stage.prepareAsync(this.group);
     this.#compiled = true;
   }
 

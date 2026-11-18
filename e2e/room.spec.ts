@@ -1,7 +1,16 @@
 import { expect, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { differingPixels, hostElement, paused, scene, trackErrors, waitForRunning } from './helpers';
+import {
+  differingPixels,
+  expectSixtyFrames,
+  hostElement,
+  paused,
+  roomPace,
+  scene,
+  trackErrors,
+  waitForRunning,
+} from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -87,6 +96,25 @@ test('looking around the room pauses the game and the TV resumes it', async ({ p
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect(host).toHaveAttribute('data-view', 'tv');
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('the TV shows the game frame by frame while it runs, played or only watched, while the room behind it rests', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  // Until the whole room is lit behind the game it draws every frame whatever happens (docs/ROOM.md › Frames › At
+  // rest); from then on the game's own frames are all that is drawn at the TV, where nothing else moves.
+  await page.waitForFunction(() => window.__room?.stats.generated === 'ready', null, { timeout: 30_000 });
+  // The title is made in whole frames of sixty a second (a two-frame shake, a 32-on 16-off blink, the plotter's
+  // pen), and the game runs only while the visitor is at the TV: nobody touching it, it is still shown frame by frame.
+  await expect.poll(async () => (await roomPace(page))?.pace, { timeout: 15_000 }).toBe('still');
+  await page.waitForTimeout(8_000);
+  expect((await roomPace(page))?.moving).toEqual([]);
+  expect(await paused(page)).toBe(false);
+  await expectSixtyFrames(page, 'with nobody at the game for eight seconds');
   expect(errors).toEqual([]);
 });
 

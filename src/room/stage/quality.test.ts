@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  expectedFrameMs,
   FAST_FRAME_MS,
   FIT_MARGIN,
   fittingQuality,
@@ -68,7 +69,8 @@ describe('fittingQuality', () => {
 
   it('steps down the scales, then the tiers, as far as the pixels have to go', () => {
     expect(fittingQuality(high, 26, pixels)).toEqual({ tier: 'high', scale: 0.7 });
-    expect(fittingQuality(high, 40, pixels)).toEqual({ tier: 'high', scale: 0.6 });
+    // Under seven tenths a tier above the lowest has nothing: the tier below draws those pixels for less.
+    expect(fittingQuality(high, 40, pixels)).toEqual({ tier: 'medium', scale: 0.7 });
     expect(fittingQuality(high, 50, pixels)).toEqual({ tier: 'medium', scale: 0.7 });
     expect(fittingQuality(high, 100, pixels)).toEqual({ tier: 'low', scale: 0.7 });
     expect(fittingQuality(high, 2000, pixels)).toEqual({ tier: 'low', scale: 0.6 });
@@ -125,23 +127,100 @@ describe('QualityGovernor', () => {
   it('steps the scale down far enough to make slow frames fast, in one step', () => {
     const governor = new QualityGovernor({ tier: 'medium', scale: 1 });
     const clock = { now: 0 };
-    // 33 ms a frame: pixels at 0.7 are half, so 0.7 would still be slow; the floor is asked for at once.
-    expect(run(governor, clock, 33.3)).toEqual({ tier: 'medium', scale: 0.6 });
+    // 33 ms a frame: 0.85 would still be slow; the tier's floor is asked for at once.
+    expect(run(governor, clock, 33.3)).toEqual({ tier: 'medium', scale: 0.7 });
     const gentle = new QualityGovernor({ tier: 'medium', scale: 1 });
     expect(run(gentle, { now: 0 }, 22)).toEqual({ tier: 'medium', scale: 0.7 });
   });
 
-  it('drops a tier after two slow windows at the floor, and never climbs back', () => {
+  it('drops a tier when its floor is slow for the second window running, and never climbs back', () => {
     const governor = new QualityGovernor({ tier: 'high', scale: 1 });
     const clock = { now: 0 };
-    expect(run(governor, clock, 50)).toEqual({ tier: 'high', scale: 0.6 });
+    // A tier above the lowest stops at seven tenths.
+    expect(run(governor, clock, 50)).toEqual({ tier: 'high', scale: 0.7 });
     settle(clock);
-    // Faster than before (the step helped) and still slow.
-    expect(run(governor, clock, 30)).toBeNull();
+    // Faster than before (the step helped) and still slow: the second slow window in a row, at the floor.
     expect(run(governor, clock, 30)).toEqual({ tier: 'medium', scale: 0.7 });
     settle(clock);
     for (let i = 0; i < 40; i++) run(governor, clock, 16.7, 500);
     expect(governor.quality).toEqual({ tier: 'medium', scale: 1 });
+  });
+
+  it('gives a tier that starts at its floor two slow windows before it drops: one says nothing for good', () => {
+    const governor = new QualityGovernor({ tier: 'medium', scale: 0.7 });
+    const clock = { now: 0 };
+    expect(run(governor, clock, 30)).toBeNull();
+    // Frames on time in between: the count starts over.
+    expect(run(governor, clock, 16.7)).toBeNull();
+    expect(run(governor, clock, 30)).toBeNull();
+    expect(run(governor, clock, 30)).toEqual({ tier: 'low', scale: 0.7 });
+  });
+
+  describe('on an overloaded device, where it knows the pixels of every quality', () => {
+    // A phone: 390 × 844 at 3×.
+    const pixels = (quality: Quality): number => pixelRatioFor(quality, 390, 844, 3) ** 2;
+
+    it('drops straight to the tier and scale the frames say fit, two windows after it was found slow', () => {
+      const governor = new QualityGovernor({ tier: 'medium', scale: 1 }, false, pixels);
+      const clock = { now: 0 };
+      expect(run(governor, clock, 60)).toEqual({ tier: 'medium', scale: 0.7 });
+      settle(clock);
+      // Half the pixels, 34 ms: 1.96 of them at 15 ms is 0.86, and the lowest tier has that at six tenths.
+      expect(run(governor, clock, 34)).toEqual({ tier: 'low', scale: 0.6 });
+      expect(governor.changes).toBe(2);
+    });
+
+    it('lands on the lowest tier at a scale that leaves room, when the frames are only a little slow', () => {
+      const governor = new QualityGovernor({ tier: 'medium', scale: 0.7 }, false, pixels);
+      const clock = { now: 0 };
+      expect(run(governor, clock, 24)).toBeNull();
+      // 1.96 at 24 ms: 1.225 fit, which is the lowest tier at seven tenths (1.10), not at 0.85 (1.63).
+      expect(run(governor, clock, 24)).toEqual({ tier: 'low', scale: 0.7 });
+    });
+
+    it('skips a tier whose every scale is too much', () => {
+      const desktop = (quality: Quality): number => pixelRatioFor(quality, 1440, 900, 2) ** 2;
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 }, false, desktop);
+      const clock = { now: 0 };
+      expect(run(governor, clock, 70)).toEqual({ tier: 'high', scale: 0.7 });
+      settle(clock);
+      expect(run(governor, clock, 45)).toEqual({ tier: 'low', scale: 0.7 });
+    });
+  });
+
+  describe('a step back up', () => {
+    it('that its very next window finds slow is taken back, and that scale is not tried again', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 1000 };
+      governor.start({ tier: 'high', scale: 0.85 }, clock.now);
+      settle(clock);
+      let up: Quality | null = null;
+      while (!up) up = run(governor, clock, 16.7);
+      expect(up).toEqual({ tier: 'high', scale: 1 });
+      settle(clock);
+      expect(run(governor, clock, 25)).toEqual({ tier: 'high', scale: 0.85 });
+      const changes = governor.changes;
+      settle(clock);
+      // However long every frame is on time afterwards: no more resizes for a scale that did not hold.
+      expect(run(governor, clock, 16.7, 2000)).toBeNull();
+      expect(governor.quality).toEqual({ tier: 'high', scale: 0.85 });
+      expect(governor.changes).toBe(changes);
+    });
+
+    it('that held and turns slow later is an ordinary step down, and may be tried again', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 1000 };
+      governor.start({ tier: 'high', scale: 0.85 }, clock.now);
+      settle(clock);
+      let up: Quality | null = null;
+      while (!up) up = run(governor, clock, 16.7);
+      settle(clock);
+      expect(run(governor, clock, 16.7)).toBeNull();
+      expect(run(governor, clock, 23)).toEqual({ tier: 'high', scale: 0.7 });
+      settle(clock);
+      for (let i = 0; i < 4000 && governor.quality.scale !== 1; i++) run(governor, clock, 16.7);
+      expect(governor.quality).toEqual({ tier: 'high', scale: 1 });
+    });
   });
 
   it('stays at the lowest tier and scale when even that is slow', () => {
@@ -160,9 +239,122 @@ describe('QualityGovernor', () => {
     const rested = clock.now;
     expect(run(governor, clock, 25, 20)).toBeNull();
     expect(clock.now - rested).toBeLessThan(60_000);
-    // After the rest it may try again.
+    // After the rest it does not try the same again: this is how the frames come here, whatever their pixels.
     clock.now = rested + 61_000;
-    expect(run(governor, clock, 25)).toEqual({ tier: 'high', scale: 0.7 });
+    expect(run(governor, clock, 25, 20)).toBeNull();
+    expect(governor.frameMs).toBeCloseTo(25);
+    expect(governor.changes).toBe(2);
+    // Frames slower still are slow again.
+    expect(run(governor, clock, 40)).toEqual({ tier: 'high', scale: 0.7 });
+  });
+
+  describe('on a display that hands out thirty frames a second (Safari in Low Power Mode)', () => {
+    const capped = (start: Quality = { tier: 'medium', scale: 1 }): QualityGovernor => {
+      const governor = new QualityGovernor(start);
+      governor.expect(expectedFrameMs(1000 / 30));
+      return governor;
+    };
+
+    it('never changes the quality for frames that come as the display hands them out', () => {
+      const governor = capped();
+      const clock = { now: 0 };
+      // Ten minutes of them: judged against sixty a second this stepped to the floor and back every minute.
+      expect(run(governor, clock, 1000 / 30, 600)).toBeNull();
+      expect(governor.quality).toEqual({ tier: 'medium', scale: 1 });
+      expect(governor.changes).toBe(0);
+      expect(governor.capped).toBe(true);
+      expect(governor.frameMs).toBeCloseTo(33.3, 1);
+    });
+
+    it("still steps down when the GPU cannot even hold the thirty, aiming under the display's frame", () => {
+      const governor = capped({ tier: 'high', scale: 1 });
+      expect(run(governor, { now: 0 }, 50)).toEqual({ tier: 'high', scale: 0.7 });
+    });
+
+    it("steps back up while every frame comes on the display's time", () => {
+      const governor = capped({ tier: 'medium', scale: 0.7 });
+      const clock = { now: 0 };
+      clock.now = 20_000;
+      expect(run(governor, clock, 1000 / 30)).toEqual({ tier: 'medium', scale: 0.85 });
+    });
+
+    it('judges by sixty a second again once the cap is gone', () => {
+      const governor = capped({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      run(governor, clock, 1000 / 30, 3);
+      // The charger is plugged in: frames come sixty a second.
+      expect(run(governor, clock, 1000 / 60, 3)).toBeNull();
+      expect(governor.capped).toBe(false);
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+      expect(run(governor, clock, 25)).toEqual({ tier: 'high', scale: 0.7 });
+    });
+  });
+
+  describe('when frames come quicker than it expected', () => {
+    /** Feeds one window of frames that alternate between `a` and `b` ms. */
+    const mixed = (governor: QualityGovernor, clock: { now: number }, a: number, b: number): Quality | null => {
+      for (let i = 0; i < GOVERNOR_WINDOW; i++) {
+        const ms = i % 2 === 0 ? a : b;
+        clock.now += ms;
+        const changed = governor.sample(ms, clock.now);
+        if (changed) return changed;
+      }
+      return null;
+    };
+
+    it('takes a display wrongly taken for capped by its quickest frames, and steps a slow GPU down on it', () => {
+      // A busy page load showed no frame under 33 ms: the display was taken to hand out thirty a second.
+      const governor = new QualityGovernor({ tier: 'medium', scale: 1 });
+      governor.expect(expectedFrameMs(1000 / 30));
+      const clock = { now: 0 };
+      // The room's frames then come one and two display frames apart, 25 ms on average: a 60 Hz display and a GPU
+      // that misses every other frame of it. Judged against thirty a second that was never slow.
+      expect(mixed(governor, clock, 1000 / 60, 1000 / 30)).toEqual({ tier: 'medium', scale: 0.7 });
+      expect(governor.capped).toBe(false);
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+    });
+
+    it("expects the display's own frames again, not the mean of a window that was merely quicker", () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      // A step down that changed nothing: 30 ms is how the frames come, for now.
+      expect(run(governor, clock, 30)).toEqual({ tier: 'high', scale: 0.7 });
+      settle(clock);
+      expect(run(governor, clock, 30)).toEqual({ tier: 'high', scale: 1 });
+      expect(governor.frameMs).toBeCloseTo(30);
+      // The main thread is free again and frames come at 20 ms: sixty a second is what to expect, not fifty.
+      clock.now += 61_000;
+      expect(run(governor, clock, 20)).toBeNull();
+      expect(governor.frameMs).toBeCloseTo(1000 / 60, 1);
+      // So 24 ms frames are slow again, as on any 60 Hz display.
+      expect(run(governor, clock, 24)).not.toBeNull();
+    });
+
+    it('keeps a capped display capped through a few frames whose timestamps came early', () => {
+      const governor = new QualityGovernor({ tier: 'medium', scale: 1 });
+      governor.expect(expectedFrameMs(1000 / 30));
+      const clock = { now: 0 };
+      for (let window = 0; window < 20; window++) {
+        for (let i = 0; i < GOVERNOR_WINDOW; i++) {
+          // Three frames a window a display frame early, the next as much late: the grid holds.
+          const ms = i < 3 ? 1000 / 60 : i < 6 ? 50 : 1000 / 30;
+          clock.now += ms;
+          expect(governor.sample(ms, clock.now)).toBeNull();
+        }
+      }
+      expect(governor.capped).toBe(true);
+      expect(governor.changes).toBe(0);
+    });
+  });
+
+  it("expects sixty frames a second of any display about that fast or faster, and a slower one's own", () => {
+    for (const hz of [60, 62.5, 75, 90, 120, 144, 240]) expect(expectedFrameMs(1000 / hz)).toBeCloseTo(1000 / 60);
+    // A little jitter either way is still sixty.
+    expect(expectedFrameMs(15.4)).toBeCloseTo(1000 / 60);
+    expect(expectedFrameMs(19.5)).toBeCloseTo(1000 / 60);
+    expect(expectedFrameMs(1000 / 30)).toBeCloseTo(33.3, 1);
+    expect(expectedFrameMs(32.4)).toBeCloseTo(32.4);
+    expect(expectedFrameMs(1000 / 24)).toBeCloseTo(41.7, 1);
   });
 
   it('steps back up only after a wait that every step down doubles', () => {
@@ -188,6 +380,63 @@ describe('QualityGovernor', () => {
   it('holds a fixed quality whatever the frames say', () => {
     const governor = new QualityGovernor({ tier: 'high', scale: 1 }, true);
     expect(run(governor, { now: 0 }, 80, 20)).toBeNull();
+  });
+
+  describe('judging: whether a window of full-pace frames is still owed before the room may rest', () => {
+    it('is owed at the start and answered by the first window that asks for nothing', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      expect(governor.judging).toBe(true);
+      expect(run(governor, clock, 16.7)).toBeNull();
+      expect(governor.judging).toBe(false);
+      // Frames merely not slow leave it answered too: nothing would change.
+      expect(run(governor, clock, 19)).toBeNull();
+      expect(governor.judging).toBe(false);
+    });
+
+    it('is owed again after every change, until the new quality has had its window', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      expect(run(governor, clock, 30)).not.toBeNull();
+      expect(governor.judging).toBe(true);
+      settle(clock);
+      // The step helped and the frames are on time: answered.
+      expect(run(governor, clock, 16.7)).toBeNull();
+      expect(governor.judging).toBe(false);
+    });
+
+    it('stays owed while a slow floor is counted out, and is answered at the floor of the lowest tier', () => {
+      const governor = new QualityGovernor({ tier: 'medium', scale: 0.7 });
+      const clock = { now: 0 };
+      expect(run(governor, clock, 30)).toBeNull();
+      expect(governor.judging).toBe(true);
+      expect(run(governor, clock, 30)).toEqual({ tier: 'low', scale: 0.7 });
+      expect(governor.judging).toBe(true);
+      const floor = new QualityGovernor({ tier: 'low', scale: 0.6 });
+      expect(run(floor, clock, 30)).toBeNull();
+      expect(floor.judging).toBe(false);
+    });
+
+    it('is not owed through the minute the governor rests after a step down that changed nothing', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      expect(run(governor, clock, 30)).not.toBeNull();
+      settle(clock);
+      expect(run(governor, clock, 30)).toEqual({ tier: 'high', scale: 1 });
+      expect(governor.judging).toBe(false);
+    });
+
+    it('is owed again when the display turns out to tick otherwise, and never for a fixed quality', () => {
+      const governor = new QualityGovernor({ tier: 'high', scale: 1 });
+      const clock = { now: 0 };
+      run(governor, clock, 16.7);
+      governor.expect(1000 / 30);
+      expect(governor.judging).toBe(true);
+      const fixed = new QualityGovernor({ tier: 'low', scale: 1 }, true);
+      expect(fixed.judging).toBe(false);
+      fixed.expect(1000 / 30);
+      expect(fixed.judging).toBe(false);
+    });
   });
 
   it('only ever names a scale of the ladder', () => {

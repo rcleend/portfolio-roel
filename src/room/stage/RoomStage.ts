@@ -1,7 +1,18 @@
-import { NoToneMapping, type Object3D, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import {
+  Group,
+  Mesh,
+  NoToneMapping,
+  type Object3D,
+  PerspectiveCamera,
+  Points,
+  Scene,
+  SRGBColorSpace,
+  WebGLRenderer,
+} from 'three';
 import type { RoomAir, RoomMood } from '../atmosphere/moods';
 import { RoomAtmosphere } from '../atmosphere/RoomAtmosphere';
 import {
+  expectedFrameMs,
   FIT_MARGIN,
   fittingQuality,
   pixelRatioFor,
@@ -10,6 +21,7 @@ import {
   QualityGovernor,
   type QualityTier,
   startingTier,
+  ticksAtSixty,
 } from './quality';
 
 /** Frames `settle` draws at most: the first uploads what the view needs, the quickest of the others is the measure. */
@@ -50,12 +62,11 @@ export class RoomStage {
   readonly softwareGpu: boolean;
 
   private viewport: ViewportSize = { width: 1, height: 1, pixelRatio: 1 };
-  /**
-   * While true no frame is drawn: for the room's bake, while nothing of the room is on screen or a visitor waits for
-   * the rest of it, so its work is not queued behind frames on the GPU. A resized canvas still gets its one frame (it
-   * is blank until then); whoever sets it false again asks for a frame.
-   */
-  held = false;
+  /** Who holds the frames (`hold`). */
+  private readonly holders = new Set<string>();
+  /** Sees only what `warm` draws. */
+  private readonly warmCamera = new PerspectiveCamera(40, 1, 0.03, 60);
+  private readonly retargetListeners = new Set<() => void>();
 
   private readonly resizeListeners = new Set<(size: ViewportSize) => void>();
   private readonly renderListeners = new Set<() => void>();
@@ -68,11 +79,15 @@ export class RoomStage {
   private currentMood: RoomMood = 'original';
   private air: RoomAir = { haze: 1, dust: 1 };
   private readonly governor: QualityGovernor;
+  /** The frame `watchDisplay` waits for, while it watches. */
+  private displayWatch: number | null = null;
   private reading = false;
   /** The governor has changed the quality and the stage has yet to take it up. */
   private qualityDue = false;
-  /** The canvas has a new size and no frame of it yet: it is blank until one is drawn. */
+  /** The canvas has a new size and no frame of it yet (it is blank until one is drawn), or is owed one (`oweFrame`). */
   private blank = false;
+  /** The samples of the target frames draw into, as the atmosphere was last told. */
+  private samples: number;
 
   constructor(private readonly options: StageOptions) {
     // A finish draws the room into its own multisampled target and only two triangles and the dust onto the canvas,
@@ -100,7 +115,13 @@ export class RoomStage {
     // Not governed: a software renderer, whose frame times are the CPU's, which the page's own work moves more than
     // the pixels do; and a browser under automation, whose clock is the test's (a paused clock stepped a frame at a
     // time, a throttled CPU) and says nothing about the device.
-    this.governor = new QualityGovernor({ tier, scale: 1 }, fixed !== null || this.softwareGpu || navigator.webdriver);
+    this.governor = new QualityGovernor(
+      { tier, scale: 1 },
+      fixed !== null || this.softwareGpu || navigator.webdriver,
+      (quality) => this.ratioAt(quality, this.viewport.width, this.viewport.height) ** 2,
+    );
+    this.samples = QUALITY_TIERS[tier].samples;
+    this.watchDisplay();
 
     this.canvas = this.renderer.domElement;
     this.canvas.style.display = 'block';
@@ -131,6 +152,22 @@ export class RoomStage {
     return this.viewport;
   }
 
+  /** Someone holds the frames: none is drawn (`hold`). */
+  get held(): boolean {
+    return this.holders.size > 0;
+  }
+
+  /**
+   * While anyone holds the frames none is drawn: for the room's bake, while nothing of the room is on screen or a
+   * visitor waits for the rest of it, and for what a flight shows being made ready before it sets off, so that work
+   * is not queued behind frames on the GPU (and frames that come late for it say nothing to the governor). A resized
+   * canvas still gets its one frame (it is blank until then). The last to let go asks for a frame.
+   */
+  hold(by: string, held: boolean): void {
+    if (held) this.holders.add(by);
+    else if (this.holders.delete(by) && this.holders.size === 0) this.loop.invalidate();
+  }
+
   /** True while the canvas is on screen and the tab is visible. */
   get visible(): boolean {
     return this.visibleOnPage && !document.hidden;
@@ -139,6 +176,61 @@ export class RoomStage {
   /** The tier and scale frames are drawn at now (docs/ROOM.md › Quality). */
   get quality(): Quality {
     return this.governor.quality;
+  }
+
+  /** The interval frames are meant to come at here (ms): a 60 Hz frame, or the display's own where it ticks slower. */
+  get frameMs(): number {
+    return this.governor.frameMs;
+  }
+
+  /** How often the quality has changed this page load. */
+  get qualityChanges(): number {
+    return this.governor.changes;
+  }
+
+  /** The governor has yet to see the quality hold over a window of full-pace frames (`QualityGovernor.judging`). */
+  get judging(): boolean {
+    return this.governor.judging;
+  }
+
+  /** The display hands out fewer than sixty frames a second (docs/ROOM.md › Quality › A capped display). */
+  get displayCapped(): boolean {
+    return this.governor.capped;
+  }
+
+  /**
+   * Finds how fast the display hands out frames, before the room draws any: about the quickest interval between
+   * sixteen of its frames in a row (a busy main thread makes some longer, nothing makes one much shorter). The governor and the
+   * bake's pacing judge the room's frames against it (docs/ROOM.md › Quality › A capped display). A display that looks
+   * capped is watched on for a while: a page busy loading shows few frames a single tick apart, and four of them,
+   * whenever they come, say the display is not capped after all.
+   */
+  private watchDisplay(): void {
+    let last: number | null = null;
+    const intervals: number[] = [];
+    let seen = 0;
+    let quick = 0;
+    const frame = (now: number): void => {
+      this.displayWatch = null;
+      if (last !== null && now > last) {
+        intervals.push(now - last);
+        if (ticksAtSixty(now - last)) quick++;
+      }
+      last = now;
+      seen++;
+      if (seen === DISPLAY_WATCH_FRAMES) {
+        // The fourth quickest of the fifteen: a frame's timestamp may come a few milliseconds early (three of them
+        // may), and the long ones a busy page makes are at the other end.
+        const sorted = intervals.sort((a, b) => a - b);
+        const quickest = sorted[Math.min(3, sorted.length - 1)];
+        if (quickest !== undefined) this.governor.expect(expectedFrameMs(quickest));
+      } else if (seen > DISPLAY_WATCH_FRAMES && quick > 3) {
+        this.governor.expect(expectedFrameMs(0));
+      }
+      const watching = seen < DISPLAY_WATCH_FRAMES || (this.governor.capped && seen < DISPLAY_WATCH_LIMIT);
+      if (watching) this.displayWatch = requestAnimationFrame(frame);
+    };
+    this.displayWatch = requestAnimationFrame(frame);
   }
 
   get lightning(): number {
@@ -202,6 +294,78 @@ export class RoomStage {
     else this.renderer.compile(object, this.camera, this.scene);
   }
 
+  /**
+   * One more frame is drawn although the frames are held: what the screen shows changed as the hold began (the TV's
+   * PAUSE, as a visitor leaves the game before the room is all made).
+   */
+  oweFrame(): void {
+    this.blank = true;
+    this.loop.invalidate();
+  }
+
+  /** As `prepare`, linking in the background where the browser can; resolves once the programs are ready to draw. */
+  prepareAsync(object: Object3D): Promise<unknown> {
+    if (this.atmosphere) return this.atmosphere.prepareAsync(this.scene, object, this.camera);
+    return this.renderer.compileAsync(object, this.camera, this.scene);
+  }
+
+  /**
+   * Draws `objects` once where nobody sees it (docs/ROOM.md › Warming): their vertex arrays are made, their buffers
+   * and textures uploaded and the driver's own state for their programs built, for the target frames draw into,
+   * which a frame would otherwise do the first time each comes into view, in the middle of a flight. The objects
+   * themselves are not touched: stand-ins with their geometry, material and place are drawn, on a layer of their
+   * own, so one hidden for now is warmed too.
+   */
+  warm(objects: readonly Object3D[]): void {
+    if (!this.atmosphere || this.contextLost) return;
+    const group = new Group();
+    for (const object of objects) {
+      const standIn = standInFor(object);
+      if (standIn) group.add(standIn);
+    }
+    if (group.children.length === 0) return;
+    this.warmCamera.layers.set(WARM_LAYER);
+    this.warmCamera.position.copy(this.camera.position);
+    this.warmCamera.quaternion.copy(this.camera.quaternion);
+    this.scene.add(group);
+    try {
+      this.atmosphere.warm(this.scene, this.warmCamera);
+    } finally {
+      this.scene.remove(group);
+    }
+  }
+
+  /**
+   * Resolves once the GPU has done everything it was handed so far, or after `maxMs`; at once where it cannot say.
+   * What the main thread hands over (an upload, a draw, a program) returns long before the GPU is through with it,
+   * and a frame handed over next waits behind it.
+   */
+  gpuIdle(maxMs: number): Promise<void> {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (this.contextLost || typeof gl.fenceSync !== 'function') return Promise.resolve();
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    const started = performance.now();
+    return new Promise((resolve) => {
+      const poll = (): void => {
+        const waiting = sync !== null && !this.contextLost && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED;
+        if (waiting && performance.now() - started < maxMs) {
+          later(poll);
+          return;
+        }
+        if (sync && !this.contextLost) gl.deleteSync(sync);
+        resolve();
+      };
+      poll();
+    });
+  }
+
+  /** Called when the target frames draw into is made anew with other samples: what was warmed for it is not for this. */
+  onRetarget(listener: () => void): () => void {
+    this.retargetListeners.add(listener);
+    return () => this.retargetListeners.delete(listener);
+  }
+
   onResize(listener: (size: ViewportSize) => void): () => void {
     this.resizeListeners.add(listener);
     return () => this.resizeListeners.delete(listener);
@@ -214,6 +378,8 @@ export class RoomStage {
   }
 
   dispose(): void {
+    if (this.displayWatch !== null) cancelAnimationFrame(this.displayWatch);
+    this.displayWatch = null;
     this.loop.dispose();
     this.atmosphere?.dispose();
     this.resizeObserver.disconnect();
@@ -225,6 +391,7 @@ export class RoomStage {
     this.canvas.remove();
     this.resizeListeners.clear();
     this.renderListeners.clear();
+    this.retargetListeners.clear();
   }
 
   /** The pixel ratio `quality` draws a `width` × `height` canvas at here. */
@@ -252,13 +419,14 @@ export class RoomStage {
       const frame = (): void => {
         const started = performance.now();
         this.render();
-        // In the next task: whatever stands in for a slow GPU by drawing the frame again has done so by then.
-        setTimeout(() => {
+        // In the next task: whatever stands in for a slow GPU by drawing the frame again has done so by then. Never on
+        // a timer: a browser that slows timers down (a phone saving power) would have the frame look that slow.
+        later(() => {
           const sync = this.contextLost ? null : gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
           gl.flush();
           const poll = (): void => {
             if (sync && !this.contextLost && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED) {
-              setTimeout(poll, 1);
+              later(poll);
               return;
             }
             if (sync) gl.deleteSync(sync);
@@ -275,7 +443,7 @@ export class RoomStage {
                   });
               if (sync && fitting !== this.quality) {
                 this.governor.start(fitting, performance.now());
-                this.atmosphere?.setTier(QUALITY_TIERS[fitting.tier]);
+                this.retier();
                 this.atmosphere?.syncMotion();
                 this.resize();
               }
@@ -314,10 +482,19 @@ export class RoomStage {
     // A change is a resize, which a flight's frames have no room for: it waits for the camera to land.
     if (!this.qualityDue || this.loop.animating) return;
     this.qualityDue = false;
-    this.atmosphere?.setTier(QUALITY_TIERS[this.quality.tier]);
+    this.retier();
     this.atmosphere?.syncMotion();
     this.resize();
   };
+
+  /** Takes up the quality's tier; a tier with other samples is another target, which nothing has been warmed for. */
+  private retier(): void {
+    const samples = QUALITY_TIERS[this.quality.tier].samples;
+    const changed = this.atmosphere !== null && samples !== this.samples;
+    this.samples = samples;
+    this.atmosphere?.setTier(QUALITY_TIERS[this.quality.tier]);
+    if (changed) for (const listener of this.retargetListeners) listener();
+  }
 
   private render(): void {
     if (this.contextLost) return;
@@ -342,4 +519,47 @@ export class RoomStage {
     this.atmosphere?.syncMotion();
     this.loop.invalidate();
   };
+}
+
+/** Display frames watched in a row as the stage is made (`watchDisplay`): a quarter of a second at sixty a second. */
+const DISPLAY_WATCH_FRAMES = 16;
+/** A display that looks capped after those is watched this many frames in all: eight seconds at thirty a second. */
+const DISPLAY_WATCH_LIMIT = 240;
+/** The layer only `RoomStage.warm`'s camera sees (the bake's casters are on 20 and 21). */
+const WARM_LAYER = 30;
+/**
+ * Runs `task` once nothing more urgent is queued, without a timer (as the bake looks at its fences, GeneratedRoom): a
+ * timer's clamp is four milliseconds once timers nest, and a test's paused clock never fires one.
+ */
+function later(task: () => void): void {
+  const tasks = (globalThis as { scheduler?: { postTask?(task: () => void, options: { priority: string }): unknown } })
+    .scheduler;
+  if (typeof tasks?.postTask === 'function') {
+    void tasks.postTask(task, { priority: 'background' });
+    return;
+  }
+  const { port1, port2 } = new MessageChannel();
+  port1.onmessage = () => {
+    port1.close();
+    task();
+  };
+  port2.postMessage(null);
+}
+
+/** A mesh or points with `object`'s geometry, material and place, seen only by the warming camera, wherever it looks. */
+function standInFor(object: Object3D): Object3D | null {
+  const source = object as Mesh & { isInstancedMesh?: boolean; isSkinnedMesh?: boolean };
+  if (!source.geometry || !source.material || source.isInstancedMesh || source.isSkinnedMesh) return null;
+  const standIn = (object as Points).isPoints
+    ? new Points(source.geometry, source.material)
+    : source.isMesh
+      ? new Mesh(source.geometry, source.material)
+      : null;
+  if (!standIn) return null;
+  standIn.matrixAutoUpdate = false;
+  standIn.matrixWorldAutoUpdate = false;
+  standIn.matrixWorld.copy(object.matrixWorld);
+  standIn.frustumCulled = false;
+  standIn.layers.set(WARM_LAYER);
+  return standIn;
 }

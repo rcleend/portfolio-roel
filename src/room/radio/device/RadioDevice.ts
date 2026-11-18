@@ -8,7 +8,7 @@ import type { CreateRadioDevice, DevicePick, DeviceTarget, RadioDevice, RadioDev
 import { discSlots } from '../discLayout';
 import type { DeviceParts, DeviceSpec, GeneratedRadioSource } from '../partsProvider';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
-import { AmbientPacer } from './AmbientPacer';
+import { AMBIENT_INTERVAL_MS, AmbientPacer } from './AmbientPacer';
 import { Choreography, type DiscSample, discHeirs, type Moment } from './choreography';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
@@ -96,7 +96,13 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     // On the way to the radio (and there) its preparation is what the flight waits for: it may go between the
     // flight's frames, where they leave room for it.
     background: {
-      add: (task, options) => host.background.add(task, { ...options, urgent: () => host.views.view === 'radio' }),
+      add: (task, options) =>
+        host.background.add(task, {
+          ...options,
+          urgent: () => host.views.view === 'radio',
+          // And a flight to the radio waits for it before it sets off: nothing runs while the camera flies.
+          flight: (to) => to === 'radio',
+        }),
     },
     anisotropy: host.anisotropy,
     software: stage.softwareGpu,
@@ -563,10 +569,11 @@ class Device implements RadioDevice {
 
   /**
    * Starts or stops the float to match `#ambientWanted()`. A room that draws frames of its own accord (the generated
-   * room's sixty a second, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn and no frame is
-   * asked for. The pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames
-   * would never come due (every frame of the room's restarts its grid), and the discs would stand still in sixty
-   * frames a second and jump whenever something else moved them.
+   * room, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn, and the loop is told they move
+   * (`RenderLoop.ambient`: thirty frames a second while the room rests, evenly spaced on the display's own). The
+   * pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames would never come
+   * due (every frame of the room's restarts its grid), and the discs would stand still and jump whenever something
+   * else moved them.
    */
   #syncAmbient(): void {
     const { loop } = this.#context;
@@ -577,8 +584,14 @@ class Device implements RadioDevice {
       return;
     }
     this.#pacer.stop();
-    if (this.#ambientWanted()) this.#stopRide ??= loop.ride(this.#rideFrame);
-    else {
+    if (this.#ambientWanted()) {
+      if (this.#stopRide === null) {
+        const stops = [loop.ride(this.#rideFrame), loop.ambient('discs', () => 1000 / AMBIENT_INTERVAL_MS)];
+        this.#stopRide = () => {
+          for (const stop of stops) stop();
+        };
+      }
+    } else {
       this.#stopRide?.();
       this.#stopRide = null;
     }
@@ -782,10 +795,25 @@ class Device implements RadioDevice {
     });
   }
 
-  /** Compiles the disc program on the way to the radio, never before, so other views keep their program count. */
+  board(): Promise<void> {
+    this.#compileDiscs();
+    return (this.#compiling ?? Promise.resolve()).then(() => {
+      if (this.#disposed) return;
+      // Everything the device hangs in the scene (the discs, the display), hidden or not.
+      const drawn: Object3D[] = [];
+      this.root.traverse((object) => void drawn.push(object));
+      this.#context.stage.warm(drawn);
+    });
+  }
+
+  /**
+   * Compiles the disc program as the camera is about to leave for the radio, never before, so other views keep their
+   * program count; for the target frames draw into (compiled for the screen it was a program nothing drew with, and
+   * the one that did draw was compiled in the flight's frame that first showed a disc).
+   */
   #compileDiscs(): void {
     if (this.#compiling) return;
-    this.#compiling = this.#discs.compile(this.#context.renderer, this.#context.camera, this.#context.scene).then(
+    this.#compiling = this.#discs.compile(this.#context.stage).then(
       () => {
         if (this.#revealOnceCompiled && !this.#disposed) {
           this.#revealOnceCompiled = false;

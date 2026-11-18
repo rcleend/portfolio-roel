@@ -4,8 +4,8 @@ import type { GenKit } from './genKit';
 import type { MeshData } from './kit/builder';
 import { createWaxPose, LAVA, poseWax, WAX, waxIndices, waxPositions } from './props/lavaWax';
 
-/** How often a moving lamp asks for a frame when nothing else does: its wax moves a pixel in a second. */
-const TICK_MS = 1000 / 24;
+/** The frames a second a moving lamp needs when nothing else is drawn: its wax moves a pixel in a second. */
+export const LAVA_FRAMES = 12;
 /** The least time between two poses (s): a blob moves a centimetre a second at its fastest. */
 const POSE_SECONDS = 0.03;
 /** The wax a visitor who asked for no motion sees: a drop under the cap, a blob halfway, another leaving the pool. */
@@ -30,9 +30,10 @@ export interface LavaWaxOptions {
  * The lava lamp's wax and bottle (docs/ROOM.md › The generated room): the wax is a lathe of a few hundred vertices
  * that `poseWax` moves, a function of the clock alone, so nothing is stepped, stored or loaded. It moves only while
  * someone can see it: the lamp inside the camera's frustum, the canvas on screen, the tab visible and reduced motion
- * off (then it stands still, in one pose). Every drawn frame poses it for the next; when nothing else draws, it asks
- * for 24 frames a second itself. Both meshes are unlit vertex colours on one program a tier never changes, and three
- * uploads their buffers again after a lost context.
+ * off (then it stands still, in one pose). Every drawn frame poses it for the next; whoever owns it tells the render
+ * loop that it moves (`running`, `LAVA_FRAMES` a second), and the wax asks for a frame only as it starts. Both meshes
+ * are unlit vertex colours on one program a tier never changes, and three uploads their buffers again after a lost
+ * context.
  */
 export class LavaWax {
   readonly meshes: readonly Mesh[];
@@ -40,10 +41,8 @@ export class LavaWax {
   private readonly positions: BufferAttribute;
   private readonly clip: InstanceType<GenKit['Matrix4']>;
   private readonly corner: InstanceType<GenKit['Vector4']>;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private moving = false;
   private posed = Number.NaN;
-  /** When sync last ran: the end of the last drawn frame. */
-  private drawn = 0;
   private disposed = false;
 
   constructor(
@@ -115,13 +114,12 @@ export class LavaWax {
 
   /** Whether the wax is moving. */
   get running(): boolean {
-    return this.timer !== null;
+    return this.moving;
   }
 
-  /** Poses the wax for the next frame and keeps frames coming while it moves; call after every drawn frame. */
+  /** Poses the wax for the next frame and says whether it moves; call after every drawn frame. */
   readonly sync = (): void => {
     if (this.disposed) return;
-    this.drawn = performance.now();
     if (!this.options.isVisible() || !this.inView()) {
       this.stop();
       return;
@@ -137,7 +135,9 @@ export class LavaWax {
     // Frames come faster than the wax needs when something else draws them: it is posed for every other one at most.
     const seconds = performance.now() / 1000;
     if (!(Math.abs(seconds - this.posed) < POSE_SECONDS)) this.set(seconds);
-    this.timer ??= setTimeout(this.tick, TICK_MS);
+    if (this.moving) return;
+    this.moving = true;
+    this.options.invalidate();
   };
 
   dispose(): void {
@@ -146,19 +146,8 @@ export class LavaWax {
     this.options.reducedMotion.removeEventListener('change', this.sync);
   }
 
-  private readonly tick = (): void => {
-    this.timer = null;
-    if (this.disposed) return;
-    // Frames that come anyway (the generated room's sixty a second, a flight) carry the wax: it asks for none of its
-    // own until one is due. The frame's end calls sync, which poses the wax again and sets the next tick.
-    const due = this.drawn + TICK_MS - performance.now();
-    if (due > 1) this.timer = setTimeout(this.tick, due);
-    else this.options.invalidate();
-  };
-
   private stop(): void {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    this.moving = false;
   }
 
   private set(seconds: number): void {

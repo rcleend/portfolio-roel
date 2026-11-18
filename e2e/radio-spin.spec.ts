@@ -1,14 +1,14 @@
 import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, trackErrors, waitForRunning } from './helpers';
+import { hostElement, roomPace, trackErrors, waitForRunning } from './helpers';
 
 /**
  * The discs floating beside the CD player turn and bob in every frame the room draws (docs/ROOM.md › The CD player ›
- * Frames and budgets). The room draws its frames whether or not anything moves, so a frame count says nothing about
- * the discs: what is held here is what each frame shows of them, read from the model matrices the page hands WebGL.
- * A build whose float asked for frames of its own, beside the room's sixty, drew the discs standing still in nearly
- * every frame and jumping in the rest.
+ * Frames and budgets), and the room at rest draws thirty a second for them (docs/ROOM.md › Frames › At rest). A frame
+ * count alone says little about the discs: what is held here is what each frame shows of them, read from the model
+ * matrices the page hands WebGL. A build whose float asked for frames of its own, beside the frames the room then
+ * drew all the time, drew the discs standing still in nearly every frame and jumping in the rest.
  */
 test.use({
   launchOptions: { args: GPU_LAUNCH_ARGS },
@@ -193,10 +193,20 @@ test('the floating discs turn in every frame the room draws, by as much as the f
   await page.waitForTimeout(1800);
   expect((await page.evaluate(() => window.__room?.stats))?.radioAmbient).toBe(true);
 
-  const frames = await record(page, 2500);
+  // Nobody touches anything from here on, so the room is at rest and says so: the discs are what asks the most of
+  // it, thirty frames a second.
+  const pace = await roomPace(page);
+  expect(pace?.pace, "the room's pace with the discs afloat").toBe('rest');
+  expect(pace?.moving, 'what moves with the discs afloat').toContain('discs');
+  expect(pace?.rate, 'the frames a second the room draws by itself').toBeCloseTo(30);
+
+  const seconds = 2.5;
+  const frames = await record(page, seconds * 1000);
   const taken = steps(frames);
-  // The room's sixty frames a second, give or take the machine: at least a second's worth to judge.
-  expect(taken.length, 'frames that drew the discs').toBeGreaterThanOrEqual(60);
+  // The float's thirty frames a second, give or take the machine: at least a second's worth to judge, and never the
+  // display's sixty.
+  expect(taken.length, 'frames that drew the discs').toBeGreaterThanOrEqual(30);
+  expect(taken.length / seconds, 'frames a second that drew the discs').toBeLessThanOrEqual(48);
 
   // A disc that floats is somewhere else in every frame. (Float rounding turns two equal poses by under 0.03°.)
   const still = taken.filter((step) => step.degrees < 0.05 && step.metres < 1e-5).length;
@@ -218,7 +228,7 @@ test('the floating discs turn in every frame the room draws, by as much as the f
     if (off > 0.25) uneven++;
     jump = Math.max(jump, off);
   }
-  expect(judged, 'frames in which the discs were turning').toBeGreaterThanOrEqual(45);
+  expect(judged, 'frames in which the discs were turning').toBeGreaterThanOrEqual(22);
   expect(uneven / judged, "share of frames not turned by their time's worth (25 % off their neighbours)").toBeLessThan(
     0.1,
   );

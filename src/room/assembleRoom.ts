@@ -22,18 +22,18 @@ import type { SpotlitProp } from './spotlight/spotlightContract';
 import { type IdleMoment, IdleWork } from './stage/IdleWork';
 import type { RoomStage } from './stage/RoomStage';
 import { uploadTextures } from './stage/sceneTextures';
+import { warmObjects } from './stage/sceneWarmup';
 import { Television } from './tv/Television';
 import { TvInteractable } from './tv/TvInteractable';
 import { pictureOutline } from './tv/tvFraming';
 import { createTvGlass } from './tv/tvGlass';
 import { type TvModel, tvModelOf } from './tv/tvModel';
 import type { ViewController } from './ViewController';
-import type { RoomView } from './viewState';
 
 /**
- * What one of the room's texture uploads is assumed to cost on the main thread before one is timed, when they go up
- * from the TV (`prewarm`): a decoded image's copy to the GPU. Without it the first would be judged by the longest unit
- * any task has run, and never fit between the game's frames.
+ * What one of the room's texture uploads, or one unit of its warming, is assumed to cost on the main thread before one
+ * is timed, when they go from the TV (`prewarm`): a decoded image's copy to the GPU, a few meshes' buffers. Without it
+ * the first would be judged by the longest unit any task has run, and never fit between the game's frames.
  */
 const PREWARM_UNIT_ESTIMATE_MS = 2;
 
@@ -76,7 +76,10 @@ export interface RoomScene {
   setFramingInsets(insets: FramingInsets): void;
   /** Re-evaluates the pointer cursor after the view changed. */
   refreshCursor(): void;
-  /** Starts uploading the rest of the room's textures from the TV, ahead of the first look around. */
+  /**
+   * Queues what the first look around would otherwise make in its own frames (the textures no frame has drawn, every
+   * mesh's buffers), once: from the TV a while after it turns on, and at the latest before the camera first leaves.
+   */
   prewarm(): void;
   /** World to clip space of the settled TV view for the viewport as it is: what the page opens on. */
   tvClip(): Matrix4;
@@ -113,35 +116,47 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const rig = new CameraRig(camera, loop, { ...tvModel, picture }, pcModel, reducedMotion, fade);
   const background = new IdleWork((): IdleMoment => {
     const power = television.powerState;
-    // A flight, the CRT turning on or off, or the radio's lid and discs in motion. A reduced-motion cut held black
-    // shows nothing that moves: what runs then is out of sight (the posters' strips, for one, before the fade back).
-    if (
-      (views.moving && !rig.veiled) ||
-      power === 'powering-on' ||
-      power === 'powering-off' ||
-      radio.prepared?.moving === true
-    ) {
-      return 'moving';
-    }
+    // A flight: nothing runs (docs/ROOM.md › Flights). A reduced-motion cut held black shows nothing that moves: what
+    // runs then is out of sight (the posters' strips, for one, before the fade back).
+    if (views.moving && !rig.veiled) return 'flying';
+    // The CRT turning on or off, or the radio's lid and discs in motion.
+    if (power === 'powering-on' || power === 'powering-off' || radio.prepared?.moving === true) return 'moving';
     // The game at the TV, the computer's live screen, or the radio's discs floating: only units that fit a frame.
     const playing = (views.atTv && power === 'on' && !surface.paused) || overlay.live || radio.prepared?.ambient;
     return playing ? 'playing' : 'quiet';
   });
-  // The TV view's own textures are on the GPU with the first frame, and the baked pages are made there; any canvas
-  // no frame at the TV has drawn (the view outside the window) goes up a while after the
-  // TV turns on (`prewarm`), between the game's frames where an idle period can hold one and else in a quiet moment,
-  // so the first look around no longer uploads them in its flight (on a phone that flight lagged: round six, item 32);
-  // or, at the latest, once the visitor first looks around.
-  let uploadQueued = false;
-  const queueUploads = (view: RoomView | 'prewarm'): void => {
-    if (uploadQueued || view === 'tv') return;
-    uploadQueued = true;
+  // The TV view's own textures are on the GPU with the first frame, and the baked pages are made there. Everything
+  // else a frame makes the first time it draws something is made ahead of the first flight (docs/ROOM.md › Warming):
+  // any canvas no frame at the TV has drawn (the view outside the window) is uploaded, then every mesh is drawn once
+  // out of sight, a while after the TV turns on (`prewarm`), between the game's frames where an idle period can hold
+  // a unit and else in a quiet moment; or, at the latest, as the visitor leaves the TV, before the camera sets off
+  // (`IdleWork.drain`). On a phone the flight that did it in its own frames lagged (round six, item 32).
+  let warmQueued = false;
+  let warmed = new WeakSet<Object3D>();
+  const warmOptions = { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS, flight: true };
+  const queueWarm = (): void => {
+    if (warmQueued) return;
+    warmQueued = true;
+    background.add(uploadTextures(scene, stage.renderer), warmOptions);
     background.add(
-      uploadTextures(scene, stage.renderer),
-      view === 'prewarm' ? { smallUploads: true, estimateMs: PREWARM_UNIT_ESTIMATE_MS } : {},
+      warmObjects(scene, (objects) => stage.warm(objects), warmed),
+      warmOptions,
     );
   };
-  const stopUploads = views.onChange(queueUploads);
+  // A tier with other samples draws into another kind of target, and a restored context has nothing of the lost one:
+  // what was warmed is warmed again.
+  const rewarm = (): void => {
+    if (!warmQueued) return;
+    warmed = new WeakSet();
+    background.add(
+      warmObjects(scene, (objects) => stage.warm(objects), warmed),
+      warmOptions,
+    );
+  };
+  const stopRetarget = stage.onRetarget(rewarm);
+  stage.canvas.addEventListener('webglcontextrestored', rewarm);
+  // What waited for the camera to land need not wait out a timer as well.
+  const stopWake = views.onSettle(() => background.wake());
   const monitor = new Monitor({
     model: pcModel,
     scene,
@@ -266,8 +281,10 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
   const stopRender = stage.onRender(() => television.syncGlow());
   rig.jumpTo(views.view);
   // Asked for the computer before the room had loaded: the camera is already there.
-  if (views.view !== 'tv') monitor.prepare('tv', views.view);
-  queueUploads(views.view);
+  if (views.view !== 'tv') {
+    monitor.prepare('tv', views.view);
+    queueWarm();
+  }
   if (import.meta.env.DEV) {
     // Where the picture lands, in CSS px: what the startup still's own camera is held to (e2e/still.spec.ts).
     (globalThis as { __tvPicture?: () => readonly number[] }).__tvPicture = () => {
@@ -294,7 +311,7 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
       publishAnchors();
     },
     refreshCursor: () => interaction.refreshCursor(),
-    prewarm: () => queueUploads('prewarm'),
+    prewarm: queueWarm,
     tvClip() {
       const pose = rig.viewpoint('tv');
       const eye = new PerspectiveCamera(pose.fov, stage.size.width / stage.size.height, camera.near, camera.far);
@@ -306,7 +323,9 @@ export function assembleRoom(options: RoomSceneOptions): RoomScene {
     tilt: (tilt) => rig.setParallaxPointer(tilt ? new Vector2(tilt.x, tilt.y) : null),
     dispose() {
       background.dispose();
-      stopUploads();
+      stopRetarget();
+      stage.canvas.removeEventListener('webglcontextrestored', rewarm);
+      stopWake();
       stopResize();
       stopRender();
       stopCursor();

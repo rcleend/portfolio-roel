@@ -206,7 +206,7 @@ The page does not wait for the room to show it (`app/startup/`, `app/hosts/Still
 - The still's data is generated, never drawn by hand (`pnpm build:still`, `scripts/still/`). Its outlines come from the generators: `layers.ts` names the layers back to front, each layer is drawn alone in software from the nominal view (1440 × 900), its outline traced to a third of a pixel (as a curve's control points where that takes fewer) and every vertex put back at its own depth in the room, so what hides what is only the order of drawing and the picture is right from every camera of the family. Its colours come from the live room: the build serves a production build and opens it in Chromium on this machine's GPU at top quality, on the game's title with every frame of the game painted over in black (`page.ts`: the set on, its picture black, which is the frame the still hands over on), at nine viewports that between them show every shape, two of them with a nearer and a further eye than the rest. `fit.ts` then takes the vignette out of the shots (`finish.ts` reads its numbers from the finish's own source), fits each field by least squares to every pixel its shape owns, as the page will draw it for that pixel's own shot (first on a grid three times as fine, of whose lines it keeps the ones the light bends at), and fits the glows over that; then twice more, the fields to the room's pixels less the glows over them and the glows again, which is what separates a lamp's bloom, which goes with the lamp, from the light on the wall behind it, which stays on the wall as the eye moves. The power lamp's halo is the middle of every shot that shows it: its lens is a pixel or two of the finish's bloom, which comes out half as bright in one window as in the next. The image's pieces are made last: a texel (a place of the nominal view's page, which is a place of the surface) is its field's colour, which every shot agreed on, plus what the room's pixel there has finer than a field can hold (the shots' picture less the field of the same grid nearest to it), from the first shot that shows the surface at that place and shot by shot from there with a feathered edge; a nearer or a further eye fills in behind the set and the props, but not under a lamp's bloom, which another eye sees over another part of the wall (there the field alone, and no ghost of the lamp when the eye moves); nothing of the power lamp is in it (the image is the set that is off). The picture's light comes from one more shot with the picture white: each line's strength is what the room gains there. `--no-sample` makes the outlines again and keeps the colours (`scripts/still/colours.json`); `--variant` builds a lighter still to price a part of it (`layers.ts` › `variantOf`). The data is one string of whole numbers (`encode.ts` says what they are; a field's colours are each what it has more than its neighbours foretell).
 - The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture and made to look like the tube's (`StillPicture.css`): added to the still's dark glass as the tube adds its light (`mix-blend-mode: screen`, so black is the glass and the picture has no box round it), under one `filter` and one multiplied layer of scanlines, tint and edge falloff fitted by least squares to the live tube's picture of the title on a desktop and a phone (a channel's mean within 3 levels of the live tube's after it; the scanlines are one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade). The sound toggle is already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
 - The room is made behind it (§ The generated room): its geometry in a worker from the moment the room's chunk runs, then the light of what the TV view shows, and then it is `ready` and lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The rest of the room is lit behind the running game. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
-- A visitor who leaves the TV before the whole room is lit waits for the rest (`ViewController.whenReady`): the room's frames then stand still, the bake has the GPU to itself, and the camera sets off when it is done; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready); it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
+- A visitor who leaves the TV before everything the flight shows is made waits for it (`ViewController.whenReady`, § Flights): the game stops at the click and its PAUSE comes up on the tube, the room's frames then stand still, the rest of the bake has the GPU to itself, the buffers and textures no frame has drawn are made, and the camera sets off once the GPU is through with all of it; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready) and nothing from half a second later on; it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
 - Should the room fail (a WebGL context that cannot be made after all, no worker and no main-thread build, a bake that lights nothing), `ready` rejects, the flat host takes over and the still goes. A browser known beforehand to have no GPU never gets this far (§ No GPU). The still follows the room by being built again, not by hand: after a change to the set, the cabinet, the lamps, the plant, the TV view's framing or the room's light near the TV, run `pnpm build:still`. `scripts/still/still.test.ts` fails when the generators no longer give what the still was made from (a fingerprint of the triangles each layer picks, the framing and the layer table, beside the colours in `source.json`), and `e2e/still.spec.ts` shoots the live room with a black picture and the still alone at nine viewports and holds them to each other, the image in: the picture's place, the outlines (an edge of one within a pixel of an edge of the other) and the colour of the whole page, as CIEDE2000 between the mean colours of each 8 × 8 px block (`e2e/stillCompare.ts`). The image's two files are held to the build that wrote them by their checksums (`source.json`). The fingerprint does not cover the tracing code itself; the e2e spec is what catches a still that no longer matches.
 - How near the still is with its image in, measured at sixteen viewports on the top tier as CIEDE2000 over 8 × 8 px blocks (1 is about the least difference seen side by side, 2 the least seen in a change): the mean over the page is 0.30–0.69, 95 % of the page is under 0.68–1.91 and 99 % under 0.95–5.35, the worst block 1.8–24 (the hand-drawn gradients before all this: means 1.31–2.50, 99 % under 7.1–14.2; the grids alone, which are what shows until the image is in, at their full size: 0.31–0.63, 99 % under 0.92–4.70). The image moves the averages little, because what it adds is small on the page; it is the props, the cabinet's top and the edges that it makes the room's: an edge is within half a CSS pixel of the room's along 55–98 % of its length, over 80 % at fourteen of the sixteen viewports and over 90 % at eleven (the grids alone: twelve and two; the gradients before: three and one), the median edge 0.05–0.85 px off. What is left, and no image closes it, because none of it is fixed in the room: the power lamp's bloom (its lens is a pixel or two of the finish's, twice as bright in one window as the next: a block of 7–9 on a phone, 24 in a tall desktop window at one pixel a CSS pixel), a lamp the page's edge cuts (12–22 in one block: its bloom comes and goes with the lamp), the varnish's sheen, which moves with the eye, and the set's sides in the two windows that stand the eye much nearer (1200 × 500 and 844 × 390). A rounded casing's outline is another line on it from another eye, so the shell is traced from the 1200 × 500 eye as well and drawn from there in the windows nearer to it, which brought the first from 57 % of its edges over half a pixel to 45 %; what is left there is a pixel's worth at one pixel a CSS pixel, where the room's own edge is a soft one. The medium tier, which a phone starts on, is the same picture (0.31–0.94, 99 % under 0.95–7.43). The lowest tier bakes the room's light coarser, a few levels off on the wall (0.31–1.27, 99 % under 0.97–7.78), and nothing on the page can tell before the room loads that it will be drawn there (a software renderer, or a GPU the first frames show to be slow). The finish's grain is half a level and still: two frames of the room differ by nothing, so every figure here is the still's.
 - Other engines: Playwright's WebKit and Firefox draw the still as Chromium does (at 1440 × 900 and 390 × 844 their shots differ from Chromium's by a mean of 0.1–0.2, 99 % under 0.8, the worst block 1.5, and are as near the live room), AVIF included. The script cannot stop the page: a browser that cannot cut a field to a path or mask its rows draws nothing and the still stays the page's plain dark, still saying where the picture goes; one without `decode()`, or that takes neither format, keeps the gradients (each tried in the three engines). No real phone has been looked at (§ Known gaps).
@@ -262,7 +262,9 @@ room/
                         of frames (whose intervals measure the device) from frames that were only waited for
     quality.ts          pure: the quality tiers, the tier a device starts on, and the governor that moves the scale
                         and the tier with measured frame times (§ Quality)
-    IdleWork.ts         work ahead of need, in small units on idle time: never in motion, never making a frame late
+    IdleWork.ts         work ahead of need, in small units on idle time: never in a flight, never making a frame late;
+                        `drain` makes what a flight shows before it sets off
+    sceneWarmup.ts      every mesh drawn once out of sight before a frame draws it (§ Flights › Warming)
     softwareGpu.ts      pure: whether the GPU is software (2D canvases then paint on the CPU)
     slowDevice.ts       pure: whether the device is slow (a software GPU, or a first flight under 30 fps), for the radio and the posters
     stripUpload.ts      a large texture uploaded a 1 MB strip per background unit (the posters)
@@ -313,8 +315,8 @@ room/
     screenMapping.ts    pure: picture rect in UV space, UV → native pixel
   radio/                the CD player; only the door, the click target and the model lookup are in the room chunk
     RadioDeck.ts        the public RadioDoor and RadioDeck types
-    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts just
-                        after the first TV leave's first flight frame, on a prefetch or on a request for the radio view (which waits)
+    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts at the
+                        first landing away from the TV, on a prefetch or on a request for the radio view (which waits)
     RadioInteractable.ts the radio, its cabinet and the lava lamp as one click target (room chunk; the table below)
     radioModel.ts       the radio as `RADIO_SPEC` has it, with its cabinet and the lamp's bounds (room chunk)
     radioFixtures.ts    the radio's bounds and the framing table's viewports, for tests
@@ -373,7 +375,7 @@ room/
   spotlight/
     PropSpotlight.ts    the public PropSpotlight and LitProp types
     SpotlightDoor.ts    room.spotlight (room chunk): the pointer's prop, else the app's pick, while the camera rests in
-                        the room view; imports the chunk behind the first flight away from the TV
+                        the room view; imports the chunk from the TV behind the room's warming, or at the first landing
     spotlightKit.ts     the three.js classes the chunk draws with, handed over (room chunk)
     spotlightContract.ts the seam to the lazy chunk (types only)
     Spotlight.ts        the `propSpotlight` chunk: the glow passes, the jelly, the brighter colours, the label point
@@ -424,25 +426,62 @@ which the generated one was matched to (§ The generated room › Comparing it).
 ## Rendering and performance
 
 - **Frames.** `RenderLoop` by itself draws only when asked: game frames (paced to ≤ 60/s), camera flights and
-  parallax, power animations, the lava's and the air's ticks, resizes. Once the room is lit, `GeneratedRoom` has the
-  loop draw all the time in every view (`RenderLoop.pace`, stopped while a lost context leaves it unlit), whether or
-  not anything moves, as a run of frames the quality governor judges (§ The generated room › Sixty frames a second), and not while
-  the canvas is off screen or the tab hidden. The paced loop follows the display's own frames
-  (`requestAnimationFrame`) and draws on every one of them, or on every second or third of a display faster than
-  95 Hz: sixty a second on a 60 Hz and on a 120 Hz display, 72 at 144 Hz, 80 at 240 Hz, 75 and 90 on displays of those
-  rates, and always a whole number of display frames apart, so the frames are evenly spaced. (A timer asking sixty
-  times a second drew a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) A one-off request (the
-  lava's tick, a pointer move, the game's own frame) is drawn by the next of those frames, not by one of its own in
-  between; only an animation (a flight, the radio's choreography, the tube's turn-on) draws on every display frame.
-  So a resting room draws sixty frames a second at the TV with the game
-  paused, in the room view, at the computer and at the radio, under reduced motion too (`node scripts/room-shots.mjs
-  --only perf` prints them). The slower clocks (the lava's 24 a second, the air's) decide
-  what moves in those frames, not how many are drawn; the radio's floating discs move in every one (`RenderLoop.ride`:
-  a step run before each frame drawn that asks for none). The room with shipped files drew no frame at rest; the frame
-  counts at rest that these docs quoted from that time are gone (§ Known gaps).
+  parallax, power animations, resizes. Once the room is lit, `GeneratedRoom` paces the loop (`RenderLoop.pace`,
+  stopped while a lost context leaves it unlit): the loop then follows the display's own frames
+  (`requestAnimationFrame`) and draws frames of its own accord, at one of two paces, and none while the canvas is off
+  screen or the tab hidden.
+  - **Full pace** is every display frame, or every second or third of a display faster than 95 Hz: sixty a second on
+    a 60 Hz and on a 120 Hz display, 72 at 144 Hz, 80 at 240 Hz, 75 and 90 on displays of those rates, and always a
+    whole number of display frames apart, so the frames are evenly spaced. (A timer asking sixty times a second drew
+    a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) Whatever asks for frames gets them at this
+    pace: every step of an animation (a flight, the radio's choreography, the tube's turn-on) moves by the time its
+    step is given, a one-off request (a pointer's move, the radio's readout) is drawn by the next of these frames and
+    not by one of its own in between, and the game on the TV asks for each of its frames while it runs. (Flights
+    used to draw on every display frame: 120 a second on a 120 Hz display, and a GPU that held sixty but not 120 gave
+    a mix of one- and two-frame gaps, § Flights.) The loop draws at this pace of its own accord too, as a run of
+    frames the quality governor and the bake's pacing judge, until the whole room is lit and the governor has seen
+    the quality hold over a window of such frames (`QualityGovernor.judging`: at the start, after every change, while
+    a floor is counted out). Before the room is lit the loop is not paced and an animation draws on every display
+    frame.
+  - **At rest**, which is the camera standing and nobody touching anything, the room draws only what moves by itself
+    needs, and nothing at all while nothing moves: there is no need for sixty frames a second of a room in which the
+    rain runs down a window, and none for any of a room in which nothing changes. What moves says so to the loop
+    (`RenderLoop.ambient(name, rate)`: the frames a second it needs now, 0 while it is still) and the loop draws the
+    most any of it asks for, rounded up to a whole number of display frames so the frames stay evenly spaced (thirty
+    asked for are every other frame of a 60 Hz display, every fourth at 120 Hz, every third at 90 Hz, every one of a
+    display capped at thirty; a timer's thirty beside a display's sixty gave gaps of one and of two frames, and the
+    radio's discs juddered). Everything that moves moves by the time its frame is given, never by a count of frames,
+    so a slower pace shows the same motion in fewer pictures. The game is not among them: it runs only while the
+    visitor is at the TV (the room pauses it on leaving), its title is made in whole frames of sixty a second (a
+    two-frame shake as the words lock, a 32-on 16-off blink, the plotter's pen moving every frame), and every one of
+    its frames is shown, played or only watched; a paused game is one picture and asks for nothing. What there is:
+
+    | What moves | Asks for | While |
+    | --- | --- | --- |
+    | `air`: the rain on the window, the storm's flash, the dust | 30 a second with the window in view, 20 for the dust alone | not at the TV, not under reduced motion, and at the computer on the top tier only (`RoomStage.setReading`) |
+    | `lava`: the lamp's wax | 12 | the lamp is in the camera's frustum, not under reduced motion (its wax moves a pixel in a second) |
+    | `discs`: the radio's floating discs | 30 | at the radio, for the seven seconds after the last touch (§ The CD player › Motion) |
+
+    A rest frame is not a run's frame: it comes when it is due, whatever the device took over the one before, so the
+    governor and the bake's pacing never see it (a governor that judged thirty frames a second against sixty would
+    step every resting room down to its floor). Resting delays nothing: a click's flight, a key, a pointer's move is
+    drawn by the very next full-pace frame (`RenderLoop.test.ts` › at rest), and a room in which nothing is drawn
+    watches no display frame at all (it looks four times a second whether something moves again). Two things would
+    otherwise keep a room from ever resting, and are held still: a pointer's parallax nearer than a tenth of a pixel
+    to where the camera is (`CameraRig` › `PARALLAX_STILL`), and a phone's tilt under a fifth of a degree from the
+    last one passed on (`app/guide/tilt.ts`), since a tilt sensor never repeats a reading. `room.stats.pace` says
+    which pace the room is at, what moves and why it is not resting, and `?debug=perf` prints it (§ Quality).
+  - So at rest the room draws: at the TV the game's own frames while it runs (sixty a second) and none with the game
+    paused; in the room view thirty (the rain); at the computer thirty on the top tier and none below it, where the
+    air rests; at the radio thirty while the discs float and for the rain or the dust after; under reduced motion
+    none anywhere, the game's own frames apart. The radio's floating discs are posed in every frame drawn
+    (`RenderLoop.ride`: a step run before each frame that asks for none). The room with shipped files drew no frame
+    at rest and the generated room first drew sixty in every view; what each costs is in § The generated room ›
+    Frames at rest.
 
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
-  - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
+  - the camera flies: nothing runs, urgent or not (`IdleMoment` `flying`, § Flights); what a flight shows was made before it set off, and whatever is left waits for the landing;
+  - the TV turns on or off (from the moment its LED lights), or the radio's lid and discs move: nothing runs but urgent work (the radio's prints at the radio), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`) also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed);
   - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, its own estimate, `estimateMs`, else the longest so far), so no frame is late, and a unit at the head of the queue that does not fit steps aside for the first behind it that does; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait, except a task's small uploads (`smallUploads`: the posters' 1 MB strips at the TV), which run like CPU units, each with an idle period to itself;
   - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
@@ -454,10 +493,12 @@ which the generated one was matched to (§ The generated room › Comparing it).
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
   - **The posters' atlas**, in 1 MB strips (§ Posters), and at the radio the discs' labels (§ The CD player).
   - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, a while after the TV turns on
-    (`assembleRoom` › `prewarm`) or at the latest when the visitor first leaves the TV. three uploads a texture the
-    first time a frame draws it, which would otherwise land in a flight. In the generated room this is little: the
-    baked pages are render targets, on the GPU since the bake, so what is left are the canvas textures a view has not
-    shown yet (the view outside the window, the monitor's still).
+    (`assembleRoom` › `prewarm`) or at the latest as the visitor first leaves the TV, before the camera sets off.
+    three uploads a texture the first time a frame draws it, which would otherwise land in a flight. In the generated
+    room this is little: the baked pages are render targets, on the GPU since the bake, so what is left are the
+    canvas textures a view has not shown yet (the view outside the window, the monitor's still).
+  - **Every mesh no frame has drawn yet** (`sceneWarmup.ts`, § Flights › Warming), a few to a unit, behind the
+    textures.
 
 - **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a
   mesh whose bounds the ray crosses, so `pickMeshes` cuts any registered mesh over 8,192 triangles into chunks of at
@@ -497,6 +538,82 @@ which the generated one was matched to (§ The generated room › Comparing it).
 
 - **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. The room's own light goes with the context too: its baked pages are render targets, so the bake runs again and `room.shown` is false until what the camera shows is lit (§ The generated room › Loss and failure); at the TV the app covers the canvas with the startup still meanwhile. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
 
+## Flights
+
+A flight is the one moment the whole picture moves, so a frame that comes late in it is a jump the eye cannot miss.
+Three rules keep its frames to themselves (`e2e/flights.spec.ts` holds a cold first flight to them):
+
+- **Nothing else runs while the camera flies.** `IdleWork` has a moment for it, `flying`, in which no unit runs, urgent
+  or not: no bake unit (the bake's own stall timer asks the same question), no upload, no pick chunk, no still. What
+  a lazy chunk makes as it arrives (the spotlight's two programs and its target, the walls' reveal, the guide's and
+  the computer screen's mounting in the app) waits for the landing (`createRoom` › `atRest`, `PosterWall` ›
+  `#reveal`, `RoomHost` › `atRest`, `PcSlot`, `RainSoundSlot`, whose sound is an idle unit); no chunk is asked for in
+  a flight (the spotlight's from the TV behind the warming, the radio's deck at the first landing). The governor's changes of scale and tier wait for the landing
+  too (§ Quality). A reduced-motion cut held black is not a flight: what runs then is out of sight.
+- **What a flight shows is made before it sets off.** `ViewController.request` asks `whenReady`, which says whether
+  anything is left to make: the rest of the room's light (`GeneratedRoom.whenWhole`), the work `IdleWork` holds for
+  flights (`IdleTaskOptions.flight`: the textures no frame has drawn, the warming below, the walls' upload once they
+  are painted, the radio's discs for the flight to the radio), the walls' and the discs' programs. Normally nothing
+  is, and the camera sets off in the click's own task. Otherwise the game stops at the click (its PAUSE on the tube
+  is the cue; `ViewController` gives the game back if the visitor stays), the frames are held (`RoomStage.hold`),
+  `IdleWork.drain` runs that work unit after unit, and the camera leaves once the GPU's fence says it is through
+  (`RoomStage.gpuIdle`). Each step is bounded (`PREFLIGHT_WORK_MS`, `PREFLIGHT_GPU_MS`, 0.4 s each; the bake alone is
+  waited for however long, since no view may show a surface without its light): what is not made by then waits for
+  the landing like everything else. Walls still being painted are not waited for: they fade in once the camera has
+  landed. The first flight to the radio waits for the app's half the same way (`RadioDoor.onBoarding`: the CD
+  player and its controls load and mount while the camera still rests; their layout alone is 23 ms of a slow phone's
+  main thread, and stood 70 ms into that flight). A request made while the camera already flies makes nothing and
+  holds no frame: the flight under way is not stopped for the next.
+- **The camera moves by the clock, on the paced frames.** Every step takes the time of the frame it is drawn for and
+  places the camera where the curve says for that time (`CameraRig.flightStep`), so a frame that does come late shows
+  the camera where it should be by then, not a frame behind. The frames are the room's own (§ Rendering and
+  performance › Frames): sixty a second on a 60 and on a 120 Hz display, evenly spaced. The curve is the house ease
+  (`easeInOutCubic`): the camera starts and lands with no speed and no acceleration at any frame rate. The clock
+  starts with the flight's second frame: the first shows the camera where it stands, because the click's own work
+  falls into it (the page's interface takes the change of view: style, layout and paint, 22 ms on a phone-speed main
+  thread), and the frame behind such a one comes late however little the room draws.
+
+### Warming
+
+three.js makes a mesh's vertex array and uploads its buffers the first time a frame draws it, and the driver builds
+its own state for a program the first time it draws with one vertex layout into one kind of target. For everything
+the TV view leaves out, that first time was a frame of the first flight, as the mesh came into the picture: 19
+vertex arrays and 0.55 MB of buffers between 0.29 and 0.58 s into the flight, the fastest part of it. So every mesh
+is drawn once where nobody sees it (`stage/sceneWarmup.ts`, `RoomStage.warm`): stand-ins with its geometry, its
+material and its place, on a layer only the warming's camera sees, into one pixel of a target like the one frames draw
+the room into (its format, its samples, its depth; `RoomAtmosphere.warm`). A few meshes a unit (24 k vertices), from
+the TV a while after it turns on (`prewarm`), each unit an upload with an idle period to itself; whatever is left when
+the visitor leaves is drawn before the camera sets off. The stand-ins share the meshes' programs (`e2e/programs.ts`
+would count a new one), a mesh hidden for now is warmed too, and so is one whose material is switched off (three.js
+uploads a mesh's buffers as it comes into view, before it looks at the material: the monitor's bezel glow); one that
+is never drawn says so (`userData.neverDrawn`: the pick meshes). A tier with other samples and a restored context are warmed again. A
+program must be compiled for the target it is drawn into: `RoomStage.prepare` and `prepareAsync` bind the finish's
+target first. (The walls' and the discs' programs were compiled for the screen: programs nothing drew with, while the
+ones that did draw were linked, the main thread waiting, in the flight's frame that first showed a poster or a disc.)
+
+### Measuring flights
+
+`node scripts/perf/flights.mjs` loads a production build cold and makes the first flight at a chosen moment
+(`--leave 0|1000|10000`, `--after-whole`, `--level`), then the others (`--path round|all`), on a desktop or a
+phone-sized viewport with a throttled CPU, headless or in a window on the real display (`--headed`), with the slow-GPU
+stand-in (`--config`), in Chromium or WebKit. `flightProbe.js` records every display frame, the camera the room drew
+from in it and what WebGL was asked to make; the script prints each flight's frames against the paced frame (the
+longest, how many came late, the largest step in speed) and what was made inside it, and `--timeline` everything that
+ran in the first. `--trace` takes a Chromium trace of it, which `flightTrace.mjs` reads: the frames the compositor
+dropped, which the page's own clock cannot see, and the long tasks of the page and of the GPU process.
+
+What it measures on an Apple M4 Pro (17 Nov 2026, a production build, each row a cold load; the tables are in
+`.shots/flights/NOTES.md`): the first pull-back, left the moment the room is ready, one and ten seconds later and
+after a level, is 66–71 frames 16.6 ms apart, the longest 17.3–19.1 ms, none late and nothing made inside it, on the
+desktop on its tier and the lowest, at a phone's size with the CPU six times slower on its tier and the lowest, and
+in WebKit; on a display that hands out thirty frames a second it is 33 frames, the longest 33–42 ms. The seventeen
+other transitions, first and second time, are the same, but for one frame of 29 ms in WebKit at the phone's size.
+Before this the first pull-back made 6 programs, 19 vertex arrays and 4.3 MP of texture in its own frames (4 late
+frames at the phone's size, the longest 34 ms; 15 late and 42 ms with the GPU overloaded). With the GPU made 48
+times slower the first pull-back is on time behind a wait of 0.9–1.0 s, and four to six of the other seventeen
+flights still have late frames (the longest 80 ms): the stand-in is a GPU that cannot hold sixty in the room at all.
+No phone has been measured (§ Known gaps).
+
 ## Quality
 
 How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
@@ -514,29 +631,53 @@ instead of from geometry, however the device came to that tier (§ The generated
 
 - **Pages.** A device that starts below the top tier bakes smaller chart pages (`gen/tiers.ts`, § The generated
   room): 22 MB of them against 89 MB. The choice is made once, from the starting tier.
-- **The scale** multiplies the tier's pixel ratio: 1, 0.85, 0.7 or 0.6. The canvas itself is drawn smaller and the
+- **The scale** multiplies the tier's pixel ratio: 1, 0.85 or 0.7, and on the lowest tier 0.6 too (§ An overloaded
+  device, below, for why the tiers above it stop at 0.7). The canvas itself is drawn smaller and the
   browser scales it to the page, so the scene, both post passes and the dust all shrink together (the composite is the
   frame's dearest pass per pixel, so a full-size canvas over a smaller scene target would save least where it costs
   most).
 - **The governor** (`QualityGovernor`) follows measured frame times, never the user agent. It judges only *runs* of
-  frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, and the game's, each asked
-  for within 25 ms of the one before it; the lava's and the air's 24 a second and the radio's float at 30 were only
-  waited for and say nothing), thirty at a time by their mean
-  without the two longest, and never a pause (over 250 ms: a hidden tab).
+  frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, the game's while
+  it runs, each asked for within 25 ms of the one before it, and the room's own at full pace; a room at
+  rest draws its frames when they are due, and they say nothing, § Rendering and performance › Frames), thirty at a
+  time by their mean without the two longest, and never a pause (over 250 ms: a hidden tab). The room does not rest
+  before the governor has had such a window at the quality it stands at (`judging`): after the room is lit and after
+  every change it draws at full pace until one says the quality holds, so a device is at its quality within a few
+  seconds of the room appearing, and a visitor's first flight is not what finds out.
   - Slower than 21 ms a frame: the scale steps down, far enough to reach 15 ms if a frame's time goes with its pixels
-    (33 ms goes straight to 0.6).
-  - At the floor and still slow twice: the tier drops (to scale 0.7 of the lower one) and never comes back this page
-    load. The scene's target is made again without its samples; no shader is compiled (the bloom's width is a uniform).
+    (33 ms goes straight to the tier's floor).
+  - At its tier's floor and slow for the second window running: the tier drops, and never comes back this page load.
+    It drops straight to the tier and scale whose pixels the frames say fit (the first, from the next tier's full
+    scale down, within the present pixels × 15 ms ÷ the frame's time), not to the next tier at a fixed scale to
+    be found slow there too. The scene's target is made again without its samples; no shader is compiled (the
+    bloom's width is a uniform).
   - Every frame on time (≤ 17.4 ms) and the scale under 1: one step up, after a wait every step down doubles (30 s, then
-    a minute, up to four), so a device on the edge settles instead of pumping.
+    a minute, up to four). A step up that the very next window finds slow is taken back and that scale is not tried
+    again this page load: a device on the edge settles instead of pumping (two resizes every few minutes, for as
+    long as the page was open, is what it did before).
   - A step down that does not shorten the frames by 8 % undoes itself and rests the governor a minute: what was slow
     was the main thread, not the pixels (the game's first frames at 6× CPU throttling, say).
   - Not governed: a fixed tier (`quality: 'low'`), a software renderer (its frame times are the CPU's) and a browser
     under automation (`navigator.webdriver`: a test's paused clock or throttled CPU says nothing about the device, so
     end-to-end tests always draw the starting tier; `scripts/perf` unsets it to measure what a visitor gets).
+- **A capped display.** Everything above is measured against the interval frames are meant to come at, which is a
+  60 Hz frame only where the display hands out sixty a second or more. Safari in Low Power Mode hands out thirty,
+  on an iPhone or a Mac, however quick the GPU; nothing a page does adds a frame. So the stage looks at the display's
+  own frames before the room draws any (`RoomStage.watchDisplay`: sixteen in a row, the second quickest interval;
+  a busy main thread makes some longer and nothing makes one much shorter) and `expectedFrameMs` turns that into what
+  frames are expected at: a 60 Hz frame for a display about that fast or faster (the loop paces a faster one down),
+  the display's own tick for a slower one. The governor's limits stretch with it (at thirty a second: slow over 42 ms,
+  on time up to 34.8 ms), and so does the bake's idea of a late frame (§ The generated room › Pacing). A step down
+  that does not shorten the frames is not tried again a minute later: frames are then expected as they came (a cap
+  that began after the page opened, a main thread that is the limit), which costs one step down and back, once.
+  Frames a quarter quicker than expected end the cap. (Judged against sixty, a capped phone stepped its scale to the
+  floor and back every minute, two resizes each time, and baked the rest of the room at an eighth of the pace, every
+  frame counting as late.) `room.stats.display` says what is expected and whether it is a cap; `qualityChanges` counts
+  the resizes.
 - **A change is a resize**: the stage's resize listeners run (the CRT's and the dust's pixel ratio, the monitor's pose),
   and the next frame is drawn whole at the new size. It waits for the camera to land: a flight's frames have no room
-  for it (about 100 ms at 6× CPU).
+  for it (about 100 ms at 6× CPU). A tier with other samples is another kind of target, so the scene is warmed for
+  it again (§ Flights › Warming).
 - **The canvas is not multisampled** under a finish: the room is drawn into the finish's own target, and only two
   triangles and the dust onto the canvas. (The unprocessed bake, `mood: 'original'` at creation, draws straight onto
   the canvas and keeps its antialiasing.)
@@ -551,8 +692,10 @@ instead of from geometry, however the device came to that tier (§ The generated
   (`fittingQuality`, `stage/quality.ts`: down the scales, then the tiers). The governor goes on from there. Not where
   the quality is fixed (`?quality=`, a software renderer, a browser under automation).
 - **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
-  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
-  phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
+  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner, the rate the display
+  hands out frames at and whether that is a cap, how often the quality changed, and the last flight's frames, late
+  frames and longest frame (the way to read them on a phone: `app/hosts/perfReadout.ts`, its own chunk), and
+  `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
 - **Measuring it.** `node scripts/perf/profile.mjs` drives a production build along the visitor's path (the game on
   the TV, the room, the computer, the radio) with a WebGL profiler injected ahead of the page (`glProfiler.js`: GPU
   timer queries, draw calls, the pixels of every pass, the main thread's time in each WebGL call), on a desktop or a
@@ -603,9 +746,13 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   more depth render a view and no light.
 - **Leaving early.** No view but the TV's is shown before the second pass is done: a request for another view waits
   for it (`GeneratedRoom.whenWhole`, through `ViewController.whenReady`), and while one waits the stage is held again, for 1.5 s at most
-  (`HURRY_HOLD_MS`): the TV's picture stands still, the units take 12 ms of GPU each and follow each other as fast as
+  (`HURRY_HOLD_MS`): the TV's picture stands still on the game's PAUSE, the units take 12 ms of GPU each and follow each other as fast as
   the GPU takes them, so the wait is the GPU's time for what is left and not a frame's time for every view. A GPU that
-  needs longer gets its frames back and the bake goes on a view at a time behind them. A viewport or inset change that
+  needs longer gets its frames back and the bake goes on a view at a time behind them. The room is whole when the GPU
+  says so: a pass's last unit is waited for like every other (a fence), the pass that lights the rest of the room
+  included, which reads nothing back. (It used to end the task after its last unit was handed over, with the
+  composing of every page still on the GPU, and the camera that had waited for it set off into that: § Flights.)
+  A viewport or inset change that
   makes the TV view show cells its pass left out hurries the rest the same way (`reframed`); a resized canvas gets its
   one frame while held.
 - **Picking.** A click is tested against the props' own triangles: the TV set and the monitor are meshes of their own
@@ -651,7 +798,11 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   views draw is under § Rendering and performance › Cost.
 - **Pacing** (`gen/bake/pace.ts`). A view is drawn in pieces (its shadow map, each page's light, the vertices' light:
   `Baker.step(pieces)`; the shadow map is the bake's own target and waits there between units), and a unit is as many
-  pieces as the GPU has been seen to finish in 4 ms, at least one. A reading (a timer query's, or the wait for the
+  pieces as the GPU has been seen to finish in 4 ms, at least one. After the views a pass composes its pages, and
+  that is pieces too: sixteen slices of about the same texel area a page (`composeSlices`), a page cleared by its
+  first slice ever and never again (a later pass draws over the pages the room's frames are showing), its mip chain
+  made with its last. In one piece the composing of the four pages was the bake's largest draw by far and no frame
+  got past it. A reading (a timer query's, or the wait for the
   unit's fence) can only be too long, a frame's work having been on the GPU ahead of the unit, so behind the room's
   frames a piece is taken to cost the smallest of the last three. IdleWork decides when the main thread runs a unit,
   between a playing game's frames; one it has not run for 100 ms runs anyway (a main thread that is never idle while
@@ -660,7 +811,8 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   over 5 ms, the units are spaced out to a quarter of the GPU's time and never more than 100 ms apart
   (`generatedStats.deferred`): the rest of the room arrives however slow the GPU, where it used to wait for a quiet
   moment that a visitor at the title screen never gives it. A game being played comes first: every frame of the room
-  that comes over 20 ms after the one before it halves what the bake's units take, down to an eighth, and rests the
+  that comes a fifth later than frames are meant to here (over 20 ms on a 60 Hz display, over 40 ms on one capped at
+  thirty a second: § Quality › A capped display) halves what the bake's units take, down to an eighth, and rests the
   bake up to 100 ms between them; frames on time give it back a tenth at a time (`BakePace.frame`). A visitor waiting
   to leave, and the opening pass, are not paced by frames at all. The bake's programs and the display materials' link
   without blocking where the GPU allows it.
@@ -683,10 +835,29 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   2048² (four pages, 89 MB with mips) and bakes light at half the pages' size; `medium` and `low` use half the
   density in 1024² pages (22 MB); `low` also halves the shadow map and the samples (which a GPU measured slow takes on any tier: A slow GPU, above). The bake's own targets peak at
   46 MB (38 MB on `low`) and are freed when it ends.
-- **Sixty frames a second.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
-  Frames): it draws on the display's own frames, evenly spaced and sixty a second on 60 and 120 Hz displays, in every
-  view, as a run the quality governor judges (§ Quality), whether or not anything moves; none while the canvas is off
-  screen or the tab hidden (it looks again four times a second).
+- **Frames at rest.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
+  Frames): at full pace (the display's own frames, sixty a second on 60 and 120 Hz displays) until the whole room is
+  lit and its quality has been seen to hold, and whenever something asks; then only as often as what moves by itself
+  needs, and none while nothing moves, the canvas is off screen or the tab is hidden. Measured on this Mac's GPU
+  (`node scripts/perf/rest.mjs`, the camera still and nobody touching anything, against the build that drew sixty in
+  every view; the energy proxy is the renderer's and GPU process's CPU, cores busy, not watts):
+
+  | View (desktop top tier) | Frames a second | GPU ms a second | Main thread ms a second | Energy proxy |
+  | --- | --- | --- | --- | --- |
+  | TV, the game paused | 60 → 0 | 295 → 0 | 28 → 14 | 0.15 → 0.10 |
+  | TV, the game running | 60 → 60 (the game's own frames) | 299 → 263 | 112 → 135 | 0.54 → 0.65 |
+  | the room view (the rain) | 60 → 32.7 | 354 → 164 | 121 → 72 | 0.49 → 0.28 |
+  | at the computer (the rain behind the screen, top tier only) | 60 → 32.0 | 113 → 92 | 94 → 63 | 0.49 → 0.30 |
+  | at the radio, the discs afloat | 60 → 33.9 | 333 → 161 | 116 → 80 | 0.47 → 0.31 |
+  | at the radio, the discs settled (the dust) | 60 → 20.2 | 358 → 109 | 101 → 53 | 0.46 → 0.22 |
+
+  The phone stand-in and the lowest tier go the same way (the phone's room view 60 → 20, its framing leaving the
+  window's rain out and the dust asking for 20; at the computer below the top tier and at a paused TV nothing at all,
+  not even a frame callback: the phone stand-in's paused TV 95 → 11 ms a second of main thread, proxy 0.50 → 0.09).
+  The game's rows are unchanged by design and move with the machine: two runs of the same "before" build differed
+  by 43 and 112 ms a second of main thread at the title. The full tables, both
+  framings and tiers: `.shots/flights/NOTES.md` › Second stage.
+
 - **The lava lamp** (`gen/props/lavaLamp.ts` the generator; `gen/props/lavaWax.ts` its measurements and the wax's
   pose, plain arithmetic kept apart so the room's chunk carries no generator; `gen/LavaWax.ts`): a lathed foot and
   cap in the baked props, the bottle as a film of added light, and wax that is a function of the clock. Six blobs ride
@@ -698,8 +869,9 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   texture, no clip: two unlit vertex-colour programs that are the same on every tier, the wax's and the glass's, which
   the bare bulb's glass shares. The bottle is one front-faced draw whose index holds every triangle twice, once wound
   each way, so both its walls add their light without the two passes, and two programs, of a double-sided blended
-  material. When no other frame
-  comes it asks for 24 a second; `stats.lavaRunning` says whether it moves.
+  material. It asks for no frame of its own: while it moves it tells the loop so (`RenderLoop.ambient`, twelve
+  frames a second, its wax moving a pixel in a second), and every frame drawn for whatever cause poses it for the
+  next; `stats.lavaRunning` says whether it moves.
 - **The CD player** (`gen/props/radio.ts`, `gen/GeneratedRadio.ts`) is generated part by part: the body, the lid and
   its underside, the rocker's two halves, the side keys, the well and the plate that closes the body under a shut lid,
   nine vertex-lit meshes and no texture (its legends are a strip of the art page, `gen/radioArt.ts`). `RADIO_SPEC`
@@ -998,7 +1170,10 @@ The startup still does not show the lamp either.
 
 ### Rain audio
 
-`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on. The supplied
+`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on, and makes the sound in
+a unit of idle work of its own once the code is in, never as it arrives: making it makes the page's first audio
+context, which holds Chromium's main thread for a tenth of a second (118 ms on an Apple M4; 3 ms in WebKit), and idle
+work never runs while the camera flies (§ Flights). The supplied
 `public/audio/attic-rain.mp3` is decoded once at 24 kHz stereo (~23 MB) and driven by one looping AudioBufferSourceNode.
 An offline equal-power crossfade blends its final eight seconds into the first eight; the loop resumes at t=8,
 continuing the incoming samples without MP3 padding or a JS timer seam. The original file is retained verbatim.
@@ -1137,7 +1312,8 @@ Reduced motion: the existing fade-cut-fade lands on the open lid with the discs 
 
 ### Frames and budgets
 
-The room draws its steady sixty frames a second at the radio as everywhere (§ Rendering and performance › Frames).
+The room draws at the radio as everywhere (§ Rendering and performance › Frames): at full pace while the lid, a
+disc or a key moves, and at rest thirty frames a second while the discs float, then only what the room's air needs.
 The device's own motion sits inside them: the choreography's step while something moves (every display frame), and
 the discs' float, which rides the room's frames (`RenderLoop.ride`): the discs are posed in every frame the room
 draws and the float asks for none. Beside a room that draws by itself the float must not pace frames of its own:
@@ -1249,13 +1425,13 @@ node scripts/room-shots.mjs --only posters-detail,posters-perf,posters-views   #
 `MockGameSurface` draws an animated test card at 320 × 240 with corner labels, a white edge ring and a crosshair at the reported pointer pixel, so mapping, pause/resume and the CRT look can be checked without the game.
 `MockPcScreen` paints the computer's still and its live screen from one test card (a 50 px grid, an edge ring, labelled corners and colour ramps), so registration and the hand-off can be measured; the lab's status line shows the view, `live`, frames, draw calls, programs and the still's pixels.
 `MockRadioApp` answers the radio like the app does (picks load and play, the keys act, a fake clock runs on the LCD) and logs every intent, cue and `seated` with its time; the lab's radio button and ▷II / ■ / ⏭ press through it.
-`room-shots.mjs` drives the lab only, so every recipe works on the generated room as it did on the shipped one; the frame rates it prints are now the room's steady sixty (§ Rendering and performance › Frames). It uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
+`room-shots.mjs` drives the lab only, so every recipe works on the generated room as it did on the shipped one; the frame rates it prints are the room's own, at rest what moves there needs (§ Rendering and performance › Frames). It uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
 Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a browser.
 
 ## Known gaps
 
 - Clicks are ray-cast against registered interactables only, so a prop standing in front of the TV in the room view would not block a click on the TV (none does from the room viewpoint today).
-- The room draws sixty frames a second at rest in every view (§ Rendering and performance › Frames), where the room with shipped files drew none. That costs battery: how much on a phone has not been measured, and neither has anything else in the lists marked "not measured since" above.
+- At rest the room draws what moves in it needs, thirty frames a second at the most and none where nothing moves (§ Rendering and performance › Frames), where the room with shipped files drew none and the generated room first drew sixty in every view. What that saves is measured on a Mac only (§ The generated room › Frames at rest): what it does for a phone's battery has not been measured, and neither has anything else in the lists marked "not measured since" above.
 - Leaving the TV before the whole room is baked holds the flight until it is (§ The generated room › Leaving early). Behind a playing game the rest of the bake takes about 0.5 s on an Apple M4, and a visitor who leaves in that time waits for what is left of it with the TV's picture standing still: 0.2 s on that machine, 0.8–0.9 s with its GPU made 48 times slower (§ The generated room › A slow GPU), and nothing on screen says why the camera has not set off. On a GPU that slow the room is also ready seconds later than the room with shipped files was (0.4–0.5 s whatever the GPU).
 - A context lost away from the TV shows the room's flat surfaces unlit, black under their props, until the bake has run again (0.3 s on an M4): the startup still that covers this at the TV has no counterpart for the other views.
 - Nothing has been measured on a real phone: not the build, the bake, the frame rate, the wait above nor the memory. Phone-sized viewports with a throttled CPU say nothing of a phone's GPU.

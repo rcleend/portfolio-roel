@@ -49,6 +49,12 @@ export interface FlightOptions {
 
 const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
+/**
+ * A pointer this near where the parallax already is moves nothing: a tenth of a pixel of the nearest prop's at the
+ * most, and a frame drawn for it would be a frame of a room that could rest (docs/ROOM.md › Frames › At rest). A
+ * phone's tilt sensor never repeats a reading.
+ */
+const PARALLAX_STILL = 0.004;
 
 /**
  * Owns the TV, room, computer and radio viewpoints, the flights between them and a subtle pointer
@@ -153,7 +159,9 @@ export class CameraRig {
   setParallaxPointer(pointer: Vector2 | null): void {
     if (pointer && this.parallaxEnabled) this.parallaxGoal.copy(pointer);
     else this.parallaxGoal.set(0, 0);
-    if (!this.parallaxActive && !this.parallax.equals(this.parallaxGoal)) {
+    // Back to the middle is always gone all the way; towards a pointer only once it is far enough to see.
+    const apart = this.parallax.distanceToSquared(this.parallaxGoal);
+    if (!this.parallaxActive && apart > (pointer && this.parallaxEnabled ? PARALLAX_STILL ** 2 : 0)) {
       this.parallaxActive = true;
       let last: number | null = null;
       this.loop.animate((now) => {
@@ -186,8 +194,17 @@ export class CameraRig {
     onArrive: () => void,
   ): (now: number) => boolean {
     const from = cloneViewpoint(this.current);
+    let stood = false;
     let start: number | null = null;
     return (now) => {
+      // The first frame shows the camera where it stands, and the clock starts with the second. What the click itself
+      // set going falls into that first frame (the page's interface takes the change of view: its style, its layout
+      // and its paint, 22 ms of a slow phone's main thread), so the frame after it comes late however little the room
+      // draws; with the clock already running that was the flight's first step, a late one (docs/ROOM.md › Flights).
+      if (!stood) {
+        stood = true;
+        return true;
+      }
       start ??= now;
       const t = Math.min(1, (now - start) / FLIGHT_MS);
       // Read every frame, so a resize mid-flight lands on the new viewport's pose.

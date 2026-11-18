@@ -50,6 +50,8 @@ function host(view: 'room' | 'radio' = 'room'): RadioHost {
       loop: {} as never,
       visible: true,
       size,
+      prepareAsync: () => Promise.resolve(),
+      warm: () => {},
       softwareGpu: false,
     },
     views: { view, moving: false, request: vi.fn() },

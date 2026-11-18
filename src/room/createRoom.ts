@@ -17,6 +17,7 @@ import { RainSoundSlot } from './rain/RainSoundSlot';
 import type { PropSpotlight } from './spotlight/PropSpotlight';
 import { SpotlightDoor } from './spotlight/SpotlightDoor';
 import { spotlightKit } from './spotlight/spotlightKit';
+import type { IdleTask } from './stage/IdleWork';
 import type { Quality, QualityTier } from './stage/quality';
 import { RoomStage } from './stage/RoomStage';
 import { forEachTexture } from './stage/sceneTextures';
@@ -24,8 +25,17 @@ import type { PowerState } from './tv/powerTimeline';
 import { ViewController } from './ViewController';
 import type { RoomView } from './viewState';
 
-/** How long after the TV turns on the room's textures start going up (assembleRoom › prewarm). */
+/** How long after the TV turns on the room's textures and buffers start going up (assembleRoom › prewarm). */
 const PREWARM_DELAY_MS = 4000;
+/**
+ * How long at most the camera waits, once the room is lit, for the rest of what its flight shows to be made (ms): the
+ * textures and buffers no frame has drawn, the posters' upload if they are painted. Measured: 4-12 ms on an Apple M4
+ * Pro, 20-70 ms on the stand-ins for a phone and a slow GPU, when the visitor leaves in the room's first second;
+ * nothing after that. What is not made in this time waits for the landing.
+ */
+const PREFLIGHT_WORK_MS = 400;
+/** And how long at most for the GPU to be through with it, so that the flight's first frames do not queue behind (ms). */
+const PREFLIGHT_GPU_MS = 400;
 const MAX_ANISOTROPY = 4;
 
 /**
@@ -150,6 +160,25 @@ export interface RoomStats {
   readonly pixelRatio: number;
   /** The tier and scale frames are drawn at (docs/ROOM.md › Quality). */
   readonly quality: Quality;
+  /** How often the quality has changed this page load: each change is a resize. */
+  readonly qualityChanges: number;
+  /**
+   * The interval the room's frames are meant to come at (ms): a 60 Hz frame, or the display's own where it hands out
+   * fewer (`capped`: Safari in Low Power Mode draws thirty a second). What the governor judges frames against.
+   */
+  readonly display: { readonly frameMs: number; readonly capped: boolean };
+  /**
+   * What the room draws of its own accord now (docs/ROOM.md › Frames › At rest): `full`, every paced frame, and `why`
+   * (`lighting`: the room is not whole yet; `judging`: its quality has not been seen to hold); `rest`, only what
+   * moves by itself needs (`moving`, about `rate` frames a second); or `still`, nothing (hidden, or nothing moves).
+   * Whatever is asked for (a flight, the game's frames, a pointer's move) is drawn on top of it at full pace.
+   */
+  readonly pace: {
+    readonly pace: 'full' | 'rest' | 'still';
+    readonly moving: readonly string[];
+    readonly rate: number;
+    readonly why: 'lighting' | 'judging' | '';
+  };
   /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
   readonly programs: number;
   /** Pixels of the monitor's texture (0 in standby before the first paint). */
@@ -238,30 +267,85 @@ export function createRoom(options: CreateRoomOptions): Room {
     approachRadio: () => radio.deck?.approach(performance.now()),
     revealRadio: () => radio.deck?.reveal(),
     concealRadio: () => radio.deck?.conceal(),
-    // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
-    // And no view but the TV's is shown before the whole room is lit (docs/ROOM.md › Startup): a visitor who leaves
-    // sooner waits for the rest of the bake, which then hurries.
+    // Nothing is made while the camera flies (docs/ROOM.md › Flights), so whatever a flight shows is made before it
+    // sets off, and the camera waits for it: the rest of the room's light (no view but the TV's is shown before the
+    // whole room is lit, docs/ROOM.md › Startup; its bake then hurries), the textures and buffers no frame has drawn
+    // yet, the posters' upload once they are painted, the radio's deck and its discs on the way there. Normally all
+    // of that is long made and the camera sets off in the click's own task.
     whenReady: (view) => {
-      const deck = (): Promise<unknown> | null => (view === 'radio' && !radio.deck ? radio.load() : null);
-      if (view === 'tv' || generated.whole) return deck();
-      return generated.whenWhole().then(deck);
+      // A flight back to the TV shows nothing it has not shown.
+      if (view === 'tv' || !scene) return null;
+      const loaded = scene;
+      loaded.prewarm();
+      posters.depart();
+      // The radio's discs are made ready once, before the first flight to them.
+      const radioDue = view === 'radio' && !radioBoarded;
+      if (generated.whole && !radioDue && !loaded.background.flightPending(view)) return null;
+      return preflight(view, loaded);
     },
+    // The frames are held while the room is made ready: the one that shows the game's PAUSE is drawn all the same.
+    onWait: () => stage.oweFrame(),
   });
-  // The radio is a click away once the camera leaves the TV: its deck loads behind that flight, though neither in the
-  // click nor before the flight's first frame (an import's preload links cost a slow phone several milliseconds), and
-  // so does the props' glow. What is left of the posters painted at the TV goes up between that flight's frames: their
-  // departure only makes the work urgent.
-  const stopPreload = views.onChange(() => {
+  let radioBoarded = false;
+  /** The waits under way that hold the frames (`preflight`). */
+  let preflights = 0;
+  /** Makes what a flight to `view` shows, and resolves once the GPU is through with it. Rejects without the radio. */
+  const preflight = async (view: RoomView, loaded: RoomScene): Promise<void> => {
+    // The radio's deck leaves the first load: a request for the radio waits for it (it is fetched well before).
+    if (view === 'radio' && !radio.deck) await radio.load();
+    const lit = generated.whole || (await generated.whenWhole());
+    if (disposed) return;
+    // The room's light went with a lost context while the camera waited for it: the camera stays (the request is
+    // dropped, and a game stopped for it goes on), since no view but the TV's shows a room without its light.
+    if (!lit) throw new Error('The room lost its light while the camera waited');
+    // A request made while the camera flies makes nothing: holding the frames would freeze the flight under way, and
+    // what is left waits for the landing like everything else.
+    if (views.moving) return;
+    // The TV's picture stands still meanwhile (the game is paused): frames would only queue this work behind them.
+    // Counted, so a second request's wait does not end the first one's hold.
+    if (++preflights === 1) stage.hold('preflight', true);
+    try {
+      await loaded.background.drain(view, PREFLIGHT_WORK_MS);
+      if (view === 'radio') {
+        // The discs' program, for the target frames draw into, and the app's half (its player and controls, mounted
+        // while the camera still rests: `RadioDoor.onBoarding`); then whatever preparing them queued.
+        const boarded = Promise.all([radio.deck?.board() ?? Promise.resolve(), radio.boardApp()]);
+        await Promise.race([boarded, pause(PREFLIGHT_WORK_MS)]);
+        await loaded.background.drain(view, PREFLIGHT_WORK_MS);
+        radioBoarded = radio.prepared !== null;
+      }
+      await posters.boarded(PREFLIGHT_WORK_MS);
+      await stage.gpuIdle(PREFLIGHT_GPU_MS);
+    } finally {
+      if (--preflights === 0) stage.hold('preflight', false);
+    }
+  };
+  // The props' glow and the radio's deck leave the first load. Neither is fetched in a flight, and what they make as
+  // they arrive (programs, a target, the device) is made at rest: the glow's chunk is asked for from the TV, behind
+  // the room's warming (`prewarm`), or at the first landing in the room; the deck's at that landing, since the radio
+  // is a click away from there.
+  const stopPreload = views.onSettle((view) => {
+    if (view === 'tv') return;
     stopPreload();
-    posters.depart();
-    requestAnimationFrame(() =>
-      setTimeout(() => {
-        if (disposed) return;
-        radio.preload();
-        spotlight.preload();
-      }, 0),
-    );
+    scene?.background.add(preloads());
   });
+  function* preloads(): IdleTask {
+    spotlight.preload(atRest);
+    yield;
+    radio.preload();
+  }
+  /** Resolves with `value` in a task of its own while the camera rests: at once, or a moment after it lands. */
+  const atRest = <T>(value: T): Promise<T> =>
+    new Promise((resolve) => {
+      if (!views.moving) {
+        resolve(value);
+        return;
+      }
+      const stop = views.onSettle(() => {
+        stop();
+        setTimeout(() => resolve(value), 0);
+      });
+    });
   views.onChange((view) => {
     rain.setView(view);
     stage.setAtTv(view === 'tv');
@@ -376,6 +460,10 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
   );
   let stopReframe: (() => void) | null = null;
+  // biome-ignore lint/correctness/useYield: a task of one unit, which only asks for the chunk.
+  function* glow(): IdleTask {
+    spotlight.preload(atRest);
+  }
 
   return {
     ready,
@@ -413,9 +501,12 @@ export function createRoom(options: CreateRoomOptions): Room {
       await ready;
       await scene?.television.powerOn(options?.instant);
       if (scene && !disposed) rain.prepare(scene.background);
-      // The room's textures go up from the TV once the picture has settled in, ahead of the first look around.
+      // The room's textures and buffers go up from the TV once the picture has settled in, ahead of the first look
+      // around, and the props' glow comes in behind them.
       setTimeout(() => {
-        if (!disposed) scene?.prewarm();
+        if (disposed || !scene) return;
+        scene.prewarm();
+        scene.background.add(glow());
       }, PREWARM_DELAY_MS);
     },
     async powerOff() {
@@ -467,6 +558,9 @@ export function createRoom(options: CreateRoomOptions): Room {
         triangles,
         pixelRatio: stage.size.pixelRatio,
         quality: stage.quality,
+        qualityChanges: stage.qualityChanges,
+        display: { frameMs: stage.frameMs, capped: stage.displayCapped },
+        pace: { ...stage.loop.pacing, why: generated.whole ? (stage.judging ? 'judging' : '') : 'lighting' },
         programs: renderer.info.programs?.length ?? 0,
         pcTexturePixels: scene?.monitor.texturePixels ?? 0,
         backgroundPending: scene?.background.pending ?? false,
@@ -509,6 +603,8 @@ export function createRoom(options: CreateRoomOptions): Room {
     },
   };
 }
+
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function firstFrame(stage: RoomStage): Promise<void> {
   return new Promise((resolve) => {

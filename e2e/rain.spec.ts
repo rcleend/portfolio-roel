@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { expectSixtyFrames, pixelsChanged, trackErrors } from './helpers';
+import { expectRest, pixelsChanged, trackErrors } from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -119,11 +119,11 @@ test('storm flashes illuminate the room and clear immediately under reduced moti
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect.poll(() => page.evaluate(() => window.__roomLab?.room.stats.lightning)).toBe(0);
   await page.waitForTimeout(200);
-  // The room goes on drawing its sixty frames, and under reduced motion each is the same picture: the flash is
-  // gone, and the rain, the dust and the lava lamp stand still.
+  // Under reduced motion the room is one picture: the flash is gone, and the rain, the dust and the lava lamp stand
+  // still. Nothing moves by itself, so the room at rest draws no frame at all.
   expect(await pixelsChanged(page, page.locator('#stage canvas'), 400), 'pixels moving under reduced motion').toBe(0);
   expect(await page.evaluate(() => window.__roomLab?.room.stats.lightning)).toBe(0);
   expect(await page.evaluate(() => window.__roomLab?.room.stats.lavaRunning)).toBe(false);
-  await expectSixtyFrames(page, 'under reduced motion');
+  await expectRest(page, 'under reduced motion', []);
   expect(errors).toEqual([]);
 });

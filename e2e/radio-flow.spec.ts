@@ -1,15 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import type {} from '../src/app/hosts/RoomHost';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import {
-  differingPixels,
-  expectSixtyFrames,
-  hostElement,
-  paused,
-  tapWayOut,
-  trackErrors,
-  waitForRunning,
-} from './helpers';
+import { differingPixels, expectRest, hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
 import {
   FINISHED_RADIO_PROGRAMS,
   postersShown,
@@ -412,15 +404,15 @@ test.describe('performance', () => {
     };
     await page.mouse.move(1430, 890);
     await page.waitForTimeout(500);
-    // Resting with nothing in the player: no float under reduced motion, no dust, no rain; the room draws its sixty
-    // frames and every one is the same picture.
+    // Resting with nothing in the player: no float under reduced motion, no dust, no rain; nothing moves by itself, so
+    // the picture stays as it is and the room at rest draws no frame at all.
     expect((await stats(page))?.radioAmbient).toBe(false);
     // (Once the arrival's changes of state are in: the discs' prints show when the last is uploaded, the spotlight
     // the click's hover lit goes out.)
     await expect
       .poll(() => apart(1000), { message: 'pixels moving at the resting radio', timeout: 15_000, intervals: [100] })
       .toBe(0);
-    await expectSixtyFrames(page, 'at the resting radio');
+    await expectRest(page, 'at the resting radio', []);
     // Playing: the seated disc is its radial average, the same image every frame; only the LCD's clock changes.
     const lowTide = await disc(page, 'drop-the-bombs');
     await page.mouse.click(lowTide.x, lowTide.y);
@@ -444,7 +436,7 @@ test.describe('performance', () => {
     await pressModelKey(page, 'play-pause');
     await waitAudible(page);
 
-    // The music plays on at the computer, where the room keeps its frames and nothing in it moves.
+    // The music plays on at the computer, where nothing in the room moves and it draws no frame for the music.
     await page.keyboard.press('Escape');
     await settled(page);
     await page.mouse.click(pc.x, pc.y);
@@ -463,7 +455,7 @@ test.describe('performance', () => {
       await differingPixels(room, await page.screenshot({ clip: beside })),
       'pixels moving in the room at the computer while the music plays',
     ).toBe(0);
-    await expectSixtyFrames(page, 'at the computer');
+    await expectRest(page, 'at the computer', []);
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + FINISHED_RADIO_PROGRAMS);
   });
 

@@ -16,7 +16,9 @@ export const QUIET = 'quiet';
 
 /**
  * What the screen is doing, as far as work ahead of need goes:
- * - `moving`: the camera flies or the TV turns on or off. Nothing runs but urgent work
+ * - `flying`: the camera flies. Nothing runs, urgent or not: whatever a flight shows was made before it set off
+ *   (`drain`), and whatever is left waits for the landing. A unit invisible on a still frame is a jump in a flight.
+ * - `moving`: the TV turns on or off, or the radio's lid and discs move. Nothing runs but urgent work
  *   (`IdleTaskOptions`): a unit invisible on a still frame is a dropped frame in motion.
  * - `playing`: the game runs on the TV, the visitor uses the computer's live screen, or the radio's
  *   discs float. A CPU unit (or a small upload, `IdleTaskOptions.smallUploads`) runs only when the
@@ -27,7 +29,7 @@ export const QUIET = 'quiet';
  * - `quiet`: nothing plays (the TV still dark, a paused game, the room view). Any unit runs,
  *   until the idle period is spent and always at least one.
  */
-export type IdleMoment = 'moving' | 'playing' | 'quiet';
+export type IdleMoment = 'flying' | 'moving' | 'playing' | 'quiet';
 
 /** What a unit may know about the idle period it runs in (the browser's `IdleDeadline`). */
 export interface IdleBudget {
@@ -38,7 +40,12 @@ export interface IdleScheduler {
   /** Calls `run` once the page is idle, or as an ordinary task once `timeoutMs` has passed without an idle period. */
   request(run: (budget: IdleBudget) => void, timeoutMs: number): number;
   cancel(handle: number): void;
+  /** Calls `run` in a task of its own, as soon as the tasks already queued have run (`drain`'s slices). */
+  soon?(run: () => void): void;
 }
+
+/** How long `drain` works before it lets the page's other tasks (input, a frame) have the main thread (ms). */
+const DRAIN_SLICE_MS = 8;
 
 /** Longest a queued unit waits for an idle moment on a main thread that is never idle. */
 const IDLE_TIMEOUT_MS = 1000;
@@ -70,6 +77,15 @@ const browserScheduler: IdleScheduler = {
   cancel(handle) {
     if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(handle);
     else window.cancelAnimationFrame(handle);
+  },
+  // A message, not a timer: nested timers wait four milliseconds each.
+  soon(run) {
+    const { port1, port2 } = new MessageChannel();
+    port1.onmessage = () => {
+      port1.close();
+      run();
+    };
+    port2.postMessage(null);
   },
 };
 
@@ -112,6 +128,12 @@ export interface IdleTaskOptions {
    */
   readonly smallUploads?: boolean;
   /**
+   * Something a flight shows, or draws for the first time: its textures, its buffers, its programs. `drain` runs such
+   * a task to its end before the camera sets off, since nothing runs while it flies. A function says for which view's
+   * flights (the radio's device, for the flight to the radio).
+   */
+  readonly flight?: boolean | ((to: string) => boolean);
+  /**
    * Its units are unlike any other task's (the room's bake: a burst of WebGL calls, queued a unit at a time): how long
    * they take says nothing about what another task's untimed unit will, so they do not count as the longest unit run
    * so far, by which those are judged.
@@ -126,6 +148,7 @@ interface Queued {
   readonly estimateMs: number | undefined;
   readonly sliceMs: number | undefined;
   readonly smallUploads: boolean;
+  readonly flight: (to: string) => boolean;
   /** Since when its next unit has waited (queued, or its last unit ran). */
   since: number;
   /** The task's next unit waits for a quiet moment. */
@@ -144,8 +167,8 @@ interface Queued {
 
 /**
  * Work the room does ahead of need (cutting large meshes for picking, painting the monitor's
- * still, uploading textures before the flights that draw them) on idle time, never on a frame in
- * motion and never making a frame late while something plays (see `IdleMoment`).
+ * still, uploading textures before the flights that draw them) on idle time, never while the camera flies, never on a
+ * frame in motion and never making a frame late while something plays (see `IdleMoment`).
  *
  * Tasks run first queued, first served, from `start()` on, except that urgent work goes ahead of the
  * rest: a task the visitor waits on never waits behind one nobody does (the room's own uploads, which
@@ -192,6 +215,7 @@ export class IdleWork {
       estimateMs: options.estimateMs,
       sliceMs: options.sliceMs,
       smallUploads: options.smallUploads === true,
+      flight: typeof options.flight === 'function' ? options.flight : () => options.flight === true,
       apart: options.apart === true,
       since: performance.now(),
       quiet: false,
@@ -227,6 +251,61 @@ export class IdleWork {
         clearTimeout(this.retry);
         this.retry = null;
       }
+    }
+    this.schedule();
+  }
+
+  /** Whether work a flight to `to` shows is queued (`IdleTaskOptions.flight`): `drain` has something to do. */
+  flightPending(to: string): boolean {
+    return this.queue.some((queued) => queued.flight(to));
+  }
+
+  /**
+   * Runs every task a flight to `to` shows (`IdleTaskOptions.flight`) to its end, now, whatever the moment: unit after
+   * unit for a few milliseconds, then the page's other tasks, then on. Resolves once none is left (looked for twice, a
+   * task apart: a task's last unit may queue the next task from a promise), or after `budgetMs`; what is left then
+   * waits for the landing, like everything else. The camera waits for this before it sets off; the caller keeps
+   * frames from being drawn meanwhile.
+   */
+  drain(to: string, budgetMs: number): Promise<void> {
+    const started = performance.now();
+    const soon = this.scheduler.soon ?? ((run: () => void) => void setTimeout(run, 0));
+    return new Promise((resolve) => {
+      let empty = false;
+      const slice = (): void => {
+        const from = performance.now();
+        for (;;) {
+          const over = this.disposed || performance.now() - started >= budgetMs;
+          const next = over ? undefined : this.queue.find((queued) => queued.flight(to) && !queued.running);
+          if (!next) {
+            if (over || empty) {
+              resolve();
+              return;
+            }
+            empty = true;
+            break;
+          }
+          empty = false;
+          try {
+            this.step(next, false);
+          } catch (error) {
+            // A task that throws is finished (`step`). The camera waits for this promise with the frames held and
+            // the game paused: it settles whatever a unit does.
+            console.error('Work for a flight failed', error);
+          }
+          if (performance.now() - from >= DRAIN_SLICE_MS) break;
+        }
+        soon(slice);
+      };
+      slice();
+    });
+  }
+
+  /** Looks at the queue again now: the camera has landed, and what waited for that need not wait out a timer too. */
+  wake(): void {
+    if (this.retry !== null) {
+      clearTimeout(this.retry);
+      this.retry = null;
     }
     this.schedule();
   }
@@ -269,6 +348,11 @@ export class IdleWork {
     try {
       for (;;) {
         const moment = this.moment();
+        // Nothing runs while the camera flies.
+        if (moment === 'flying') {
+          later = this.queue.length > 0;
+          break;
+        }
         // In motion only urgent work runs, and only as it may while something plays.
         const moving = moment === 'moving';
         const playing = moment !== 'quiet';

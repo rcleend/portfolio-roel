@@ -9,7 +9,7 @@ import { type BakePart, type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } fro
 import { BakePace, overBudget, PROBE_UNITS } from './bake/pace';
 import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
-import { LavaWax } from './LavaWax';
+import { LAVA_FRAMES, LavaWax } from './LavaWax';
 import { showMakings, type TwiceMade } from './makings';
 import { GROUP, type MeshName } from './props/types';
 import { BULB_SPEC, EXTERIOR_PLATE, PICK_PROPS, TV_LAMP_SPEC } from './roomSpec';
@@ -158,7 +158,7 @@ export class GeneratedRoom {
   private shown = false;
   private complete = false;
   private hurried = false;
-  private waiting: (() => void)[] = [];
+  private waiting: ((lit: boolean) => void)[] = [];
   private disposed = false;
   private failed = false;
   private stopFrames: (() => void) | null = null;
@@ -183,6 +183,8 @@ export class GeneratedRoom {
   private profile: 'full' | 'short' = 'full';
   /** The opening pass's units timed so far and the least a view took in one (ms), until its length is judged. */
   private probe: { units: number; least: number } | null = null;
+  /** The last unit drew slices of the pages' composing, not pieces of a view. */
+  private composing = false;
   /** When the first bake's moments came, in ms since the room was created (GeneratedStats.marks). */
   private readonly marks: Record<string, number> = {};
   private transientBytes = 0;
@@ -285,10 +287,10 @@ export class GeneratedRoom {
    * The visitor wants to see the rest of the room: its bake stops going between the room's frames. The frames stand
    * still instead (the TV's picture, for `HURRY_HOLD_MS` at most) and the units follow each other as fast as the GPU
    * takes them, so the wait is the GPU's time for what is left and no more. Resolves once the whole room is baked (at
-   * once when it is).
+   * once when it is), with `false` when the wait ended because a lost context took the room's light instead.
    */
-  whenWhole(): Promise<void> {
-    if (this.complete || this.failed) return Promise.resolve();
+  whenWhole(): Promise<boolean> {
+    if (this.complete || this.failed) return Promise.resolve(true);
     if (!this.hurried) {
       this.hurried = true;
       // A unit queued behind the room's frames runs now instead; one whose fence is being waited for goes on by itself.
@@ -315,7 +317,7 @@ export class GeneratedRoom {
    */
   private hold(held: boolean): void {
     clearTimeout(this.bound);
-    this.context.stage.held = held;
+    this.context.stage.hold('bake', held);
   }
 
   /**
@@ -355,7 +357,7 @@ export class GeneratedRoom {
       group.removeFromParent();
     }
     this.radioParts?.dispose();
-    for (const resolve of this.waiting.splice(0)) resolve();
+    for (const resolve of this.waiting.splice(0)) resolve(true);
   }
 
   private get halfFloat(): boolean {
@@ -586,7 +588,13 @@ export class GeneratedRoom {
       reducedMotion: context.reducedMotion,
       invalidate: () => context.stage.loop.invalidate(),
     });
-    this.stopLava = context.stage.onRender(this.lava.sync);
+    const lava = this.lava;
+    const stopSync = context.stage.onRender(lava.sync);
+    const stopMoving = context.stage.loop.ambient('lava', () => (lava.running ? LAVA_FRAMES : 0));
+    this.stopLava = () => {
+      stopSync();
+      stopMoving();
+    };
 
     // The CD player, part by part on its pivots.
     this.radioParts = new GeneratedRadio(k, gen);
@@ -633,6 +641,8 @@ export class GeneratedRoom {
     const mesh = new k.Mesh(geometry, props.material);
     mesh.name = `Pick ${names.join(' ')}`;
     mesh.visible = false;
+    // Nor is it warmed for a frame (stage/sceneWarmup.ts).
+    mesh.userData.neverDrawn = true;
     this.picks.push(mesh);
     return mesh;
   }
@@ -743,7 +753,8 @@ export class GeneratedRoom {
     );
     const stalled = (): void => {
       // Not into a flight's frames, nor the tube's turn-on: nothing but the TV's view is shown before the bake ends.
-      if (request.background.moment() === 'moving') this.timer = setTimeout(stalled, STALL_MS);
+      const moment = request.background.moment();
+      if (moment === 'moving' || moment === 'flying') this.timer = setTimeout(stalled, STALL_MS);
       else {
         this.dropTask?.();
         this.unit(baker);
@@ -764,6 +775,11 @@ export class GeneratedRoom {
     // The opening pass does not wait for a timer's result (it follows the fence by a task or two): the wait for the
     // fence is its measure.
     const paced = this.paced;
+    // The views are drawn and the pages' composing begins: its slices are other draws than a view's pieces, and what
+    // those took says nothing about them. One slice a unit until a unit has been timed.
+    const composing = baker.composing;
+    if (composing && !this.composing) this.pace.reset(UNIT_GPU_TARGET_MS.rest);
+    this.composing = composing;
     const query = timer && paced ? gl.createQuery() : null;
     const started = performance.now();
     if (!this.timings.started) this.timings.started = started;
@@ -786,8 +802,8 @@ export class GeneratedRoom {
     let more = true;
     try {
       more = baker.step(pieces);
-      // The pass's last unit composes the pages and asks for the colours as well.
-      while (more && baker.left === 0) more = baker.step();
+      // The unit that draws the composing's last slice asks for the colours as well.
+      if (more && composing && baker.composed) more = baker.step();
     } catch (error) {
       this.fail(error);
       return;
@@ -801,17 +817,10 @@ export class GeneratedRoom {
     this.cpuMs = Math.max(0.01, took / pieces);
     this.timings.cpu += took;
     this.timings.longest = Math.max(this.timings.longest, took);
-    if (!more) {
-      if (query) gl.deleteQuery(query);
-      if (sync) gl.deleteSync(sync);
-      this.timings.views += baker.viewCount;
-      baker.result().then(
-        (result) => this.passed(baker, result),
-        (error: unknown) => this.fail(error),
-      );
-      return;
-    }
-    // Wait for the GPU, off the frame's path, then judge the unit and queue the next.
+    if (!more) this.timings.views += baker.viewCount;
+    // Wait for the GPU, off the frame's path, then judge the unit and queue the next. The pass's last unit is waited
+    // for like any other: a pass that reads no colours back has nothing else that waits for the GPU, and the room
+    // would call itself lit, and let a waiting camera go, with the composing of every page still ahead of its frames.
     let polls = 0;
     const poll = (): void => {
       this.timer = null;
@@ -820,9 +829,18 @@ export class GeneratedRoom {
       const signalled = !sync || gl.clientWaitSync(sync, 0, 0) !== gl.TIMEOUT_EXPIRED;
       const measured = query ? (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) as boolean) : false;
       // The timer's result follows the fence by a task or two; without a timer the wait itself is the measure.
-      if (!signalled || (query && !measured && ++polls < 6)) {
+      if (!signalled || (more && query && !measured && ++polls < 6)) {
         if (this.paced) this.wait(poll, signalled ? 0 : GPU_POLL_MS);
         else later(poll);
+        return;
+      }
+      if (!more) {
+        if (query) gl.deleteQuery(query);
+        if (sync) gl.deleteSync(sync);
+        baker.result().then(
+          (result) => this.passed(baker, result),
+          (error: unknown) => this.fail(error),
+        );
         return;
       }
       const gpuMs =
@@ -832,8 +850,11 @@ export class GeneratedRoom {
       if (query) gl.deleteQuery(query);
       if (sync) gl.deleteSync(sync);
       this.pace.read(gpuMs, pieces);
-      this.timings.gpu = Math.max(this.timings.gpu, (gpuMs / pieces) * aView);
-      if (this.judged(baker, gpuMs, left - baker.left)) return;
+      // (A unit of the composing drew no view: it says nothing about one.)
+      if (!composing) {
+        this.timings.gpu = Math.max(this.timings.gpu, (gpuMs / pieces) * aView);
+        if (this.judged(baker, gpuMs, left - baker.left)) return;
+      }
       // A GPU that takes too long over one piece gets a rest between units, and its frames their share of it.
       const gap = this.paced ? this.pace.gapMs() : 0;
       if (gap > 0) {
@@ -908,7 +929,7 @@ export class GeneratedRoom {
         this.complete = true;
         this.hurried = false;
         this.events.onComplete(this.stats as GeneratedStats);
-        for (const resolve of this.waiting.splice(0)) resolve();
+        for (const resolve of this.waiting.splice(0)) resolve(true);
         return;
       }
       baker.begin(late);
@@ -929,12 +950,16 @@ export class GeneratedRoom {
       this.timings.shown = performance.now();
       this.mark('shown');
       this.lava?.sync();
-      // Sixty frames a second in every view, whether or not something moves.
-      this.stopFrames ??= sixtyFrames(context.stage);
+      // Frames of the room's own accord from here on: every paced one until the whole room is lit and its quality
+      // has been found to hold, then only what moves needs (docs/ROOM.md › Frames › At rest).
+      this.stopFrames ??= context.stage.loop.pace(
+        () => context.stage.visible,
+        () => this.complete && !context.stage.judging,
+      );
       // The rest of the bake gives way to frames that come late (bake/pace.ts).
       this.stopLate ??= context.stage.onRender(() => {
         const interval = context.stage.loop.runInterval;
-        if (interval !== null && this.paced && !this.complete) this.pace.frame(interval);
+        if (interval !== null && this.paced && !this.complete) this.pace.frame(interval, context.stage.frameMs);
       });
       this.events.onShown(this.stats as GeneratedStats);
       done();
@@ -982,6 +1007,11 @@ export class GeneratedRoom {
     const was = this.shown;
     this.shown = false;
     this.complete = false;
+    // Nobody waits for a light the context took with it: a camera held for the rest of the room is let go (it finds
+    // the room not whole and stays, the game going on: `createRoom` › `preflight`), and the bake after a restore is
+    // paced again.
+    this.hurried = false;
+    for (const resolve of this.waiting.splice(0)) resolve(false);
     this.lava?.sync();
     if (was) this.events.onLost();
   };
@@ -997,7 +1027,7 @@ export class GeneratedRoom {
     this.failed = true;
     this.stopWork();
     this.events.onFailed(error);
-    for (const resolve of this.waiting.splice(0)) resolve();
+    for (const resolve of this.waiting.splice(0)) resolve(true);
   }
 }
 
@@ -1161,13 +1191,4 @@ function linked(renderer: RoomStage['renderer']): Promise<void> {
     };
     poll();
   });
-}
-
-/**
- * Asks for frames all the time, as a run of frames (so the quality governor judges them), until the returned function
- * is called: on the display's own frames (`RenderLoop.pace`), so a 60 Hz display draws every frame and a 120 Hz one
- * every other, evenly spaced. None while the canvas is off screen or the tab hidden.
- */
-function sixtyFrames(stage: RoomStage): () => void {
-  return stage.loop.pace(() => stage.visible);
 }

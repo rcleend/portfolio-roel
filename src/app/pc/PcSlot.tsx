@@ -39,11 +39,17 @@ function loadExperience(): Promise<Experience> {
  * but this glue. The desktop's still painter loads at idle once the TV is
  * on (the room paints the glass with it before the first flight); the screen
  * itself loads at idle once the camera has landed in the room view, or at
- * once on the way to the computer, while the camera's flight hides the
- * download. Renders portals only.
+ * once on the way to the computer, and mounts while the camera rests, never
+ * in a flight. Renders portals only.
  */
 export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage }: PcSlotProps): ReactNode {
-  const [Screen, setScreen] = useState<Experience | 'failed' | null>(null);
+  const [loaded, setScreen] = useState<Experience | 'failed' | null>(null);
+  // Mounting the screen is not a flight's work: one whose code arrives while the camera flies mounts as it lands.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (loaded !== null && settled) setMounted(true);
+  }, [loaded, settled]);
+  const Screen = mounted ? loaded : null;
 
   useEffect(() => {
     if (!display || !powered) return;
@@ -66,7 +72,7 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
   }, [display, powered]);
 
   // Loaded, or failed for good.
-  const settledLoad = Screen !== null;
+  const settledLoad = loaded !== null;
   const wanted = view === 'pc' || (view === 'room' && settled && !saveData());
   useEffect(() => {
     if (!display || settledLoad || !wanted) return;
@@ -80,7 +86,8 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
         },
       );
     };
-    // On the way to the computer: now, hidden by the flight. Looking around the room: when the page is idle.
+    // On the way to the computer: now, so the download has the flight's time (the screen mounts at the landing).
+    // Looking around the room: when the page is idle.
     if (view !== 'pc') return whenIdle(load);
     load();
   }, [display, settledLoad, wanted, view]);

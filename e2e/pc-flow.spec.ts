@@ -3,15 +3,7 @@ import sharp from 'sharp';
 import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import {
-  differingPixels,
-  expectSixtyFrames,
-  hostElement,
-  paused,
-  tapWayOut,
-  trackErrors,
-  waitForRunning,
-} from './helpers';
+import { differingPixels, expectRest, hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
 import { postersShown, FINISHED_ROOM_PROGRAMS as ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
@@ -679,15 +671,15 @@ test.describe('performance', () => {
     // Past the page's fade-in and the light change it makes.
     await page.waitForTimeout(500);
 
-    // The room beside the monitor, clear of the live screen and of the light it spills: the room draws its sixty
-    // frames behind the reader (docs/ROOM.md › The generated room), and under reduced motion each is the same
-    // picture; neither reading nor scrolling changes the screen's light.
+    // The room beside the monitor, clear of the live screen and of the light it spills: under reduced motion nothing
+    // in it moves by itself, so the room at rest draws no frame behind the reader (docs/ROOM.md › Frames › At rest)
+    // and stays one picture; neither reading nor scrolling changes the screen's light.
     const placement = await page.evaluate(() => window.__room?.pc.placement);
     if (!placement) throw new Error('No live screen');
     const beside = { x: 0, y: 0, width: Math.floor(placement.left) - 60, height: 900 };
     const room = () => page.screenshot({ clip: beside });
     const reading = await room();
-    await expectSixtyFrames(page, 'while reading');
+    await expectRest(page, 'while reading', []);
     expect(await differingPixels(reading, await room()), 'pixels moving in the room while reading').toBe(0);
 
     const box = await pane(page).boundingBox();
@@ -697,7 +689,7 @@ test.describe('performance', () => {
     await expect.poll(() => pane(page).evaluate((element) => element.scrollTop)).toBeGreaterThanOrEqual(900);
     await page.waitForTimeout(500);
     expect(await differingPixels(reading, await room()), 'pixels the scrolling changed in the room').toBe(0);
-    await expectSixtyFrames(page, 'after scrolling');
+    await expectRest(page, 'after scrolling', []);
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
   });
 

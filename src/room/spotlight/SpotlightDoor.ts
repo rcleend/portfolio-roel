@@ -58,12 +58,15 @@ export class SpotlightDoor implements PropSpotlight {
     this.#host = host;
   }
 
-  /** Imports the chunk, once (the first departure from the TV, as the radio's deck). */
-  preload(): void {
+  /**
+   * Imports the chunk, once: from the TV behind the room's warming, or at the first landing away from it. What the
+   * chunk makes as it arrives (two programs, a target) waits for `atRest`, so none of it lands in a flight.
+   */
+  preload(atRest: <T>(value: T) => Promise<T> = (value) => Promise.resolve(value)): void {
     const host = this.#host;
     if (!host || this.#disposed) return;
     this.#host = null;
-    import('./Spotlight').then(
+    import('./Spotlight').then(atRest).then(
       ({ createSpotlight }) => {
         if (this.#disposed) return;
         this.#chunk = createSpotlight(host(), (lit) => {
