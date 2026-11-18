@@ -26,6 +26,17 @@ this file is kept current as the work goes; the last section says where it stand
   `Profiler.start` at 200 us on a build with source maps (`vite build --sourcemap --outDir <dir>`), the longest busy
   stretch of the main thread after the room is ready. That is how the rain's audio context was found.
 
+### The machine's lock (from 17 Nov, 16:13: firstmate's message 009)
+
+Four workers measure on this Mac, and waiting for it to be quiet failed when everyone waited and then started
+together. From that message on a timing result counts only if it was taken while holding the shared lock
+`/tmp/fm-quiet-machine.lock`, with every other browser and test run drained first; nothing else heavy is started
+while another worker holds it. Here: `python3 .shots/flights/quiet.py run <minutes> "<what>" -- <command>` (takes the
+lock, waits for the others to drain, runs at most 15 minutes, says whether it was `alone throughout`, releases
+whatever happens) and `quiet.py gate` before any other browser run. **Everything in "Results, before and after" below
+was taken before the lock existed** (gated by `foreign.py`, as said there); what the second stage measures is taken
+under it and says so.
+
 ## Diagnosis (before any change)
 
 ### What reproduces and what does not
@@ -522,7 +533,7 @@ above); what `new AudioContext()` and `resume()` cost there (WebKit on this Mac:
 wait behind PAUSE is on a slow phone's GPU (the stand-in says 0.3-1.0 s); the monitor's still painted in the click;
 whether the display is taken for capped correctly (the readout says).
 
-## Second stage (owner's decisions, firstmate's message 006 of 17 Nov, 13:39) - NOT STARTED
+## Second stage (owner's decisions, firstmate's message 006 of 17 Nov, 13:39) - IN PROGRESS (written, unit-tested; measured: see below)
 
 Two items added to this task, to be done on this branch after the above and before `ready for integration`:
 
@@ -539,20 +550,79 @@ Two items added to this task, to be done on this branch after the above and befo
    the middle tier at a reduced scale; no flapping; never on a display that is merely capped at thirty; the
    overloaded phone stand-in before and after, and a healthy device unchanged.
 
-Where to start: `src/room/stage/RenderLoop.ts` (`pace`, `ride`, the wanted poll), `quality.ts`
-(`FLOOR_HITS`, the scale ladder), docs/ROOM.md › Frames and › Quality, `node scripts/perf/profile.mjs` for a view at
-rest, and the slow-GPU rows above for the governor (it changes the scale 3-5 times a minute there).
+### What is written (working tree on top of a4dceac; see `git log` for what is committed)
+
+**Rest pacing.**
+
+- `RenderLoop`: `pace(wanted, rest)` and `ambient(name, rate)`. At full pace as before for whatever asks (an
+  animation's step, `invalidate`, the game played) and of its own accord while `rest()` is false; otherwise a frame
+  only as often as what moves by itself needs, a whole number of display frames apart (`restGap`), no frame and no
+  display frame watched while nothing moves (the 250 ms look that was there for a hidden page serves). A rest frame
+  is never a run's (`runInterval` null), so the governor and the bake's pacing do not see it. What is asked for is
+  drawn by the next full-pace frame whatever the rest. 21 unit tests (`RenderLoop.test.ts` › at rest): the rates on
+  60, 90, 120, 144, 240 Hz and a display capped at thirty, 59.94 Hz, several movers, nothing moving, a flight out of
+  rest, the game's frames, hidden, not paced.
+- When it may rest (`GeneratedRoom`): the whole room lit, and the governor not `judging` (new: a window of full-pace
+  frames is owed at the start, after every change of quality and while a floor is counted out). So the governor
+  converges as it did, at full pace, and then the room rests; under automation and on a fixed tier it never judges.
+- What moves, and what it asks for: the air 30 with the window in view and 20 for the dust alone
+  (`AirMotion`, its 24-a-second timer gone); the lava 12 (`LavaWax`, timer gone: "its wax moves a pixel in a
+  second"); the radio's floating discs 30 (`RadioDevice`, beside its `ride`); the game on the TV 30 while it runs
+  untouched for six seconds of its own time (`GameSurface.untouched`, new in the engine: `Game` counts steps since a
+  key, a button, a pointer over the picture; `CrtScreen` then asks for no frame a game frame and tells the loop the
+  tube moves). **These rates are first choices from the code (the timers that were there asked 24 and 30), not yet
+  from looking**: the discs and the rain are still to be looked at in a slowed capture, and lower rates tried.
+- Two things that would keep a room from ever resting: the pointer's parallax (`CameraRig`: no animation for a goal
+  within 0.004 of where the parallax is, a tenth of a pixel) and the phone's tilt (`tilt.ts`: passed on only when it
+  has changed by 0.012, a fifth of a degree; before, every sensor reading started an animation, sixty a second on a
+  phone lying on a table). Not verified on a phone: no sensor here.
+- `room.stats.pace` and the third line of `?debug=perf` (`resting: 30/s for air, lava`, `still: nothing moves`,
+  `not resting: lighting | judging`, `+ asked`).
+- The docs (ROOM.md › Frames, the lava, the radio, Quality's governor, Known gaps; ARCHITECTURE.md; AGENTS.md) say
+  it; the numbers in ROOM.md › Frames at rest are still to be written from the measurements.
+- e2e: `helpers.ts › expectRest` (what moves, and the rate or no frames); the twenty-odd places that held the room
+  to sixty at rest are being rewritten by a helper (running).
+
+**The governor under overload** (`quality.ts`): a tier above the lowest stops at scale 0.7 (`scalesOf`); at its
+floor and slow for the second window running the tier drops straight to the tier and scale whose pixels fit
+(`fitting`, the stage gives the governor `pixelsOf`); `fittingQuality` before the first frame walks the same ladder;
+a step up that its very next window finds slow is taken back and that scale never tried again (`top`). The capped
+display's logic is untouched. Unit tests written, not yet run (the machine was measuring).
+
+**Measuring** (`scripts/perf/flights.mjs --rest 9000`: every flight from a room nine seconds at rest;
+`scripts/perf/rest.mjs`, by a helper: frames, GPU and main-thread time, rAF callbacks and process CPU a second per
+view at rest). All of it under the machine's lock (above).
 
 ## To do next, in this order (for whoever picks this up)
 
-1. **Attribute `e2e/room.spec.ts:18`** (firstmate, message 007: before integration, not left open). It failed in
-   two of three whole e2e runs on this branch and passes alone. Cheapest test: the whole suite three times on the
-   merge-base (PR 19's branch at d96cfed, which this branch merged in 0b7a36a) in a scratch checkout, on a quiet
-   machine (`python3 .shots/flights/foreign.py wait` first), and compare. If it fails there too it is the still's
-   work in progress or the machine's load: say which. If only here: the test screenshots the game's picture on the
-   still right after `scene === 'title'`, and found 23 % of the pixels differing where it wants over 50 %; the
-   bake's end and the idle units after ready (the rain's sound, the warming) are what this branch changed at that
-   moment.
+1. ~~Attribute `e2e/room.spec.ts:18`~~ **Done (17 Nov, 15:20 to 16:20): it is not this branch's.** The test took one
+   screenshot of the game's picture on the still the moment the game said `title`, and the title comes up out of the
+   dark (`titleTimeline.ts`: the lockup slides in 0.9 s after the scene starts): a race, lost when the page is
+   slow to draw the title's first frames.
+   - The whole suite three times on the merge-base (d96cfed, unpacked to `.shots/flights/base-src`, port 4392):
+     189 passed, 4 skipped, 0 failed, three times (`logs/e2e-base-{1,2,3}.log`). Another worker's browsers were alive
+     in 128 of 153, 135 of 153 and 160 of 160 samples (`foreign.py watch`): the machine was never quiet, in none of
+     these runs and none below.
+   - That alone would have pointed at this branch (it failed in two of its three whole runs), so the one test was
+     repeated 24 times with six workers on both trees, one after the other (`.shots/flights/e2e-one.py`):
+     **the merge-base failed it 2 of 24** (156,920 pixels differing where over 164,224 are asked), **this branch
+     before the merge 1 of 24** (101,692). It fails without this branch: pre-existing, and a matter of load.
+   - The PR's own branch has since rewritten the check (bfe25e2: it looks until the picture is there, and opens
+     straight on the title); merged here (a4dceac). **The merged test: 24 of 24** in the same conditions.
+   - **A correction to the "alive in N of N samples" figures of 17 Nov, 16:19 to 18:51** (the repeats of the one
+     test, the `@frames` rounds below, and the third whole run on the merge-base, which ended before 16:19 and is not
+     affected... its 160 of 160 was real): from 16:19 `foreign.py` counted another worker's agent process as a
+     browser, because that process carries its brief on its command line and the brief names "Chrome for Testing"
+     and "vitest". So "another measurement alive in every sample" was not established for the runs after 16:19; how
+     loaded the machine really was then is not known. The comparisons stand as comparisons (the trees were run in
+     turn within the same minutes); the cause given for the `@frames` failures (other workers' load) is likely and
+     not shown. `foreign.py` no longer counts such a process (18:51).
+   - Found on the way: the `@frames` tests (frames timed at 6x CPU on the development server, meant to run with
+     nothing else on the machine) fail while other workers measure, on every tree alike. Alone as a project, three
+     rounds in turn (`.shots/flights/e2e-frames.py`, another measurement alive in every sample): merge-base 0, 0,
+     3 of 3 failed (`pc-flow.spec.ts:703`, `posters.spec.ts:321`, `radio-flow.spec.ts:469`); this branch before the
+     merge 0, 2, 2 of 5; the working tree with the second stage in 0, 3, 0 of 5. Not attributable to a tree; to be
+     run again when the machine is free.
 2. **The second stage** (above): rest pacing, then the governor under overload.
 3. ~~The no-GPU decision~~ Decided by the owner (message 008): such visitors get the CV page, built by another
    worker from "No GPU" above. Nothing to do here but keep the notes where they are.

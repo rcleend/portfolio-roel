@@ -31,6 +31,9 @@ def foreign(own):
         # A browser's helpers (its crash handler is its own orphan: parent 1) are not a measurement of their own.
         if not PATTERN.search(command) or '--type=' in command or 'crashpad' in command or 'foreign.py' in command:
             continue
+        # An agent's own process carries its brief on its command line, and a brief names browsers and test runners.
+        if command.startswith('claude') or 'FIRSTMATE_OP' in command:
+            continue
         if descends(table, pid, me) or (own and descends(table, pid, own)):
             continue
         # WebKit's own helpers are launchd's children, not the run's: a WebKit run cannot tell another's from its own.
@@ -46,6 +49,9 @@ def short(command):
 
 mode = sys.argv[1]
 OWN_WEBKIT = 'webkit' in sys.argv[3:]
+if mode == 'list':
+    print(', '.join(sorted(set(map(short, foreign(None))))))
+    sys.exit(0)
 if mode == 'wait':
     waited = 0
     while foreign(None) and waited < 600:
