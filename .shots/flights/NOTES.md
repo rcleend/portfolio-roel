@@ -570,12 +570,12 @@ ticking 120-125 a second as the page sees it), Energy Saver off in the measuring
   drawn in): `e2e/generated-room.spec.ts` › "a hidden page draws nothing…" (new), and `RenderLoop.test.ts`.
 - `?debug=perf`'s second line says it: `resting: 30/s for air, lava`, `still: nothing moves` (or `hidden`),
   `not resting: lighting | judging`, `+ asked` when more frames came than that (the game, a flight, the pointer).
-  Screenshots of the phone stand-in: `.shots/flights/look/readout/` (RESULT-READOUT).
+  Screenshots of the phone stand-in (`.shots/flights/readout-shot.mjs`): `.shots/flights/look/readout-*.png`; in the room view it reads `medium ×1 dpr 2.00 · 20 fps · display 60/s · 0 changes`, `resting: 20/s for air, lava`, `flight tv→room: 72 frames, 0 late, worst 23 ms`.
 
 ### Looked at by eye: the discs and the rain (`.shots/flights/look/`)
 
 `rest.mjs --capture` recorded what reached the screen (CDP screencast) at the radio while the discs float and in the
-room view, desktop top tier. `discs-strip.jpg`/`discs-strip.gif` (slowed four times): consecutive frames 33 +- 1 ms
+room view, desktop top tier. `discs-strip.jpg`/`discs.gif` (slowed four times): consecutive frames 33 +- 1 ms
 apart, the disc's dot advancing by an even step, the change from frame to frame between 1.23 and 1.39 (mean absolute
 change per pixel of the crop) and varying smoothly with the float's speed: no repeated pose (a zero) and no skipped
 one (a double). The rain (`rain-strip.jpg`, `rain.gif`, the capture taken at 33 ms steps): change per step 0.22 to
@@ -586,7 +586,63 @@ show as a moment of sixty, not as a jump.
 
 ### Rest costs per view, before and after
 
-RESULT-REST
+**desktop** (desktop 1440×900@2, quality high×1; before: Battery Power, after: AC Power)
+
+| View | Frames/s | GPU ms/s | Main thread ms/s | Frame callbacks/s | Energy proxy (cores) | What moves, after |
+| --- | --- | --- | --- | --- | --- | --- |
+| tv-still | 60.0 → 59.8 | 168 → 290 | 42 → 117 | 240 → 191 | 0.22 → 0.52 | still |
+| tv-paused | 60.1 → 0.0 | 295 → 0 | 28 → 14 | 240 → 0 | 0.15 → 0.10 | still |
+| tv-title | 59.9 → 60.0 | 299 → 263 | 112 → 135 | 240 → 188 | 0.54 → 0.65 | still |
+| tv-level | 60.1 → 59.7 | 306 → 259 | 150 → 157 | 240 → 191 | 0.57 → 0.68 | still |
+| room | 60.0 → 32.7 | 354 → 164 | 121 → 72 | 240 → 131 | 0.49 → 0.28 | rest 30/s air+lava |
+| pc | 60.0 → 32.0 | 113 → 92 | 94 → 63 | 240 → 129 | 0.49 → 0.30 | rest 30/s air |
+| radio-afloat | 59.9 → 33.9 | 333 → 161 | 116 → 80 | 240 → 129 | 0.47 → 0.31 | rest 30/s air+discs |
+| radio-still | 60.0 → 20.2 | 358 → 109 | 101 → 53 | 240 → 121 | 0.46 → 0.22 | rest 20/s air |
+
+**desktop-low** (desktop 1440×900@2, quality low×1; before: Battery Power, after: AC Power)
+
+| View | Frames/s | GPU ms/s | Main thread ms/s | Frame callbacks/s | Energy proxy (cores) | What moves, after |
+| --- | --- | --- | --- | --- | --- | --- |
+| tv-still | 60.0 → 57.2 | 82 → 78 | 165 → 134 | 240 → 190 | 0.71 → 0.54 | still |
+| tv-paused | 60.1 → 0.0 | 79 → 0 | 99 → 12 | 240 → 0 | 0.48 → 0.10 | still |
+| tv-title | 60.0 → 59.9 | 76 → 81 | 144 → 133 | 240 → 180 | 0.66 → 0.61 | still |
+| tv-level | 60.0 → 60.0 | 75 → 82 | 183 → 158 | 240 → 180 | 0.75 → 0.67 | still |
+| room | 60.0 → 30.0 | 95 → 50 | 121 → 73 | 240 → 120 | 0.45 → 0.26 | rest 30/s air+lava |
+| pc | 59.9 → 0.0 | 84 → 0 | 98 → 8 | 240 → 0 | 0.49 → 0.02 | still |
+| radio-afloat | 60.1 → 32.0 | 113 → 61 | 114 → 85 | 240 → 120 | 0.44 → 0.31 | rest 30/s air+discs |
+| radio-still | 59.9 → 20.1 | 110 → 36 | 100 → 51 | 240 → 120 | 0.41 → 0.20 | rest 20/s air |
+
+**phone** (phone 390×844@3, quality medium×1; before: Battery Power, after: AC Power)
+
+| View | Frames/s | GPU ms/s | Main thread ms/s | Frame callbacks/s | Energy proxy (cores) | What moves, after |
+| --- | --- | --- | --- | --- | --- | --- |
+| tv-still | 59.9 → 59.0 | 164 → 160 | 162 → 123 | 240 → 183 | 0.75 → 0.53 | still |
+| tv-paused | 60.0 → 0.0 | 165 → 0 | 95 → 11 | 240 → 0 | 0.50 → 0.09 | still |
+| tv-title | 60.0 → 60.1 | 160 → 168 | 150 → 140 | 240 → 180 | 0.64 → 0.66 | still |
+| tv-level | 59.9 → 60.0 | 157 → 161 | 183 → 170 | 240 → 180 | 0.68 → 0.71 | still |
+| room | 59.9 → 20.1 | 183 → 66 | 109 → 62 | 240 → 120 | 0.44 → 0.23 | rest 20/s air+lava |
+| pc | 60.1 → 0.0 | 174 → 0 | 98 → 4 | 240 → 0 | 0.43 → 0.01 | still |
+| radio-afloat | 60.1 → 31.9 | 212 → 113 | 125 → 82 | 239 → 120 | 0.50 → 0.31 | rest 30/s air+discs |
+| radio-still | 60.0 → 20.1 | 197 → 69 | 102 → 53 | 240 → 120 | 0.43 → 0.21 | rest 20/s air |
+
+**phone-low** (phone 390×844@3, quality low×1; before: Battery Power, after: AC Power)
+
+| View | Frames/s | GPU ms/s | Main thread ms/s | Frame callbacks/s | Energy proxy (cores) | What moves, after |
+| --- | --- | --- | --- | --- | --- | --- |
+| tv-still | 60.0 → 57.7 | 71 → 68 | 167 → 106 | 240 → 192 | 0.76 → 0.44 | still |
+| tv-paused | 59.9 → 0.0 | 70 → 0 | 92 → 11 | 240 → 0 | 0.46 → 0.09 | still |
+| tv-title | 60.0 → 60.0 | 65 → 73 | 126 → 136 | 240 → 180 | 0.60 → 0.63 | still |
+| tv-level | 59.9 → 60.0 | 67 → 75 | 171 → 160 | 240 → 185 | 0.73 → 0.67 | still |
+| room | 60.0 → 21.0 | 88 → 32 | 117 → 58 | 240 → 129 | 0.44 → 0.21 | rest 20/s air+lava |
+| pc | 60.0 → 0.0 | 80 → 0 | 92 → 7 | 240 → 0 | 0.39 → 0.02 | still |
+| radio-afloat | 60.0 → 33.9 | 105 → 68 | 112 → 88 | 239 → 130 | 0.43 → 0.31 | rest 30/s air+discs |
+| radio-still | 59.9 → 21.1 | 96 → 37 | 95 → 54 | 240 → 128 | 0.40 → 0.20 | rest 20/s air |
+
+Frame callbacks a second are the page's own (`rest.mjs` counts them): where nothing moves (the TV with the game
+paused, the computer below the top tier) none at all now, where before the room drew sixty a second and the paused
+game's loop ran beside it; where something moves, one a display frame (the loop watches the display's frames to keep
+its rest frames evenly spaced) instead of two. Logs: `logs/rest-before-*.{log,json}`, `logs/rest-after-*.{log,json}`
+(`rest-after1-*` the same before the paused game stopped its loop: 125 callbacks a second where nothing moved).
 
 Before: the first stage's build (`.shots/flights/nogpu/dist-fixed`, 17 Nov 19:13-19:23, on battery 92 %, under the
 lock); after: the final build. The energy proxy is the renderer's and the GPU process's CPU (cores busy, CPU-seconds

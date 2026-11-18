@@ -822,10 +822,29 @@ none is shipped (§ Assets); the two screens' glass are display meshes made on t
   2048² (four pages, 89 MB with mips) and bakes light at half the pages' size; `medium` and `low` use half the
   density in 1024² pages (22 MB); `low` also halves the shadow map and the samples (which a GPU measured slow takes on any tier: A slow GPU, above). The bake's own targets peak at
   46 MB (38 MB on `low`) and are freed when it ends.
-- **Sixty frames a second.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
-  Frames): it draws on the display's own frames, evenly spaced and sixty a second on 60 and 120 Hz displays, in every
-  view, as a run the quality governor judges (§ Quality), whether or not anything moves; none while the canvas is off
-  screen or the tab hidden (it looks again four times a second).
+- **Frames at rest.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
+  Frames): at full pace (the display's own frames, sixty a second on 60 and 120 Hz displays) until the whole room is
+  lit and its quality has been seen to hold, and whenever something asks; then only as often as what moves by itself
+  needs, and none while nothing moves, the canvas is off screen or the tab is hidden. Measured on this Mac's GPU
+  (`node scripts/perf/rest.mjs`, the camera still and nobody touching anything, against the build that drew sixty in
+  every view; the energy proxy is the renderer's and GPU process's CPU, cores busy, not watts):
+
+  | View (desktop top tier) | Frames a second | GPU ms a second | Main thread ms a second | Energy proxy |
+  | --- | --- | --- | --- | --- |
+  | TV, the game paused | 60 → 0 | 295 → 0 | 28 → 14 | 0.15 → 0.10 |
+  | TV, the game running | 60 → 60 (the game's own frames) | 299 → 263 | 112 → 135 | 0.54 → 0.65 |
+  | the room view (the rain) | 60 → 32.7 | 354 → 164 | 121 → 72 | 0.49 → 0.28 |
+  | at the computer (the rain behind the screen, top tier only) | 60 → 32.0 | 113 → 92 | 94 → 63 | 0.49 → 0.30 |
+  | at the radio, the discs afloat | 60 → 33.9 | 333 → 161 | 116 → 80 | 0.47 → 0.31 |
+  | at the radio, the discs settled (the dust) | 60 → 20.2 | 358 → 109 | 101 → 53 | 0.46 → 0.22 |
+
+  The phone stand-in and the lowest tier go the same way (the phone's room view 60 → 20, its framing leaving the
+  window's rain out and the dust asking for 20; at the computer below the top tier and at a paused TV nothing at all,
+  not even a frame callback: the phone stand-in's paused TV 95 → 11 ms a second of main thread, proxy 0.50 → 0.09).
+  The game's rows are unchanged by design and move with the machine: two runs of the same "before" build differed
+  by 43 and 112 ms a second of main thread at the title. The full tables, both
+  framings and tiers: `.shots/flights/NOTES.md` › Second stage.
+
 - **The lava lamp** (`gen/props/lavaLamp.ts` the generator; `gen/props/lavaWax.ts` its measurements and the wax's
   pose, plain arithmetic kept apart so the room's chunk carries no generator; `gen/LavaWax.ts`): a lathed foot and
   cap in the baked props, the bottle as a film of added light, and wax that is a function of the clock. Six blobs ride
