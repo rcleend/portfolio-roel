@@ -103,7 +103,8 @@ export async function cvScript(base: string): Promise<string> {
  * The startup gate (docs/ROOM.md › No GPU): decides in index.html's head, before anything is painted or fetched,
  * whether this visitor gets the site or, having no GPU to draw the room with, the résumé alone.
  *
- * - The gate's script goes into the head ahead of the stylesheet, so it runs while that is on its way.
+ * - The gate's script goes into the head ahead of the stylesheet and behind a preload of it, so it runs while the
+ *   stylesheet is on its way.
  * - The site's entry and its module preloads leave the markup, where the browser would fetch them unasked, for a
  *   list the gate preloads from once it knows; the page's last script imports the entry, or the résumé's.
  * - The résumé page is built to a script of its own and rendered to markup here.
@@ -164,8 +165,16 @@ export function gatePlugin(): Plugin {
         const cv = cvFile ? config.base + cvFile : CV_ENTRY;
         const gate = `<script data-site='${JSON.stringify(site)}'>${await gateScript()}</script><style>${CV_FIRST_PAINT}</style>`;
         const load = `<script type="module">import(document.documentElement.dataset.page?${JSON.stringify(cv)}:${JSON.stringify(entry)})</script>`;
-        const before = page.includes('<link rel="stylesheet"') ? '<link rel="stylesheet"' : '</head>';
-        return page.replace(before, (found) => `${gate}\n${found}`).replace('</body>', () => `${load}\n</body>`);
+        // The stylesheet is asked for before the gate runs (a preload, which holds no script back), so the gate's
+        // question is answered while it is on its way; its own tag follows the gate and takes what the preload fetched.
+        const sheets = [...page.matchAll(/<link rel="stylesheet"( crossorigin)? href="([^"]+)"\s*\/?>/g)];
+        const ahead = sheets
+          .map(([, cors = '', href]) => `<link rel="preload" as="style"${cors} href="${href}">`)
+          .join('');
+        const before = sheets[0]?.[0] ?? '</head>';
+        return page
+          .replace(before, (found) => `${ahead}${gate}\n${found}`)
+          .replace('</body>', () => `${load}\n</body>`);
       },
     },
   };

@@ -6,7 +6,7 @@
 //                                 [--launch gpu|no-webgl|swiftshader|swiftshader-angle] [--query '?host=cv']
 //                                 [--runs 9] [--requests] [--json out.json] [--wait-quiet 300]
 // Several --dist are measured turn and turn about, so a drifting machine drifts under each alike. A run is `alone`
-// when no other checkout's browser or test run was alive before or after it; with --wait-quiet the script waits up
+// when other checkouts' browsers and test runs were idle (under 15 % of a core between them) before and after it; with --wait-quiet the script waits up
 // to that many seconds for the machine to fall quiet before each run. Timings from runs that were not alone mean
 // little. CPU throttling slows the page's main thread only.
 import { execFileSync } from 'node:child_process';
@@ -96,18 +96,19 @@ const cached = join(
 const executablePath = process.env.CHROMIUM_PATH ?? (existsSync(cached) ? cached : undefined);
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-/** Other checkouts' browsers and test runs alive now (this script's own browser is closed when this is asked). */
+/**
+ * How busy other checkouts' browsers and test runs are now, in percent of one core (this script's own browser is
+ * closed when this is asked). A browser that is open but idle, as an agent's own may be for hours, is not load.
+ */
 function foreign() {
-  try {
-    const lines = execFileSync('pgrep', ['-fl', 'playwright|Chrome for Testing|chrome-headless-shell'], {
-      encoding: 'utf8',
-    });
-    // Browser and test-runner processes only: a shell whose command line merely names them is not one.
-    const running = /^\d+ \S*(Chrome for Testing|chrome-headless-shell|Google Chrome)|^\d+ \S*node\S* .*playwright/;
-    return lines.split('\n').filter((line) => running.test(line) && !line.includes(process.cwd())).length;
-  } catch {
-    return 0; // pgrep found none
+  const running = /(Chrome for Testing|chrome-headless-shell|Google Chrome)|node\S* .*playwright/;
+  const lines = execFileSync('ps', ['-axo', 'pcpu=,command='], { encoding: 'utf8', maxBuffer: 1 << 26 }).split('\n');
+  let busy = 0;
+  for (const line of lines) {
+    const [, cpu, command] = /^\s*([\d.]+)\s+(.*)$/.exec(line) ?? [];
+    if (command && running.test(command.slice(0, 400)) && !command.includes(process.cwd())) busy += Number(cpu);
   }
+  return busy < 15 ? 0 : busy;
 }
 
 async function quiet() {
@@ -223,7 +224,7 @@ for (const [i, dist] of dists.entries()) {
       (first.page === 'cv'
         ? `first contentful paint ${column('firstContentfulPaint')}; résumé shown ${column('cv')}`
         : `game running ${column('running')}; ${first.flat ? `flat TV ${column('flat')}` : `room ready ${column('ready')}`}`) +
-      `; entry fetch starts ${ms(median(used.map((sample) => sample.fetchStart['index.js'] ?? sample.fetchStart['cv.js'])))}` +
+      `; stylesheet asked for at ${ms(median(used.map((sample) => sample.fetchStart['index.css'])))}, entry at ${ms(median(used.map((sample) => sample.fetchStart['index.js'] ?? sample.fetchStart['cv.js'])))}` +
       `; ${first.requests} requests, ${(first.bytes / 1000).toFixed(1)} kB on the wire` +
       `; ${alone.length} of ${all.length} runs alone${alone.length >= 3 ? ' (those used)' : ' (ALL used: not a quiet machine)'}`,
   );

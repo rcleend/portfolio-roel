@@ -5,7 +5,8 @@
 //                                 [--query '&quality=low'] [--browser webkit] [--linger]
 //   node scripts/perf/profile.mjs --shots .perf/shots/after [--dist dist] [--device phone] [--query '&quality=low']
 //     screenshots instead: the same poses (the TV on a fixed game frame, the room, the computer, the radio) of any build.
-// Needs the GPU: headless Chromium on ANGLE/Metal here (PERF_GL=swiftshader forces software GL, which says nothing
+// Needs the GPU: headless Chromium on ANGLE/Metal here (PERF_GL=swiftshader forces software GL, which wants
+// --query '&host=room' too, a software renderer's visitor getting the résumé otherwise, and which says nothing
 // about a phone). Frame numbers come from scripts/perf/glProfiler.js, injected before the page's own scripts.
 // CPU throttling slows the main thread only, never the GPU: for a phone's GPU, read `pixels` (shaded per frame) and
 // the GPU time per megapixel together. A slow GPU is stood in for with `--config '{"slowGpu":48,"slowBake":48}'`:
