@@ -1,7 +1,7 @@
 # Smooth flights: diagnosis, fixes, measurements
 
-Branch `fm/ship-portfolio-smooth-flights`, from `fm/scout-portfolio-procedural-room` at 7e4583a. Work in progress:
-this file is kept current as the work goes; the last section says where it stands.
+Branch `fm/ship-portfolio-smooth-flights`, from `fm/scout-portfolio-procedural-room` at 7e4583a. Both stages are
+done (the flights, then rest pacing and the governor under overload); the last section says where it stands.
 
 ## How it was measured
 
@@ -703,7 +703,24 @@ phone stand-in 1480-1609 ms (first stage, after: 564-701 and 1382-1580; before a
 
 ### Checks
 
-RESULT-CHECKS
+All on the final code, under the lock (logs in `.shots/flights/logs/`):
+
+- `pnpm check`: 284 files, 3020 tests pass (`check-final.log`).
+- `pnpm report:bundle`: passes after the room's budget was raised 195.0 → 195.6 for the second stage's measured
+  +0.68 kB (itemised in `bundle-budgets.json`'s note; `bundle-delta.log`: 194.69 at a4dceac, 195.37 at 93e3446,
+  195.51 at the tip with the PR's later commits); entry JS 215.80 against 215.8; every other chunk unchanged.
+- `pnpm e2e`: the whole suite at 12:35 (`e2e-final.log`): 205 passed, 4 skipped, 2 failed, both in
+  `generated-room.spec.ts` on the lab loaded straight into the room view: the new hidden-page test read what moves
+  before the lava lamp had started, and the lava test's reduced-motion check saw 15 frames in 600 ms while the room
+  was still settling from its load (the room draws at full pace for its first two seconds or so: `logs/probe-room.log`
+  counts them second by second). Both fixed in the tests (`847d4c6`: `expectRest` polls, eight seconds at most, for
+  a window with no frame, so something that keeps asking still fails), then `generated-room.spec.ts` and
+  `room.spec.ts` three times over with the frame tests after them: 92 of 92 (`generated-room-x3.log`).
+  Then the whole suite again on the final code (9a171cb, 12:51, `e2e-final2.log`): **207 passed, 4 skipped, 0
+  failed**.
+- `e2e/flights.spec.ts` (the cold first flight, at ready and two seconds after, on the development server): failed
+  once in a run of the frame tests at 11:46 (3 frames over 23.7 ms where 2 are allowed; the first stage had it at 7
+  of 8 alone), then 12 of 12 repeated under the lock (`flights-spec-x6.log`) and in the whole suite.
 
 ### The room.spec.ts:18 attribution (message 007)
 
@@ -738,4 +755,23 @@ RESULT-CHECKS
 
 ## Where this stands
 
-RESULT-WHERE
+Both stages are done and measured on the final build: the first pull-back and every other transition are on time
+on desktop and the phone stand-in, from a cold load and from a room at rest; at rest the room draws only what moves
+(half the frames or fewer where the rain or the discs move, none where nothing does, not even a frame callback): the
+GPU's time a second falls by about half in the room view and at the radio, by two thirds once the discs settle, by
+a fifth at the computer on the top tier (where the live screen, drawn regardless, is most of the cost) and to nothing
+where nothing moves; the main thread's by a third to a half where something moves and by nine tenths where nothing
+does; an
+overloaded device drops to the lowest tier at once and holds full speed there; a healthy device and a display capped
+at thirty are unchanged. The TV view with the game running is unchanged by design (the game's own frames): if the
+owner would trade the title's every frame for half the TV view's GPU time, that is a one-line rate in `CrtScreen`
+(`49e2979` is the commit that took it out), but it would drop every other frame of the title's animation.
+
+Not verified on a real phone: everything above is this Mac (Apple M4 Pro) and its stand-ins; what resting does for a
+phone's battery, the tilt's threshold on a real sensor, and the readout on the owner's iPhone in Low Power Mode are
+open (the one-screenshot check in "Safari on an iPhone in Low Power Mode" above; its second line now says whether the
+page rests).
+
+To re-run: `sh .shots/flights/driver.sh` (rebuild, rest costs, flights from rest, the whole e2e suite and the first
+pull-backs, each a lock turn), `sh .shots/flights/gov-turn.sh` inside `quiet.py run` (the governor before and after,
+the capture), `python3 .shots/flights/rest-table.py rest-before rest-after` (the rest tables).
