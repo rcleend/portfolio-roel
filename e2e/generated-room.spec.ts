@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { expectRest, expectSixtyFrames, roomPace, trackErrors } from './helpers';
+import { expectRest, expectSixtyFrames, frameRate, roomPace, trackErrors } from './helpers';
 
 test.use({
   launchOptions: { args: GPU_LAUNCH_ARGS },
@@ -208,6 +208,9 @@ test('a hidden page draws nothing and moves nothing, and rests as before once it
   const errors = trackErrors(page);
   await page.goto('/room-lab.html?clean&mood=rose&view=room');
   await page.waitForFunction(() => window.__roomLab !== undefined);
+  // The first seconds after the room is whole are drawn at full pace (the camera arrives, the last of its making is
+  // shown); then it rests at the pace of the rain.
+  await expect.poll(() => frameRate(page), { timeout: 20_000, intervals: [0] }).toBeLessThanOrEqual(36);
   await expectRest(page, 'in the room view', ['air', 'lava']);
   // The tab goes to the back (as the browser says it: document.hidden and its event). The rain and the lava move by
   // the time of the frame they are drawn in, so with no frame they do not move either.
