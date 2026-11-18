@@ -4,7 +4,7 @@ import { ROOM_MOODS } from '../atmosphere/moods';
 import { TV_LAMP_INTENSITY as ROOM_LAMP_INTENSITY } from '../atmosphere/tvLamp';
 import { QUALITY_TIERS } from '../stage/quality';
 import { rigViews } from './bake/Baker';
-import { MeshBuilder } from './kit/builder';
+import { type Making, MeshBuilder } from './kit/builder';
 import { BAKE_CELL, BLEED, type Chart, chartMeshes, packCharts } from './kit/charts';
 import { hash2, hash32, seeded } from './kit/hash';
 import { MATERIAL, SLATS } from './materials';
@@ -62,35 +62,86 @@ describe('the generated room', () => {
   });
 });
 
-describe('the lines drawn where the scene has no multisampling (docs/ROOM.md › Detail by tier)', () => {
-  /** A tier's charts, as its generators add them. */
+describe('the parts made twice, for frames with and without multisampling (docs/ROOM.md › Lines without multisampling)', () => {
+  /** A tier's charts, as its generators add them: each with its making, the drawn ones packed late (scene.ts). */
   const chartsOf = (tier: keyof typeof GENERATED_TIERS): Chart[] => {
     const charts: Chart[] = [];
     const builder = new MeshBuilder();
+    const only = GENERATED_TIERS[tier].detail < 0.5 ? ('drawn' as const) : null;
+    let current: Making | null = null;
     for (const prop of PROPS)
       prop.build({
         detail: GENERATED_TIERS[tier].detail,
+        only,
+        making: (which, make) => {
+          if (only && which !== only) return;
+          current = only ? null : which;
+          make();
+          current = null;
+        },
         mesh: () => builder,
-        chart: (...added) => void charts.push(...added),
+        chart: (...added) =>
+          void charts.push(
+            ...added.map((chart) =>
+              current ? { ...chart, making: current, late: current === 'drawn' || chart.late } : chart,
+            ),
+          ),
         decal: () => {},
       });
     return charts;
   };
-  const drawn = (chart: Chart): boolean =>
-    chart.material === MATERIAL.slats || (chart.material === MATERIAL.stained && chart.params[3] >= 1);
-  const low = chartsOf('low');
+  const tiers = ['high', 'medium', 'low'] as const;
+  const built = (tier: (typeof tiers)[number]) =>
+    buildScene(
+      {
+        densityScale: GENERATED_TIERS[tier].density,
+        maxPageSize: GENERATED_TIERS[tier].pageSize,
+        detail: GENERATED_TIERS[tier].detail,
+      },
+      () => 0,
+    );
 
-  it('are only in the lowest tier, which is the one drawn without it', () => {
-    expect(QUALITY_TIERS.low.samples).toBe(0);
-    expect(low.filter(drawn).length).toBeGreaterThan(0);
+  it('has both makings in a room that may be drawn either way, and the drawn one alone in the lowest tier', () => {
+    expect(tiers.map((tier) => QUALITY_TIERS[tier].samples > 0)).toEqual([true, true, false]);
     for (const tier of ['high', 'medium'] as const) {
-      expect(QUALITY_TIERS[tier].samples).toBeGreaterThan(0);
-      expect(chartsOf(tier).filter(drawn)).toEqual([]);
+      const { props } = built(tier).meshes;
+      const index = [...(props.index ?? [])];
+      const [first, count] = props.shown?.drawn ?? [0, 0];
+      const vertices = props.positions.length / 3;
+      // The built making's run is the mesh without the drawn making's vertices, which are its last, in order.
+      expect(props.shown?.built).toEqual([0, first]);
+      expect(index.slice(0, first)).toEqual([...Array(first).keys()]);
+      expect(first).toBeLessThan(vertices);
+      // The drawn making's run: some of those again, then every vertex of its own, and nothing of the built one's
+      // alone.
+      const drawn = index.slice(first, first + count);
+      expect(drawn.slice(-(vertices - first))).toEqual(Array.from({ length: vertices - first }, (_, i) => first + i));
+      expect(new Set(drawn).size).toBe(drawn.length);
+      expect(drawn.length - (vertices - first)).toBeLessThan(first);
+      expect(chartsOf(tier).some((chart) => chart.material === MATERIAL.slats && chart.making === 'drawn')).toBe(true);
+    }
+    const low = built('low');
+    expect(low.meshes.props.index).toBeUndefined();
+    expect(low.charts.display.every((mesh) => !mesh.index)).toBe(true);
+    expect(chartsOf('low').some((chart) => chart.material === MATERIAL.slats)).toBe(true);
+  });
+
+  it('packs the drawn charts late: they move and shrink none of the built room', () => {
+    for (const tier of ['high', 'medium'] as const) {
+      const charts = chartsOf(tier);
+      const place = (list: readonly Chart[]) =>
+        packCharts(list, GENERATED_TIERS[tier].density, GENERATED_TIERS[tier].pageSize).map((page) => [
+          page.width,
+          page.height,
+          ...page.charts.filter((chart) => chart.making !== 'drawn').map(({ x, y, w, h }) => [x, y, w, h]),
+        ]);
+      expect(charts.filter((chart) => chart.making === 'drawn').every((chart) => chart.late)).toBe(true);
+      expect(place(charts)).toEqual(place(charts.filter((chart) => chart.making !== 'drawn')));
     }
   });
 
   it("draws the blind's slats where its generator builds them", () => {
-    const sheet = low.find((chart) => chart.material === MATERIAL.slats);
+    const sheet = chartsOf('low').find((chart) => chart.material === MATERIAL.slats);
     if (!sheet) throw new Error('The lowest tier has no drawn blind');
     expect(SLATS.count).toBe(BLIND.slats);
     expect(SLATS.pitch).toBeCloseTo((BLIND.top - BLIND.bottom) / (BLIND.slats - 1), 4);
@@ -102,8 +153,9 @@ describe('the lines drawn where the scene has no multisampling (docs/ROOM.md ›
     expect(sheet.origin[1] + sheet.u[1] - BLIND.skew).toBeCloseTo(BLIND.head, 6);
   });
 
-  it('moves and shrinks no other chart of the page the blind is packed into', () => {
+  it('moves and shrinks no other chart of the page the blind is packed into, in the lowest tier', () => {
     const tier = GENERATED_TIERS.low;
+    const low = chartsOf('low');
     const place = (charts: readonly Chart[]) =>
       packCharts(charts, tier.density, tier.pageSize).map((page) =>
         page.charts.filter((chart) => !chart.late).map(({ x, y, w, h }) => [x, y, w, h]),
@@ -332,8 +384,9 @@ describe("the room's spec (roomSpec.ts) against the generators", () => {
       expect(prop.decals[0]).toBe(decal);
       decal += prop.decals[1];
     }
+    // The drawn making's vertices come after every prop's (MeshBuilder.finish).
     for (const [name, mesh] of Object.entries(scene.meshes) as [MeshName, { positions: Float32Array }][])
-      expect(next[name] ?? 0, name).toBe(mesh.positions.length / 3);
+      expect(next[name] ?? 0, name).toBe(scene.meshes[name].shown?.built[1] ?? mesh.positions.length / 3);
     expect(decal).toBe(scene.decals.positions.length / 18);
   });
 });

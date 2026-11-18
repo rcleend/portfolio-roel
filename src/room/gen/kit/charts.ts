@@ -1,5 +1,5 @@
-import type { Vec3 } from './builder';
-import { add, cross, length, normalize, scale } from './builder';
+import type { Making, Shown, Vec3 } from './builder';
+import { add, cross, length, normalize, scale, twiceMade } from './builder';
 
 /**
  * A chart: a flat rectangle of the room that takes its light from a texture (the floor, a wall, a cabinet's faces, a
@@ -29,6 +29,8 @@ export interface Chart {
    * then moves none of the others, whose dither and filtering are their place's.
    */
   readonly late?: boolean;
+  /** The making it belongs to, where a part is made twice; both where it is left out. */
+  readonly making?: Making;
   /**
    * A sheet that does not lie flat (a rug): cut into `cells` across u and v, each vertex lifted off the rectangle's
    * plane along u × v by `height(s, t)` metres (s and t run 0–1 across it). Its texels stay the flat rectangle's;
@@ -150,6 +152,9 @@ export interface ChartMeshes {
     readonly positions: Float32Array;
     readonly normals: Float32Array;
     readonly uvs: Float32Array;
+    /** Where its charts are in two makings: the indices a frame draws, one run for each (`twiceMade`). */
+    readonly index?: Uint32Array;
+    readonly shown?: Shown;
   }[];
   /**
    * Per page: the quads the bake draws in the page's own space, each chart grown by BLEED texels with its surface
@@ -262,10 +267,8 @@ function cuts(metres: number, bleed: number): number[] {
 }
 
 export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
-  const display = new Map<
-    string,
-    { group: number; page: number; positions: number[]; normals: number[]; uvs: number[] }
-  >();
+  // A chart is two triangles, or its relief's cells: `kinds` has each triangle's making (twiceMade).
+  const display = new Map<string, Lists & { group: number; page: number; kinds: number[] }>();
   const bake: ChartMeshes['bake'][number][] = [];
   pages.forEach((page, pageIndex) => {
     const b = {
@@ -283,9 +286,11 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
       const key = `${chart.group}/${pageIndex}`;
       let d = display.get(key);
       if (!d) {
-        d = { group: chart.group, page: pageIndex, positions: [], normals: [], uvs: [] };
+        d = { group: chart.group, page: pageIndex, positions: [], normals: [], uvs: [], kinds: [] };
         display.set(key, d);
       }
+      const triangles = chart.relief ? chart.relief.cells[0] * chart.relief.cells[1] * 2 : 2;
+      for (let t = 0; t < triangles; t++) d.kinds.push(chart.making === 'built' ? 1 : chart.making === 'drawn' ? 2 : 0);
       const [lu, lv] = [length(chart.u), length(chart.v)];
       if (chart.relief) {
         relieved(chart, page, normal, d, b);
@@ -340,6 +345,8 @@ export function chartMeshes(pages: readonly PackedPage[]): ChartMeshes {
       positions: new Float32Array(d.positions),
       normals: new Float32Array(d.normals),
       uvs: new Float32Array(d.uvs),
+      // A page's drawn charts are packed last (`late`), so they are a group's last too.
+      ...(d.kinds.some((kind) => kind > 0) ? twiceMade(d.kinds) : {}),
     })),
     bake,
   };
