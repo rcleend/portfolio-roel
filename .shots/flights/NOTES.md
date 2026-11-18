@@ -670,7 +670,36 @@ Logs: `logs/gov-*.log`.
 
 ### Flights from a room at rest, and the cold first pull-back, on the final build
 
-RESULT-FLIGHTS
+| Run | Flights | Frames (min-max) | Paced at | Longest frame | Late | Lowest on time |
+| --- | --- | --- | --- | --- | --- | --- |
+| desktop, every transition from a room 9 s at rest | 18 | 68-72 | 15.6-16.4 ms | 20.1 ms | 0 | 100.0 % |
+| phone (6x CPU), every transition from a room 9 s at rest | 18 | 66-71 | 15.6-16.6 ms | 21.8 ms | 0 | 100.0 % |
+
+| First pull-back, cold load | Quality | Ready | Wait before take-off | Frames | Longest | Late | On time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| desktop, left 0 s after ready | high×1 | 642 ms | 203.1 ms | 70 at 16.2 ms | 17.3 ms | 0 | 100 % |
+| desktop-low, left 0 s after ready | low×1 | 447 ms | 172.9 ms | 68 at 16.6 ms | 17.5 ms | 0 | 100 % |
+| phone, left 0 s after ready | medium×1 | 1582 ms | 348.1 ms | 70 at 16 ms | 17.4 ms | 0 | 100 % |
+| phone-low, left 0 s after ready | low×1 | 1556 ms | 321.8 ms | 71 at 16 ms | 17.5 ms | 0 | 100 % |
+| desktop, left 1 s after ready | high×1 | 577 ms | 26.4 ms | 71 at 15.8 ms | 17.2 ms | 0 | 100 % |
+| desktop-low, left 1 s after ready | low×1 | 475 ms | 33 ms | 70 at 16.2 ms | 17.6 ms | 0 | 100 % |
+| phone, left 1 s after ready | medium×1 | 1609 ms | 179.8 ms | 69 at 15.8 ms | 21.8 ms | 0 | 100 % |
+| phone-low, left 1 s after ready | low×1 | 1480 ms | 186 ms | 72 at 16 ms | 17.6 ms | 0 | 100 % |
+| desktop, left 10 s after ready | high×1 | 606 ms | 12.9 ms | 69 at 15.8 ms | 19.3 ms | 0 | 100 % |
+| desktop-low, left 10 s after ready | low×1 | 453 ms | 21 ms | 67 at 16.8 ms | 21.7 ms | 0 | 100 % |
+| phone, left 10 s after ready | medium×1 | 1585 ms | 172.5 ms | 69 at 16 ms | 23.9 ms | 0 | 100 % |
+| phone-low, left 10 s after ready | low×1 | 1512 ms | 214.2 ms | 68 at 16.6 ms | 17.7 ms | 0 | 100 % |
+
+All of it under the lock, alone throughout (`logs/final-rest-flights-*.log`, `logs/final-first-*.log`). Against the
+acceptance numbers (no interval over one and a half paced frames, no jump, 99 % on time): every row meets them,
+the largest step in the camera's speed from one frame to the next 4.3 % (desktop from rest), 4.5 % (phone from
+rest) and 4.6 % (the first pull-backs) of its top speed ("speed step" as the first stage's tables measure it; at a
+display capped at 30, 8.9 %, as before: half as many frames for the same ease), the longest frame 23.9 ms (the phone stand-in left ten seconds after ready; its limit 24-25 ms). A flight that starts
+from a resting room is no later for it: its first frame comes on the next display frame (the `wait` is the hold
+before take-off, unchanged from the first stage: 0.2 s from the computer while the monitor's still is painted, and
+0.17-0.35 s on the phone stand-in at 6x CPU, both said in the first stage's notes). Room-ready: desktop 577-642 ms,
+phone stand-in 1480-1609 ms (first stage, after: 564-701 and 1382-1580; before any of this work: 549-634 and
+1523-1765; the PR's opening picture is merged in since).
 
 ### Checks
 

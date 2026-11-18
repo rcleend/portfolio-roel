@@ -423,7 +423,7 @@ which the generated one was matched to (§ The generated room › Comparing it).
     a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) Whatever asks for frames gets them at this
     pace: every step of an animation (a flight, the radio's choreography, the tube's turn-on) moves by the time its
     step is given, a one-off request (a pointer's move, the radio's readout) is drawn by the next of these frames and
-    not by one of its own in between, and the game somebody plays on the TV asks for each of its frames. (Flights
+    not by one of its own in between, and the game on the TV asks for each of its frames while it runs. (Flights
     used to draw on every display frame: 120 a second on a 120 Hz display, and a GPU that held sixty but not 120 gave
     a mix of one- and two-frame gaps, § Flights.) The loop draws at this pace of its own accord too, as a run of
     frames the quality governor and the bake's pacing judge, until the whole room is lit and the governor has seen
@@ -625,7 +625,7 @@ instead of from geometry, however the device came to that tier (§ The generated
   most).
 - **The governor** (`QualityGovernor`) follows measured frame times, never the user agent. It judges only *runs* of
   frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, the game's while
-  somebody plays, each asked for within 25 ms of the one before it, and the room's own at full pace; a room at
+  it runs, each asked for within 25 ms of the one before it, and the room's own at full pace; a room at
   rest draws its frames when they are due, and they say nothing, § Rendering and performance › Frames), thirty at a
   time by their mean without the two longest, and never a pause (over 250 ms: a hidden tab). The room does not rest
   before the governor has had such a window at the quality it stands at (`judging`): after the room is lit and after
