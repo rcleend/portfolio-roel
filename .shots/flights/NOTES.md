@@ -533,69 +533,96 @@ above); what `new AudioContext()` and `resume()` cost there (WebKit on this Mac:
 wait behind PAUSE is on a slow phone's GPU (the stand-in says 0.3-1.0 s); the monitor's still painted in the click;
 whether the display is taken for capped correctly (the readout says).
 
-## Second stage (owner's decisions, firstmate's message 006 of 17 Nov, 13:39) - IN PROGRESS (written, unit-tested; measured: see below)
+## Second stage: rest pacing and the governor under overload (firstmate's message 006; measured 18 Nov under the lock)
 
-Two items added to this task, to be done on this branch after the above and before `ready for integration`:
+The owner: "There is no need for 60 fps at rest. Focus on optimization rather than keeping 60fps", and an overloaded
+device should drop to the lowest quality sooner. Commits: `ff1558f` (governor), `138ce1a` (rest pacing), `49e2979`
+(the game on the TV stays frame by frame), `6f03e1c` (a paused game asks for no frames), `e19d7a5`/`cd8a542` (the
+hidden-page e2e test, `rest.mjs --capture`). Every timing below was taken holding `/tmp/fm-quiet-machine.lock`
+(`quiet.py run`, "alone throughout" in each turn), on mains power, headless Chromium on this Mac's GPU (display
+ticking 120-125 a second as the page sees it), Energy Saver off in the measuring profile (`nogpuLib.mjs`).
 
-1. **Rest pacing.** The owner: "There is no need for 60 fps at rest. Focus on optimization rather than keeping
-   60fps." When the camera is still and the visitor is not interacting, draw only as often as the fastest visible
-   thing in the view needs (nothing if nothing changes); flights, drag/tilt/hover and the played game unchanged.
-   The rest rate must divide the display's rate (60, 120, 90, a 30-capped display) and motion advance by elapsed
-   time (the discs juddered once when a 30-a-second pacer beat against the display); the first frame of a flight
-   or of a response to input must not be late for the rest; nothing drawn or simulated on a hidden page; measured
-   before and after per view (frames drawn a second, GPU and main-thread time a second, an honest energy proxy),
-   desktop, phone stand-in and lowest tier; the flight rows that start from rest run again; `?debug=perf` shows
-   that the page rests and why; every test, doc and PR claim of sixty at rest updated.
-2. **The governor under overload.** An overloaded device drops to the lowest tier sooner instead of settling on
-   the middle tier at a reduced scale; no flapping; never on a display that is merely capped at thirty; the
-   overloaded phone stand-in before and after, and a healthy device unchanged.
+### What the room does at rest
 
-### What is written (working tree on top of a4dceac; see `git log` for what is committed)
+- `RenderLoop.pace(wanted, rest)`: full pace (the display's own frames, sixty a second) for whatever asks (a flight,
+  an animation, `invalidate`, the game being played) and while the room is still being lit or the governor is
+  judging; otherwise only as often as what moves by itself asks (`loop.ambient(name, rate)`), a whole number of
+  display frames apart (so 30 is every 2nd frame at 60 Hz, every 4th at 120, every 3rd at 90, every one at a display
+  capped at 30), and nothing at all while nothing moves (the loop then watches no display frame; it looks four times
+  a second whether something moves again). A rest frame is never a run's frame, so the governor and the bake never
+  judge it. Resting delays nothing that is asked for: the next full-pace frame draws it.
+- What moves: the rain and the storm (`air`, 30 with the window in view, 20 for the dust alone), the lava (12), the
+  radio's floating discs (30). The game on the TV is not among them (decided from the evidence, `49e2979`): the room
+  pauses the game whenever the camera leaves the TV, so a rule that drew an untouched game at 30 only ever applied
+  with the visitor in front of it watching the title, and the title is made in whole 60 Hz frames (a two-frame shake
+  as the words lock, a 32-on 16-off blink, the plotter's pen moving every frame), half of which it dropped. At the
+  TV the room behind the game rests (nothing of its own accord); the game's frames are drawn as they come.
+- The rates are the first choice from the code (the timers that were there asked 24 and 30), checked by eye at those
+  rates (below), not tried lower: what decides the pace in every view is the rain or the discs at 30, and anything
+  under 30 that still divides 60, 90 and 120 evenly is 15; the lava's 12 never sets the pace (wherever the lamp is in
+  view the air is too); the dust's 20 decides only at the radio once the discs settle.
+- Two things that kept a room from ever resting are quietened: the pointer's parallax (no animation for a goal
+  within a tenth of a pixel) and a phone's tilt (passed on only past a fifth of a degree; not verified on a phone).
+- **A paused game no longer runs its frame loop** (`6f03e1c`): measured, the page with nothing drawn still ran a
+  frame callback on every display tick (125 a second at the TV paused and at the computer) because `Game` kept asking
+  for frames to step nothing; it now asks only while it runs.
+- **A hidden page** draws nothing and moves nothing (the rain and the lava move by the time of the frame they are
+  drawn in): `e2e/generated-room.spec.ts` › "a hidden page draws nothing…" (new), and `RenderLoop.test.ts`.
+- `?debug=perf`'s second line says it: `resting: 30/s for air, lava`, `still: nothing moves` (or `hidden`),
+  `not resting: lighting | judging`, `+ asked` when more frames came than that (the game, a flight, the pointer).
+  Screenshots of the phone stand-in: `.shots/flights/look/readout/` (RESULT-READOUT).
 
-**Rest pacing.**
+### Looked at by eye: the discs and the rain (`.shots/flights/look/`)
 
-- `RenderLoop`: `pace(wanted, rest)` and `ambient(name, rate)`. At full pace as before for whatever asks (an
-  animation's step, `invalidate`, the game played) and of its own accord while `rest()` is false; otherwise a frame
-  only as often as what moves by itself needs, a whole number of display frames apart (`restGap`), no frame and no
-  display frame watched while nothing moves (the 250 ms look that was there for a hidden page serves). A rest frame
-  is never a run's (`runInterval` null), so the governor and the bake's pacing do not see it. What is asked for is
-  drawn by the next full-pace frame whatever the rest. 21 unit tests (`RenderLoop.test.ts` › at rest): the rates on
-  60, 90, 120, 144, 240 Hz and a display capped at thirty, 59.94 Hz, several movers, nothing moving, a flight out of
-  rest, the game's frames, hidden, not paced.
-- When it may rest (`GeneratedRoom`): the whole room lit, and the governor not `judging` (new: a window of full-pace
-  frames is owed at the start, after every change of quality and while a floor is counted out). So the governor
-  converges as it did, at full pace, and then the room rests; under automation and on a fixed tier it never judges.
-- What moves, and what it asks for: the air 30 with the window in view and 20 for the dust alone
-  (`AirMotion`, its 24-a-second timer gone); the lava 12 (`LavaWax`, timer gone: "its wax moves a pixel in a
-  second"); the radio's floating discs 30 (`RadioDevice`, beside its `ride`); the game on the TV 30 while it runs
-  untouched for six seconds of its own time (`GameSurface.untouched`, new in the engine: `Game` counts steps since a
-  key, a button, a pointer over the picture; `CrtScreen` then asks for no frame a game frame and tells the loop the
-  tube moves). **These rates are first choices from the code (the timers that were there asked 24 and 30), not yet
-  from looking**: the discs and the rain are still to be looked at in a slowed capture, and lower rates tried.
-- Two things that would keep a room from ever resting: the pointer's parallax (`CameraRig`: no animation for a goal
-  within 0.004 of where the parallax is, a tenth of a pixel) and the phone's tilt (`tilt.ts`: passed on only when it
-  has changed by 0.012, a fifth of a degree; before, every sensor reading started an animation, sixty a second on a
-  phone lying on a table). Not verified on a phone: no sensor here.
-- `room.stats.pace` and the third line of `?debug=perf` (`resting: 30/s for air, lava`, `still: nothing moves`,
-  `not resting: lighting | judging`, `+ asked`).
-- The docs (ROOM.md › Frames, the lava, the radio, Quality's governor, Known gaps; ARCHITECTURE.md; AGENTS.md) say
-  it; the numbers in ROOM.md › Frames at rest are still to be written from the measurements.
-- e2e: `helpers.ts › expectRest` (what moves, and the rate or no frames); the twenty-odd places that held the room
-  to sixty at rest are being rewritten by a helper (running).
+`rest.mjs --capture` recorded what reached the screen (CDP screencast) at the radio while the discs float and in the
+room view, desktop top tier. `discs-strip.jpg`/`discs-strip.gif` (slowed four times): consecutive frames 33 +- 1 ms
+apart, the disc's dot advancing by an even step, the change from frame to frame between 1.23 and 1.39 (mean absolute
+change per pixel of the crop) and varying smoothly with the float's speed: no repeated pose (a zero) and no skipped
+one (a double). The rain (`rain-strip.jpg`, `rain.gif`, the capture taken at 33 ms steps): change per step 0.22 to
+0.28, even. The capture run itself drew the room at 42 a second (the screencast and the readout asked for frames), so
+it is a look, not a measurement. At the radio the CD player's display asks for a few frames of its own (about four
+a second, its readout changing), drawn as extra in-between frames: the discs are posed by the time of each, so they
+show as a moment of sixty, not as a jump.
 
-**The governor under overload** (`quality.ts`): a tier above the lowest stops at scale 0.7 (`scalesOf`); at its
-floor and slow for the second window running the tier drops straight to the tier and scale whose pixels fit
-(`fitting`, the stage gives the governor `pixelsOf`); `fittingQuality` before the first frame walks the same ladder;
-a step up that its very next window finds slow is taken back and that scale never tried again (`top`). The capped
-display's logic is untouched. Unit tests written, not yet run (the machine was measuring).
+### Rest costs per view, before and after
 
-**Measuring** (`scripts/perf/flights.mjs --rest 9000`: every flight from a room nine seconds at rest;
-`scripts/perf/rest.mjs`, by a helper: frames, GPU and main-thread time, rAF callbacks and process CPU a second per
-view at rest). All of it under the machine's lock (above).
+RESULT-REST
 
-## To do next, in this order (for whoever picks this up)
+Before: the first stage's build (`.shots/flights/nogpu/dist-fixed`, 17 Nov 19:13-19:23, on battery 92 %, under the
+lock); after: the final build. The energy proxy is the renderer's and the GPU process's CPU (cores busy, CPU-seconds
+a second) with the GPU's own milliseconds a second beside it: it says which build asks for less of this Mac, not
+watts or battery life. The TV view with the game running is unchanged by design (the game's frames), and its rows
+move with the machine: two "before" runs of the same build differed by 43 against 112 ms a second of main thread
+at the title. `tv-still` is not comparable: in the final build (the PR's opening picture merged) the startup still
+has gone before that state is measured.
 
-1. ~~Attribute `e2e/room.spec.ts:18`~~ **Done (17 Nov, 15:20 to 16:20): it is not this branch's.** The test took one
+### The governor under overload (the phone stand-in with the GPU overloaded 48 times, every transition)
+
+| Build | Quality, as it went | Late frames (flights with any) | Flights' pace | Longest frame |
+| --- | --- | --- | --- | --- |
+| before (first stage) | medium×0.6 at ready → 0.7 @15 s → 0.85 @31 s → 0.6 @32 s → 0.85 @33 s (5 changes; it came to expect frames every 26.2 ms) | 17 in 6 of 18 (pc→room 3, radio→room 3, room→pc 2, pc→room 2, pc→radio 4, pc→tv 3) | the second half at 23-33 ms a frame | 225 ms |
+| after | low×0.7 at ready → 0.85 @16 s → 1 @31 s (3 changes, all up; frames expected every 16.7 ms) | 0 in 18 | 15.8-16.4 ms | 22.2 ms |
+| after, healthy phone stand-in | medium×1, 0 changes | 0 in 18 | 15.6-16 ms | 18.7 ms |
+| after, display capped at 30 (phone) | medium×1, capped, 0 changes | 0 in 18 | 33.3 ms | 33.3 ms |
+
+The rule (`quality.ts`, unit-tested in `quality.test.ts` › "on an overloaded device…", "a step back up…", "judging"):
+a tier above the lowest stops at scale 0.7; at its floor and slow for the second window running, the tier drops
+straight to the tier and scale whose pixels the frames say fit; `fittingQuality` before the first frame walks the
+same ladder (which is why the overloaded stand-in now starts on the lowest tier); a step up that its very next window
+finds slow is taken back and that scale never tried again (no pumping); the capped display's logic is untouched.
+Logs: `logs/gov-*.log`.
+
+### Flights from a room at rest, and the cold first pull-back, on the final build
+
+RESULT-FLIGHTS
+
+### Checks
+
+RESULT-CHECKS
+
+### The room.spec.ts:18 attribution (message 007)
+
+**Done (17 Nov, 15:20 to 16:20): it is not this branch's.** The test took one
    screenshot of the game's picture on the still the moment the game said `title`, and the title comes up out of the
    dark (`titleTimeline.ts`: the lockup slides in 0.9 s after the scene starts): a race, lost when the page is
    slow to draw the title's first frames.
@@ -623,18 +650,7 @@ view at rest). All of it under the machine's lock (above).
      3 of 3 failed (`pc-flow.spec.ts:703`, `posters.spec.ts:321`, `radio-flow.spec.ts:469`); this branch before the
      merge 0, 2, 2 of 5; the working tree with the second stage in 0, 3, 0 of 5. Not attributable to a tree; to be
      run again when the machine is free.
-2. **The second stage** (above): rest pacing, then the governor under overload.
-3. ~~The no-GPU decision~~ Decided by the owner (message 008): such visitors get the CV page, built by another
-   worker from "No GPU" above. Nothing to do here but keep the notes where they are.
-4. Steady state, before against after, was not measured as such in the first stage: frame time per view at rest and
-   memory (`node scripts/perf/profile.mjs --dist .shots/flights/dist-base` against `--dist dist`); it belongs with
-   the second stage's rest measurements. Room-ready times are in the tables' logs: desktop 549-634 ms before,
-   564-701 ms after; phone stand-in 1523-1765 ms before, 1382-1580 ms after (they move with the machine's load).
 
-## Where this stands (17 Nov, 15:40)
+## Where this stands
 
-The first stage is done and pushed: diagnosis, fixes, the review's findings, the matrices, the tables above, the
-docs, the budgets (`pnpm report:bundle` passes). The no-GPU options are measured on the fixed build and raised to
-the owner. Open, in the order of the list above: the attribution of `e2e/room.spec.ts:18`, then the second stage.
-To re-run any measurement: `sh .shots/flights/after.sh` (the whole matrix), `python3 .shots/flights/until-clean.py`
-(rows without a run alone, again), `python3 .shots/flights/tables.py` (the tables).
+RESULT-WHERE
