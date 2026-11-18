@@ -4,7 +4,9 @@
 // was fetched and its bytes on the wire.
 //   node scripts/perf/startup.mjs --dist dist [--dist other ...] [--device desktop|phone] [--cpu 6] [--net slow4g]
 //                                 [--launch gpu|no-webgl|swiftshader|swiftshader-angle] [--query '?host=cv']
-//                                 [--runs 9] [--requests] [--json out.json] [--wait-quiet 300]
+//                                 [--runs 9] [--requests] [--json out.json] [--wait-quiet 300] [--warm]
+// --launch chrome is the system's Google Chrome in a window; --warm makes a WebGL context on another page first, as
+// a browser already in use has its GPU process up.
 // Several --dist are measured turn and turn about, so a drifting machine drifts under each alike. A run is `alone`
 // when other checkouts' browsers and test runs were idle (under 15 % of a core between them) before and after it; with --wait-quiet the script waits up
 // to that many seconds for the machine to fall quiet before each run. Timings from runs that were not alone mean
@@ -49,6 +51,8 @@ const LAUNCHES = {
   'no-webgl': { args: ['--disable-gpu'], ignoreDefaultArgs: NO_FALLBACK },
   swiftshader: { args: ['--disable-gpu', '--enable-unsafe-swiftshader'] },
   'swiftshader-angle': { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+  // The system's Google Chrome in a window, as a visitor has it (a new profile each run: no shader cache yet).
+  chrome: { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: false },
 };
 
 const TYPES = {
@@ -147,6 +151,13 @@ async function visit(base) {
     client.on('Network.loadingFinished', (event) =>
       transfers.push({ path: new URL(urls.get(event.requestId)).pathname, bytes: event.encodedDataLength }),
     );
+    if (args.includes('--warm')) {
+      // A browser already in use: its GPU process up and one WebGL context made and gone, on another page.
+      const before = await context.newPage();
+      await before.setContent('<canvas></canvas>');
+      await before.evaluate(() => document.querySelector('canvas').getContext('webgl2'));
+      await before.close();
+    }
     await page.goto(`${base}/${query}`, { waitUntil: 'commit', timeout: 60_000 });
     const done = (at) => at.cv || (at.running && (at.ready || at.flat));
     const from = Date.now();
