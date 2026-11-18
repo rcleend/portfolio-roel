@@ -22,7 +22,6 @@ function fakeSurface() {
     setInputEnabled: vi.fn(),
     pointer: { move: vi.fn(), leave: vi.fn(), down: vi.fn(), up: vi.fn() },
     cursor: 'hand',
-    untouched: 0,
     onCursorChange: () => () => {},
   } satisfies GameSurface;
   return surface;

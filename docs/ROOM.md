@@ -438,14 +438,16 @@ which the generated one was matched to (§ The generated room › Comparing it).
     asked for are every other frame of a 60 Hz display, every fourth at 120 Hz, every third at 90 Hz, every one of a
     display capped at thirty; a timer's thirty beside a display's sixty gave gaps of one and of two frames, and the
     radio's discs juddered). Everything that moves moves by the time its frame is given, never by a count of frames,
-    so a slower pace shows the same motion in fewer pictures. What there is:
+    so a slower pace shows the same motion in fewer pictures. The game is not among them: it runs only while the
+    visitor is at the TV (the room pauses it on leaving), its title is made in whole frames of sixty a second (a
+    two-frame shake as the words lock, a 32-on 16-off blink, the plotter's pen moving every frame), and every one of
+    its frames is shown, played or only watched; a paused game is one picture and asks for nothing. What there is:
 
     | What moves | Asks for | While |
     | --- | --- | --- |
     | `air`: the rain on the window, the storm's flash, the dust | 30 a second with the window in view, 20 for the dust alone | not at the TV, not under reduced motion, and at the computer on the top tier only (`RoomStage.setReading`) |
     | `lava`: the lamp's wax | 12 | the lamp is in the camera's frustum, not under reduced motion (its wax moves a pixel in a second) |
     | `discs`: the radio's floating discs | 30 | at the radio, for the seven seconds after the last touch (§ The CD player › Motion) |
-    | `tv`: the game on the tube | 30, every other of its frames | it runs and nobody has touched it for six seconds of its own time (`GameSurface.untouched`: a key, a gamepad, the touch pad, the pointer over the picture): the title going round by itself. The first touch has every frame shown again, from that frame on. A paused game is one picture and asks for nothing |
 
     A rest frame is not a run's frame: it comes when it is due, whatever the device took over the one before, so the
     governor and the bake's pacing never see it (a governor that judged thirty frames a second against sixty would
@@ -456,7 +458,7 @@ which the generated one was matched to (§ The generated room › Comparing it).
     to where the camera is (`CameraRig` › `PARALLAX_STILL`), and a phone's tilt under a fifth of a degree from the
     last one passed on (`app/guide/tilt.ts`), since a tilt sensor never repeats a reading. `room.stats.pace` says
     which pace the room is at, what moves and why it is not resting, and `?debug=perf` prints it (§ Quality).
-  - So at rest the room draws: at the TV thirty frames a second while the title goes round and none with the game
+  - So at rest the room draws: at the TV the game's own frames while it runs (sixty a second) and none with the game
     paused; in the room view thirty (the rain); at the computer thirty on the top tier and none below it, where the
     air rests; at the radio thirty while the discs float and for the rain or the dust after; under reduced motion
     none anywhere, the game's own frames apart. The radio's floating discs are posed in every frame drawn

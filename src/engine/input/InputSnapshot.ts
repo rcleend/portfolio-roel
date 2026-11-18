@@ -97,14 +97,6 @@ export class InputSnapshot<A extends string> {
     return this.#overClickable;
   }
 
-  /** The visitor is doing something this step: an action or the pointer is held, pressed or let go. */
-  get active(): boolean {
-    const { down, pressed, released } = this.pointer;
-    if (down || pressed || released) return true;
-    for (const state of this.#actions.values()) if (state.down || state.pressed || state.released) return true;
-    return false;
-  }
-
   /** Any action or the pointer was pressed this step — "press any button". */
   get anyPressed(): boolean {
     if (this.pointer.pressed) return true;

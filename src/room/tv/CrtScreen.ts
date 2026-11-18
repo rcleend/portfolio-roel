@@ -18,14 +18,6 @@ import { type CrtPowerFrame, crtPowerFrame, type PowerState, powerDurationMs } f
 import { fitContentRect, type UvRect } from './screenMapping';
 import { TV_PICTURE_INSET, TV_SCREEN_APERTURE, type TvModel } from './tvModel';
 
-/**
- * A game nobody has touched for this long (seconds of its own time: the radio's discs float as long after a touch)
- * is one a room at rest draws thirty times a second, every other of its frames; the first key, button or move of the
- * pointer over the picture has it shown frame by frame again, from that frame on.
- */
-const UNWATCHED_SECONDS = 6;
-const UNWATCHED_FRAMES = 30;
-
 export interface CrtScreenOptions {
   readonly tv: TvModel;
   readonly surface: GameSurface;
@@ -48,7 +40,6 @@ export class CrtScreen {
   private readonly uniforms: CrtUniforms;
   private readonly originalMaterial: Material | Material[];
   private readonly unsubscribeFrame: () => void;
-  private readonly stopUnwatched: () => void;
   private readonly pacer: FramePacer;
   private power: PowerState = 'off';
   private powerFrame: CrtPowerFrame = crtPowerFrame('off', 0, false);
@@ -108,23 +99,14 @@ export class CrtScreen {
 
     // The game's frames come as fast as the device draws them: their intervals measure it (stage/quality.ts).
     this.pacer = new FramePacer(GAME_FRAME_INTERVAL_MS, () => loop.invalidate(true));
-    // A game somebody plays is shown frame by frame. One nobody has touched for a while (the title going round) is
-    // shown as often as a room at rest draws for it, its latest picture each time (docs/ROOM.md › Frames › At rest).
     this.unsubscribeFrame = surface.onFrame(() => {
       this.picture.needsUpdate = true;
-      if (!this.unwatched) this.pacer.frame();
+      this.pacer.frame();
     });
-    this.stopUnwatched = loop.ambient('tv', () => (this.unwatched ? UNWATCHED_FRAMES : 0));
   }
 
   get powerState(): PowerState {
     return this.power;
-  }
-
-  /** The game runs on the tube and the visitor has not touched it for a while. */
-  private get unwatched(): boolean {
-    const { surface } = this.options;
-    return this.power === 'on' && !surface.paused && surface.untouched >= UNWATCHED_SECONDS;
   }
 
   /** 0–1 light output of the tube right now. */
@@ -159,7 +141,6 @@ export class CrtScreen {
     this.stopPowerAnimation?.();
     this.settlePower?.();
     this.unsubscribeFrame();
-    this.stopUnwatched();
     this.stopOsdRestore();
     this.pacer.dispose();
     this.options.tv.screen.material = this.originalMaterial;

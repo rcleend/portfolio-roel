@@ -240,7 +240,7 @@ describe('RenderLoop, paced', () => {
       stepped.push(now);
       return stepped.length < 30;
     });
-    // Thirty steps take sixty frames of a 120 Hz display: a flight draws sixty a second there, as the room at rest.
+    // Thirty steps take sixty frames of a 120 Hz display: a flight draws sixty a second there.
     frames(60);
     expect(stepped).toHaveLength(30);
     expect(new Set(gaps(stepped))).toEqual(new Set([16.7]));

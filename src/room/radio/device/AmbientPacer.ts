@@ -8,8 +8,8 @@
  * grid starts again a full interval after it. When the float comes to rest it stops watching and the radio view
  * renders nothing.
  *
- * Only for a loop that draws on demand. Beside a loop that draws all the time (`RenderLoop.pace`, the generated room's
- * sixty frames a second) every one of that loop's frames is "a frame drawn for something else" and restarts the grid,
+ * Only for a loop that draws on demand. Beside a loop that draws of its own accord (`RenderLoop.pace`, the generated
+ * room) every one of that loop's frames is "a frame drawn for something else" and restarts the grid,
  * so this pacer's own frame never comes due and the discs stand still in the frames drawn: there the device has the
  * float ride the room's frames instead (RadioDevice › #syncAmbient).
  *

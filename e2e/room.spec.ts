@@ -3,7 +3,6 @@ import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
 import {
   differingPixels,
-  expectRest,
   expectSixtyFrames,
   hostElement,
   paused,
@@ -100,7 +99,7 @@ test('looking around the room pauses the game and the TV resumes it', async ({ p
   expect(errors).toEqual([]);
 });
 
-test('the TV shows a game nobody touches thirty times a second, and frame by frame again at the first touch', async ({
+test('the TV shows the game frame by frame while it runs, played or only watched, while the room behind it rests', async ({
   page,
 }) => {
   const errors = trackErrors(page);
@@ -109,16 +108,13 @@ test('the TV shows a game nobody touches thirty times a second, and frame by fra
   // Until the whole room is lit behind the game it draws every frame whatever happens (docs/ROOM.md › Frames › At
   // rest); from then on the game's own frames are all that is drawn at the TV, where nothing else moves.
   await page.waitForFunction(() => window.__room?.stats.generated === 'ready', null, { timeout: 30_000 });
-  // Six seconds of the game's time without a key, a button or a move of the pointer over the picture: the game runs
-  // on, and the room at rest draws its latest picture thirty times a second.
-  await expect.poll(async () => (await roomPace(page))?.moving, { timeout: 15_000 }).toEqual(['tv']);
+  // The title is made in whole frames of sixty a second (a two-frame shake, a 32-on 16-off blink, the plotter's
+  // pen), and the game runs only while the visitor is at the TV: nobody touching it, it is still shown frame by frame.
+  await expect.poll(async () => (await roomPace(page))?.pace, { timeout: 15_000 }).toBe('still');
+  await page.waitForTimeout(8_000);
+  expect((await roomPace(page))?.moving).toEqual([]);
   expect(await paused(page)).toBe(false);
-  await expectRest(page, 'with nobody at the game', ['tv']);
-  // The pointer moves over the picture: the game is somebody's again, and asks for each of its frames itself.
-  await page.mouse.move(700, 450);
-  await page.mouse.move(720, 460, { steps: 4 });
-  await expect.poll(async () => (await roomPace(page))?.moving).toEqual([]);
-  await expectSixtyFrames(page, 'once the pointer has moved over the picture');
+  await expectSixtyFrames(page, 'with nobody at the game for eight seconds');
   expect(errors).toEqual([]);
 });
 

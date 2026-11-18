@@ -16,7 +16,6 @@ export class MockGameSurface implements GameSurface {
   readonly pointer: PointerSink;
   /** The test card shows the game's hand everywhere. */
   readonly cursor: GameCursor = 'hand';
-  readonly untouched = 0;
   /** Recent pointer calls, newest last; the lab exposes them to automated checks. */
   readonly pointerLog: string[] = [];
 

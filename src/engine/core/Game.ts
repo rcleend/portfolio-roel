@@ -53,9 +53,6 @@ export class Game<A extends string> implements GameSurface {
   #lastTime: number | null = null;
   #paused = false;
   #hidden = false;
-  /** Steps since the visitor last did anything (`untouched`), and where the pointer was then. */
-  #untouched = 0;
-  #pointed = '';
   /** A lost context wiped the frame or the caches it is drawn from: the next animation frame renders, paused or not. */
   #redrawDue = false;
   #stopRestore: (() => void) | null = null;
@@ -88,10 +85,6 @@ export class Game<A extends string> implements GameSurface {
   /** Paused by the host or harness. Hidden-tab pausing is tracked separately and never reported here. */
   get paused(): boolean {
     return this.#paused;
-  }
-
-  get untouched(): number {
-    return this.#untouched * STEP_SECONDS;
   }
 
   /** Begins the animation-frame loop. Idempotent. */
@@ -191,10 +184,6 @@ export class Game<A extends string> implements GameSurface {
 
   #simulate(): void {
     const input = this.input.poll();
-    const { x, y, over } = input.pointer;
-    const pointed = over ? `${x},${y}` : '';
-    this.#untouched = input.active || pointed !== this.#pointed ? 0 : this.#untouched + 1;
-    this.#pointed = pointed;
     this.#root.update({ dt: STEP_SECONDS, frame: this.#frame, input });
     this.#overClickable = input.overClickable;
     this.#frame++;

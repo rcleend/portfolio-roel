@@ -27,12 +27,6 @@ export interface GameSurface {
   pause(): void;
   resume(): void;
   readonly paused: boolean;
-  /**
-   * Seconds of the game's own time since the visitor last did anything it sees: a key, a button of a gamepad or of
-   * the touch pad held or pressed, the pointer moved or pressed over the picture. A host may show a game nobody is
-   * playing less often (the room's TV at rest, docs/ROOM.md › Frames › At rest).
-   */
-  readonly untouched: number;
   /** Keyboard and gamepad reach the game only while the host has focus. */
   setInputEnabled(enabled: boolean): void;
   readonly pointer: PointerSink;

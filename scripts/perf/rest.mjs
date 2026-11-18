@@ -208,7 +208,8 @@ function otherCores(before, after, own) {
 }
 /**
  * Another measurement on the machine, as .shots/flights/foreign.py tells one: a browser of Playwright's or a test
- * run that is not `own` (a browser's helpers and its crash handler are not runs of their own). Their names.
+ * run that is not `own` (a browser's helpers and its crash handler are not runs of their own, nor an agent whose brief
+ * names them). Their names.
  */
 const MEASURING = [
   'vitest',
@@ -222,6 +223,8 @@ function strangers(reading, own) {
   const names = new Set();
   for (const [pid, { command }] of reading.rows) {
     if (own.has(pid) || /--type=|crashpad|foreign\.py|quiet\.py/.test(command)) continue;
+    // An agent's own process carries its brief on its command line, and a brief names browsers and test runners.
+    if (command.startsWith('claude') || command.includes('FIRSTMATE_OP')) continue;
     const name = MEASURING.find((mark) => command.includes(mark));
     if (name) names.add(name);
   }
