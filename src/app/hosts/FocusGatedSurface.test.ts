@@ -8,6 +8,7 @@ function fakeSurface(): GameSurface & { inputEnabled: boolean | null; pauses: nu
     width: 320,
     height: 240,
     paused: false,
+    untouched: 0,
     inputEnabled: null as boolean | null,
     pauses: 0,
     onFrame: () => () => {},

@@ -49,6 +49,12 @@ export interface FlightOptions {
 
 const PARALLAX_RANGE = new Vector2(0.06, 0.035);
 const PARALLAX_RATE = 5;
+/**
+ * A pointer this near where the parallax already is moves nothing: a tenth of a pixel of the nearest prop's at the
+ * most, and a frame drawn for it would be a frame of a room that could rest (docs/ROOM.md › Frames › At rest). A
+ * phone's tilt sensor never repeats a reading.
+ */
+const PARALLAX_STILL = 0.004;
 
 /**
  * Owns the TV, room, computer and radio viewpoints, the flights between them and a subtle pointer
@@ -153,7 +159,9 @@ export class CameraRig {
   setParallaxPointer(pointer: Vector2 | null): void {
     if (pointer && this.parallaxEnabled) this.parallaxGoal.copy(pointer);
     else this.parallaxGoal.set(0, 0);
-    if (!this.parallaxActive && !this.parallax.equals(this.parallaxGoal)) {
+    // Back to the middle is always gone all the way; towards a pointer only once it is far enough to see.
+    const apart = this.parallax.distanceToSquared(this.parallaxGoal);
+    if (!this.parallaxActive && apart > (pointer && this.parallaxEnabled ? PARALLAX_STILL ** 2 : 0)) {
       this.parallaxActive = true;
       let last: number | null = null;
       this.loop.animate((now) => {

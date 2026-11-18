@@ -41,6 +41,40 @@ describe('Game', () => {
     expect(notified).toBe(2);
   });
 
+  it('counts the time since the visitor last did anything: a press held, a pointer moved over the picture', () => {
+    const { game, scheduler } = setup();
+    game.setInputEnabled(true);
+    game.start();
+    let frame = 0;
+    const run = (steps: number): void => {
+      for (let i = 0; i < steps; i++) scheduler.frame((frame++ * 1000) / 60);
+    };
+    run(1 + 120);
+    expect(game.untouched).toBeCloseTo(2);
+    // The pointer comes over the picture, rests there, then moves.
+    game.pointer.move(10, 10);
+    run(1);
+    expect(game.untouched).toBe(0);
+    run(60);
+    expect(game.untouched).toBeCloseTo(1);
+    game.pointer.move(11, 10);
+    run(1);
+    expect(game.untouched).toBe(0);
+    // Held down: touched for as long as it is, and the step it is let go.
+    game.pointer.down();
+    run(30);
+    expect(game.untouched).toBe(0);
+    game.pointer.up();
+    run(1);
+    expect(game.untouched).toBe(0);
+    run(30);
+    expect(game.untouched).toBeCloseTo(0.5);
+    // A paused game's time stands still.
+    game.pause();
+    run(60);
+    expect(game.untouched).toBeCloseTo(0.5);
+  });
+
   it('does not render frames in which no step ran', () => {
     const { game, scheduler, renders } = setup();
     game.start();

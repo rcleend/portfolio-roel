@@ -1,7 +1,17 @@
 import { expect, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { differingPixels, hostElement, paused, scene, trackErrors, waitForRunning } from './helpers';
+import {
+  differingPixels,
+  expectRest,
+  expectSixtyFrames,
+  hostElement,
+  paused,
+  roomPace,
+  scene,
+  trackErrors,
+  waitForRunning,
+} from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -87,6 +97,28 @@ test('looking around the room pauses the game and the TV resumes it', async ({ p
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect(host).toHaveAttribute('data-view', 'tv');
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('the TV shows a game nobody touches thirty times a second, and frame by frame again at the first touch', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  // Until the whole room is lit behind the game it draws every frame whatever happens (docs/ROOM.md › Frames › At
+  // rest); from then on the game's own frames are all that is drawn at the TV, where nothing else moves.
+  await page.waitForFunction(() => window.__room?.stats.generated === 'ready', null, { timeout: 30_000 });
+  // Six seconds of the game's time without a key, a button or a move of the pointer over the picture: the game runs
+  // on, and the room at rest draws its latest picture thirty times a second.
+  await expect.poll(async () => (await roomPace(page))?.moving, { timeout: 15_000 }).toEqual(['tv']);
+  expect(await paused(page)).toBe(false);
+  await expectRest(page, 'with nobody at the game', ['tv']);
+  // The pointer moves over the picture: the game is somebody's again, and asks for each of its frames itself.
+  await page.mouse.move(700, 450);
+  await page.mouse.move(720, 460, { steps: 4 });
+  await expect.poll(async () => (await roomPace(page))?.moving).toEqual([]);
+  await expectSixtyFrames(page, 'once the pointer has moved over the picture');
   expect(errors).toEqual([]);
 });
 

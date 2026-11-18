@@ -33,6 +33,10 @@ export class FocusGatedSurface implements GameSurface {
     return this.#inner.paused;
   }
 
+  get untouched(): number {
+    return this.#inner.untouched;
+  }
+
   get pointer(): PointerSink {
     return this.#inner.pointer;
   }

@@ -3,15 +3,19 @@ import type { Room } from '@/room';
 /**
  * What the room draws at and how its flights went, in a corner of the page (`?debug=perf`): the one way to read them
  * on a phone, where the quality governor (docs/ROOM.md › Quality) and a capped display (Safari in Low Power Mode)
- * matter most. Two lines, made to be read off one screenshot:
+ * matter most. Three lines, made to be read off one screenshot:
  *
  *   medium ×1 dpr 2.00 · 30 fps · display 30/s capped · 0 changes
+ *   resting: 30/s for air, lava
  *   flight tv→room: 33 frames, 0 late, worst 34 ms
  *
  * The tier, scale and pixel ratio; the frames drawn in the last half second; the rate the page takes the display to
  * hand out frames at, and whether it takes that for a cap; how often the quality has changed (each change is a
- * resize). Then the last flight: its frames, how many came more than one and a half of the display's frames after the
- * one before, and the longest interval. Its own chunk, fetched only with `?debug=perf`: the flights are timed here,
+ * resize). Then what the room draws of its own accord (docs/ROOM.md › Frames › At rest): `resting` and what moves,
+ * `still` when nothing does, or `not resting` and why (the room is still being lit, its quality is being judged);
+ * `+ asked` when more frames were drawn than that, which is the game, a flight or the pointer asking for them. Then
+ * the last flight: its frames, how many came more than one and a half of the display's frames after the one before,
+ * and the longest interval. Its own chunk, fetched only with `?debug=perf`: the flights are timed here,
  * from the frames the room says it drew, and cost a page without it nothing.
  */
 export function showPerformance(room: Room): () => void {
@@ -50,14 +54,22 @@ export function showPerformance(room: Room): () => void {
   });
 
   const timer = setInterval(() => {
-    const { quality, pixelRatio, framesRendered, display, qualityChanges } = room.stats;
+    const { quality, pixelRatio, framesRendered, display, qualityChanges, pace } = room.stats;
     const now = performance.now();
     const fps = ((framesRendered - frames) / (now - at)) * 1000;
     frames = framesRendered;
     at = now;
+    const own =
+      pace.pace === 'full'
+        ? `not resting: ${pace.why || 'every frame'}`
+        : pace.pace === 'rest'
+          ? `resting: ${Math.round(pace.rate)}/s for ${pace.moving.join(', ')}`
+          : `still: ${document.hidden ? 'hidden' : 'nothing moves'}`;
+    // More frames than the room draws by itself: something asked for them.
+    const asked = pace.pace !== 'full' && fps > pace.rate * 1.2 + 3 ? ' + asked' : '';
     readout.textContent =
       `${quality.tier} ×${quality.scale} dpr ${pixelRatio.toFixed(2)} · ${fps.toFixed(0)} fps · ` +
-      `display ${Math.round(1000 / display.frameMs)}/s${display.capped ? ' capped' : ''} · ${qualityChanges} changes${flight}`;
+      `display ${Math.round(1000 / display.frameMs)}/s${display.capped ? ' capped' : ''} · ${qualityChanges} changes\n${own}${asked}${flight}`;
   }, 500);
   return () => {
     clearInterval(timer);

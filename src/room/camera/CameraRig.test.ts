@@ -1,4 +1,4 @@
-import { Box3, PerspectiveCamera, Vector3 } from 'three';
+import { Box3, PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { PcFramingModel } from '../pc/pcFraming';
 import { RADIO_FIXTURE } from '../radio/radioFixtures';
@@ -122,6 +122,37 @@ describe('CameraRig', () => {
     expect(arrived).not.toHaveBeenCalled();
     frames.run(1060 + FLIGHT_MS);
     expect(arrived).toHaveBeenCalledOnce();
+  });
+
+  it('follows a pointer in the room view once it is far enough to see, and asks for no frame nearer than that', () => {
+    const { instance, frames, camera } = rig(false);
+    instance.resize({ width: 1440, height: 900, pixelRatio: 2 });
+    instance.goTo('room', () => undefined);
+    for (let t = 1000; t <= 1100 + FLIGHT_MS; t += 17) frames.run(t);
+    const settled = camera.position.clone();
+    let pending = 0;
+    const asked = (): boolean => {
+      // A frame was asked for if running the scheduler runs anything: the camera's step moves by the time given.
+      const before = camera.position.clone();
+      frames.run(5000 + ++pending * 17);
+      frames.run(5000 + ++pending * 17);
+      return camera.position.distanceTo(before) > 0;
+    };
+    // A phone's tilt sensor at rest, a mouse that shivers: a hundredth of a pixel of parallax is none.
+    instance.setParallaxPointer(new Vector2(0.003, -0.002));
+    expect(asked()).toBe(false);
+    expect(camera.position.distanceTo(settled)).toBe(0);
+    // A pointer that went somewhere is followed, all the way.
+    instance.setParallaxPointer(new Vector2(0.5, 0));
+    expect(asked()).toBe(true);
+    for (let i = 0; i < 200; i++) frames.run(6000 + i * 17);
+    const followed = camera.position.distanceTo(settled);
+    expect(followed).toBeGreaterThan(0.02);
+    // And leaving puts the camera back exactly, however little is left to go.
+    instance.setParallaxPointer(new Vector2(0.501, 0));
+    instance.setParallaxPointer(null);
+    for (let i = 0; i < 300; i++) frames.run(10000 + i * 17);
+    expect(camera.position.distanceTo(settled)).toBe(0);
   });
 
   it('holds a reduced-motion cut black while asked, then fades back and arrives', () => {

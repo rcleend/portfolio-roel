@@ -14,6 +14,9 @@
 //   --path    first: only the first pull-back. round: then back, out again, the computer and the radio and back.
 //             all: also each of those a second time and the flights straight from view to view.
 //   --headed  a window on the real display (its refresh rate; the built-in one is 120 Hz), else headless at 60 Hz.
+//   --rest    ms the visitor stays in each view before leaving it (at least; default: a second or three), nothing
+//             touched: 9000 has every flight start from a room at rest (docs/ROOM.md › Frames › At rest), the radio's
+//             discs still and the game on the TV untouched.
 //   --frames  prints every frame of the first flight.   --tv  the TV view's frames from ready until the leave.
 // A flight is judged on the frames the camera moved in: no interval over one and a half paced frames, 99 % on time.
 import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
@@ -43,6 +46,7 @@ const tracePath = option('trace', null);
 /** CPU throttling, tracing and network latency are Chromium's (CDP); WebKit runs as it is. */
 const engine = option('browser', 'chromium');
 const latencyMs = Number(option('latency', 0));
+const restMs = Number(option('rest', 0));
 
 const DEVICES = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 },
@@ -388,7 +392,7 @@ async function run(server, index) {
       await page.evaluate((name) => window.__flight.mark(`click:${name}`), to);
       await act();
       await waitForMark(`settle:${to}`, settled[to]);
-      await sleep(dwell);
+      await sleep(Math.max(dwell, restMs));
     };
     const press = (label) =>
       page.evaluate((name) => {

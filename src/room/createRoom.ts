@@ -167,6 +167,18 @@ export interface RoomStats {
    * fewer (`capped`: Safari in Low Power Mode draws thirty a second). What the governor judges frames against.
    */
   readonly display: { readonly frameMs: number; readonly capped: boolean };
+  /**
+   * What the room draws of its own accord now (docs/ROOM.md › Frames › At rest): `full`, every paced frame, and `why`
+   * (`lighting`: the room is not whole yet; `judging`: its quality has not been seen to hold); `rest`, only what
+   * moves by itself needs (`moving`, about `rate` frames a second); or `still`, nothing (hidden, or nothing moves).
+   * Whatever is asked for (a flight, the game's frames, a pointer's move) is drawn on top of it at full pace.
+   */
+  readonly pace: {
+    readonly pace: 'full' | 'rest' | 'still';
+    readonly moving: readonly string[];
+    readonly rate: number;
+    readonly why: 'lighting' | 'judging' | '';
+  };
   /** Shader programs compiled so far (renderer.info.programs.length); the PC must not add one. */
   readonly programs: number;
   /** Pixels of the monitor's texture (0 in standby before the first paint). */
@@ -548,6 +560,7 @@ export function createRoom(options: CreateRoomOptions): Room {
         quality: stage.quality,
         qualityChanges: stage.qualityChanges,
         display: { frameMs: stage.frameMs, capped: stage.displayCapped },
+        pace: { ...stage.loop.pacing, why: generated.whole ? (stage.judging ? 'judging' : '') : 'lighting' },
         programs: renderer.info.programs?.length ?? 0,
         pcTexturePixels: scene?.monitor.texturePixels ?? 0,
         backgroundPending: scene?.background.pending ?? false,

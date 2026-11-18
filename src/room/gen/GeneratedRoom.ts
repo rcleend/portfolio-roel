@@ -9,7 +9,7 @@ import { type BakePart, type BakeResult, Baker, CASTERS_ALL, CASTERS_LOCAL } fro
 import { BakePace, overBudget, PROBE_UNITS } from './bake/pace';
 import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
-import { LavaWax } from './LavaWax';
+import { LAVA_FRAMES, LavaWax } from './LavaWax';
 import { GROUP, type MeshName } from './props/types';
 import { BULB_SPEC, EXTERIOR_PLATE, PICK_PROPS, TV_LAMP_SPEC } from './roomSpec';
 import type { GenRequest, GenScene } from './scene';
@@ -573,7 +573,13 @@ export class GeneratedRoom {
       reducedMotion: context.reducedMotion,
       invalidate: () => context.stage.loop.invalidate(),
     });
-    this.stopLava = context.stage.onRender(this.lava.sync);
+    const lava = this.lava;
+    const stopSync = context.stage.onRender(lava.sync);
+    const stopMoving = context.stage.loop.ambient('lava', () => (lava.running ? LAVA_FRAMES : 0));
+    this.stopLava = () => {
+      stopSync();
+      stopMoving();
+    };
 
     // The CD player, part by part on its pivots.
     this.radioParts = new GeneratedRadio(k, gen);
@@ -929,8 +935,12 @@ export class GeneratedRoom {
       this.timings.shown = performance.now();
       this.mark('shown');
       this.lava?.sync();
-      // Sixty frames a second in every view, whether or not something moves.
-      this.stopFrames ??= sixtyFrames(context.stage);
+      // Frames of the room's own accord from here on: every paced one until the whole room is lit and its quality
+      // has been found to hold, then only what moves needs (docs/ROOM.md › Frames › At rest).
+      this.stopFrames ??= context.stage.loop.pace(
+        () => context.stage.visible,
+        () => this.complete && !context.stage.judging,
+      );
       // The rest of the bake gives way to frames that come late (bake/pace.ts).
       this.stopLate ??= context.stage.onRender(() => {
         const interval = context.stage.loop.runInterval;
@@ -1166,13 +1176,4 @@ function linked(renderer: RoomStage['renderer']): Promise<void> {
     };
     poll();
   });
-}
-
-/**
- * Asks for frames all the time, as a run of frames (so the quality governor judges them), until the returned function
- * is called: on the display's own frames (`RenderLoop.pace`), so a 60 Hz display draws every frame and a 120 Hz one
- * every other, evenly spaced. None while the canvas is off screen or the tab hidden.
- */
-function sixtyFrames(stage: RoomStage): () => void {
-  return stage.loop.pace(() => stage.visible);
 }

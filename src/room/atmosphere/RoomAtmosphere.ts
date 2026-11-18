@@ -49,6 +49,12 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
+/**
+ * The frames a second the moving air needs of a room at rest (`RenderLoop.ambient`): the rain runs down the pane, the
+ * dust alone drifts (docs/ROOM.md › Frames › At rest).
+ */
+const RAIN_FRAMES = 30;
+const DUST_FRAMES = 20;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -208,7 +214,11 @@ export class RoomAtmosphere {
     this.frame = new WebGLRenderTarget(1, 1, { type, samples: tier.samples });
     this.frame.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
     this.dust = new RoomDust(this.frame.depthTexture, this.frame.texture);
-    this.motion = new AirMotion(loop, () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView));
+    this.motion = new AirMotion(
+      loop,
+      () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView),
+      () => (this.windowInView ? RAIN_FRAMES : DUST_FRAMES),
+    );
     this.highlights = new WebGLRenderTarget(1, 1, {
       type,
       depthBuffer: false,

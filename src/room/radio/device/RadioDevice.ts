@@ -8,7 +8,7 @@ import type { CreateRadioDevice, DevicePick, DeviceTarget, RadioDevice, RadioDev
 import { discSlots } from '../discLayout';
 import type { DeviceParts, DeviceSpec, GeneratedRadioSource } from '../partsProvider';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
-import { AmbientPacer } from './AmbientPacer';
+import { AMBIENT_INTERVAL_MS, AmbientPacer } from './AmbientPacer';
 import { Choreography, type DiscSample, discHeirs, type Moment } from './choreography';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
@@ -569,10 +569,11 @@ class Device implements RadioDevice {
 
   /**
    * Starts or stops the float to match `#ambientWanted()`. A room that draws frames of its own accord (the generated
-   * room's sixty a second, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn and no frame is
-   * asked for. The pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames
-   * would never come due (every frame of the room's restarts its grid), and the discs would stand still in sixty
-   * frames a second and jump whenever something else moved them.
+   * room, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn, and the loop is told they move
+   * (`RenderLoop.ambient`: thirty frames a second while the room rests, evenly spaced on the display's own). The
+   * pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames would never come
+   * due (every frame of the room's restarts its grid), and the discs would stand still and jump whenever something
+   * else moved them.
    */
   #syncAmbient(): void {
     const { loop } = this.#context;
@@ -583,8 +584,14 @@ class Device implements RadioDevice {
       return;
     }
     this.#pacer.stop();
-    if (this.#ambientWanted()) this.#stopRide ??= loop.ride(this.#rideFrame);
-    else {
+    if (this.#ambientWanted()) {
+      if (this.#stopRide === null) {
+        const stops = [loop.ride(this.#rideFrame), loop.ambient('discs', () => 1000 / AMBIENT_INTERVAL_MS)];
+        this.#stopRide = () => {
+          for (const stop of stops) stop();
+        };
+      }
+    } else {
       this.#stopRide?.();
       this.#stopRide = null;
     }
