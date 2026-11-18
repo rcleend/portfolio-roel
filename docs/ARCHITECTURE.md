@@ -9,7 +9,7 @@ The page opens zoomed in on the television: bezel, power button and a little of 
 The TV powers on (CRT line-expansion), plays a Neo Geo-style boot ("ROEL"), then a Metal Slug-style title ("PRODUCT ENGINEER").
 Any button leads to a character select (three sides of Roel, each with two skills), then a mission select (one mission per employer: Luna in San Francisco, Scripe in Berlin), then a short side-scrolling level whose collectibles are real career highlights.
 Clicking outside the TV pulls the camera back to the whole room and pauses the game (on a touch screen only a tap above the set or the guide's "Explore the room" button does); clicking the TV zooms back in and resumes.
-Without WebGL the same game runs in a flat, CSS-framed TV. A semantic HTML résumé carries the same content for screen readers, crawlers and visitors who would rather read than play.
+A visitor whose browser has no GPU to draw the room with gets the résumé as the page, and nothing of the room or the game (docs/ROOM.md › No GPU); where the room cannot be made after all, the same game runs in a flat, CSS-framed TV. A semantic HTML résumé carries the same content for screen readers, crawlers and visitors who would rather read than play.
 
 ## Layers
 
@@ -373,7 +373,7 @@ How much each frame draws adapts to the device (docs/ROOM.md › Quality): three
 
 ## App (`src/app`)
 
-React 19 composition root. It starts `createGame` before the first render, chooses a host (`room` when WebGL is available, otherwise `flat`; overridable with `?host=`), and renders overlays: the startup still's fade, sound toggle, touch pad, and the accessible résumé; the room host adds its guide.
+React 19 composition root, loaded only for a visitor the startup gate lets in (`app/startup/gate/`, inlined into `index.html` by `scripts/gatePlugin.ts`: without a GPU the page's last script imports `app/cv/main.ts` instead, the résumé as markup with no React; docs/ROOM.md › No GPU). It starts `createGame` before the first render, chooses a host (`room` when WebGL is available, otherwise `flat`; overridable with `?host=`), and renders overlays: the startup still's fade, sound toggle, touch pad, and the accessible résumé; the room host adds its guide.
 
 Startup is a pure state machine (`app/startup/startup.ts`): `loading` (the game's own assets only) → `powering` (the host lights the tube; `power-on` sfx) → `running` (only now `startGame` picks the first scene, so its first frame lands on a live tube), plus whether the startup still is up. `#game[data-phase]` exposes the phase to tests. The room host does not hold the game back for the room: the page opens on a still of the room's TV view in index.html, the game turns on and plays on it, and the live room takes over once it is in and the visitor first presses something (docs/ROOM.md › Startup). The flat host has its own TV, so the still goes as it reports ready.
 
@@ -392,7 +392,7 @@ URL parameters (honoured in development, or in production with `?debug`):
 
 | Param     | Effect                                                        |
 | --------- | ------------------------------------------------------------- |
-| `host`    | `room` or `flat`                                              |
+| `host`    | `room` or `flat`; `cv` for the résumé page of a visitor without a GPU (honoured everywhere, by the startup gate) |
 | `scene`   | start directly in a scene id                                  |
 | `params`  | JSON scene params for `scene`                                 |
 | `seed`    | seeds the game RNG                                            |
