@@ -10,6 +10,7 @@ import { BakePace, overBudget, PROBE_UNITS } from './bake/pace';
 import { GeneratedRadio } from './GeneratedRadio';
 import type { GenKit } from './genKit';
 import { LAVA_FRAMES, LavaWax } from './LavaWax';
+import { showMakings, type TwiceMade } from './makings';
 import { GROUP, type MeshName } from './props/types';
 import { BULB_SPEC, EXTERIOR_PLATE, PICK_PROPS, TV_LAMP_SPEC } from './roomSpec';
 import type { GenRequest, GenScene } from './scene';
@@ -173,6 +174,7 @@ export class GeneratedRoom {
   private readonly picks: Mesh[] = [];
   private radioParts: GeneratedRadio | null = null;
   private stopLava: (() => void) | null = null;
+  private stopMakings: (() => void) | null = null;
   private timings = { cpu: 0, longest: 0, started: 0, gpu: 0, deferred: false, shown: 0, baked: 0, views: 0 };
   /** What a piece of the bake costs this GPU (bake/pace.ts). */
   private readonly pace = new BakePace(UNIT_GPU_TARGET_MS.rest);
@@ -338,6 +340,7 @@ export class GeneratedRoom {
     this.stopLate?.();
     this.stopCanvas?.();
     this.stopLava?.();
+    this.stopMakings?.();
     this.lava?.dispose();
     this.baker?.dispose(true);
     this.warm?.dispose(true);
@@ -419,12 +422,18 @@ export class GeneratedRoom {
     const pc = group('GeneratedPc');
     const desk = group('GeneratedDesk');
 
+    // The parts made twice (makings.ts): which making a frame draws goes by whether it is multisampled.
+    const twice: TwiceMade[] = [];
     const vertexLit = (mesh: MeshName, name: string): Mesh => {
       const data = gen.meshes[mesh];
       const geometry = new k.BufferGeometry();
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       geometry.setAttribute('color', new k.BufferAttribute(new Float32Array(data.positions.length), 3));
+      if (data.index && data.shown) {
+        geometry.setIndex(new k.BufferAttribute(data.index, 1));
+        twice.push({ geometry, shown: data.shown });
+      }
       const material = new k.MeshBasicMaterial({ vertexColors: true });
       // The finish knows a baked surface by its material's name (its sheen, its varnish: RoomGloss).
       material.name = name;
@@ -500,6 +509,10 @@ export class GeneratedRoom {
       geometry.setAttribute('position', new k.BufferAttribute(data.positions, 3));
       geometry.setAttribute('normal', new k.BufferAttribute(data.normals, 3));
       geometry.setAttribute('uv', new k.BufferAttribute(data.uvs, 2));
+      if (data.index && data.shown) {
+        geometry.setIndex(new k.BufferAttribute(data.index, 1));
+        twice.push({ geometry, shown: data.shown });
+      }
       const material = new k.MeshBasicMaterial({ map: this.blank });
       material.name = names[data.group] ?? '01_TV_surfaces_BAKED_UNLIT';
       material.userData.page = data.page;
@@ -512,6 +525,8 @@ export class GeneratedRoom {
       }
       this.charts.set(data.group, mesh);
     }
+
+    this.stopMakings = showMakings(context.stage.scene, twice);
 
     this.art ??= new k.CanvasTexture(this.artCanvas);
     this.art.colorSpace = k.SRGBColorSpace;
