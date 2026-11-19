@@ -1,7 +1,7 @@
 /**
  * Maps between the TV screen mesh's UV space and the game's native pixels.
  *
- * The screen mesh carries 0–1 UVs with v = 0 at the top edge (glTF convention), but the
+ * The screen mesh carries 0–1 UVs with v = 0 at the top edge (tv/tvGlass.ts), but the
  * bezel overlaps its outer rim, so the game is drawn into a smaller 4:3 "content rect"
  * that sits fully inside the visible glass. The shader and the pointer mapping share that
  * rect, which is what keeps the cursor exactly on the pixel under it.

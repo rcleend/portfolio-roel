@@ -18,6 +18,12 @@ from hibitfx.skills import SKILLS
 
 SKILL_IDS = ("full-stack-attack", "agent-summon", "ux-elixir", "power-chord", "north-star", "churn-shield")
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(build.OUT.rglob("*.png"))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, "the art's PNGs are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)"
+)
+
 
 def _sheets(skill: str) -> List[Path]:
     return sorted((build.OUT / skill).glob("*.json"))
@@ -50,6 +56,7 @@ class LooksContractTest(unittest.TestCase):
             self.assertEqual([a["name"] for a in manifest["animations"]], ["idle"], skill)
             self.assertTrue(manifest["animations"][0]["loop"], skill)
 
+    @NEEDS_PNGS
     def test_sheets_follow_the_layout(self) -> None:
         for skill in SKILL_IDS:
             for path in _sheets(skill):
@@ -78,6 +85,7 @@ class LooksContractTest(unittest.TestCase):
                             cell = image.crop((col * w, row * h, col * w + w, row * h + h))
                             self.assertIsNotNone(cell.getchannel("A").getbbox(), f"{anim['name']} frame {col} is empty")
 
+    @NEEDS_PNGS
     def test_pixels_are_binary_alpha_and_palette_limited(self) -> None:
         for skill in SKILL_IDS:
             for path in _sheets(skill):
@@ -90,7 +98,7 @@ class LooksContractTest(unittest.TestCase):
 
     def test_committed_files_match_a_fresh_build(self) -> None:
         for skill in SKILL_IDS:
-            self.assertEqual(build.check(skill), [], skill)
+            self.assertEqual(build.check(skill, EXPORTED), [], skill)
 
     def test_icon_rest_frame_is_the_hud_frame(self) -> None:
         """The HUD freezes a recharging icon on frame 0, so frame 0 must be the calm rest pose."""

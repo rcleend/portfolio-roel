@@ -30,6 +30,8 @@ export interface Scene<P = void, A extends string = string> {
    * elsewhere.
    */
   cursor?(): GameCursor | undefined;
+  /** The frame `render` draws now is all black (the boot's blackout): see `Director.dark`. */
+  dark?(): boolean;
 }
 
 /** Anything the game loop can drive: usually a `Director`. */

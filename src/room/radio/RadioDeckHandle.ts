@@ -65,7 +65,6 @@ export class RadioDeckHandle implements RadioDeck {
   #device: RadioDevice | null = null;
   #loading = false;
   #wanted = false;
-  #intentShown = false;
   /** An approach the device has not seen yet (it was still loading): its start time. */
   #pendingApproach: number | null = null;
   readonly #availability = new Emitter<boolean>();
@@ -167,10 +166,6 @@ export class RadioDeckHandle implements RadioDeck {
   prefetch(reason: 'idle' | 'intent'): void {
     // Save-Data: only a visitor reaching for the radio pays for it.
     if (!this.#isAvailable || (reason === 'idle' && saveData())) return;
-    if (reason === 'intent' && !this.#intentShown) {
-      this.#intentShown = true;
-      this.#device?.intent();
-    }
     this.#wanted = true;
     this.#load();
   }
@@ -231,6 +226,11 @@ export class RadioDeckHandle implements RadioDeck {
     this.prefetch('intent');
     if (this.#device) this.#device.approach(now);
     else this.#pendingApproach = now;
+  }
+
+  /** The camera is about to set off for the radio: resolves once its discs are ready to be drawn (RadioDevice.board). */
+  board(): Promise<void> {
+    return this.#device?.board() ?? Promise.resolve();
   }
 
   /** The view state's `revealRadio`: landed. */
@@ -295,7 +295,6 @@ export class RadioDeckHandle implements RadioDeck {
         device.setDiscs(this.#discs);
         device.setState(this.#state);
         device.setKeyboardAttention(this.#keyboard);
-        if (this.#intentShown) device.intent();
         if (this.#pendingApproach !== null || host.views.view === 'radio') {
           device.approach(this.#pendingApproach ?? performance.now());
         }
@@ -309,7 +308,7 @@ export class RadioDeckHandle implements RadioDeck {
     );
   }
 
-  /** The radio cannot work (its asset or its code failed): it is scenery again, warned once. */
+  /** The radio cannot work (its code failed, or the room could not be lit): it is scenery again, warned once. */
   unavailable(error: unknown): void {
     if (!this.#isAvailable) return;
     console.warn(UNAVAILABLE_WARNING, error);

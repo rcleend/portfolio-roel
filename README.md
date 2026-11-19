@@ -1,7 +1,8 @@
 # Roel Leenders — arcade portfolio
 
 Roel's portfolio as a 16-bit, Neo Geo-style arcade game running on a CRT in a 3D attic room.
-Every screen renders at a native 320 × 240 and is presented by a host: the three.js room, or a flat CSS television when WebGL is unavailable.
+Every screen renders at a native 320 × 240 and is presented by a host: the three.js room, or a flat CSS television where the room cannot be made.
+A browser with no GPU to draw the room with gets the résumé as the page instead (`?host=cv` shows it anywhere).
 The same content is always available as a plain HTML résumé for screen readers, crawlers and visitors who would rather read.
 
 ## Run it
@@ -38,6 +39,7 @@ In development (or with `?debug` in production) the URL accepts `host`, `scene`,
 - `docs/ARCHITECTURE.md` — module layout, contracts and the development harness. Start here.
 - `docs/ART-DIRECTION.md` — the visual and motion spec.
 - `docs/ROOM.md` — the three.js room and its contract; `docs/PC.md` — the computer's screen and résumé reader.
-- `docs/ROOM-ART-DIRECTION.md` — the 3D asset style and reference study; `tools/room/README.md` — the Blender rebuild pipeline.
+- `docs/ROOM-ART-DIRECTION.md` — the room's look and reference study. The room is generated in code (`src/room/gen`); it ships no model or texture.
+- `tools/art`, `tools/looks` — the Python generators behind the game's pixel art, which is committed as code (`pnpm build:art`; `tools/art/README.md`).
 - `src/content` — the portfolio itself, as typed data.
 - `src/engine` — a small, generic 16-bit engine; `src/game` — the portfolio game; `src/app` — the React shell and hosts.

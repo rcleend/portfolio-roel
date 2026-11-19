@@ -14,7 +14,7 @@ import { type IdleUnit, QUIET } from './IdleWork';
 /**
  * A large texture goes to the GPU a strip at a time (docs/ROOM.md › Background work): a whole 2048-wide upload
  * measured 30–40 ms (80 ms on a slow phone) in one piece, a 1 MB strip about a millisecond, so each strip is one unit
- * of the room's background work and no frame waits for the whole image. Shared by the radio's 2K skin and the posters.
+ * of the room's background work and no frame waits for the whole image. The posters' painted atlas goes up this way (posters/posterKit.ts).
  */
 
 /** Rows a strip uploads: 2048 × 128 × 4 B = 1 MB, about a millisecond. */
@@ -35,7 +35,7 @@ export interface StripRenderer {
 }
 
 /**
- * An empty texture with storage for every level and a glTF atlas's settings (no flip, sRGB, mipmaps, the given
+ * An empty texture with storage for every level and an atlas's settings (no flip, sRGB, mipmaps, the given
  * anisotropy), ready for strips.
  */
 export function allocateStripTarget(
@@ -74,11 +74,11 @@ function primeUnpackState(renderer: StripRenderer): void {
 /**
  * Copies `image` into `target` one strip per unit (each yielding `QUIET` before the next, so a strip waits for a
  * quiet moment or, in an urgent task, goes between frames); the mipmaps are made once, with the last strip. The
- * caller owns the image and closes it.
+ * caller owns the image (a decoded bitmap, or a canvas it painted) and closes it.
  */
 export function* uploadStrips(
   renderer: StripRenderer,
-  image: ImageBitmap,
+  image: ImageBitmap | HTMLCanvasElement,
   target: Texture,
   rows: number = STRIP_ROWS,
 ): Generator<IdleUnit, void, void> {

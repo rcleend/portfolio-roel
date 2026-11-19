@@ -39,35 +39,40 @@ function loadExperience(): Promise<Experience> {
  * but this glue. The desktop's still painter loads at idle once the TV is
  * on (the room paints the glass with it before the first flight); the screen
  * itself loads at idle once the camera has landed in the room view, or at
- * once on the way to the computer, while the camera's flight hides the
- * download. Renders portals only.
+ * once on the way to the computer, and mounts while the camera rests, never
+ * in a flight. Renders portals only.
  */
 export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage }: PcSlotProps): ReactNode {
-  const [Screen, setScreen] = useState<Experience | 'failed' | null>(null);
+  const [loaded, setScreen] = useState<Experience | 'failed' | null>(null);
+  // Mounting the screen is not a flight's work: one whose code arrives while the camera flies mounts as it lands.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (loaded !== null && settled) setMounted(true);
+  }, [loaded, settled]);
+  const Screen = mounted ? loaded : null;
 
   useEffect(() => {
     if (!display || !powered) return;
-    let stopRestored: (() => void) | null = null;
+    let stopPainted: (() => void) | null = null;
     let gone = false;
     // Even with Save-Data: a few kB that keep the monitor from showing a dead tube.
     const cancel = whenIdle(() => {
       import('./still/pcStill').then((still) => {
         display.setStill(still.paintDesktop);
-        // The glass shows the wallpaper's placeholder until the photograph has decoded.
-        void still.wallpaperLoaded().then(() => display.invalidateStill());
-        // And a wallpaper a GPU reset wiped, until it has been painted again.
-        if (!gone) stopRestored = still.wallpaperRestored(() => display.invalidateStill());
+        // The glass shows the wallpaper's placeholder until its picture has been worked out, and a wallpaper a GPU
+        // reset wiped until it has been painted again.
+        if (!gone) stopPainted = still.wallpaperPainted(() => display.invalidateStill());
       }, warn);
     });
     return () => {
       gone = true;
       cancel();
-      stopRestored?.();
+      stopPainted?.();
     };
   }, [display, powered]);
 
   // Loaded, or failed for good.
-  const settledLoad = Screen !== null;
+  const settledLoad = loaded !== null;
   const wanted = view === 'pc' || (view === 'room' && settled && !saveData());
   useEffect(() => {
     if (!display || settledLoad || !wanted) return;
@@ -81,7 +86,8 @@ export function PcSlot({ display, view, settled, powered, onLeave, onFocusStage 
         },
       );
     };
-    // On the way to the computer: now, hidden by the flight. Looking around the room: when the page is idle.
+    // On the way to the computer: now, so the download has the flight's time (the screen mounts at the landing).
+    // Looking around the room: when the page is idle.
     if (view !== 'pc') return whenIdle(load);
     load();
   }, [display, settledLoad, wanted, view]);

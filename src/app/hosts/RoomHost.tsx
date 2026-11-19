@@ -14,6 +14,7 @@ import {
 import type { Room, RoomView } from '@/room';
 import { PcSlot } from '../pc/PcSlot';
 import { whenIdle } from '../pc/whenIdle';
+import { dropStill } from '../startup/TvStill';
 import { FlatHost } from './FlatHost';
 import { FocusGatedSurface } from './FocusGatedSurface';
 import { StillPicture } from './StillPicture';
@@ -74,6 +75,18 @@ function WayOut({
   );
 }
 
+/** Runs `run` while the camera rests: at once, or in a task of its own just after it lands. */
+function atRest(room: Room | null, run: () => void): void {
+  if (!room || room.settled) {
+    run();
+    return;
+  }
+  const stop = room.onSettle(() => {
+    stop();
+    setTimeout(run, 0);
+  });
+}
+
 declare global {
   interface Window {
     /** Development, or production with `?debug`: the room, so tests and measurements can read its render stats. */
@@ -95,7 +108,7 @@ const STAGE_LABELS: Readonly<Record<RoomView, string>> = {
 
 /**
  * The attic room presenting the game on its CRT. Falls back to the flat TV
- * whenever the room cannot run (no WebGL, failed download), so the visitor
+ * whenever the room cannot run (no WebGL, a room that cannot be made), so the visitor
  * always gets a game.
  */
 export function RoomHost(props: HostProps) {
@@ -109,6 +122,7 @@ function AtticStage({
   scenes,
   powered,
   still,
+  clear,
   insets,
   events,
   muted,
@@ -118,7 +132,7 @@ function AtticStage({
   const screensRef = useRef<HTMLDivElement>(null);
   // One gate per surface; the room only ever sees the gated view.
   const [gated] = useState(() => new FocusGatedSurface(surface));
-  const status = useRoom(stageRef, screensRef, gated);
+  const status = useRoom(stageRef, screensRef, gated, insets);
   const room = status.state === 'ready' ? status.room : null;
   useEffect(() => room?.setMuted(muted), [room, muted]);
   const [view, setView] = useState<RoomView>('tv');
@@ -128,6 +142,10 @@ function AtticStage({
   const [tvOn, setTvOn] = useState(false);
   // The camera has rested away from the TV (or headed for the radio): the CD player's glue loads (see RadioSlot above).
   const [radioDue, setRadioDue] = useState(false);
+  // The camera is about to set off for the radio and waits for the CD player to be mounted (below).
+  const [radioBoarding, setRadioBoarding] = useState(false);
+  const radioMounted = useRef(false);
+  const radioWaiting = useRef<(() => void) | null>(null);
   // The TV's picture is up and the page idle: the guide loads (see RoomGuide above).
   const [guideDue, setGuideDue] = useState(false);
   // Chrome treats the opening programmatic focus as focus-visible; draw the ring only after a real Tab.
@@ -144,7 +162,11 @@ function AtticStage({
     events.onViewChange(next);
   });
   const unavailable = useEffectEvent(onUnavailable);
-  const stillDone = useEffectEvent(() => events.onStillDone());
+  const stillDone = useEffectEvent((black: boolean) => {
+    dropStill(black);
+    events.onStillDone();
+  });
+  const stillBack = useEffectEvent(() => events.onStillBack());
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -203,44 +225,60 @@ function AtticStage({
       .then(still ? undefined : poweredOn, (error: unknown) => console.error('TV failed to power on', error));
   }, [room, powered, still, tvOn]);
 
-  // The hand-over (docs/ROOM.md › Startup): the visitor's first press, the game leaving its title, or the camera
-  // leaving the TV fades the still out over the identical live scene, as soon as the room shows the game (a press
-  // before that is remembered).
-  const pressed = useRef(false);
+  // The hand-over (docs/ROOM.md › Startup). The still goes where nobody can see it go: on a black frame of the game
+  // (the boot's blackout, the middle of the fade out of the title), when the flat picture and the live tube both show
+  // nothing and light nothing. The second black frame in a row, so the room has drawn the first whichever of the two
+  // loops runs first in a frame, and only after the room has had a frame to draw its lit tube in. Where no black frame
+  // comes (the game past its opening scenes without one or held by the harness, the camera leaving the TV) the still
+  // fades over the live scene instead.
   useEffect(() => {
-    if (!still) return;
+    if (!still || !room || !tvOn) return;
     const opening = (id: string | null): boolean => id === null || id === 'boot' || id === 'title';
-    const check = (): void => {
-      const due = pressed.current || !opening(scenes.current) || (room !== null && room.view !== 'tv');
-      if (due && room?.powerState === 'on' && tvOn) stillDone();
+    const live = (): boolean => room.powerState === 'on' && room.shown;
+    const fade = (): void => {
+      const past = surface.paused || !(scenes.dark || opening(scenes.current));
+      if (live() && (room.view !== 'tv' || past)) stillDone(false);
     };
-    const press = (): void => {
-      pressed.current = true;
-      check();
-    };
-    check();
-    const stopScenes = scenes.onSceneChange(check);
-    const stopViews = room?.onViewChange(check);
-    const options = { capture: true, passive: true } as const;
-    window.addEventListener('keydown', press, options);
-    window.addEventListener('pointerdown', press, options);
+    fade();
+    // The game's frames since the room showed its lit tube, and the black ones in a row among them.
+    let seen = 0;
+    let dark = 0;
+    const stops = [
+      surface.onFrame(() => {
+        seen = live() ? seen + 1 : 0;
+        dark = seen > 1 && scenes.dark ? dark + 1 : 0;
+        if (dark > 1) stillDone(true);
+        else fade();
+      }),
+      room.onViewChange(fade),
+      room.onShownChange(fade),
+    ];
     return () => {
-      stopScenes();
-      stopViews?.();
-      window.removeEventListener('keydown', press, options);
-      window.removeEventListener('pointerdown', press, options);
+      for (const stop of stops) stop();
     };
-  }, [still, room, tvOn, scenes]);
+  }, [still, room, tvOn, scenes, surface]);
+
+  // A lost WebGL context takes the room's light (docs/ROOM.md › Lost canvases): at the TV the still covers the canvas
+  // again, the game playing on it, until the hand-over above finds the room lit. Elsewhere the still (a close-up of
+  // the TV) has nothing to stand for.
+  useEffect(
+    () =>
+      room?.onShownChange((shown) => {
+        if (!shown && room.view === 'tv') stillBack();
+      }),
+    [room],
+  );
 
   useEffect(() => {
     if (!tvOn || guideDue) return;
     return whenIdle(() => {
       import('../guide/RoomGuide').then(
-        () => startTransition(() => setGuideDue(true)),
+        // Mounting it is not a flight's work: a guide that arrives while the camera flies mounts once it has landed.
+        () => atRest(room, () => startTransition(() => setGuideDue(true))),
         (error: unknown) => console.warn("The room's guide failed to load", error),
       );
     });
-  }, [tvOn, guideDue]);
+  }, [tvOn, guideDue, room]);
 
   // Mounting a lazy component costs a slow phone more than the click that leaves the TV itself (the import, the
   // suspension and the commit), so it waits for the landing, out of the click and the flight, as a transition. The
@@ -249,6 +287,27 @@ function AtticStage({
     if (radioDue || view === 'tv' || !(settled || view === 'radio')) return;
     startTransition(() => setRadioDue(true));
   }, [radioDue, view, settled]);
+
+  // Mounting the CD player is not a flight's work either. The room asks before the camera first sets off for the
+  // radio (it still rests then) and waits, a bounded moment, for the promise this returns: the glue and the player
+  // load and mount now, and the camera leaves once their layout is done (RadioSlot's `onMounted`).
+  useEffect(() => {
+    if (!room) return;
+    return room.radio.onBoarding(() => {
+      if (radioMounted.current) return undefined;
+      setRadioBoarding(true);
+      setRadioDue(true);
+      return new Promise<void>((resolve) => {
+        radioWaiting.current?.();
+        radioWaiting.current = resolve;
+      });
+    });
+  }, [room]);
+  const onRadioMounted = useCallback((): void => {
+    radioMounted.current = true;
+    radioWaiting.current?.();
+    radioWaiting.current = null;
+  }, []);
 
   const { top, right, bottom, left } = insets;
   useEffect(() => {
@@ -316,13 +375,21 @@ function AtticStage({
         onKeyDown={onKeyDown}
       />
       <div ref={screensRef} className="room-host__screens" />
-      <StillPicture surface={surface} powered={powered} onLit={poweredOn} passThrough={room !== null} />
+      <StillPicture
+        surface={surface}
+        scenes={scenes}
+        powered={powered}
+        onLit={poweredOn}
+        passThrough={room !== null}
+        inSight={!clear}
+      />
       {room && guideDue ? (
         <Suspense fallback={wayOut}>
           <RoomGuide
             room={room}
             view={view}
             settled={settled}
+            clear={clear}
             scenes={scenes}
             handOver={handOver}
             onFocusStage={focusStage}
@@ -346,6 +413,8 @@ function AtticStage({
             view={view}
             settled={settled}
             powered={tvOn}
+            boarding={radioBoarding}
+            onMounted={onRadioMounted}
             muted={muted}
             onLeave={showRoom}
             onFocusStage={focusStage}

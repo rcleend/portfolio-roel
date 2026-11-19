@@ -504,10 +504,14 @@ function ownShared(meshes: readonly Mesh[]): Copy[] {
   return copies;
 }
 
-/** The baked, textured materials of a prop's meshes and their own colours: what it brightens in the light. */
+/**
+ * The baked, textured materials of a prop's meshes and their own colours: what it brightens in the light. Not a mesh
+ * that sets its colour itself (`userData.ownColour`: the radio's LCD, whose colour is its brightness).
+ */
 function liftable(meshes: readonly Mesh[]): Map<MeshBasicMaterial, Color> {
   const found = new Map<MeshBasicMaterial, Color>();
   for (const mesh of meshes) {
+    if (mesh.userData.ownColour) continue;
     const basic = mesh.material as MeshBasicMaterial;
     if (basic.isMeshBasicMaterial && basic.map && !found.has(basic)) found.set(basic, basic.color.clone());
   }

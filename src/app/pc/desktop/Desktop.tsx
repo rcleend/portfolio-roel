@@ -22,7 +22,7 @@ import {
   TRAY_STOPS,
 } from './lunaTokens';
 import { wrapLabel } from './text';
-import { loadWallpaper, wallpaperCanvas } from './wallpaper';
+import { wallpaperCanvas } from './wallpaper';
 import './Desktop.css';
 
 export interface DesktopProps {
@@ -116,8 +116,6 @@ function Wallpaper({
     // The same element the still painter draws from: one bitmap for the glass and the live screen.
     const canvas = wallpaperCanvas(required, width / height);
     if (canvas.parentNode !== host.current) host.current.replaceChildren(canvas);
-    // The photograph repaints this very canvas once it has decoded.
-    void loadWallpaper();
   }, [required, width, height]);
   return <div ref={host} className="pc-desktop__wallpaper" />;
 }

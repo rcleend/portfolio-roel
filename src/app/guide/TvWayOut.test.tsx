@@ -16,6 +16,7 @@ function director(initial: string | null): SceneSignal & { show(id: string): voi
     get current() {
       return current;
     },
+    dark: false,
     onSceneChange(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -62,6 +63,7 @@ describe("the TV view's way out", () => {
           room={room}
           view={view}
           settled={settled}
+          clear={true}
           scenes={scenes}
           handOver={handOver}
           onFocusStage={() => {}}

@@ -265,6 +265,47 @@ describe('ViewController', () => {
       expect(views.view).toBe('pc');
     });
 
+    it('stops the game at the click when the camera has to wait before it leaves the TV, and flies once it may', async () => {
+      let open: () => void = () => {};
+      const making = new Promise<void>((resolve) => (open = resolve));
+      let made = false;
+      const { views, surface, log, land } = setup(() => (made ? null : making));
+      views.request('room');
+      // The camera waits; the click has stopped the game already.
+      expect(log).toEqual([]);
+      expect(views.view).toBe('tv');
+      expect(surface.pause).toHaveBeenCalledTimes(1);
+      expect(surface.setInputEnabled).toHaveBeenLastCalledWith(false);
+      made = true;
+      open();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(log).toEqual(['move tv→room']);
+      expect(surface.pause).toHaveBeenCalledTimes(1);
+      land();
+      views.request('tv');
+      land();
+      expect(surface.resume).toHaveBeenCalledTimes(1);
+      expect(surface.paused).toBe(false);
+    });
+
+    it('gives the game back when the visitor stays at the TV after all, or the wait fails', async () => {
+      let fail: () => void = () => {};
+      const { views, surface, log } = setup(() => new Promise<void>((_, reject) => (fail = reject)));
+      views.request('room');
+      expect(surface.paused).toBe(true);
+      views.request('tv');
+      expect(surface.paused).toBe(false);
+      expect(surface.setInputEnabled).toHaveBeenLastCalledWith(true);
+      views.request('room');
+      expect(surface.paused).toBe(true);
+      fail();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(surface.paused).toBe(false);
+      expect(log).toEqual([]);
+    });
+
     it('drops the request when the code fails to load', async () => {
       const { views, land, log, fail } = gated();
       views.request('room');

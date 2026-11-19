@@ -5,7 +5,8 @@ Python 3.9+ and Pillow only.
 
 ```
 tools/art/
-  build.py          rebuild a level's art from its recipe -> src/game/levels/<id>/art/
+  build.py          rebuild a level's art from its recipe -> src/game/levels/<id>/art/ (PNGs; `pnpm build:art` then
+                    turns them into the art modules that are committed)
   pixelate.py       the same pipeline as a one-off CLI for a single image
   preview.py        composite a level like the game does, for review
   recipes/<id>.json how every generated layer/prop is cropped, graded, quantised
@@ -19,9 +20,27 @@ tools/art/
 
 1. Generate a source with Codex CLI using the prompt in `prompts/<id>.md` (one image per call, 1536×1024), in a scratch directory outside the repo.
 2. Put raw sources in `$ARCADE_ART_SOURCES` (default `../.arcade-art-sources`, next to the checkout). They are inputs, never committed.
-3. `python3 tools/art/build.py luna scripe` (or `--only mid,near`) writes the PNGs, `tileset.png` and `layers.json`.
-4. Review: `python3 tools/art/preview.py luna`, `--seams`, `--tiles` write to `tools/art/.preview/` (gitignored). Look at them; iterate on the recipe.
-5. `python3 -m unittest discover -s tools/art -t tools/art` validates the pipeline and the committed art against the contract below.
+3. `pnpm build:art --export src/game` writes the committed art back as PNGs beside its modules (see Art modules below), so the layers you do not rebuild are there to preview and test.
+4. `python3 tools/art/build.py luna scripe` (or `--only mid,near`) writes the PNGs, `tileset.png` and `layers.json`.
+5. Review: `python3 tools/art/preview.py luna`, `--seams`, `--tiles` write to `tools/art/.preview/` (gitignored). Look at them; iterate on the recipe.
+6. `python3 -m unittest discover -s tools/art -t tools/art` validates the pipeline and the PNGs against the contract below.
+7. `pnpm build:art` turns every PNG under `src/game` into its art module and removes the PNG. Commit the modules, `layers.json` and `src/game/art/art-digests.json`.
+
+## Art modules
+
+The game loads no image file (docs/ARCHITECTURE.md › Art in code): every picture under `src/game` is committed as `<name>.art.ts`, the PNG's pixels as a string in code, and `src/game/art/artModules.test.ts` fails on a PNG left there. The JSON beside a sheet (`layers.json`, a look's `sheet.json`) stays a file and keeps naming the `.png`.
+
+```sh
+pnpm build:art --export src/game   # every module back as a PNG beside it, to look at, edit, preview or test
+pnpm build:art                     # every PNG under src/game into its module; removes the PNG, records its digest
+pnpm build:art --export /tmp/art   # the same pictures somewhere else, leaving the checkout alone
+```
+
+So a clean checkout has no PNG for these tools to read:
+
+- `preview.py`, the looks' review scripts (`tools/looks/<lookId>/**/review.py`, which draw their boards from the sheets under `src/game/art/looks/`) and the tests that read pixels (`tests/test_level_art.py`, the sheet contracts under `tools/looks/*/`) need the export. Without it those tests are skipped with a message naming the command; the pipeline's own tests and the checks of the JSON still run.
+- The looks' generators (`tools/looks/<lookId>/**/build.py` or `generate.py`) write PNG + JSON into `src/game/art/looks/`, and their `--check` compares a fresh build with the checkout: the JSON byte for byte, a PNG pixel for pixel (`tools/looks/artfiles.py`), because an exported PNG is sharp's encoding of the same pixels and not the bytes Pillow writes. Without the export `--check` compares the JSON alone, says what to run and exits 2.
+- A generator's PNGs are never committed: run `pnpm build:art` after it, which is also what makes the game show the new art.
 
 ## The pipeline
 

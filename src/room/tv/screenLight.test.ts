@@ -1,7 +1,3 @@
-import { join } from 'node:path';
-import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { MeshoptDecoder } from 'meshoptimizer';
 import { Box3, Texture, Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { boxCorners } from '../camera/framing';
@@ -11,7 +7,7 @@ import { tvFixture } from './tvFixtures';
 import { pictureOutline } from './tvFraming';
 import { TV_SCREEN_APERTURE } from './tvModel';
 
-/** The shipped TV faces into the room, −x. */
+/** The TV faces into the room, −x. */
 const FACING = new Vector3(-1, 0, 0);
 
 let light: ScreenLightUniforms;
@@ -19,12 +15,8 @@ let glassBox: Box3;
 let content: UvRect;
 const picture = new Texture();
 
-beforeAll(async () => {
-  await MeshoptDecoder.ready;
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
-  const fixture = tvFixture(await io.read(join(process.cwd(), 'public/room/tv-high.glb')));
+beforeAll(() => {
+  const fixture = tvFixture();
   content = fixture.content;
   glassBox = new Box3().setFromObject(fixture.glass);
   const { min, max } = fixture.framing.bounds;

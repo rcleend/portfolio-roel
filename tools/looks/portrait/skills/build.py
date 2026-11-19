@@ -23,7 +23,9 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 OUT = REPO / "src" / "game" / "art" / "looks" / "portrait" / "skills"
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(HERE.parents[1]))
 
+import artfiles  # noqa: E402
 from portrait_fx.sheet import validate_files  # noqa: E402
 from portrait_fx.skills import SKILLS  # noqa: E402
 
@@ -42,12 +44,14 @@ def build(skill_ids: Sequence[str], out: Path) -> List[Path]:
 
 
 def check(skill_ids: Sequence[str]) -> int:
-    """Rebuilds into a scratch directory and compares every byte with the committed assets."""
+    """Rebuilds into a scratch directory and compares it with the checkout: manifests byte for byte, PNGs pixel
+    for pixel, and while the PNGs are not exported (tools/looks/artfiles.py) the manifests alone."""
     stale = []
+    exported = artfiles.exported(path for skill_id in skill_ids for path in (OUT / skill_id).glob("*.png"))
     with tempfile.TemporaryDirectory() as scratch:
         for path in build(skill_ids, Path(scratch)):
             committed = OUT / path.relative_to(scratch)
-            if not committed.exists() or committed.read_bytes() != path.read_bytes():
+            if (exported or path.suffix != ".png") and not artfiles.same(committed, path):
                 stale.append(str(committed.relative_to(REPO)))
         expected = {p.relative_to(scratch) for p in Path(scratch).rglob("*") if p.is_file()}
     for skill_id in skill_ids:
@@ -57,6 +61,9 @@ def check(skill_ids: Sequence[str]) -> int:
                 stale.append(f"{path.relative_to(REPO)} (not produced by the generators)")
     for line in stale:
         print(f"stale: {line}")
+    if not exported:
+        print(artfiles.EXPORT_HINT)
+        return 1 if stale else 2
     return 1 if stale else 0
 
 

@@ -5,7 +5,7 @@ import { type GlassPlane, insetPlane, planeCorners } from './glassPlane';
 import { pcViewpoint } from './pcFraming';
 import { PC_PICTURE_BORDER } from './pcModel';
 
-/** pc-base.glb's glass (room revision 6), as pcModel finds it. */
+/** The monitor's glass (gen/roomSpec.ts › PC_SPEC), as pcModel gives it. */
 const RIM: GlassPlane = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
 /** Its CRT shell. */
 const SHELL = new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654));

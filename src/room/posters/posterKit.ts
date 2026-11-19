@@ -1,6 +1,6 @@
-import { MeshBasicMaterial, MultiplyBlending } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial, MultiplyBlending } from 'three';
 import { FLIGHT_MS, MAX_CUT_HOLD_MS } from '../camera/CameraRig';
-import { deviceMemory, saveData, slowLink } from '../radio/deviceFacts';
+import { deviceMemory } from '../radio/deviceFacts';
 import { QUIET } from '../stage/IdleWork';
 import type { RoomStage } from '../stage/RoomStage';
 import { isSlow } from '../stage/slowDevice';
@@ -25,15 +25,15 @@ export const POSTERS_FADING_CARDS_ORDER = -1;
  * facts, the strip uploader), handed over rather than imported. Rolldown folds a module shared by the room and a lazy
  * chunk into the room's chunk only when that lazy chunk already depends on the room's; a PosterWall that imported any
  * of these at runtime split them, three.js included, into a common chunk that every visitor loads before the TV
- * (measured: +2.2 kB gz on the critical path, nearly all of it cross-chunk glue). So PosterWall imports types only
- * (PosterWall.test.ts holds it to that), and this kit is its one runtime seam to the room.
+ * (measured: +2.2 kB gz on the critical path, nearly all of it cross-chunk glue). So PosterWall and what it paints
+ * with import nothing of the room's chunk but types (PosterWall.test.ts holds them to that), and this kit is their one
+ * runtime seam to the room.
  */
 export const posterKit = {
   /** The camera's flight time, which bounds the first flight's frame sample. */
   flightMs: FLIGHT_MS,
   /** The longest a reduced-motion cut stays black for what it shows (CameraRig): the posters hold one at most. */
   cutHoldMs: MAX_CUT_HOLD_MS,
-  saveData,
   /** The tier for this stage and device, decided once at the TV (posterTier.ts). */
   tier(stage: RoomStage): PosterTier {
     const { width, height, pixelRatio } = stage.size;
@@ -42,8 +42,6 @@ export const posterKit = {
       height,
       pixelRatio,
       deviceMemory: deviceMemory(),
-      saveData: saveData(),
-      slowLink: slowLink(),
       softwareGpu: stage.softwareGpu,
     });
   },
@@ -55,6 +53,21 @@ export const posterKit = {
   uploadStrips,
   decorBoxes,
   anyInView,
+  group: (): Group => new Group(),
+  /** A mesh of the wall's own numbers (posters/wall/geometry.ts): positions, atlas coordinates, triangles. */
+  mesh(
+    numbers: { readonly positions: Float32Array; readonly uvs: Float32Array; readonly indices: Uint16Array },
+    material: MeshBasicMaterial,
+  ): Mesh {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(numbers.positions, 3));
+    geometry.setAttribute('uv', new BufferAttribute(numbers.uvs, 2));
+    geometry.setIndex(new BufferAttribute(numbers.indices, 1));
+    // Unlit, the walls need no normals; but a program is keyed by whether its geometry has them (three's
+    // `vertexNormals`), and with them the cards draw with the baked room's own opaque program instead of a second one.
+    geometry.computeVertexNormals();
+    return new Mesh(geometry, material);
+  },
   skirtsOrder: POSTERS_SKIRTS_ORDER,
   cardsOrder: POSTERS_CARDS_ORDER,
   fadingCardsOrder: POSTERS_FADING_CARDS_ORDER,
@@ -63,7 +76,12 @@ export const posterKit = {
    * (POSTERS_CARDS_ORDER) so that wherever a card or its tape is, it is what shows.
    */
   cardsMaterial: (): MeshBasicMaterial =>
-    new MeshBasicMaterial({ polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+    new MeshBasicMaterial({
+      name: 'posters_cards',
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
   /**
    * The skirts: multiplied onto the wall (premultiplied, no depth write), pulled 2 units over it. Not `transparent`: they
    * draw in the opaque pass, after the room and before the cards (POSTERS_SKIRTS_ORDER), three applying their blending
@@ -72,6 +90,7 @@ export const posterKit = {
    */
   skirtsMaterial: (): MeshBasicMaterial =>
     new MeshBasicMaterial({
+      name: 'posters_skirts',
       blending: MultiplyBlending,
       premultipliedAlpha: true,
       depthWrite: false,

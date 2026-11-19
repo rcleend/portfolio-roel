@@ -71,6 +71,138 @@
     P.renderer = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
   };
 
+  // What a frame asks of the GPU, kept so it can be asked again (`repeat`, `slowGpu`): the state and draw calls WebGL
+  // gets inside a frame callback, with their arguments. Calling the frame callback a second time instead no longer
+  // works: the room's paced loop (RenderLoop.pace) refuses a second frame for the same timestamp, so a resting view
+  // drew once however often it was called. Uploads, queries and readbacks are not kept (they are the main thread's
+  // cost, or the profiler's own), and what a counterfactual below skips never reaches this layer, so it is not replayed
+  // either. A replay starts from the state the frame left, which is the state it started from once a view has settled.
+  const REPLAYED = [
+    'bindFramebuffer',
+    'viewport',
+    'scissor',
+    'enable',
+    'disable',
+    'clear',
+    'clearColor',
+    'clearDepth',
+    'clearStencil',
+    'colorMask',
+    'depthMask',
+    'depthFunc',
+    'depthRange',
+    'blendFunc',
+    'blendFuncSeparate',
+    'blendEquation',
+    'blendEquationSeparate',
+    'blendColor',
+    'cullFace',
+    'frontFace',
+    'lineWidth',
+    'polygonOffset',
+    'stencilFunc',
+    'stencilFuncSeparate',
+    'stencilOp',
+    'stencilOpSeparate',
+    'stencilMask',
+    'stencilMaskSeparate',
+    'useProgram',
+    'uniform1i',
+    'uniform1f',
+    'uniform2f',
+    'uniform3f',
+    'uniform4f',
+    'uniform2i',
+    'uniform3i',
+    'uniform4i',
+    'uniform1ui',
+    'uniform1fv',
+    'uniform2fv',
+    'uniform3fv',
+    'uniform4fv',
+    'uniform1iv',
+    'uniform2iv',
+    'uniform3iv',
+    'uniform4iv',
+    'uniform1uiv',
+    'uniformMatrix2fv',
+    'uniformMatrix3fv',
+    'uniformMatrix4fv',
+    'activeTexture',
+    'bindTexture',
+    'bindVertexArray',
+    'bindBuffer',
+    'bindBufferBase',
+    'drawElements',
+    'drawArrays',
+    'drawElementsInstanced',
+    'drawArraysInstanced',
+    'drawRangeElements',
+    'blitFramebuffer',
+    'drawBuffers',
+    'readBuffer',
+    'invalidateFramebuffer',
+    'bindSampler',
+    'generateMipmap',
+    'clearBufferfv',
+    'clearBufferiv',
+    'clearBufferuiv',
+    'clearBufferfi',
+    'bindRenderbuffer',
+  ];
+  const DRAWS = new Set([
+    'drawElements',
+    'drawArrays',
+    'drawElementsInstanced',
+    'drawArraysInstanced',
+    'drawRangeElements',
+  ]);
+  const replays = Math.max(1, config.repeat ?? 1, config.slowGpu ?? 1) > 1;
+  // `slowBake`: the room's bake draws outside any frame callback, so `slowGpu` does not slow it. This draws each of
+  // those draws that many times, the extra ones blended as source × 0 + target: the shaders run, the picture stays.
+  const slowBake = Math.max(1, config.slowBake ?? 1);
+  const BLEND = 0x0be2;
+  const blend = { on: false, func: [1, 0, 1, 0], color: [0, 0, 0, 0] };
+  const native = {};
+  /** The calls of the frame callback that is running, when they are wanted. */
+  let calls = null;
+  if (replays || slowBake > 1)
+    for (const name of REPLAYED) {
+      const inner = proto[name];
+      if (!inner) continue;
+      native[name] = inner;
+      proto[name] = function (...args) {
+        if (name === 'enable' && args[0] === BLEND) blend.on = true;
+        else if (name === 'disable' && args[0] === BLEND) blend.on = false;
+        else if (name === 'blendFunc') blend.func = [args[0], args[1], args[0], args[1]];
+        else if (name === 'blendFuncSeparate') blend.func = [...args];
+        else if (name === 'blendColor') blend.color = [...args];
+        // A typed array may be the caller's scratch: the replay needs what it held now.
+        if (calls) calls.push([inner, args.map((arg) => (ArrayBuffer.isView(arg) ? arg.slice() : arg))]);
+        const result = inner.apply(this, args);
+        if (slowBake > 1 && !inRaf && !replaying && DRAWS.has(name)) {
+          native.enable.call(this, BLEND);
+          native.blendFuncSeparate.call(this, 0x8001, 1, 0x8003, 1); // CONSTANT_COLOR, ONE, CONSTANT_ALPHA, ONE
+          native.blendColor.call(this, 0, 0, 0, 0);
+          for (let i = 1; i < slowBake; i++) inner.apply(this, args);
+          if (!blend.on) native.disable.call(this, BLEND);
+          native.blendFuncSeparate.call(this, ...blend.func);
+          native.blendColor.call(this, ...blend.color);
+        }
+        return result;
+      };
+    }
+  let replaying = false;
+  /** Asks the GPU for the frame just drawn again, `times` times. */
+  const replay = (recorded, times) => {
+    replaying = true;
+    try {
+      for (let i = 0; i < times; i++) for (const [fn, args] of recorded) fn.apply(gl, args);
+    } finally {
+      replaying = false;
+    }
+  };
+
   const original = {};
   const wrap = (name, before) => {
     original[name] = proto[name];
@@ -177,81 +309,60 @@
 
   const pixel = new Uint8Array(4);
   const nativeRaf = window.requestAnimationFrame.bind(window);
-  // `repeat`: every frame that draws is drawn that many times over, each a whole frame with its own passes, so its GPU
-  // time rises well clear of the timer's noise and of an idle GPU's low clock (and a GPU that many times slower can be
-  // stood in for). The repeats' own frame requests are dropped; the first's stands.
+  // `repeat`: every frame that draws is drawn that many times over (its WebGL calls asked again, each a whole frame
+  // with its own passes), inside the frame's timer query, so its GPU time rises well clear of the timer's noise and of
+  // an idle GPU's low clock; the time reported is one frame's.
   const repeat = Math.max(1, config.repeat ?? 1);
+  // `slowGpu`: a GPU that many times slower, stood in for by drawing each frame that many times, the extra ones after
+  // the frame's own query has ended: the timer still reports one frame, and the page's frames come as late as the pile
+  // makes them, which is what its quality governor sees. The replays' WebGL calls cost the main thread too (a frame's
+  // few hundred calls, that many times).
   const slowGpu = Math.max(1, config.slowGpu ?? 1);
-  const drawers = new WeakSet();
-  let suppress = false;
-  const fenceSync = proto.fenceSync;
-  proto.fenceSync = function (...args) {
-    return suppress ? null : fenceSync.apply(this, args);
-  };
   window.requestAnimationFrame = (callback) =>
-    suppress
-      ? 0
-      : nativeRaf((now) => {
-          if (P.recording && P.rafTimes[P.rafTimes.length - 1] !== now) {
-            P.rafTimes.push(now);
-            P.rafCpu.push(0);
+    nativeRaf((now) => {
+      if (P.recording && P.rafTimes[P.rafTimes.length - 1] !== now) {
+        P.rafTimes.push(now);
+        P.rafCpu.push(0);
+      }
+      pollQueries();
+      const outer = calls;
+      const mine = replays ? [] : null;
+      calls = mine;
+      inRaf = true;
+      frame = null;
+      const start = performance.now();
+      try {
+        callback(now);
+      } finally {
+        inRaf = false;
+        calls = outer;
+        // Everything the page does in a frame's callbacks: the game's step and 2D drawing as well as the room's frame.
+        if (P.recording && repeat === 1) P.rafCpu[P.rafCpu.length - 1] += performance.now() - start;
+        const drew = frame;
+        frame = null;
+        if (drew) {
+          drew.cpuMs = performance.now() - start;
+          if (repeat > 1 && mine) {
+            replay(mine, repeat - 1);
+            drew.repeat = repeat;
           }
-          pollQueries();
-          // `slowGpu`: a GPU that many times slower, stood in for by drawing each frame that many times, the page's
-          // own (and its fence, see fenceSync below) last, so what the page measures is the whole pile.
-          if (slowGpu > 1 && drawers.has(callback)) {
-            suppress = true;
-            try {
-              for (let i = 1; i < slowGpu; i++) callback(now);
-            } finally {
-              suppress = false;
-            }
+          if (query) {
+            gl.endQuery(ext.TIME_ELAPSED_EXT);
+            pending.push({ query, frame: drew });
+            query = null;
           }
-          inRaf = true;
-          frame = null;
-          const start = performance.now();
-          try {
-            callback(now);
-          } finally {
-            inRaf = false;
-            // Everything the page does in a frame's callbacks: the game's step and 2D drawing as well as the room's frame.
-            if (P.recording && repeat === 1) P.rafCpu[P.rafCpu.length - 1] += performance.now() - start;
-            const drew = frame;
-            frame = null;
-            if (drew) {
-              drawers.add(callback);
-              drew.cpuMs = performance.now() - start;
-              if (repeat > 1) {
-                inRaf = true;
-                suppress = true;
-                try {
-                  for (let i = 1; i < repeat; i++) {
-                    frame = { draws: 0, targets: {}, blits: 0 };
-                    callback(now);
-                  }
-                } finally {
-                  suppress = false;
-                  inRaf = false;
-                }
-                drew.repeat = repeat;
-              }
-              frame = null;
-              if (query) {
-                gl.endQuery(ext.TIME_ELAPSED_EXT);
-                pending.push({ query, frame: drew });
-                query = null;
-              }
-              if (config.sync && P.recording) {
-                const before = performance.now();
-                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-                drew.syncMs = (performance.now() - before) / repeat;
-              }
-              drew.at = now;
-              if (P.recording) P.frames.push(drew);
-            }
+          if (slowGpu > 1 && mine) replay(mine, slowGpu - 1);
+          if (config.sync && P.recording) {
+            const before = performance.now();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+            drew.syncMs = (performance.now() - before) / repeat;
           }
-        });
+          drew.at = now;
+          if (P.recording) P.frames.push(drew);
+        }
+      }
+    });
 
   P.start = () => {
     P.frames = [];

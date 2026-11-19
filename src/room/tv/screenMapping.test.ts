@@ -35,7 +35,7 @@ describe('uvToNativePixel', () => {
     expect(uvToNativePixel(0.8749, 0.7499, content, SIZE)).toEqual({ x: 319, y: 239 });
   });
 
-  it('maps v downwards, because glTF screen UVs put v = 0 at the top edge', () => {
+  it('maps v downwards, because the screen mesh puts v = 0 at the top edge', () => {
     expect(uvToNativePixel(0.5, 0.26, content, SIZE)?.y).toBeLessThan(10);
     expect(uvToNativePixel(0.5, 0.74, content, SIZE)?.y).toBeGreaterThan(230);
   });

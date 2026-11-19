@@ -127,10 +127,10 @@ describe('flightShape', () => {
 });
 
 describe('the crane onto the desk', () => {
-  /** The chair in front of the desk (room.glb, measured by ray casting): its back's footprint and top. */
+  /** The chair in front of the desk (measured by ray casting): its back's footprint and top. */
   const CHAIR_BACK = { minX: -1.9, maxX: -0.8, minZ: -0.8, maxZ: -0.5, topY: 1.075 };
   const RIM = { minX: -1.518, maxX: -1.162, minY: 0.929, maxY: 1.213, z: -1.679 };
-  /** pc-base.glb's CRT shell, around the glass. */
+  /** A CRT shell around the glass, about the monitor's. */
   const SHELL = new Box3(new Vector3(-1.57, 0.785, -2.086), new Vector3(-1.11, 1.268, -1.654));
   const PC = { facing: new Vector3(0, 0, 1), rim: RIM, shellBounds: SHELL };
 

@@ -20,23 +20,18 @@ import {
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+import { BULB_SPEC, TV_LAMP_SPEC } from '../gen/roomSpec';
 import type { TierSettings } from '../stage/quality';
 import type { RenderLoop } from '../stage/RenderLoop';
 import { createScreenLightUniforms, SCREEN_LIGHT, type ScreenLightUniforms } from '../tv/screenLight';
 import { AirMotion } from './AirMotion';
+import { BULB_LAMP_HALO, BULB_LAMP_HALO_TINT } from './bulbLamp';
 import { ROOM_MOODS, type RoomAir, type RoomMood, SCREEN_FINISH_STRENGTH } from './moods';
 import { RoomDust } from './RoomDust';
 import { RoomGloss } from './RoomGloss';
 import { RoomHalation } from './RoomHalation';
 import { RoomScreens } from './RoomScreens';
-import {
-  attachToyRobot,
-  createToyRobotUniforms,
-  TOY_ROBOT_EYE_HALO,
-  TOY_ROBOT_EYE_INTENSITY,
-  type ToyRobotLight,
-} from './toyRobot';
-import { attachTvLamp, createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
+import { createTvLampUniforms, TV_LAMP_INTENSITY } from './tvLamp';
 import { lightningAt, WINDOW_RAIN } from './WindowRain';
 
 const VERTEX = /* glsl */ `
@@ -54,8 +49,12 @@ void main() {
  */
 const SCREEN_LIGHT_GAIN = 3;
 const SCREEN_AIR = 0.08;
-/** The toy robot's eye halos: the lamp's colour × this, against the room lamps' warm halation tint (about 1). */
-const EYE_HALO_TINT = 0.8;
+/**
+ * The frames a second the moving air needs of a room at rest (`RenderLoop.ambient`): the rain runs down the pane, the
+ * dust alone drifts (docs/ROOM.md › Frames › At rest).
+ */
+const RAIN_FRAMES = 30;
+const DUST_FRAMES = 20;
 
 const HIGHLIGHTS = /* glsl */ `
 uniform sampler2D uScene;
@@ -142,7 +141,7 @@ void main() {
   vec3 original = scene.a > 0.95 ? wetWindow(scene.rgb, eye, ray, reach) : scene.rgb;
   vec3 color = original;
   float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
-  // Split-tone in linear light. No lifted grey blacks and no second tone mapping of the Blender bake.
+  // Split-tone in linear light. No lifted grey blacks and no second tone mapping of the bake.
   color *= mix(uShadows, uLights, smoothstep(0.015, 0.35, luminance));
   color = mix(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), color, uSaturation) * uExposure;
   // Text and game graphics keep their contrast, without a second layer of bloom over the CRT's own finish.
@@ -176,6 +175,8 @@ void main() {
 /** Two post passes over one room render, followed by one draw of fine dust. No additional assets or scene renders. */
 export class RoomAtmosphere {
   private readonly frame: WebGLRenderTarget;
+  /** One pixel of the same kind as `frame`, for `warm`. */
+  private warmTarget: WebGLRenderTarget | null = null;
   private readonly highlights: WebGLRenderTarget;
   private readonly passScene = new Scene();
   private readonly geometry = new BufferGeometry();
@@ -187,13 +188,9 @@ export class RoomAtmosphere {
     ...createScreenLightUniforms(),
     uScreenGain: { value: 0 },
   };
-  /** The opal lamp beside the TV (tvLamp.ts): its light on the room and in the air, while the room has one. */
+  /** The opal lamp beside the TV (tvLamp.ts): its reflection in the varnish and the air it warms. */
   private readonly lamp = createTvLampUniforms();
-  private lampColor: readonly [number, number, number] | null = null;
-  /** The toy robot on the cabinet's other end (toyRobot.ts): its eyes' light on the room, while the room has one. */
-  private readonly robot = createToyRobotUniforms();
-  private robotLight: ToyRobotLight | null = null;
-  private readonly gloss = new RoomGloss(this.screenLight, this.lamp, this.robot);
+  private readonly gloss = new RoomGloss(this.screenLight, this.lamp);
   private readonly halation = new RoomHalation();
   private readonly screens = new RoomScreens();
   private readonly size = new Vector2();
@@ -217,7 +214,11 @@ export class RoomAtmosphere {
     this.frame = new WebGLRenderTarget(1, 1, { type, samples: tier.samples });
     this.frame.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
     this.dust = new RoomDust(this.frame.depthTexture, this.frame.texture);
-    this.motion = new AirMotion(loop, () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView));
+    this.motion = new AirMotion(
+      loop,
+      () => visible() && !this.atTv && (this.air.dust > 0 || this.windowInView),
+      () => (this.windowInView ? RAIN_FRAMES : DUST_FRAMES),
+    );
     this.highlights = new WebGLRenderTarget(1, 1, {
       type,
       depthBuffer: false,
@@ -268,6 +269,10 @@ export class RoomAtmosphere {
     this.quad = new Mesh(this.geometry, this.extract);
     this.quad.frustumCulled = false;
     this.passScene.add(this.quad);
+    // The practicals beside the TV, where the room's spec has them: the opal lamp's halo and the bare bulb's.
+    this.lamp.uTvLamp.value.fromArray(TV_LAMP_SPEC.center);
+    this.halation.addLamp(TV_LAMP_SPEC.center, 0.32);
+    this.halation.addLamp(BULB_SPEC.filament, BULB_LAMP_HALO, BULB_LAMP_HALO_TINT);
   }
 
   attach(scene: Scene): void {
@@ -284,17 +289,6 @@ export class RoomAtmosphere {
       )
         this.composite.uniforms.uExterior.value = object.material.map;
     });
-    const lamp = this.lampColor ? null : attachTvLamp(scene, this.lamp);
-    if (lamp) {
-      this.lampColor = lamp.color;
-      this.halation.addLamp(lamp.center, 0.32);
-    }
-    const robot = this.robotLight ? null : attachToyRobot(scene, this.robot);
-    if (robot) {
-      this.robotLight = robot;
-      const tint = robot.color.map((value) => value * EYE_HALO_TINT) as [number, number, number];
-      for (const eye of robot.eyes) this.halation.addLamp(eye, TOY_ROBOT_EYE_HALO, tint);
-    }
     this.applyLamp();
     this.gloss.attach(scene);
     this.halation.attach(scene);
@@ -307,6 +301,41 @@ export class RoomAtmosphere {
     if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
     this.renderer.compile(object, camera, scene);
     this.renderer.setRenderTarget(previous);
+  }
+
+  /** As `prepare`, off the frame where the browser can link a program in the background; resolves once it has. */
+  prepareAsync(scene: Scene, object: Object3D, camera: PerspectiveCamera): Promise<unknown> {
+    const previous = this.renderer.getRenderTarget();
+    if (this.mood !== 'original') this.renderer.setRenderTarget(this.frame);
+    // The programs are chosen as this is called, for the target bound now; the promise only waits for them to link.
+    const compiled = this.renderer.compileAsync(object, camera, scene);
+    this.renderer.setRenderTarget(previous);
+    return compiled;
+  }
+
+  /**
+   * Draws what `camera` sees of `scene` into one pixel of a target like the one frames draw the room into (its
+   * format, its samples, its depth): whatever a frame would make the first time it draws those objects is made now,
+   * where nobody sees it (docs/ROOM.md › Warming). Nothing under the unprocessed bake, which draws onto the canvas.
+   */
+  warm(scene: Scene, camera: PerspectiveCamera): void {
+    if (this.mood === 'original') return;
+    const renderer = this.renderer;
+    if (this.warmTarget?.samples !== this.frame.samples) {
+      this.warmTarget?.dispose();
+      this.warmTarget = new WebGLRenderTarget(1, 1, { type: this.frame.texture.type, samples: this.frame.samples });
+      this.warmTarget.depthTexture = new DepthTexture(1, 1, UnsignedIntType);
+    }
+    const previous = renderer.getRenderTarget();
+    // The frame's counts (RoomStats.drawCalls, triangles) stay the last frame's.
+    const counted = { ...renderer.info.render };
+    try {
+      renderer.setRenderTarget(this.warmTarget);
+      renderer.render(scene, camera);
+    } finally {
+      renderer.setRenderTarget(previous);
+      Object.assign(renderer.info.render, counted);
+    }
   }
 
   setMood(mood: RoomMood): void {
@@ -339,15 +368,11 @@ export class RoomAtmosphere {
     }
   }
 
-  /** The lamp and the robot's eyes light the room only in a finish: the unprocessed bake (original) shows it as baked. */
+  /** The lamp's reflection and its air are the finish's: the unprocessed bake (original) shows the room as baked. */
   private applyLamp(): void {
     const color = this.lamp.uTvLampColor.value;
-    if (this.lampColor && this.mood !== 'original') color.fromArray(this.lampColor).multiplyScalar(TV_LAMP_INTENSITY);
+    if (this.mood !== 'original') color.fromArray(TV_LAMP_SPEC.color).multiplyScalar(TV_LAMP_INTENSITY);
     else color.set(0, 0, 0);
-    const eyes = this.robot.uRobotEyeColor.value;
-    if (this.robotLight && this.mood !== 'original')
-      eyes.fromArray(this.robotLight.color).multiplyScalar(TOY_ROBOT_EYE_INTENSITY);
-    else eyes.set(0, 0, 0);
   }
 
   setAir(air: RoomAir): void {
@@ -429,6 +454,9 @@ export class RoomAtmosphere {
     this.halation.dispose();
     this.screens.dispose();
     this.frame.dispose();
+    this.warmTarget?.depthTexture?.dispose();
+    this.warmTarget?.dispose();
+    this.warmTarget = null;
     this.highlights.dispose();
     this.extract.dispose();
     this.composite.dispose();

@@ -1,4 +1,5 @@
 import { type Box3, Vector2, Vector3 } from 'three';
+import { PC_SPEC } from '../gen/roomSpec';
 import type { GlowPatch } from '../tv/ScreenGlow';
 import { type GlassPlane, planeCentre, planeHeight, planeWidth } from './glassPlane';
 import { PC_PICTURE_RADIUS } from './pcModel';
@@ -14,8 +15,8 @@ export interface MonitorGlowModel {
   readonly keyboardBounds: Box3;
 }
 
-/** Top of the desk (room.glb `02_Desk`, ray cast); the patch floats a millimetre above it. */
-const DESK_TOP_Y = 0.785;
+/** Top of the desk; the patch floats a millimetre above it. */
+const DESK_TOP_Y = PC_SPEC.deskTopY;
 /** The desk patch reaches this far towards the viewer from the shell front… */
 const DESK_REACH = 0.6;
 const DESK_PATCH = new Vector2(1.0, 0.7);

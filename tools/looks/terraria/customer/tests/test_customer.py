@@ -57,6 +57,7 @@ def poses() -> Iterator[Tuple[str, Animation, int, Pose]]:
 
 
 class Sheet(unittest.TestCase):
+    @concepts.NEEDS_PNGS
     def test_holds_the_five_customer_animations_crisply(self) -> None:
         image, meta = load()
         self.assertEqual([animation['name'] for animation in meta['animations']], NAMES)
@@ -67,6 +68,7 @@ class Sheet(unittest.TestCase):
             self.assertEqual(animation['loop'], animation['name'] in LOOPING, animation['name'])
             self.assertEqual(sorted(animation['anchors']), ['head', 'mouth'], animation['name'])
 
+    @concepts.NEEDS_PNGS
     def test_stands_on_the_feet_line_unless_he_leaves_it(self) -> None:
         """Every frame's feet are on the line, but for the knockback and the hops, which lift him clear of it."""
         image, meta = load()
@@ -75,12 +77,14 @@ class Sheet(unittest.TestCase):
             self.assertEqual(picture.getbbox()[3] - 1, concepts.FEET_ROW - lifts[name, index], f'{name}[{index}]')
         self.assertTrue(all(lift == 0 for (name, _), lift in lifts.items() if name in ('walk', 'shout', 'stunned')))
 
+    @concepts.NEEDS_PNGS
     def test_uses_a_small_palette(self) -> None:
         image, meta = load()
         for name, index, picture, _ in frames(image, meta):
             colours = {pixel for pixel in picture.getdata() if pixel[3]}
             self.assertLessEqual(len(colours), concepts.COLOURS, f'{name}[{index}]')
 
+    @concepts.NEEDS_PNGS
     def test_marks_the_mouth_on_the_face_and_the_head_on_top(self) -> None:
         """The complaint leaves the mouth, and everything shown above him clears the top of his head."""
         image, meta = load()
@@ -196,6 +200,7 @@ class Motion(unittest.TestCase):
             self.assertTrue(antenna, name)
             self.assertTrue(all((y > grip) == (name in dangling) for y in antenna), name)
 
+    @concepts.NEEDS_PNGS
     def test_hangs_the_stunned_phone_clear_of_the_ground(self) -> None:
         """Its antenna stops short of the floor, so the dangling phone never reads as a walking cane."""
         image, meta = load()
@@ -207,6 +212,7 @@ class Motion(unittest.TestCase):
                          if picture.getpixel((x, y))[3] and picture.getpixel((x, y))[:3] in phone)
             self.assertGreaterEqual(concepts.FEET_ROW - lowest, 3, f'stunned[{index}]')
 
+    @concepts.NEEDS_PNGS
     def test_sways_his_head_a_pixel_at_a_time_while_stunned(self) -> None:
         """A woozy sway, not a tick-tock: the head never jumps or holds still from one frame to the next."""
         _, meta = load()

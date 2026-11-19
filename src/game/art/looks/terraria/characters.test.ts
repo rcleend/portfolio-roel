@@ -92,7 +92,7 @@ describe('the Terraria looks', () => {
     ]);
     expect(revised.fx.attack).not.toEqual(original.fx.attack);
     const timing = (sheet: typeof revised.fx.attack) =>
-      JSON.stringify(sheet, (key, value) => (key === 'image' || key === 'png' ? undefined : value));
+      JSON.stringify(sheet, (key, value) => (key === 'image' || key === 'art' ? undefined : value));
     expect(timing(revised.fx.attack)).toBe(timing(original.fx.attack));
   });
 });

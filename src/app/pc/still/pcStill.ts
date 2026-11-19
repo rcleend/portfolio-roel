@@ -3,7 +3,7 @@ import { type DesktopLayout, desktopLayout } from '../desktop/desktopLayout';
 import { desktopLayoutSize } from '../desktop/desktopScale';
 import { LABEL_FONT, START_FONT } from '../desktop/lunaTokens';
 import { paintIcons, paintTaskbar } from '../desktop/paintChrome';
-import { loadWallpaper, onWallpaperRestored, wallpaperCanvas } from '../desktop/wallpaper';
+import { onWallpaperPainted, paintWallpaperUnit, wallpaperCanvas } from '../desktop/wallpaper';
 import type { StillPainter, StillRequest } from '../display';
 
 /**
@@ -28,20 +28,22 @@ export const paintDesktop: StillPainter = Object.assign(
   { prepare: prepareDesktop },
 );
 
-/** Resolves once the wallpaper's photograph has replaced its placeholder (or failed to): the glass wants a repaint. */
-export const wallpaperLoaded: () => Promise<void> = loadWallpaper;
-
-/** Calls `listener` whenever the wallpaper has been painted again after a GPU reset: the glass wants a repaint. */
-export const wallpaperRestored: (listener: () => void) => () => void = onWallpaperRestored;
+/**
+ * Calls `listener` whenever the wallpaper's picture has been put on its canvas (first worked out, grown, or painted
+ * again after a GPU reset): the glass wants a repaint.
+ */
+export const wallpaperPainted: (listener: () => void) => () => void = onWallpaperPainted;
 
 /**
- * The first paint's one-time work, a unit at a time: the wallpaper's bitmap
- * (4 ms on a phone six times slower than a laptop), then the first use of
- * each font, which finds and shapes the system face (5 ms each there).
+ * The first paint's one-time work, a unit at a time: the wallpaper's picture,
+ * a few rows a unit (5 ms each on a phone six times slower than a laptop),
+ * then the first use of each font, which finds and shapes the system face
+ * (5 ms each there).
  */
 function* prepareDesktop(request: StillRequest): Generator<void, void, void> {
   // Any 2D context warms the page's font cache; the wallpaper's is at hand.
   const context = wallpaperFor(request, layoutFor(request)).getContext('2d');
+  while (paintWallpaperUnit()) yield;
   for (const font of [LABEL_FONT, START_FONT]) {
     yield;
     if (context) {

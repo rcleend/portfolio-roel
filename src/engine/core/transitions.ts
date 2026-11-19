@@ -15,6 +15,8 @@ export interface Transition {
   readonly inFrames: number;
   /** `coverage` is 0 when the scene is fully visible and 1 when fully hidden. */
   render(gfx: Gfx, coverage: number, phase: TransitionPhase): void;
+  /** At `coverage` the whole frame is black, whatever the scene under it draws (`Director.dark`). */
+  dark?(coverage: number): boolean;
 }
 
 /** Converts seconds to whole simulation frames. */
@@ -52,6 +54,7 @@ export function fade(options: FadeOptions = {}): Transition {
       const alpha = quantize(coverage, levels);
       if (alpha > 0) gfx.withAlpha(alpha, () => gfx.fillRect(0, 0, gfx.width, gfx.height, color));
     },
+    dark: (coverage) => color === '#000000' && quantize(coverage, levels) === 1,
   };
 }
 

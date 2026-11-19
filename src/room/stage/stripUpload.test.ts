@@ -37,7 +37,7 @@ function fakeRenderer() {
 const image = (width: number, height: number) => ({ width, height, close: () => {} }) as unknown as ImageBitmap;
 
 describe('stripUpload', () => {
-  it('allocates storage with the glTF atlas settings', () => {
+  it('allocates storage with the atlas settings', () => {
     const { renderer, allocated } = fakeRenderer();
     const target = allocateStripTarget(renderer, 2048, 1024, 4);
     expect(allocated).toEqual([target]);

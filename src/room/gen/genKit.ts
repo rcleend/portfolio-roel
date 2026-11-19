@@ -1,0 +1,77 @@
+import {
+  AdditiveBlending,
+  Box3,
+  BufferAttribute,
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  CustomBlending,
+  DepthTexture,
+  DoubleSide,
+  DynamicDrawUsage,
+  Group,
+  HalfFloatType,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  NearestFilter,
+  OneFactor,
+  PerspectiveCamera,
+  Points,
+  Scene,
+  ShaderMaterial,
+  Sphere,
+  SRGBColorSpace,
+  UnsignedByteType,
+  UnsignedIntType,
+  Vector3,
+  Vector4,
+  WebGLRenderTarget,
+  ZeroFactor,
+} from 'three';
+import { onCanvasRestored } from '../stage/canvasRestore';
+
+/**
+ * The three.js the room is built and baked with, handed over rather than imported: the generators also run in a
+ * worker and in the lazy roomBuilder chunk, and a runtime import of three.js anywhere under gen/ would carry it there
+ * (posterKit.ts says the same of the posters). Everything under gen/ but this file imports types
+ * only; scripts/bundle-report.mjs holds the worker and the roomBuilder chunk to that (no three.js in either).
+ */
+export const genKit = {
+  AdditiveBlending,
+  Box3,
+  BufferAttribute,
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  CustomBlending,
+  DepthTexture,
+  DoubleSide,
+  DynamicDrawUsage,
+  Group,
+  HalfFloatType,
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  Matrix4,
+  Mesh,
+  MeshBasicMaterial,
+  NearestFilter,
+  OneFactor,
+  PerspectiveCamera,
+  Points,
+  Scene,
+  ShaderMaterial,
+  Sphere,
+  SRGBColorSpace,
+  UnsignedByteType,
+  UnsignedIntType,
+  Vector3,
+  Vector4,
+  WebGLRenderTarget,
+  ZeroFactor,
+  onCanvasRestored,
+} as const;
+
+export type GenKit = typeof genKit;

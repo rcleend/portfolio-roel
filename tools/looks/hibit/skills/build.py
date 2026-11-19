@@ -22,7 +22,9 @@ from typing import List, Optional, Sequence
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(HERE.parents[1]))
 
+import artfiles  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from hibitfx.sheet import Sheet, dump_json  # noqa: E402
@@ -47,8 +49,13 @@ def write(skill: str) -> List[Path]:
     return paths
 
 
-def check(skill: str) -> List[str]:
-    """Differences between the committed files and a fresh build (pixels and JSON text)."""
+def exported(skills: Sequence[str]) -> bool:
+    """Whether the skills' PNGs are in the checkout (tools/looks/artfiles.py): they are only while exported."""
+    return artfiles.exported(path for skill in skills for path in (OUT / skill).glob("*.png"))
+
+
+def check(skill: str, pngs: bool = True) -> List[str]:
+    """Differences between the checkout's files and a fresh build (pixels and JSON text; the JSON alone without `pngs`)."""
     problems: List[str] = []
     directory = OUT / skill
     expected = {s.name: s for s in build(skill)}
@@ -57,11 +64,13 @@ def check(skill: str) -> List[str]:
         problems.append(f"{skill}/{name}: committed but no longer generated")
     for name, sheet in expected.items():
         png, manifest = directory / f"{name}.png", directory / f"{name}.json"
-        if not png.exists() or not manifest.exists():
+        if not manifest.exists() or (pngs and not png.exists()):
             problems.append(f"{skill}/{name}: missing")
             continue
         if manifest.read_text() != dump_json(sheet.manifest()):
             problems.append(f"{skill}/{name}.json differs from a fresh build")
+        if not pngs:
+            continue
         with Image.open(png) as image:
             committed = image.convert("RGBA")
         fresh = sheet.image()
@@ -80,9 +89,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error(f"unknown skill(s): {', '.join(unknown)}")
     skills = args.skills or list(SKILLS)
     if args.check:
-        problems = [p for skill in skills for p in check(skill)]
+        pngs = exported(skills)
+        problems = [p for skill in skills for p in check(skill, pngs)]
         for problem in problems:
             print(problem)
+        if not pngs:
+            print(artfiles.EXPORT_HINT)
+            return 1 if problems else 2
         print("ok" if not problems else f"{len(problems)} problem(s)")
         return 1 if problems else 0
     for skill in skills:

@@ -111,82 +111,71 @@
         </p>
       </main>
     </noscript>
-    <!--
-      The startup still (docs/ROOM.md › Startup): the room's own TV view, rendered by scripts/capture-tv-stills.mjs at
-      one viewport per framing and placed here as the room will frame it (room/tv/tvFraming.ts), so it is the first
-      picture on the page, before any script. The app lays the game's picture into it and fades it out as the live
-      room takes over. Each framing's lengths are the capture's, in units of its container (the viewport):
-      - set (landscape, tall enough for the whole set): fitted to the height and centred; 1440 × 608 at capture.
-      - landscape (a phone on its side): the picture fills the height between the pad's clusters; 900 × 390.
-      - portrait: the picture spans the width, centred above the touch pad's 228 px (or in the whole height); 390 × 900.
-    -->
-    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true">
-      <picture>
-        <source media="(orientation: portrait)" srcset="/startup/tv-portrait.webp" />
-        <source media="(max-height: 544.98px)" srcset="/startup/tv-landscape.webp" />
-        <img class="tv-still__image" src="/startup/tv-desktop.webp" alt="" fetchpriority="high" />
-      </picture>
-    </div>
+    <!-- The startup still, drawn by the script the build puts after it: docs/ROOM.md › Startup. Every byte counts. -->
     <style>
       .tv-still {
         position: fixed;
         inset: 0;
         z-index: 5;
         overflow: hidden;
-        background: #0c0a14;
-        container-type: size;
+        padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+        background: #1c1a21;
         pointer-events: none;
         transition: opacity 400ms ease, visibility 0s 400ms;
-        --picture-left: calc(50cqw - 36.788cqh);
-        --picture-top: 14.549cqh;
-        --picture-width: 73.573cqh;
-        --picture-height: 55.145cqh;
+      }
+      .tv-still svg,
+      .tv-still i {
+        position: absolute;
+        inset: 0;
+      }
+      .tv-still text {
+        font-family: Helvetica, Arial, sans-serif;
+        font-weight: 600;
+        text-anchor: middle;
+        dominant-baseline: central;
+        white-space: pre;
+      }
+      .tv-still .o {
+        opacity: 0;
+      }
+      .tv-still:has([data-powered="true"]) .o {
+        opacity: 1;
+      }
+      /* The still's image, once it is in (still/inline.ts): each surface's piece of it over that surface's gradients,
+         and what the pieces have in them (the print, the jacks, the filament) no longer drawn. */
+      .tv-still .p {
+        inset: auto;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        background: var(--p) no-repeat;
+        opacity: 0;
+      }
+      .tv-still[data-image] .p {
+        opacity: 1;
+        transition: opacity 200ms;
+      }
+      .tv-still[data-image] .v {
+        display: none;
+      }
+      /* The picture's light: the drawing that has it takes --tube from the still, and nothing else does. */
+      @property --tube {
+        syntax: "<color>";
+        inherits: false;
+        initial-value: #000;
+      }
+      .tv-still .t {
+        --tube: inherit;
+        color: var(--tube);
+        mix-blend-mode: screen;
       }
       .tv-still[data-shown="false"] {
         opacity: 0;
         visibility: hidden;
       }
-      .tv-still__image {
-        position: absolute;
-        top: 0;
-        left: calc(50cqw - 118.421cqh);
-        display: block;
-        height: 100cqh;
-        user-select: none;
-      }
-      @media (orientation: landscape) and (max-height: 544.98px) {
-        .tv-still {
-          --picture-left: calc(50cqw - 71.423cqh);
-          --picture-top: 0.1cqh;
-          --picture-width: 133.615cqh;
-          --picture-height: 99.8cqh;
-        }
-        .tv-still__image {
-          left: calc(50cqw - 115.385cqh);
-        }
-      }
-      @media (orientation: portrait) {
-        .tv-still {
-          --pad: 0px;
-          --picture-left: 0.1cqw;
-          --picture-top: calc(50cqh - var(--pad) / 2 - 37.556cqw);
-          --picture-width: 99.8cqw;
-          --picture-height: 75.113cqw;
-        }
-        .tv-still__image {
-          top: calc(50cqh - var(--pad) / 2 - 86.154cqw);
-          left: 0;
-          width: 100cqw;
-          height: auto;
-        }
-      }
-      @media (orientation: portrait) and (pointer: coarse) {
-        .tv-still {
-          --pad: calc(228px + env(safe-area-inset-bottom, 0px));
-        }
-      }
       @media (prefers-reduced-motion: reduce) {
-        .tv-still {
+        .tv-still,
+        .tv-still[data-image] .p {
           transition: none;
         }
       }
@@ -196,6 +185,7 @@
         }
       }
     </style>
+    <div id="tv-still" class="tv-still" data-shown="true" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>

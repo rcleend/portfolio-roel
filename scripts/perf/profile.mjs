@@ -5,10 +5,15 @@
 //                                 [--query '&quality=low'] [--browser webkit] [--linger]
 //   node scripts/perf/profile.mjs --shots .perf/shots/after [--dist dist] [--device phone] [--query '&quality=low']
 //     screenshots instead: the same poses (the TV on a fixed game frame, the room, the computer, the radio) of any build.
-// Needs the GPU: headless Chromium on ANGLE/Metal here (PERF_GL=swiftshader forces software GL, which says nothing
+// Needs the GPU: headless Chromium on ANGLE/Metal here (PERF_GL=swiftshader forces software GL, which wants
+// --query '&host=room' too, a software renderer's visitor getting the résumé otherwise, and which says nothing
 // about a phone). Frame numbers come from scripts/perf/glProfiler.js, injected before the page's own scripts.
 // CPU throttling slows the main thread only, never the GPU: for a phone's GPU, read `pixels` (shaded per frame) and
-// the GPU time per megapixel together.
+// the GPU time per megapixel together. A slow GPU is stood in for with `--config '{"slowGpu":48,"slowBake":48}'`:
+// every frame's WebGL calls asked of the GPU 48 times, and every draw of the room's bake (which draws outside the
+// frames) 48 times; `"repeat":10` does the first inside each frame's timer, to lift it clear of the timer's noise
+// (glProfiler.js says how). The line printed first has what the bake did (`bake`: its profile, whether its units
+// had to be spaced out, the views, and how long the opening view and the whole room took it).
 import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
@@ -53,7 +58,6 @@ const TYPES = {
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
-  '.glb': 'model/gltf-binary',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain',
   '.m4a': 'audio/mp4',
@@ -361,6 +365,18 @@ try {
       await other.close();
     }
   }
+  result.bake = await page.evaluate(() => {
+    const made = window.__room?.stats.generatedStats;
+    return made
+      ? {
+          profile: made.profile,
+          deferred: made.deferred,
+          views: made.views,
+          shownWallMs: Math.round(made.shownWallMs),
+          bakeWallMs: Math.round(made.bakeWallMs),
+        }
+      : null;
+  });
   result.msaa = await page.evaluate(() => window.__perf.msaa.slice(-3));
   result.patched = await page.evaluate(() => window.__perf.patched);
   result.errors = errors;
@@ -374,7 +390,7 @@ if (out) writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
 if (flag('json')) console.log(JSON.stringify(result, null, 2));
 else {
   console.log(
-    `${deviceName} cpu×${cpu} ${result.renderer} load ${JSON.stringify(result.load)} msaa ${JSON.stringify(result.msaa)} patched ${JSON.stringify(result.patched)} errors ${JSON.stringify(result.errors)}`,
+    `${deviceName} cpu×${cpu} ${result.renderer} load ${JSON.stringify(result.load)} bake ${JSON.stringify(result.bake)} msaa ${JSON.stringify(result.msaa)} patched ${JSON.stringify(result.patched)} errors ${JSON.stringify(result.errors)}`,
   );
   for (const [name, v] of Object.entries(result.views))
     console.log(

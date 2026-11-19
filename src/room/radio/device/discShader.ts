@@ -2,7 +2,7 @@ import { DISC_RADIUS } from '../discLayout';
 
 /**
  * The compact disc's one shader program (docs/ROOM.md › The CD player). No three.js lights: the room's light is
- * baked, so the disc carries the three sources that matter by name — the lilac ambient, the lava lamp beside it and
+ * baked, so the disc carries the three sources that matter by name — the ink-blue ambient, the lava lamp beside it and
  * the moonlight from the window — tuned against the baked cabinet and wall next to the radio.
  *
  * - Label face: the print over silver foil (ink alpha 0 shows bare foil), lit, with a varnish highlight from the
@@ -31,17 +31,17 @@ export const TRACK_PITCH_NM = 1600;
 export const BLUR_FROM = 2 * Math.PI * 0.8;
 export const BLUR_TO = 2 * Math.PI * 2;
 
-/** Light the disc shows, *tunable* ±30 % (recorded here): lilac ambient, the lava lamp, the window's moonlight. */
+/** Light the disc shows, *tunable* ±30 % (recorded here): the room's ink-blue ambient, the lava lamp, the window's night. */
 export const DISC_LIGHT = {
-  ambient: [0.16 * 0.6, 0.14 * 0.6, 0.22 * 0.6],
+  ambient: [0.135 * 0.6, 0.15 * 0.6, 0.225 * 0.6],
   lampPosition: [0.49, 1.2, -1.97],
-  lampColor: [1.0 * 1.6, 0.42 * 1.6, 0.12 * 1.6],
+  lampColor: [1.0 * 1.6, 0.46 * 1.6, 0.12 * 1.6],
   lampFalloff: 0.3,
   moonDirection: normalize([-0.96, 0.24, -0.16]),
-  moonColor: [0.3 * 0.35, 0.38 * 0.35, 0.62 * 0.35],
-  /** The room in the foil's mirror, below and above the horizon (the ambient's lilac, darker and lighter). */
-  roomLow: [0.16 * 0.15, 0.14 * 0.15, 0.22 * 0.15],
-  roomHigh: [0.16 * 0.9, 0.14 * 0.9, 0.22 * 0.9],
+  moonColor: [0.26 * 0.35, 0.4 * 0.35, 0.64 * 0.35],
+  /** The room in the foil's mirror, below and above the horizon (the ambient's ink blue, darker and lighter). */
+  roomLow: [0.135 * 0.15, 0.15 * 0.15, 0.225 * 0.15],
+  roomHigh: [0.135 * 0.9, 0.15 * 0.9, 0.225 * 0.9],
   /** The lamp's spoke across the foil's tracks, and their rainbow; the room's broad sheen on the tracks. */
   spoke: 14,
   rainbow: 1.8,
@@ -183,7 +183,7 @@ vec3 grating(vec3 n, vec3 r, vec3 v, vec3 l, float orders) {
 
 /**
  * Light: plain diffuse; matte ink, which scatters a little past the terminator (the lamp wraps round, so the print
- * warms towards it); and the dark room in a mirror (lilac walls, lighter towards the ceiling, the lamp's glow on the
+ * warms towards it); and the dark room in a mirror (ink-blue walls, lighter towards the ceiling, the lamp's glow on the
  * wall around it).
  */
 const LIGHT = /* glsl */ `

@@ -1,5 +1,4 @@
-import type { Group, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
-import type { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { Group, Object3D, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
 import type { RadioPoseSolver } from '../camera/CameraRig';
 import type { Viewpoint } from '../camera/cameraPath';
 import type { InteractionHit } from '../interaction/Interactable';
@@ -8,16 +7,17 @@ import type { RenderLoop } from '../stage/RenderLoop';
 import type { ViewportSize } from '../stage/RoomStage';
 import type { RoomView } from '../viewState';
 import type { DiscSlot } from './discLayout';
+import type { GeneratedRadioDoor } from './partsProvider';
 import type { DeckState, DiscArt, RadioCueEvent, RadioIntent, RadioKey, RadioLayout } from './RadioDeck';
 import type { RadioModel } from './radioModel';
 
 /**
- * The seam between the radio's deck (RadioDeckHandle, the lazy `radioDeck` chunk, which the room chunk's RadioDoor
- * loads) and its lazy device (device/RadioDevice.ts, the `radioDevice` chunk). Types only: the device receives everything it uses from the
- * room through the host and the link, so the chunk imports no loaders or room state of its own.
+ * The seam between the radio's deck (RadioDeckHandle, which the room chunk's RadioDoor loads) and its device
+ * (device/RadioDevice.ts); both are the one lazy `radioDevice` chunk (deckChunk.ts). Types only: the device receives
+ * everything it uses from the room through the host and the link, so the chunk imports no room state of its own.
  */
 
-/** What the room gives the radio once its assets are assembled. */
+/** What the room gives the radio once it is assembled. */
 export interface RadioHost {
   readonly model: RadioModel;
   readonly rig: {
@@ -33,22 +33,21 @@ export interface RadioHost {
     readonly size: ViewportSize;
     /** The GPU is software (read once when the renderer was made: asking again would wait for the GPU). */
     readonly softwareGpu: boolean;
+    /** Compiles an object's programs for the target frames draw into, in the background (RoomStage.prepareAsync). */
+    prepareAsync(object: Object3D): Promise<unknown>;
+    /** Draws objects once out of sight, so no frame is the first to draw them (RoomStage.warm). */
+    warm(objects: readonly Object3D[]): void;
   };
   readonly views: { readonly view: RoomView; readonly moving: boolean; request(view: RoomView): void };
   readonly background: Pick<IdleWork, 'add'>;
-  readonly loader: GLTFLoader;
-  readonly assetBaseUrl: string;
   readonly anisotropy: number;
+  /** The generated room's radio (docs/ROOM.md › The generated room): the device takes its parts from it. */
+  readonly generated: GeneratedRadioDoor;
 }
-
-/** The close-up the device is made from, in the room's asset folder. */
-export const CLOSEUP_FILE = 'radio-closeup.glb';
 
 /** What the handle gives the device it loads: the motion preference, the disc count, and where to report. */
 export interface RadioLink {
   readonly reducedMotion: MediaQueryList;
-  /** The close-up's bytes, asked for beside the device's own chunk (else the device asks). */
-  readonly closeUp?: Promise<ArrayBuffer>;
   discCount(): number;
   readonly events: RadioDeviceEvents;
 }
@@ -59,19 +58,20 @@ export interface RadioDeviceContext {
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
   readonly renderer: WebGLRenderer;
-  readonly loop: Pick<RenderLoop, 'animate' | 'invalidate' | 'lastFrameTime'>;
+  readonly loop: Pick<RenderLoop, 'animate' | 'invalidate' | 'lastFrameTime' | 'ride' | 'paced' | 'ambient'>;
   /** Work ahead of need, never while anything moves (the radio's own motion included). */
   readonly background: Pick<IdleWork, 'add'>;
-  /** The room's GLTFLoader with its MeshoptDecoder. */
-  readonly loader: GLTFLoader;
-  /** Absolute URL of the room's asset folder. */
-  readonly assetBaseUrl: string;
   readonly anisotropy: number;
   /** The GPU is software: the slow tier and the smallest labels. */
   readonly software: boolean;
   readonly reducedMotion: MediaQueryList;
-  /** The stage canvas is on screen and the tab visible; its CSS size and pixel ratio. */
-  readonly stage: { readonly visible: boolean; readonly size: ViewportSize };
+  /** The stage canvas is on screen and the tab visible; its CSS size and pixel ratio; its compile and its warming. */
+  readonly stage: {
+    readonly visible: boolean;
+    readonly size: ViewportSize;
+    prepareAsync(object: Object3D): Promise<unknown>;
+    warm(objects: readonly Object3D[]): void;
+  };
   readonly views: { readonly view: RoomView; readonly moving: boolean };
   /** The settled pose at the radio for the current viewport and the slots it frames. */
   pose(): Viewpoint;
@@ -105,7 +105,7 @@ export interface DevicePick {
 }
 
 export interface RadioDevice {
-  /** Pixels of the device's own textures on the GPU (labels with mips, close-up atlas, LCD, and the 2K skin, which replaces the radio's 1K atlas). */
+  /** Pixels of the device's own textures on the GPU (labels with mips, the LCD). */
   readonly texturePixels: number;
   /** Ambient motion (the floating discs' idle) is scheduling frames. */
   readonly ambient: boolean;
@@ -122,10 +122,13 @@ export interface RadioDevice {
   setPointer(ndc: Vector2 | null): void;
   /** The camera set off for the radio at `at` (performance.now()). */
   approach(at: number): void;
+  /**
+   * The camera is about to set off for the radio: the discs' program is compiled now, and they are drawn once out of
+   * sight; resolves when no frame of the flight will be the first to draw them.
+   */
+  board(): Promise<void>;
   reveal(): void;
   conceal(): void;
-  /** A visitor showed intent (hover, focus, approach): the 2K skin may be uploaded. */
-  intent(): void;
   /** The slots or the pose changed (resize, disc count, insets): retarget resting discs. */
   relayout(): void;
   pick(raycaster: Raycaster): DevicePick | null;

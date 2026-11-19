@@ -29,7 +29,11 @@ const glArgs =
     ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
     : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
 
-const server = await createServer({ server: { port: 0, host: '127.0.0.1' }, logLevel: 'error' });
+// Without hot reload: an edit to the sources mid-run would reload the page under a recipe.
+const server = await createServer({
+  server: { port: 0, host: '127.0.0.1', hmr: false, watch: null },
+  logLevel: 'error',
+});
 await server.listen();
 const address = server.httpServer?.address();
 const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 5173}`;

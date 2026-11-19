@@ -98,22 +98,28 @@ export interface RadioLayout {
  * loads lazily (as the camera first leaves the TV, on a prefetch, or on the way to the radio).
  */
 export interface RadioDoor {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
+  /** False once the radio cannot work (its chunk failed, or the room could not be lit; warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
-  /** Starts loading the deck and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
+  /** Starts loading the deck and preparing the device; 'idle' does nothing under Save-Data. Idempotent. */
   prefetch(reason: 'idle' | 'intent'): void;
   /** The deck, importing its chunk on first call; rejects when the radio cannot work. */
   load(): Promise<RadioDeck>;
   /** The deck once `load` has brought it, else null. */
   readonly deck: RadioDeck | null;
+  /**
+   * The camera is about to set off for the radio for the first time and still rests where it is: `listener` makes the
+   * app's half ready (the player, its controls) and the camera waits for what it returns, a bounded moment, so none
+   * of that is mounted in the flight's frames (docs/ROOM.md › Flights). Returns its unsubscribe.
+   */
+  onBoarding(listener: () => Promise<unknown> | undefined): () => void;
 }
 
 export interface RadioDeck {
-  /** False once the radio cannot work (asset or chunk failed, warned once): it is scenery again and the overview's menu drops its Music item. */
+  /** False once the radio cannot work (its chunk failed, or the room could not be lit; warned once): it is scenery again and the overview's menu drops its Music item. */
   readonly available: boolean;
   onAvailableChange(listener: (available: boolean) => void): () => void;
-  /** Starts loading and preparing the device. 'intent' also uploads the 2K skin (§5.8). Idempotent. */
+  /** Starts loading and preparing the device; 'idle' does nothing under Save-Data. Idempotent. */
   prefetch(reason: 'idle' | 'intent'): void;
   /** Size to paint `DiscArt.label` at, fixed per page load once the room is ready. */
   readonly labelSize: 256 | 384 | 512;

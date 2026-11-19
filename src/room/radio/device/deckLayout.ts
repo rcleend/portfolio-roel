@@ -6,7 +6,7 @@ import { DISC_RADIUS, type DiscSlot } from '../discLayout';
 import type { DiscAnchor, RadioKey, RadioLayout } from '../RadioDeck';
 
 /**
- * The CD player's working parts as measured by the close-up build (tools/room/radio-closeup.json, glTF metres), and
+ * The CD player's working parts in world metres (the generator is held to them: gen/props/radio.test.ts), and
  * where its discs and keys land on the page when the camera rests at the radio, so the app's buttons, focus rings
  * and captions sit on them. Pure: a scratch camera at the settled pose.
  */

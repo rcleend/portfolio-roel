@@ -22,8 +22,8 @@ const CHARACTER_IDS: readonly CharacterId[] = characters.map((character) => char
 const SKILL_IDS = Object.keys(skills) as SkillId[];
 
 /**
- * Loads the art for `selection`: only the selected looks' modules and images
- * are fetched. Classic fills whatever part of a hero's attack or a skill a
+ * Loads the art for `selection`: only the selected looks' modules are fetched,
+ * each with its sheets' pixels in it. Classic fills whatever part of a hero's attack or a skill a
  * look leaves out; it is drawn in code, so that costs no download.
  */
 export async function loadLooks(
@@ -154,10 +154,10 @@ class LookLoader {
     contract?: SheetContract<A>,
   ): Promise<SpriteSheet<A>> {
     let sheet: SpriteSheet<string>;
-    if ('png' in source) {
+    if ('art' in source) {
       const spec = parseSpriteSheetSpec(source.json, `${name}.json`);
       if (contract) checkImageContract(spec, contract, `${name}.json`);
-      sheet = SpriteSheet.fromImage(await this.#assets.loadImage(name, source.png), spec, name);
+      sheet = SpriteSheet.fromImage(this.#assets.addImage(name, source.art), spec, name);
     } else {
       sheet = SpriteSheet.compile(source, name);
     }

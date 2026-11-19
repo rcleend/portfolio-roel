@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { differingPixels, trackErrors } from './helpers';
 import { postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
@@ -16,6 +16,8 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, he
 /** The camera lands this long after the request (CameraRig's FLIGHT_MS). */
 const LANDING = 1100;
 const FRAME = 16;
+/** A software renderer draws what it can (as `SIXTY_FRAMES` in helpers.ts allows it): held to no least frame rate. */
+const SOFTWARE_GPU = process.env.ROOM_GL === 'swiftshader';
 const stats = (page: Page) => page.evaluate(() => window.__roomLab?.room.stats);
 const log = (page: Page) =>
   page.evaluate(() => (window.__roomLab?.radio?.log ?? []).map(({ at, event, detail }) => ({ at, event, detail })));
@@ -73,12 +75,28 @@ async function inRoom(page: Page, query = ''): Promise<void> {
 }
 
 /** Flies to the radio at a known moment of the paused clock and returns it, once the GPU has its programs. */
+/**
+ * Sends the camera to the radio and returns the time it set off at, which is what the device's storyboard runs
+ * from. The first flight there waits for the discs to be made ready first (docs/ROOM.md › Flights): a few tasks,
+ * which under this paused clock take as many of its frames.
+ */
 async function goToRadio(page: Page): Promise<number> {
-  const start = await page.evaluate(() => {
-    window.__roomLab?.room.focusRadio();
-    return performance.now();
+  await page.evaluate(() => {
+    const room = window.__roomLab?.room;
+    const left = window as unknown as { __leftForRadio?: number };
+    delete left.__leftForRadio;
+    const stop = room?.onViewChange((view) => {
+      if (view !== 'radio') return;
+      left.__leftForRadio = performance.now();
+      stop?.();
+    });
+    room?.focusRadio();
   });
   await programsCompiled(page);
+  const left = () => page.evaluate(() => (window as unknown as { __leftForRadio?: number }).__leftForRadio);
+  for (let frames = 0; frames < 120 && (await left()) === undefined; frames++) await advance(page, FRAME);
+  const start = await left();
+  if (start === undefined) throw new Error('The camera never set off for the radio');
   return start;
 }
 
@@ -94,6 +112,43 @@ async function framesOver(page: Page, ms: number): Promise<number> {
   const before = (await stats(page))?.framesRendered ?? 0;
   await advance(page, ms);
   return ((await stats(page))?.framesRendered ?? 0) - before;
+}
+
+/**
+ * Holds the room nobody touches to its rest over a second of the paused clock (docs/ROOM.md › Frames › At rest; the
+ * clock hands out a display frame every 16 ms, one a step of it): the room says that exactly `moving` moves by itself
+ * (`discs`: the lab's unfinished room has no air, and the lava lamp is out of the radio's frame), draws no frame at
+ * all when that is nothing, and otherwise as many as what moves asks for, a whole number of display frames apart
+ * (thirty a second for the floating discs: every other frame of this clock's 62.5), never the display's own.
+ */
+async function expectRest(page: Page, where: string, moving: readonly string[]): Promise<void> {
+  const pace = (await stats(page))?.pace;
+  expect(pace?.pace, `the room's pace ${where}`).toBe(moving.length > 0 ? 'rest' : 'still');
+  expect([...(pace?.moving ?? [])].sort(), `what moves ${where}`).toEqual([...moving].sort());
+  const drawn = await framesOver(page, 1000);
+  if (moving.length === 0) {
+    expect(drawn, `frames drawn ${where}`).toBe(0);
+    return;
+  }
+  const asked = pace?.rate ?? 0;
+  expect(drawn, `frames a second ${where}`).toBeGreaterThanOrEqual(SOFTWARE_GPU ? 1 : asked * 0.8);
+  expect(drawn, `frames a second ${where}`).toBeLessThanOrEqual(asked * 1.2 + 2);
+}
+
+/**
+ * The most pixels that differ between any two of `shots` frames of the stage, `every` ms of the paused clock apart:
+ * 0 when nothing in the picture moves, however many frames were drawn meanwhile.
+ */
+async function pixelsMoving(page: Page, shots: number, every: number): Promise<number> {
+  const frames: Buffer[] = [];
+  for (let shot = 0; shot < shots; shot++) {
+    if (shot > 0) await advance(page, every);
+    frames.push(await page.locator('#stage canvas').screenshot());
+  }
+  let most = 0;
+  for (let i = 1; i < frames.length; i++)
+    most = Math.max(most, await differingPixels(frames[0] as Buffer, frames[i] as Buffer));
+  return most;
 }
 
 /** The centre of disc `index` on the page (its anchor). */
@@ -130,8 +185,10 @@ test('opens the lid on the storyboard and raises the discs by the landing + 1.4 
   expect((rises[0]?.at ?? 0) - start).toBeGreaterThanOrEqual(LANDING);
   // Each turns over in its own column, out in front of the radio.
   expect((flips.at(-1)?.at ?? Number.POSITIVE_INFINITY) - start).toBeLessThanOrEqual(LANDING + 1000);
-  // The choreography is over: only the ambient float draws now (30 a second; ≤ 31 in any second of frames).
-  expect(await framesOver(page, 1000)).toBeLessThanOrEqual(31);
+  // The choreography is over: the discs float (the device's ambient motion), and the room at rest draws for them
+  // alone, thirty frames a second.
+  expect((await stats(page))?.radioAmbient).toBe(true);
+  await expectRest(page, 'with the discs afloat', ['discs']);
   for (const cue of ['lid-push', 'lid-unlatch', 'lid-swing', 'lid-stop', 'power-on']) {
     expect(events.filter((entry) => entry.detail === cue)).toHaveLength(1);
   }
@@ -186,19 +243,22 @@ test('a disc seats, and its music starts, even when no frame is drawn (a hidden 
   expect(((await stats(page))?.framesRendered ?? 0) - before).toBeLessThanOrEqual(1);
 });
 
-test('the sharper skin goes up in strips and the radio stays lit under it', async ({ page }) => {
+test('the panel around the keys is lit and legible, and nothing of the radio is fetched', async ({ page }) => {
   const errors = trackErrors(page);
   const warnings: string[] = [];
   page.on('console', (message) => {
     if (/GL_INVALID|WebGL:/.test(message.text())) warnings.push(message.text());
   });
+  const fetched: string[] = [];
+  page.on('request', (request) => fetched.push(new URL(request.url()).pathname));
   await atRadio(page);
-  // On the paused clock the strips may wait for the float's rest (its idle callbacks give little time between frames).
-  const skinned = async () => ((await stats(page))?.radioTexturePixels ?? 0) > 2048 * 2048;
-  for (let waited = 0; waited < 15_000 && !(await skinned()); waited += 250) await advance(page, 250);
-  expect(await skinned()).toBe(true);
-  await advance(page, 100);
-  // The front panel around the keys: the skin's grey plastic, not black (a strip that fails leaves the texture empty).
+  // The radio is generated and lit with the room (docs/ROOM.md › The generated room): no close-up model, no skin.
+  expect(fetched.filter((path) => /^\/(room|startup)\//.test(path) || /\.(glb|gltf|ktx2|webp)$/.test(path))).toEqual(
+    [],
+  );
+  expect((await stats(page))?.radioReady).toBe(true);
+  // The front panel around the keys: lit grey plastic, not black (parts hung before their light was baked would be),
+  // with the keys' legends and grooves standing out of it.
   const keys = await page.evaluate(() => window.__roomLab?.room.radio.deck?.layout.keys);
   if (!keys) throw new Error('No key rects');
   const rects = Object.values(keys);
@@ -209,7 +269,12 @@ test('the sharper skin goes up in strips and the radio stays lit under it', asyn
   const png = await page.screenshot({ clip: { x: left, y: top, width: right - left, height: bottom - top } });
   const { channels } = await sharp(png).removeAlpha().stats();
   const mean = channels.reduce((sum, channel) => sum + channel.mean, 0) / channels.length;
-  expect(mean).toBeGreaterThan(40);
+  const contrast = Math.max(...channels.map((channel) => channel.stdev));
+  test.info().annotations.push({ type: 'key panel', description: `mean ${mean.toFixed(1)}, σ ${contrast.toFixed(1)}` });
+  // Measured 48 and 15 of 255 at 0e275c7; the bounds leave the room's light room to be tuned.
+  expect(mean).toBeGreaterThan(25);
+  expect(mean).toBeLessThan(140);
+  expect(contrast).toBeGreaterThan(6);
   expect(warnings).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -254,22 +319,47 @@ test.describe('frames at the radio', () => {
   // Half a minute of the page's clock, moved on a frame at a time: a busy machine needs longer than the default.
   test.describe.configure({ timeout: 90_000 });
 
-  test('rests at zero frames stopped, one a second playing, and floats at 30 or fewer', async ({ page }) => {
+  test('draws thirty frames a second for the floating discs and none at rest or playing, while only what should move does', async ({
+    page,
+  }) => {
     await atRadio(page);
-    // Attentive: the float, paced.
+    // Attentive: the discs float, and the room draws for them alone.
     await page.mouse.move(700, 500);
-    expect(await framesOver(page, 1000)).toBeLessThanOrEqual(31);
-    // Resting, empty player: nothing at all.
+    await advance(page, 100);
+    expect((await stats(page))?.radioAmbient).toBe(true);
+    await expectRest(page, 'with the discs afloat', ['discs']);
+    expect(await pixelsMoving(page, 3, 200), 'the float shows').toBeGreaterThan(0);
+    // Off screen the room asks for no frame at all, floating discs or not, and for theirs again once it is back.
+    const stageShown = (shown: boolean) =>
+      page.locator('#stage').evaluate((element, show) => {
+        if (show) element.style.removeProperty('display');
+        else element.style.display = 'none';
+      }, shown);
+    await stageShown(false);
+    // The browser says so in its own time (an IntersectionObserver), not the page's clock's.
+    await page.waitForTimeout(300);
+    await advance(page, 300);
+    expect(await framesOver(page, 1000), 'frames drawn off screen').toBe(0);
+    await stageShown(true);
+    await page.waitForTimeout(300);
+    await advance(page, 300);
+    expect((await stats(page))?.radioAmbient).toBe(true);
+    await expectRest(page, 'back on screen', ['discs']);
+    // Resting, empty player: the float has come to rest, nothing moves and no frame is drawn.
     await advance(page, 8000);
     expect((await stats(page))?.radioAmbient).toBe(false);
-    expect(await framesOver(page, 2000)).toBe(0);
-    // Playing: the seated disc is its radial average; only the LCD clock draws.
+    await expectRest(page, 'at rest', []);
+    expect(await pixelsMoving(page, 4, 500), 'pixels moving at rest').toBe(0);
+    // Playing: the seated disc is its radial average, one image however long it plays; nothing else moves either, so
+    // once the disc has seated the room draws nothing more.
     await page.evaluate(() => {
       const room = window.__roomLab?.room;
       room?.radio.deck?.setState({ loaded: 'mock-3', transport: 'playing', lcd: { kind: 'reading' } });
     });
     await advance(page, 9000);
-    expect(await framesOver(page, 2000)).toBeLessThanOrEqual(2);
+    expect((await stats(page))?.radioAmbient).toBe(false);
+    await expectRest(page, 'playing', []);
+    expect(await pixelsMoving(page, 4, 500), 'pixels moving while a disc plays').toBe(0);
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS + 1);
   });
 
@@ -282,35 +372,45 @@ test.describe('frames at the radio', () => {
         lcd: { kind: 'track', track: 1, seconds: 37, transport: 'paused' },
       }),
     );
-    // Past the float's rest, inside the 30 s of attention: the blink alone.
+    // Past the float's rest, inside the 30 s of attention: the blink alone, twice a second, on the LCD and nowhere else
+    // (103 × 29 CSS px here) and nowhere else.
     await advance(page, 10_000);
-    expect(await framesOver(page, 2000)).toBeLessThanOrEqual(4);
+    expect((await stats(page))?.radioAmbient).toBe(false);
+    const blinking = await pixelsMoving(page, 5, 250);
+    expect(blinking, 'the paused time blinks').toBeGreaterThan(0);
+    expect(blinking, 'and nothing but the LCD changes').toBeLessThan(12_000);
+    // Nothing moves by itself: the room draws the frames the blink asks for, two a second, and no other.
+    expect((await stats(page))?.pace, 'what the room draws by itself while the time blinks').toMatchObject({
+      pace: 'still',
+      moving: [],
+    });
+    const blinks = await framesOver(page, 1000);
+    expect(blinks, 'frames a second while the time blinks').toBeGreaterThanOrEqual(1);
+    expect(blinks, 'frames a second while the time blinks').toBeLessThanOrEqual(3);
     await advance(page, 25_000);
-    expect(await framesOver(page, 2000)).toBe(0);
+    expect(await pixelsMoving(page, 5, 250), 'pixels moving once the visitor has gone').toBe(0);
+    await expectRest(page, 'with the blink at rest', []);
   });
 });
 
 test.describe('with reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-  test('cuts to the open radio and draws nothing but changes of state', async ({ page }) => {
+  test('cuts to the open radio and shows nothing but changes of state', async ({ page }) => {
     await inRoom(page);
     const start = await goToRadio(page);
     await advance(page, 300);
     expect((await stats(page))?.radioLidDegrees).toBe(84);
-    // The fade's last frame, then the sharper skin swapping in once its strips are up at quiet moments (one frame,
-    // a change of state), then nothing.
-    const skinned = async () => ((await stats(page))?.radioTexturePixels ?? 0) > 2048 * 2048;
-    for (let waited = 0; waited < 1500 && !(await skinned()); waited += 100) await advance(page, 100);
-    expect(await skinned()).toBe(true);
-    // The frame that shows it.
-    await advance(page, 100);
-    expect(await framesOver(page, 2000)).toBe(0);
+    // The fade is over: nothing moves by itself, the picture stays as it is and the room draws no frame.
+    await advance(page, 400);
+    expect((await stats(page))?.radioAmbient).toBe(false);
+    expect(await pixelsMoving(page, 4, 500), 'pixels moving at the open radio').toBe(0);
+    await expectRest(page, 'at the open radio', []);
     const target = await disc(page, 0);
     await page.mouse.click(target.x, target.y);
     await advance(page, 400);
     // The disc seated in one frame, ▷II drawn pressed and released; now only the LCD's clock changes.
-    expect(await framesOver(page, 2000)).toBeLessThanOrEqual(2);
+    expect(await pixelsMoving(page, 3, 1000), 'pixels moving while the disc plays').toBeLessThan(12_000);
     const events = (await log(page)).filter((entry) => entry.at >= start);
     const seated = events.find((entry) => entry.event === 'seated');
     const pick = events.find((entry) => entry.event === 'intent');
@@ -353,19 +453,21 @@ for (const viewport of [
   });
 }
 
-test('becomes scenery when its close-up cannot load', async ({ page }) => {
+test('becomes scenery when its device cannot load', async ({ page }) => {
   const warnings: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'warning') warnings.push(message.text());
   });
-  await page.route(/radio-closeup\.glb/, (route) => route.abort());
+  // The radio's one lazy chunk (deckChunk.ts: the deck and the device); its parts are the generated room's.
+  await page.route(/\/radio\/deckChunk\.ts/, (route) => route.abort());
   await page.goto('/room-lab.html?clean&mockradio=1');
   await page.waitForFunction(() => window.__roomLab !== undefined);
   await page.evaluate(() => window.__roomLab?.room.ready);
+  // The lab asks for the deck at once (the app: as the camera first leaves the TV).
   await page.waitForFunction(() => window.__roomLab?.room.radio.available === false, null, { timeout: 20_000 });
   expect(warnings.filter((text) => text.includes('CD player could not load'))).toHaveLength(1);
   await page.evaluate(() => window.__roomLab?.room.showRoom());
-  await page.waitForTimeout(1300);
+  await page.waitForFunction(() => window.__roomLab?.room.view === 'room' && window.__roomLab.room.settled);
   // The radio in the room view is not a target any more: a click there is a click on the room.
   const anchor = await page.evaluate(() => window.__roomLab?.room.anchors.find((entry) => entry.target === 'radio'));
   if (!anchor) throw new Error('No radio anchor');
@@ -374,4 +476,9 @@ test('becomes scenery when its close-up cannot load', async ({ page }) => {
   await page.mouse.click(anchor.x, anchor.y);
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.__roomLab?.room.view)).toBe('room');
+  // Asked for all the same, the camera stays where it is and nothing more is said.
+  await page.evaluate(() => window.__roomLab?.room.focusRadio());
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__roomLab?.room.view)).toBe('room');
+  expect(warnings.filter((text) => text.includes('CD player could not load'))).toHaveLength(1);
 });

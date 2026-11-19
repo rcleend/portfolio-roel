@@ -11,9 +11,15 @@
 //   loaded (their own chunks plus the chunks only they share), JS and CSS together;
 // - radioDevice: the radio's lazy chunk (its deck and device, what the room's RadioDoor imports), minus the entry
 //   and the room chunk it imports three from; likewise propSpotlight (the props' glow and bounce) and posterWall;
+// - roomWorker: the worker that builds the room's geometry (src/room/gen/worker.ts: the generators, no three.js),
+//   which the room chunk starts as it is created; roomBuilder is the same generators as a chunk for the main thread,
+//   fetched only where a worker cannot be had. posterPainter is the posters' worker. Everything under src/room/gen but
+//   genKit.ts imports three's types only, so neither worker nor the builder carries three.js (checked here);
 // - RoomGuide: the room's hints, overview and labels (docs/ART-DIRECTION.md › The room's UI), JS and CSS.
 // - mousePlay: a level's mouse play (docs/ARCHITECTURE.md › Mouse play), the route planner and walker with it, fetched
 //   from the mission select.
+// - levelArt: every stage's pictures as pixels in code (docs/ARCHITECTURE.md › Art in code), one chunk the game imports
+//   as it loads, in place of the PNGs it used to fetch; it must import nothing, so the pictures stay out of the entry.
 // PcSlot, the glue that loads the computer's screen, is part of the entry; RadioSlot, the radio's, loads the first time
 // the camera leaves the TV. PcExperience, RadioSlot and RadioExperience must not
 // contain three.js (none of their files may be the room chunk or one it loads, nor carry three's names), and
@@ -22,7 +28,7 @@
 // game through src/game/world/nav/kit.ts instead).
 // A lazy row whose source file does not exist (yet: another branch adds it) is reported as absent, not failed.
 // Exits non-zero on any overrun, or when something it must measure is missing.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -42,7 +48,9 @@ const LAZY_CHUNKS = {
   posterWall: { source: 'src/room/posters/PosterWall.ts', three: 'room' },
   RoomGuide: { source: 'src/app/guide/RoomGuide.tsx', three: 'none' },
   propSpotlight: { source: 'src/room/spotlight/Spotlight.ts', three: 'room' },
+  roomBuilder: { source: 'src/room/gen/scene.ts', three: 'room' },
   mousePlay: { source: 'src/game/scenes/level/mouse/MousePlay.ts', three: 'none', standalone: true },
+  levelArt: { source: 'src/game/levels/art/pictures.ts', three: 'none', standalone: true },
 };
 
 const { budgets, baseline } = JSON.parse(readFileSync(join(ROOT, 'bundle-budgets.json'), 'utf8'));
@@ -83,6 +91,39 @@ for (const [name, { source, three, standalone }] of Object.entries(LAZY_CHUNKS))
   const imports = manifest[source].imports ?? [];
   if (standalone && imports.length > 0) problems.push(`${name} imports ${imports.join(', ')} at runtime`);
 }
+
+// Workers are emitted as assets, outside the manifest: each is named by the chunk that starts it.
+const WORKERS = { roomWorker: room?.file, posterPainter: manifest['src/room/posters/PosterWall.ts']?.file };
+const workerFiles = readdirSync(join(DIST, 'assets')).filter((file) => /^worker-.*\.js$/.test(file));
+for (const [name, starter] of Object.entries(WORKERS)) {
+  const code = starter ? await readFile(join(DIST, starter), 'utf8') : '';
+  const file = workerFiles.find((candidate) => code.includes(candidate));
+  if (!file) {
+    problems.push(`${name}: no worker is started by ${starter ?? 'a chunk missing from the build'}`);
+    continue;
+  }
+  rows.push(row(name, await gzipped([`assets/${file}`]), budgets[name]));
+  if ((await readFile(join(DIST, 'assets', file), 'utf8')).includes('THREE.'))
+    problems.push(`${name} contains three.js`);
+}
+
+// The résumé page of a visitor without a GPU (scripts/gatePlugin.ts) is built apart and emitted as an asset: all that
+// visitor runs, so it must stay markup and a few lines, with nothing of the site in it.
+const cvFile = readdirSync(join(DIST, 'assets')).find((file) => /^cv-.*\.js$/.test(file));
+if (cvFile) {
+  rows.push(row('cvPage', await gzipped([`assets/${cvFile}`]), budgets.cvPage));
+  const found = await threeIn([`assets/${cvFile}`]);
+  if (found) problems.push(`cvPage contains three.js (${found})`);
+} else problems.push('cvPage: the résumé page’s script is missing from the build');
+// The built page as the gate needs it (docs/ROOM.md › No GPU): nothing of the site named in the markup, where the
+// browser would fetch it before the gate has run; the gate ahead of the stylesheet, so it runs while that loads.
+const page = await readFile(join(DIST, 'index.html'), 'utf8');
+if (/<script type="module"[^>]* src=|<link rel="modulepreload"/.test(page))
+  problems.push('index.html names a module in its markup: a visitor without a GPU would fetch it');
+const gateAt = page.indexOf('<script data-site=');
+if (gateAt < 0 || gateAt > page.indexOf('<link rel="stylesheet"'))
+  problems.push('index.html: the startup gate must stand in the head ahead of the stylesheet');
+if (cvFile && !page.includes(`assets/${cvFile}`)) problems.push('index.html does not lead to the résumé page’s script');
 
 console.table(Object.fromEntries(rows.map(({ name, ...rest }) => [name, rest])));
 for (const { name, size, budget } of rows)

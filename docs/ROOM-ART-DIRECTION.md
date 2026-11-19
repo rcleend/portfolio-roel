@@ -1,36 +1,237 @@
-# After hours — room asset revision 6
+# After hours — the room's art direction
 
-The room keeps its composition, attic shell, furniture, electronics, guitar and game
-cases, with improved finishes, edge treatment and night lighting. The floor pillow,
-ceiling beams and the old wall posters/cards are removed. A supplied folded rug replaces the old rug.
-The walls and the sloped ceiling are decorated as a 2007 teenager's attic (§ Posters).
+A teenager's attic bedroom on a rainy evening, after dark, some time around 2007. The lamps are on low, the game on
+the television is paused, the lava lamp is turning over and rain runs down the window. Nobody is in the picture, and
+somebody just was.
 
-Browser captures from the room lab, with the same camera and test picture:
+This document is the room's art bible: the picture every part of the room is held to, and why. A prop, a surface, a
+light or a poster is right when it serves this picture, not when it is good by itself. How the room is made is in
+[ROOM.md](ROOM.md) › The generated room: every prop is a function in `src/room/gen/props/`, every surface a function
+in `src/room/gen/materials.ts`, the light a table in `src/room/gen/rig.ts` that the visitor's GPU bakes once, the
+finish a handful of numbers in `src/room/atmosphere/moods.ts`, and the posters are paintings in
+`src/room/posters/paint/`. No model, texture or image is shipped. A change to the look is a change to that code.
 
-| Before | After |
+Five words decide every question: **nostalgic, warm, cosy, slightly dusty, dark and rainy.**
+
+## The story
+
+It is Roel's room under the roof, as he remembers it: the room where he taught himself to make things. Everything in
+it belongs to one of three loves, and each love is one of the site's doors.
+
+| Love | Its corner | What stands there | The door |
+| --- | --- | --- | --- |
+| Games | The television on its white cabinet, against the knee wall | A black CRT set, a console and two pads on the floor, a game case, a bare bulb and an opal lamp either side | Play game |
+| Computers | The desk under the window | A beige CRT monitor, keyboard, mouse and tower, an arm lamp, a mug, a plate | About me |
+| Music | The pine dresser and the wall above it | A boombox and his own CDs, a lava lamp, a guitar on its stand, a band's posters | Music by me |
+
+It is a memory, so it is a little warmer, a little softer and a little dustier than the room was. Things have stood
+where they stand for years: the rug's corner has been kicked over and left, paper missed the basket, the posters went
+up one by one and overlap. Nothing is broken, dirty or sad. The night and the rain are outside; inside is lamplight.
+
+## The colour script
+
+Two families, and one rule between them.
+
+- **Warm is inside**: lamplight and what it touches. Tungsten amber, from the deep orange of the dimmed bare bulb and
+  the lava lamp, through the desk lamp's amber, to the opal globe's warm cream. Never pink, never lemon.
+- **Cool is outside**: the rain, the night through the window, and what the room keeps of them in its shadows. Slate
+  blue to ink blue. Never violet or magenta, never neon cyan.
+- **The rule: value decides temperature.** What is lit is warm and what is in shadow is cool. The darks are ink blue,
+  never neutral black and never brown; the lights are amber and cream. Only two things are bright and cool: the patch
+  the window throws past the desk, and a screen's own picture.
+
+The proportions in the overview are about two thirds cool and dark to one third warm and lit, and the warm third owns
+the brightest values. A warm pool always falls off into cool shadow within the frame, so every view has both.
+
+| | Where it sits |
 | --- | --- |
-| ![Original room](room/before.webp) | ![Restyled room](room/after.webp) |
+| Darkest values | The ridge and the left wall's top, the black plastics (the set, the boombox, the console), under the desk. Ink blue, never crushed to nothing over an area: a dark wall still shows its boards. |
+| Brightest values | The emitters themselves (the globe, the filament, the wax, the desk lamp's bulb, the two screens), then the surface right under each lamp, then paper and white enamel in fill. Nothing else. |
+| Most saturated warm | The lava lamp's wax and its pool on the dresser: the one loud warm note. The bare bulb's filament second. |
+| Most saturated cool | The chair's petrol cloth and the rug's navy: accents, both a step under the lava's saturation. The night in the glass. |
+| Quiet | Walls, ceilings, floor and furniture are low in saturation: they take the colour of the light on them. |
+| The screens | A picture is light and content: it keeps its own colours and contrast whatever the room's grade (ROOM.md › Atmosphere). |
+| Whites and blacks | Whites are aged: cream enamel, ivory plastic, oatmeal wool; no surface is paper white but paper. Blacks are plastic with a cool sheen, never a hole. |
 
-Clicking the computer or its desk seats the camera straight in front of the monitor, where the
-app's live desktop replaces the baked screen picture (a capture from the app itself; see
-[PC.md](PC.md) for what it shows and [ROOM.md](ROOM.md) for how the monitor hands over to it):
+The finish (`moods.ts` › `rose`, Velvet dusk) says the same thing in numbers: shadows are tinted ink blue with a
+breath of violet, highlights amber, the bloom and the lamps' air amber, the window's air rain blue.
 
-| At the computer |
-| --- |
-| ![The beige CRT seen straight on, showing an original early-2000s-style desktop](room/pc.webp) |
+## Value and focus, view by view
 
-Clicking the radio, its cabinet or the lava lamp sits the camera over the CD player with its lid open and the
-collection floating above it (a capture from the app itself, at rest, with one of the five original placeholder
-albums spinning in the well; see [RADIO.md](RADIO.md) for the player and [ROOM.md](ROOM.md) › The CD player for
-the device):
+Each view is one picture with one thing to look at first. The eye goes to the brightest, most contrasted, most
+saturated place, so those three are spent where the view's subject is and held back everywhere else.
 
-| At the CD player |
-| --- |
-| ![The boombox on the cabinet with its CD lid open, a disc spinning in the well and four printed CDs floating above](room/radio.webp) |
+| View | First | Second | Third | Held back |
+| --- | --- | --- | --- | --- |
+| The television (the opening view) | The picture on the tube | The bare bulb's filament and its pool on the cabinet top, left | The plant in the opal lamp's light, right | The set itself (black on a wall a step lighter, so its outline reads), the wall (a quiet gradient, warm low by the lamps to ink blue above), the cabinet's front |
+| The room (the overview) | The desk corner: lamp, monitor, the window's rain | The lava lamp's pool and the boombox | The television and its two lamps | The rug (large, near and patterned, so it is kept dark and aged), the blind (large and pale, so it is lit only by what is in the room), the slope's posters, the left wall, the floor's far corners |
+| The computer | The screen | The warm sill and blind slats, left | The night in the glass, right | The bezel: aged ivory, warm and soft, darker to its edges |
+| The CD player | The discs and the panel's display | The lava lamp's amber on the dresser top, left | The lid and the deck's keys | The wall, falling from amber at the left to ink at the right |
+| Flights | No frame of a flight is a different film: the same pools in the same dark, whatever the camera passes |
 
-| Rebuilt desktop peripherals | Original basket with supported papers |
-| --- | --- |
-| ![Beige CRT, full-size keyboard and wheel mouse](room/desktop-detail.webp) | ![Basket clear of the desk, with papers reaching its base](room/basket.webp) |
+On a phone held upright the television's view is the picture with wall above and the cabinet's front below, and the
+overview is the television's corner over the rug: there the rug is nearly half the frame and carries the site's name
+in white, so its near squares lie in shadow.
+
+## The light
+
+Every light has a job and a reason to be there. A light nothing in the room explains is cut or handed to something
+that does explain it. Colours are the rig's (scene-linear, before the display curve, which deepens them).
+
+| Light (`rig.ts`) | Job | Colour | What it is |
+| --- | --- | --- | --- |
+| `desk`, `desk-wall`, `desk-fill` | Key of the desk corner | Tungsten amber | The arm lamp's bulb under its shade, the glow it throws on the wall beside it, and what the lit desk and blind send back down on the keyboard |
+| `lava`, `lava-spill` | Practical and accent; key of the CD player's view | Deep orange | The lava lamp: a small pool on the dresser's top and the wall, a breath of it across to the cabinet's end |
+| `opal` | Key of the television's corner | Warm cream | The opal globe: the cabinet top, the plant, the wall, the set's right flank |
+| `bulb` | Practical; the opening view's second read | Deep amber, dim | The bare bulb turned most of the way down: a pool a hand wide, a crisp shadow of the set |
+| `moon`, `moon-through-blind`, `moon-on-blind` | Cool key from outside: the patch past the desk, a rim on the chair and the desk's end | Rain blue | The night sky and the street behind the tree, through the lower sash and, a third of it, through the slats |
+| `blind-scatter`, `fill` | Cool fill | Slate blue | What the pale blind and the left wall give back of the window's light |
+| The television (`tv-glow`, and the picture every frame) | A coloured key on the boards and the console before the set | The picture's own | The tube: a standing dim blue in the bake, and the picture of the moment on top of it (ROOM.md › The TV's light) |
+| `crt` | Small cool fill on the keys | Screen blue | The monitor |
+| `pool`, `bounce`, `floor` | Warm fill: the room's own bounce | Dim warm | What three lamps and a lit oak floor send round the room; it stands in for indirect light and is kept well under any lamp's own pool |
+| `ambient` | Ink in the shadows | Blue from above, warm brown from below | The night's sky light through the window and the floor's bounce; it is what a shadow is made of |
+| `blind` | The blind's face | Dim warm | The room's own light on the slats |
+
+The lamps are the keys; the window is the cool counter-key; the fills are dim enough that turning one lamp off would
+visibly darken its corner. There is no light from nowhere: the old overhead pool, a lilac light with no fitting, is now
+the lamps' bounce.
+
+## Material families
+
+Things made of the same stuff answer the light the same way, whoever built them. One family, one response; a prop
+varies within its family by a little hue and a little age, never by a different idea of the material.
+
+| Family | Where | Colour | Response |
+| --- | --- | --- | --- |
+| Painted wood | Desk, television cabinet, window casing, skirting, door frame, blind slats | Cream enamel, a little yellowed; the television's cabinet the same paint in putty, a few shades deeper, so its corner stays dark around the picture and its top is not burnt out by the two lamps standing on it | Satin: a soft broad reflection of the lamps, brush grain and orange peel only at arm's length. Edges eased so they catch a lamp. |
+| Bare and stained wood | Oak floor, pine dresser, window sill, the guitar's neck, the door | Warm browns: oak red-brown, pine honey, the sill and door darker | Varnished: the floor mirrors the lamps most, furniture half as much. Grain is quiet and runs the right way; boards differ a little from one another. |
+| Plastic of the era, ivory | Monitor, keyboard, mouse, tower | One aged ivory, the keys' two tones either side of it | Matte moulded ABS: no gloss, soft form shading, a faint texture. All four read as bought together. |
+| Plastic of the era, black | Television, console, pads, boombox shell, game cases | Near black with a cool cast | Satin: a sheen from the screens and the window, the form shown by its edges. The set mirrors its own picture in its lip. |
+| Plastic, silver | The boombox's panel and keys | Cool silver paint | Satin, brighter than the black around it, never chrome. |
+| Fabric | Chair cloth, rug wool, speaker cloth | Petrol blue; navy and oatmeal; charcoal | Matte, no reflection. Form by soft shading; pile and weave only at arm's length. Dark wool shows its nap. |
+| Metal | Lamp arm and springs, chair's lift and base, guitar hardware, window fasteners, basket wire, lava lamp's foot and cap | Zinc, nickel, worn brass, painted wire, anodised aubergine | Restrained: lighter and darker along a form, a small highlight; never mirror chrome. |
+| Glass | The window, the bulb, the lava bottle, the two tubes | Clear | Only what it reflects and what shines through it: a film of light, rain beads, a tube's sheen. |
+| Ceramic and concrete | Mug, plate, plant pot, the bulb lamp's base | Stoneware cream, cast grey | Matte with a soft speck; the pot and the mug are of one shelf. |
+| Paper | Posters, the sheet and the crumpled balls, books, game covers, the corkboard's notes | Paper white under ink | Matte; sits in the wall's light, never brighter than a white surface beside it would be. Gloss sheets have a faint sheen. |
+| Plaster and painted boards | Walls (slate blue beadboard), ceilings (cream plaster) | Quiet | Matte, slow unevenness, the boards' grooves. They are the stage: they take the light's colour and keep out of the way. |
+
+## Shape and detail
+
+- **How stylised.** A carefully made miniature: true proportions and real construction (a drawer has a gap, a lamp
+  has springs), simplified where the eye does not go. Stylised realism: not flat-shaded low poly, not a scan.
+- **Edges.** Nothing is knife-sharp. Furniture is eased 2–6 mm, moulded plastic 1–2 mm, cloth and pottery are soft all
+  over. An edge exists to catch a lamp.
+- **Where detail goes.** At silhouettes and at what a hand touches: keys, knobs, switches, handles, hinges, legends.
+  Broad faces stay quiet: a texture on a wall, a floor or a cabinet front moves its value by a few per cent, no more.
+- **Wear and dust.** Slight, and the same everywhere: paint with a brush's unevenness, wool that has been walked on, a
+  rug corner left turned over, tape on the posters, a ring where a mug stood. Dust is in the air, in the lamps' light,
+  not as dirt on things. No scratches, stains, chips, rust or grime.
+- **Density.** One texel density per kind of surface (walls 5 mm a texel, floor and furniture under 3 mm, the rug and
+  small furniture finer; half of each below the top tier) and one level of modelled detail: a prop is built to be seen
+  at arm's length, and no prop is built finer than the one beside it.
+- **Graphics.** Legends are plain words in the site's faces; the wordmarks are the site's own. Posters are bold
+  shapes in a few colours each, which hold at the wall's density and at a phone's size.
+
+## Atmosphere
+
+- **Haze.** A little: the lamps and the window light the air near them (amber round each lamp, rain blue in the
+  window's slant), never a fog over the room. It separates the corners in depth and is where "dusty" lives.
+- **Dust.** Fine motes drifting slowly, seen in the lamps' light, sparse (the app runs 30 % of the finish's own).
+- **Rain.** On the glass: beads and slow trails that refract the night outside; the tree's crown and a few lit leaves
+  behind. The storm's flashes are rare, cool and from outside.
+- **Bloom.** Only light blooms: the globe, the filament, the wax, the desk bulb, a screen's brightest pixels. A lit
+  surface does not glow and a dark corner never fogs.
+- **The grade.** Split tone: ink blue with a breath of violet into the shadows, amber into the lights, saturation a
+  little under full, the exposure of a night interior. A vignette darkens the corners, where the page's type sits.
+  Screens are graded at an eighth of that, so their pictures stay what the game and the desktop drew.
+
+## Tiers and framings
+
+The picture is the same on every quality tier and in both framings; a tier gives up pixels, texel density, samples of
+soft shadow and modelled detail, never a light, a colour or an effect (ROOM.md › Quality). What that asks of the art:
+
+- Nothing in the look may depend on fine, high-contrast detail. The blind's slats, the beadboard's grooves, the
+  floor's seams and the keys are the finest patterns in the room; each is kept low enough in contrast that it does not
+  shimmer on the lowest tier, where nothing is multisampled.
+- The lowest tier bakes soft shadows from half the samples: lights are sized and placed so that a penumbra in fewer
+  steps still reads as soft.
+- A view's first read must hold in an upright phone's crop, where the lamps beside the television are out of frame
+  and the rug is half the overview.
+
+## The room, part by part
+
+- **Room.** 5.6 m × 4.8 m, 3.28 m high on the left, the ceiling sloping down to a 1.88 m knee wall on the right.
+  Slate-blue painted beadboard walls with a cream skirting, cream plaster ceilings, a door behind the camera. The
+  floor is oak boards with small seams and restrained grain. The window has a narrow cream casing, a deep stained
+  sill, two sashes and a venetian blind let halfway down, its slats nearly shut; rain runs down the glass, and behind
+  it a tree's crown stands against the night sky, a few leaves catching the street's light.
+- **Furniture.** A white desk under the window (a frame leg at the left, a three-drawer unit at the right), a
+  honey pine dresser with a drawer and two panelled doors against the back wall, and the putty TV cabinet against
+  the knee wall (two drawers, two open shelves, a low plinth). Enamel and wood; edges are eased so they
+  catch the lamps.
+- **Rug.** A 2.35 m square of navy and oatmeal checks with a soft pile, turned 15° clockwise, the corner nearest the
+  TV rolled back to show its jute backing. An old wool rug: the pale squares are aged, not white, so the largest
+  pattern in the room stays under the lamps' pools in value. Straight checks; no coloured or diagonal patches.
+- **Chair.** A swivel chair in petrol cloth on a gas lift and a five-armed base on castors, facing the desk.
+- **Desktop.** An ivory CRT monitor on a swivel foot, a two-tone full-size keyboard with every key and a wheel mouse
+  on a mat; an ivory tower with two drive bays under the desk and a jointed arm lamp. The screen is a separate glass
+  the app paints ([PC.md](PC.md)).
+- **Television.** A black ABS set of its years: a front shell with soft squared corners and a face crowned a few
+  millimetres, a steep lip down to the glass, a chin whose lower edge hangs in a shallow smile, domed keys under
+  printed legends, a smoked remote window, three front jacks standing in a well, speaker louvres in the sides, a
+  plinth on rubber pads, and behind the seam a rear cover that narrows to the tube's neck under a slotted hood. Its
+  wordmark is the site's own, on a low badge. The glass is a separate mesh with the CRT shader.
+- **TV cabinet top.** At the set's right an opal globe lamp on a round metal foot and a 21 cm plant in an ivory
+  pot, broad dark leaves with a paler midrib; at its left a bare-bulb lamp of today turned most of the way down (a
+  plain cast concrete cylinder, a smooth matte black socket, a clear bulb whose cage filament glows orange, a grey
+  cloth flex with a small pale inline switch).
+- **Console.** On the floor in front of the cabinet: a slim black console of its years, a design of its own with
+  the room's wordmark, two pads on their cables, a memory card and a game case beside it.
+- **Game cases.** With covers made for this room: Powder Rush, Crown & Key and Brick Galaxy, the games the posters
+  advertise.
+- **CD player.** A portable radio cassette CD deck of the nineties, drawn for this room: two speaker pods with
+  louvred fronts either side of a silver panel (a display lens, a round transport cluster, a tuning dial, a chin of
+  switches), a cassette deck and the CD lid on its sloping top, a folded handle and an aerial. It carries no brand:
+  its wordmark is the site's and its legends are plain words. Under the lid: a ribbed underside, a well with a dark
+  turntable, a pickup and the slot the discs rise from, dark at night so the lamp-lit disc is the bright subject.
+  The discs are drawn, not baked: silver foil that reflects the dark room and draws the lava lamp's spoke and
+  rainbow across its tracks, matte ink under a varnish glint and a smoky hub, so plain silver discs already read as
+  CDs in the night palette rather than as stickers. Their data side, which faces the camera as they rise and go
+  home, is a lit silver mirror with a polished rim, never a flat grey. Prints are a CD's, not a record's grooves.
+- **Lava lamp.** An hourglass foot and a cone of a cap in anodised aubergine metal, dark enough that the wax is the
+  only bright thing about it; the wax rises, necks, merges and parts on slow clocks that never repeat within a
+  visit.
+- **Guitar.** A cream double-cutaway electric on a tripod stand between the dresser and the TV: a white scratch
+  plate with three pickups, a maple neck with a rosewood board.
+- **Wastepaper and clutter.** A wire basket by the wall with crumpled sheets in it and around it and one flat sheet
+  beside it; books on the desk and three big ones stacked on the floor by the dresser; the radio's mains lead.
+
+## Posters
+
+The walls are covered with what the room's owner loved. Twenty-nine printed pieces and a corkboard, all original and
+fictional, made for this room and painted in code ([ROOM.md](ROOM.md) › Posters lists them): one band, The Loud
+Hours, across a poster, a tour banner, an album print and a ticket stub; the three games on the room's own shelf as
+shop posters and three more that never existed; a star chart, a patent drawing, a blueprint, a travel print, film
+sheets, flyers and stickers.
+
+- **Composition:** a focal music corner above the dresser with pieces overlapping; an uneven frieze over the
+  window; a store promo left of the window above a corkboard of pinned, overlapping pieces; and on the slope film
+  sheets and folded magazine pull-outs up to the ridge. Nothing on the knee wall, nothing near the window casing
+  and nothing in the resting TV, PC or radio frames.
+- **Physical detail:** every sheet has its own masking tape (cream on the back wall, white paper tape on the pale
+  slope) with the small shadow under it; overhangs ramp down from the card to the wall. Paper sits
+  1 + 0.75 · n mm off the wall by layer, with a contact shadow (the skirt) multiplied onto the wall around it. The
+  pull-outs keep their folds, corners curl away from the light, gloss sheets have a sheen, the cork has grain and
+  pins.
+- **In the room's light.** A poster is paper on a wall and is lit as the wall is: the night's light is painted into
+  the pieces (`posters/wall/light.ts`) in the room's own two families: a dim warm fill right of the window where the
+  lamps' bounce reaches, cooler and dimmer left of it, the lava lamp's amber pool under the music corner, and the
+  slope fading from the knee wall up to the ridge. No poster is brighter than white enamel in the same place would
+  be, and none is a light.
+- **Designs:** bold shapes and headline type in a handful of colours each, in the site's three faces. At the
+  wall's density a millimetre is about half a texel, so small print is there to read as small print. As a wall they
+  are the room's one place for many colours, which is why each sheet keeps to a few and the room's light is what
+  ties them together.
 
 ## Reference study
 
@@ -51,200 +252,55 @@ contact shadows, reflected light and warm/cool separation make individually diff
 objects feel like a single scene. Its renderer does not rely on expensive runtime
 shadow maps or a postprocessing stack for that appearance.
 
-| Aspect | Previous room | Revision 6 |
-| --- | --- | --- |
-| Material language | Worn scans, noisy paint, glossy electronics and flat props | Cream enamel, oak/walnut, muted teal cloth, slate ABS and restrained brushed metal |
-| Surface detail | Strong scan grain and small wear marks competing with the silhouettes | Restrained furniture grain, natural floor fibers, quiet paint and readable original labels |
-| Geometry | Sharp furniture, a flat photographed floor and faceted chair | Metre-scale edge radii, shallow bevelled floorboards, welded and smoothed upholstery and a rebuilt retro desktop |
-| Lighting consistency | Baked furniture with independently lit PBR devices | One Cycles lighting setup baked across furniture **and all four devices** |
-| Night atmosphere | Dark blue shadows with warm pools from the lamps | Original night colors and local practical lights, with much dimmer broad fills and world illumination |
-| Contact and depth | Device lighting did not match its baked contact shadow | Device shading, soft contact shadows and surrounding bounce share a light source |
-| Texture fidelity | Different texture densities and multiple PBR channels per device | Dedicated 2K TV-front/PC atlases, 1K TV-rear/radio/PS2 atlases, density allocated to visible details |
-| Runtime cost | Environment capture and multiple live lights for imported devices | Unlit static assets; one hemisphere for moving lava/glass; existing CRT glow |
+What the room takes from it:
 
-## Specific treatments
-
-- **Lighting:** the original nighttime colors and local practical lights are preserved.
-  World illumination is reduced to 12% of the original and broad blue fills to about
-  10%, keeping the ceiling and corners in deep shadow. Narrow window highlights,
-  the desk's tungsten light and the lava lamp's amber glow stand out against that
-  darkness. Furniture and electronics share the same bake. AgX contrast and exposure
-  remain at the original settings.
-- **Room:** the same wall and ceiling geometry gets matte, muted plaster and cream trim.
-  Wooden ceiling beams and the old wall posters, cards and masking tape are removed; the
-  decorated walls (§ Posters) are a separate lazy layer baked in the same light.
-  The original floor's footprint and top height are preserved while its mesh becomes
-  shallow oak boards with small seams and rounded edges. The original wood scan adds
-  natural grain and pores while the new floor's warm oak colors remain.
-- **Furniture:** the original desk, dresser and TV cabinet retain their proportions and
-  placement. Shared cream paint and wood finishes replace unrelated scans and wear.
-  All four desk drawer fronts use the desk's white enamel; their original handles remain.
-  Six-millimetre furniture bevels and smaller trim bevels make edges catch light.
-- **Rug:** the supplied Sousinho rug keeps its original folded mesh and backing. It
-  becomes a 2.3514 m square, matching the old rug's width, and rotates 15° clockwise.
-  The folded corner remains nearest the TV. A new plush geometric textile follows
-  the user's reference palette of teal, aqua, mustard, rust, green, ivory and charcoal.
-  The pattern covers the top; the folded underside remains plain woven backing.
-- **Chair:** petrol upholstery uses a fine, low-amplitude weave. Welding its UV-split
-  vertices before subdivision avoids cracks between imported triangles; its original
-  silhouette remains recognizable. The floor pillow is removed from the exported scene.
-- **Electronics:** the TV, radio, PS2 and controllers keep their source models,
-  controls, labels and logos. The TV keeps its original printed color and grille detail,
-  with reduced normal-map strength and a consistent satin casing response. Its imported
-  split normals are repaired and its continuous source UVs retained before packing.
-  All static surfaces are baked in the room.
-  The TV front has its own 2K atlas for the opening close-up; the rear uses 1K.
-  Screens remain separate and replaceable.
-- **Furniture and lamps:** the TV cabinet, desk, desk lamp, static lava housing and
-  window use continuous area-weighted normals across imported seams, with a 50° crease
-  limit preserving the actual corners. Tiny cabinet wear flecks share its enamel finish.
-  The round lamp housings use continuous cylindrical UV strips with seams at the back,
-  eliminating the fragmented triangle islands that left vertical smudges on the metal.
-  Four shared atlases bake at 4K / 128 samples and reduce to the existing 2K sizes, cleaning
-  rough bevels and smudged highlights without adding runtime materials or lighting.
-  Wood grain, window blinds and the animated lava retain their character.
-- **Desktop:** a new beige CRT monitor, two-tone full-size keyboard and wheel mouse
-  are modelled from public views of FaceTheEdge's
-  [90s PC desktop style 002](https://sketchfab.com/3d-models/90s-pc-desktop-style-002-ec97f236db9342d0802a3ab75cf4da4b).
-  The reference is not downloadable; this is an original lightweight reconstruction,
-  with no extracted geometry or texture maps. Broad bevels, a deep tapered shell,
-  recessed controls and a low swivel foot define the monitor. The existing tower
-  under the desk remains; no second system unit is added. Desktop cables and floppy
-  disks are removed. The existing screen mapping and desk interaction are preserved.
-  One shared 2K PC atlas preserves keycap and curved-mouse detail in the close-up.
-  The bezel's face and inset now share a continuous UV island, with smoothly weighted
-  corner normals. A 4K, 128-sample offline bake is reduced to the same 2K runtime atlas
-  to remove the former diagonal seams and jagged bevel shading.
-- **CD player:** clicking the radio, its cabinet or the lava lamp sits the camera over the
-  boombox at a 24° pitch; its lid opens and the collection rises out of the disc slot.
-  The boombox carries no brand: the source model's maker and model lettering and its
-  marketing marks are painted out of every atlas from the moulding beside them, while the
-  function labels (band, function, tone, the dial, the tape keys) stay.
-  What an open lid reveals did not exist in the source model, so the lid underside (ribs,
-  clamp puck, latch hook), hinge barrels, well liner, dark turntable with three ball-clamp
-  nubs, pickup sled with its blue lens on two rails and the slot's lips and screws are new
-  geometry in the radio's own language, baked open in the room's own Cycles scene, lights,
-  AgX and exposure. The room's lamp only grazes the rim, so the close-up's bake adds the
-  lava lamp's glass glow from its side and a faint bounce from the far side: the well and
-  the lid's underside read as grey-brown moulded plastic, lit on the lamp's side and darker
-  across the well, still at night, and the lamp-lit seated disc stays the bright subject.
-  The hinge barrels outside the well keep the room's light alone. Visitors who reach for
-  the radio on a capable screen get its atlas re-baked at 2K on the identical UVs. The
-  discs are drawn, not baked: the bake's own three sources (the lilac ambient, the lava
-  lamp, the moon) by name, a silver foil that reflects the dark room and draws the lamp's
-  spoke and rainbow across its tracks, matte ink under a varnish glint and a smoky hub, so
-  plain silver discs already read as CDs in the night palette rather than as stickers.
-  Their data side, which faces the camera as they rise and go home, is a lit silver mirror
-  with the lamp's spoke and rainbow and a polished rim, never a flat grey; the placeholder
-  prints are a CD's (a skyline, a tide across the label), not a record's grooves. Nothing
-  added carries a mark.
-  The casing and controls have clean ABS reflectance, retaining printed function labels
-  and the separate speaker-grille detail. Rebuilt area-weighted normals suppress the
-  imported triangular shading patches. The base/skin are supersampled at 4K and the
-  lid interior at 1K before returning to their existing 1K/2K/512² runtime sizes.
-- **Wastepaper:** the original lightweight basket and all 18 crumpled papers remain.
-  The basket moves 17 cm left to clear the desk and wall trim. Its 15 inner papers
-  settle under gravity into a supported pile reaching the bottom; three original
-  papers remain on the floor. Settling runs only during authoring, and the export
-  retains the original geometry, materials and desk atlas without runtime physics.
-- **Game case:** the original SSX3 case and printed insert remain. Its separate
-  translucent overwrap is removed for the matte finish, so an opaque lightmap cannot
-  obscure the original cover. The remaining case geometry and placement are preserved.
-  The Battlefront II case on the TV cabinet instead carries generated **Product
-  Engineer** art matching the blue/amber TV title, with matching spine lettering.
-  Its body, sleeve, print, spine and hinges rotate together 180° so the cover's
-  bottom faces the opening camera. All three separate printed inserts are baked
-  under the room lights on their original UVs, including the shelf's occlusion;
-  raw artwork is no longer displayed almost full-bright. The imported SSX3 case
-  already shares the PS2's room-lit atlas.
-- **TV cabinet and plant:** the top and front lip share one continuous lightmap
-  island, avoiding the dark UV-gutter strip below the television while retaining
-  its contact shadow. A dim 2 W rectangular emitter follows the glass plane and
-  faces into the room; the previous tilted 20 W disk made the edge unnaturally
-  bright. The cabinet uses that occluded bake without a second additive strip
-  behind the screen. A 21 cm desk plant sits to the TV's right, grounded on the
-  cabinet top. Its supplied scan keeps the variegated leaves, with reduced geometry,
-  repaired smooth normals, clean ivory ceramic and shared baked room illumination.
-- **Guitar, lamps and clutter:** warm ivory lacquer, restrained metal, muted book colors
-  and warm paper sit in the same palette. Other game-cover artwork remains.
-  Hidden box-body caps beneath the fitted game-box lids are removed: their coplanar
-  surfaces caused black stripes and depth fighting in WebGL.
-
-## Posters
-
-The walls take the reference room's habit of covering every free surface with what its
-owner loved, dated 2007 and limited to eleven of Roel's childhood topics: Avatar: The Last
-Airbender, Oblivion, Guitar Hero III, Star Wars, Radiohead's In Rainbows, Rage Against the
-Machine, LEGO Star Wars, SSX 3, RuneScape, Green Day and Call of Duty 4. Every piece is the
-original artwork (sources in `tools/room/assets/posters/SOURCES.md`; third-party, to be
-cleared or replaced before publishing).
-
-- **Composition:** a focal music corner above the dresser (In Rainbows, The Battle of Los
-  Angeles overlapping it, the 2007 RATM reunion flyers, the Radiohead bear sticker across a
-  seam, the RATM wordmark strip, a CoD4 SAS print, LEGO Star Wars, American Idiot under the
-  slope); the Green Day 2004 poster over a RuneScape Void Knight print with the RuneScape 2
-  logo taped across it, between the window and the dresser; an uneven frieze over the window
-  (Guitar Hero III, Avatar, the Green Day 2005 tour banner, SSX 3); the Oblivion box art as a
-  store promo left of the window above a corkboard of six pinned, overlapping pieces; and on
-  the slope Star Wars 1977 Style A, Avatar Book 2, Revenge of the Sith, two folded magazine
-  pull-outs and the Battle of Kvatch print near the ridge. Nothing on the knee wall, nothing
-  near the window casing and nothing in the resting TV, PC or radio frames.
-- **Physical detail:** tape is lit geometry in the bake, so each strip catches the
-  window's blue or the lamp's tungsten and casts its own small shadow; overhangs ramp down
-  from the card to the wall. The back wall has cream masking tape; the pale slope has
-  white paper tape, which still reads a little brighter than the ivory around it. Paper
-  sits 1 + 0.75 · n mm off the wall by layer, with a baked contact shadow (the skirt)
-  multiplied onto the wall around it. The skirt only darkens, and it is baked without
-  the tape, so a strip carries only its own shadow and no dark ring. The Radiohead bear
-  sticker is die-cut: outside the bear, its card carries the wall and poster edge under
-  it. The magazine pull-outs' folds are real ridges and valleys in the bake mesh. Curled
-  corners, pins and the cork's grain are in the bake, not in runtime lighting.
-- **Fidelity in the browser:** one 2048 × 1024 atlas (or 1024 × 512 on small screens,
-  low-memory devices, Save-Data, slow links and software GPUs), its texel density set by the closest
-  resting view each piece is seen in, loaded only after the first frame and uploaded in
-  strips on the way into the room (docs/ROOM.md › Posters).
+| Aspect | The room |
+| --- | --- |
+| Material language | Cream enamel, oak and honey pine, petrol cloth, black and ivory ABS, restrained metal |
+| Surface detail | Restrained grain on furniture and floor, quiet paint, readable labels in plain words; slight wear, no scans |
+| Geometry | Rounded edges and bevels that catch light, detail kept to silhouettes, controls and keys |
+| Lighting consistency | One set of lights for furniture and devices alike, baked once with soft shadows |
+| Night atmosphere | Cool, dark corners and ceiling with warm pools at the lamps |
+| Contact and depth | Every prop's contact shadow comes from the same lights as its shading |
+| Runtime cost | Unlit surfaces that read the bake; only what changes (the TV's picture, the storm, the wax) is live |
 
 ## Boundaries and tradeoffs
 
 This adopts the reference's material discipline and baked-light approach; it does not
 copy its furniture, isometric camera or interactive day/night blending. Roel's layout,
-original room/TV viewpoints and arcade behavior remain unchanged.
+room and TV viewpoints and arcade behavior are the room's own.
 
-Static reflections are baked, so they do not move when the camera moves. That is a
-deliberate compromise for consistent appearance and economical rendering. Moving a
-device or changing the room lights requires a rebake. The existing animated lava and
-interactive CRT picture/glow remain live. Source license and attribution notes remain
-in `public/room/CREDITS.txt`.
+The light is baked, so shadows and the lamps' pools do not move; the varnish, the TV's picture on the room and the
+storm's flashes are the live exceptions. Moving a prop or changing a lamp is a change to the code and costs nothing
+to rebuild, because every visit bakes it. The bake has no indirect light: a pool over the floor and a bounce stand in
+for it, placed by eye, and the posters' light is a small model of the same rig, matched to it by eye.
 
-Furniture and window atlases are 2K to keep fine edge highlights readable. Source
-normal maps keep their original tangent-space UVs during the bake; atlas gutters
-extend each island's own color to limit dark seams when textures are filtered.
+Art direction happens inside the frame budget: light, colour and wear are static, so they live in the bake and in
+what is generated once at load; the finish's numbers may be retuned but it gets no new pass, texture read or term
+(ROOM.md › Quality).
 
-| Runtime asset cost | Revision 5 | Revision 6 |
-| --- | ---: | ---: |
-| Five GLBs and credits | 7.87 MB | 7.79 MB |
-| Decoded texture pixels | 47.72 million | 46.21 million |
-| Total asset triangles | 245,893 | 351,791 |
-| Room-view draw calls | 55 | 57 |
+The props are parametric, which suits furniture, cases and moulded plastic and stylises what is organic: the plant's
+leaves are folded blades grown from a seed. Nothing in the room is a scan.
 
-The CD player adds nothing to that first load: `radio-closeup.glb` (65 KB, 2,366 triangles,
-one 512² atlas) and `radio-skin-2k.webp` (240 KB) are lazy files fetched only when the radio
-is prepared, the skin only on screens where the radio lands wider than 900 render pixels.
-The posters add none of their art to it, only the room code that triggers them (about 1.7 kB
-gzip in the room chunk): `posters.glb`
-(30 KB, 1,535 triangles) and one atlas tier, `posters-2k.webp` (239 KB, 2048 × 1024) or
-`posters-1k.webp` (89 KB, 1024 × 512), are lazy files fetched and decoded behind the opening TV
-view and uploaded on the first departure. They add 2.1 million decoded texture pixels (0.5 million
-at 1K), one shader program and two room-view draw calls; the TV, PC and radio views draw none of
-them (docs/ROOM.md › Posters › Frames and budgets).
+Nothing in the room carries a third party's mark, artwork or model: the wordmarks are the site's own, the game
+covers and posters are fictional, and the devices are designs of their own in the manner of their years.
 
-Texture allocation stays below revision 5 despite the sharper front-facing atlases, because
-static devices no longer ship separate normal/roughness maps. More geometry goes to
-silhouettes and bevels. The room still idles at zero renders with reduced motion;
-visible lava schedules 24 frames per second. These are local Chromium measurements,
-not a guarantee of a particular frame rate on every device.
+The pictures under `docs/room/` (`after.webp`, `pc.webp`, `radio.webp`, `desktop-detail.webp`, `basket.webp`) and
+under `docs/gen/reference/` were captured from the room with shipped models (§ History), and those under
+`docs/gen/compare/` set the generated room beside them, all in the earlier, pinker finish. They show the layout and
+the props; the palette and the light are the ones described here.
 
-The rebuild recipe, source requirements and verification commands are documented in
-[tools/room/README.md](../tools/room/README.md). The generated rug texture, its prompt
-and the supplied rug's attribution are documented in
-[the room authoring inputs](../tools/room/assets/README.md).
+## History
+
+The room was first built in Blender ("room asset revision 6"): sourced and hand-made models restyled to the look
+above, lit by one Cycles setup, baked into atlases and shipped as five GLB files, with the posters as a baked layer of
+third-party artwork that was never published. A pipeline under `tools/room/` built and verified it. Commit `0e275c7`
+replaced all of it with the generated room and removed the files and the pipeline; the generated props stand where
+those stood and were matched to them in place, size, palette and light, from pictures (`docs/gen/reference/`) and
+from measurements kept as numbers in `src/room/gen/roomSpec.ts` and `gen/props/radioSpec.ts`. None of the earlier
+meshes, UV layouts or textures is in the repository or in what a visitor downloads.
+
+The generated props were then rebuilt one at a time, each against its old model. The room was art-directed as one
+picture afterwards: until then its finish was peach and plum (every lamp red, every shadow magenta, the window
+violet), its floor was lit by a lilac pool with no lamp to explain it, and its navy and white rug was the brightest
+thing in the overview. The colour script, the light's roles and the material families above are from that pass.

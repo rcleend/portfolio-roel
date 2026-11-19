@@ -240,7 +240,7 @@ export class MonitorTexture {
 function stillTexture(canvas: HTMLCanvasElement, anisotropy: number): CanvasTexture {
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  // glTF UVs put v = 0 at the top, which is also the canvas's first row.
+  // The glass's UVs put v = 0 at the top, which is also the canvas's first row.
   texture.flipY = false;
   // Mipmaps keep the room-view still from shimmering and give the glow its mean colour (1 × 1 mip).
   texture.generateMipmaps = true;

@@ -10,6 +10,9 @@ import { doorOf, FakeDeck, type LabEvent, lcdText } from './FakeDeck';
 import '../../styles.css';
 import { watchInputModality } from '../../a11y/inputModality';
 
+/** The lab has no camera waiting for the player's mount. */
+const noop = (): void => {};
+
 /**
  * Radio lab (`/radio-lab.html`, development only): the CD player on a stand-in deck, without
  * the room. The panel moves the camera; clicking outside the radio leaves, like the room.
@@ -110,6 +113,8 @@ function Lab() {
       view={currentView as RoomView}
       settled={currentSettled === 'true'}
       powered
+      boarding={false}
+      onMounted={noop}
       muted={currentMuted === 'true'}
       onLeave={() => {
         deck.log('leave');

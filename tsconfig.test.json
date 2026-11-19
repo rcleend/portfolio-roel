@@ -7,5 +7,18 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "scripts/glslMinify.ts", "scripts/pngSlim.ts", "scripts/**/*.test.ts"]
+  "include": [
+    "src",
+    "scripts/glslMinify.ts",
+    "scripts/pngSlim.ts",
+    "scripts/art/encodePixelData.ts",
+    "scripts/still/encode.ts",
+    "scripts/still/fingerprint.ts",
+    "scripts/still/finish.ts",
+    "scripts/still/framing.ts",
+    "scripts/still/layers.ts",
+    "scripts/still/raster.ts",
+    "scripts/still/world.ts",
+    "scripts/**/*.test.ts"
+  ]
 }

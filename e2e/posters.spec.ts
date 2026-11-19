@@ -2,7 +2,7 @@ import { type Browser, expect, type Page, type Request, test } from '@playwright
 import sharp from 'sharp';
 import type {} from '../src/room/lab/main';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { trackErrors, untilDrawn } from './helpers';
 import { POSTERS_PATH, POSTERS_PROGRAMS, postersShown } from './programs';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
@@ -10,10 +10,13 @@ test.use({ launchOptions: { args: GPU_LAUNCH_ARGS } });
 /** The decorated walls' draw calls in the room view: cards and skirts, or the cards alone on the lite path. */
 const POSTERS_DRAW_CALLS = POSTERS_PATH === 'lite' ? 1 : 2;
 
+/** The files the walls were once fetched from (a model and a baked atlas in two sizes): none is asked for any more. */
 const POSTER_FILE = /\/posters(?:-1k|-2k)?\.(?:webp|glb)$/;
+/** The lazy chunk as the dev server serves it: held back, the walls arrive late. */
+const POSTER_CHUNK = /\/src\/room\/posters\/PosterWall\.ts(?:\?.*)?$/;
 /**
- * Where the walls get to at the TV: up (uploaded between the game's frames, hidden there) on a hardware GPU, decoded and
- * parsed with only the upload left on the lite path, which uploads on the first departure.
+ * Where the walls get to at the TV: up (uploaded between the game's frames, hidden there) on a hardware GPU, painted
+ * with only the upload left on the lite path, which uploads on the first departure.
  */
 const AT_TV = POSTERS_PATH === 'full' ? 'ready' : 'staged';
 
@@ -23,7 +26,7 @@ const doneAtTv = (page: Page, timeout = 10_000) =>
 
 const stats = (page: Page) => page.evaluate(() => window.__roomLab?.room.stats);
 
-/** The posters' files this page has asked for, by name. */
+/** The posters' old files this page has asked for, by name. */
 function trackPosterRequests(page: Page): string[] {
   const names: string[] = [];
   page.on('request', (request: Request) => {
@@ -41,7 +44,7 @@ async function atTv(page: Page, query = ''): Promise<void> {
   await page.waitForFunction(() => window.__roomLab?.surface.paused === false, null, { timeout: 20_000 });
 }
 
-/** Requests a view and waits until the camera has come to rest there and the room stopped rendering. */
+/** Requests a view and waits until the camera has come to rest there and the room has drawn it. */
 async function settleAt(page: Page, view: 'tv' | 'room' | 'pc' | 'radio'): Promise<void> {
   await page.evaluate(
     (target) =>
@@ -60,7 +63,7 @@ async function settleAt(page: Page, view: 'tv' | 'room' | 'pc' | 'radio'): Promi
       }),
     view,
   );
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  await untilDrawn(page);
 }
 
 /** Cuts from the TV to the room view and reads the posters' state at the first frame the veil lifts. */
@@ -87,7 +90,7 @@ function postersWhenTheVeilLifts(page: Page): Promise<string | undefined> {
 }
 
 interface Resting {
-  /** Draw calls of the last frame at rest at the TV, before and after the room view, at the PC and at the radio. */
+  /** Draw calls of a frame at rest at the TV, before and after the room view, at the PC and at the radio. */
   readonly tvBefore: number;
   readonly room: number;
   readonly tv: number;
@@ -97,27 +100,44 @@ interface Resting {
   readonly programs: number;
 }
 
-/** Draw calls of the last frame at rest in each view, after one room view (where the posters go up, if `decorated`). */
+/**
+ * Draw calls of a frame of the view the camera rests in. The room at rest draws no frame of its own where nothing
+ * moves (docs/ROOM.md › Frames › At rest), and `stats.drawCalls` are those of the renderer's last render, which
+ * is one of the bake's until the room draws again: the paused game shows a frame of its test card, the room draws the
+ * frame that shows it, and that frame is counted.
+ */
+async function frameCalls(page: Page): Promise<number> {
+  const drawn = (await stats(page))?.framesRendered ?? 0;
+  await page.evaluate(() => window.__roomLab?.surface.showFrame(40));
+  await page.waitForFunction((count) => (window.__roomLab?.room.stats.framesRendered ?? 0) > count, drawn, {
+    timeout: 10_000,
+  });
+  return (await stats(page))?.drawCalls ?? -1;
+}
+
+/** Draw calls of a frame at rest in each view, after one room view (where the posters go up, if `decorated`). */
 async function restingCalls(page: Page, decorated: boolean): Promise<Resting> {
-  const calls = async (): Promise<number> => (await stats(page))?.drawCalls ?? -1;
   await atTv(page, decorated ? '&mockradio=1' : '&mockradio=1&posters=0');
-  // A paused game draws the same as a playing one, and lets a software GPU's loop come to rest at the TV too.
+  // A paused game draws the same as a playing one.
   await page.evaluate(() => window.__roomLab?.surface.pause());
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-  const tvBefore = await calls();
+  // The rest of the room is lit behind the game (docs/ROOM.md › The generated room), a few views a unit, and each is
+  // a render of its own: a frame's draw calls are the room's once that is done.
+  await page.waitForFunction(() => window.__roomLab?.room.stats.generated === 'ready', null, { timeout: 20_000 });
+  const tvBefore = await frameCalls(page);
   await settleAt(page, 'room');
   if (decorated) await postersShown(page, () => stats(page));
   // The radio prepares on the room view's idle time (the playing TV leaves it none), so both pages wait for it here.
   await page.waitForFunction(() => window.__roomLab?.room.stats.radioReady === true, null, { timeout: 20_000 });
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-  const room = await calls();
+  const room = await frameCalls(page);
   const programs = (await stats(page))?.programs ?? -1;
   await settleAt(page, 'pc');
-  const pc = await calls();
+  const pc = await frameCalls(page);
   await settleAt(page, 'tv');
-  const tv = await calls();
+  const tv = await frameCalls(page);
   await settleAt(page, 'radio');
-  return { tvBefore, room, tv, pc, radio: await calls(), programs };
+  // The lid's swing and the discs' rise run on after the landing (the discs are up 1.4 s after it), each disc a call.
+  await page.waitForTimeout(2500);
+  return { tvBefore, room, tv, pc, radio: await frameCalls(page), programs };
 }
 
 test.describe('the decorated walls', () => {
@@ -145,13 +165,12 @@ test.describe('the decorated walls', () => {
     expect(errors).toEqual([]);
   });
 
-  test('fetch one tier and the glb at the TV, upload it there on a hardware GPU, and show before the room view settles', async ({
+  test('are painted at the TV without a fetch, uploaded there on a hardware GPU, and shown before the room view settles', async ({
     page,
   }) => {
     const errors = trackErrors(page);
     const requested = trackPosterRequests(page);
     await atTv(page);
-    await expect.poll(() => requested.length, { timeout: 10_000 }).toBe(2);
     // On a hardware GPU the atlas goes up between the game's frames at the TV (hidden there); the lite path keeps it
     // on the CPU until the first departure.
     await doneAtTv(page);
@@ -170,9 +189,20 @@ test.describe('the decorated walls', () => {
         }),
     );
     expect(postersAtSettle).toBe('ready');
-    expect(requested.filter((name) => name.endsWith('.webp'))).toHaveLength(1);
-    expect(requested.filter((name) => name === 'posters.glb')).toHaveLength(1);
-    expect(requested).toHaveLength(2);
+    // The atlas is the 2K at this size.
+    expect((await stats(page))?.postersTexturePixels).toBe(2048 * 1024);
+    // And it is a picture: the cluster over the radio reads as paper and ink in the night's light, not as the black
+    // or the blank grey a painting lost on its way to the GPU leaves (a bitmap of GPU pixels from a worker did).
+    await page.evaluate(() => window.__roomLab?.surface.pause());
+    await untilDrawn(page);
+    const cluster = await page.screenshot({ clip: { x: 570, y: 165, width: 420, height: 270 } });
+    const { channels } = await sharp(cluster).removeAlpha().stats();
+    const mean = channels.reduce((sum, channel) => sum + channel.mean, 0) / channels.length;
+    const spread = Math.max(...channels.map((channel) => channel.stdev));
+    // Paper in the night's dim light reads about 39 of 255 on average here, its ink and paper about 40 apart.
+    expect(mean).toBeGreaterThan(30);
+    expect(spread).toBeGreaterThan(30);
+    expect(requested).toEqual([]);
     expect(errors).toEqual([]);
   });
 
@@ -185,30 +215,68 @@ test.describe('the decorated walls', () => {
     expect(requested).toEqual([]);
   });
 
-  test('on Save-Data, fetch nothing at the TV and the 1K and the glb on leaving it', async ({ page }) => {
+  test('paint the 1K on a device with little memory', async ({ page }) => {
     await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true } });
+      Object.defineProperty(navigator, 'deviceMemory', { configurable: true, value: 2 });
     });
     const errors = trackErrors(page);
     const requested = trackPosterRequests(page);
     await atTv(page);
-    await page.waitForTimeout(2000);
-    expect(requested).toEqual([]);
     await settleAt(page, 'room');
     await postersShown(page, () => stats(page));
-    expect([...requested].sort()).toEqual(['posters-1k.webp', 'posters.glb']);
     expect((await stats(page))?.postersTexturePixels).toBe(1024 * 512);
+    expect(requested).toEqual([]);
     expect(errors).toEqual([]);
   });
 
-  test('reveal late bytes with a fade and end shown', async ({ page }) => {
+  test('are painted on the main thread, a sheet per idle unit, where the painter has no OffscreenCanvas', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'OffscreenCanvas');
+    });
     const errors = trackErrors(page);
-    // The bytes are held until the camera has come to rest in the room (a fixed delay raced a loaded machine).
+    await atTv(page);
+    await settleAt(page, 'room');
+    await postersShown(page, () => stats(page));
+    expect((await stats(page))?.postersTexturePixels).toBe(2048 * 1024);
+    expect(errors).toEqual([]);
+  });
+
+  test('come back after the GPU context is lost and restored: painted again, uploaded again', async ({ page }) => {
+    const errors = trackErrors(page);
+    await atTv(page);
+    await page.evaluate(() => window.__roomLab?.surface.pause());
+    await settleAt(page, 'room');
+    await postersShown(page, () => stats(page));
+    // The painted pixels were let go once they were up: a new context gets a new painting.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const canvas = document.querySelector('canvas');
+          const context = canvas?.getContext('webgl2');
+          const lose = context?.getExtension('WEBGL_lose_context');
+          if (!canvas || !lose) throw new Error('No WEBGL_lose_context');
+          canvas.addEventListener('webglcontextrestored', () => resolve(), { once: true });
+          canvas.addEventListener('webglcontextlost', () => setTimeout(() => lose.restoreContext(), 50), {
+            once: true,
+          });
+          lose.loseContext();
+        }),
+    );
+    await postersShown(page, () => stats(page));
+    expect((await stats(page))?.postersTexturePixels).toBe(2048 * 1024);
+    expect(errors).toEqual([]);
+  });
+
+  test('reveal a late arrival with a fade and end shown', async ({ page }) => {
+    const errors = trackErrors(page);
+    // The walls' chunk is held until the camera has come to rest in the room (a fixed delay raced a loaded machine).
     let release = () => {};
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(POSTER_FILE, async (route) => {
+    await page.route(POSTER_CHUNK, async (route) => {
       await held;
       await route.continue();
     });
@@ -231,9 +299,8 @@ test.describe('the decorated walls', () => {
     );
     expect(fadingWhenShown).toBe(POSTERS_PATH === 'full');
     await postersShown(page, () => stats(page));
-    // The fade rendered frames after the camera came to rest; then it ended and the room is idle again.
-    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-    expect((await stats(page))?.postersFading).toBe(false);
+    // The fade ran on after the camera came to rest; then it ended.
+    await expect.poll(async () => (await stats(page))?.postersFading, { timeout: 10_000 }).toBe(false);
     expect(errors).toEqual([]);
   });
 });
@@ -241,11 +308,11 @@ test.describe('the decorated walls', () => {
 test.describe('under reduced motion', () => {
   test.use({ viewport: { width: 1440, height: 900 }, contextOptions: { reducedMotion: 'reduce' } });
 
-  test('the cut from the TV opens on decorated walls once their bytes are decoded there', async ({ page }) => {
+  test('the cut from the TV opens on decorated walls once they are painted there', async ({ page }) => {
     const errors = trackErrors(page);
     await atTv(page);
-    // The cut never holds for the network (PosterWall.holdsCut), only for what is left of bytes already in hand (on
-    // the lite path the upload; on a hardware GPU nothing is left by then).
+    // The cut holds only for what is left of the painting and the upload (PosterWall.holdsCut): on the lite path the
+    // upload; on a hardware GPU nothing is left by then.
     await doneAtTv(page);
     expect(await postersWhenTheVeilLifts(page)).toBe('ready');
     expect(errors).toEqual([]);
@@ -255,7 +322,7 @@ test.describe('under reduced motion', () => {
     page,
   }) => {
     test.setTimeout(60_000);
-    // At 6x the TV-side units (the import and fetch, the parse, on a hardware GPU the program and the strips) must not
+    // At 6x the TV-side units (the import, the painting, on a hardware GPU the program and the strips) must not
     // queue behind the room's longer units for the whole stay at the TV (IdleWork runs the first queued unit that fits
     // the idle period); on the lite path the held black runs what is left (the strips) in whole idle periods, so the cut
     // still opens on decorated walls.
@@ -268,13 +335,13 @@ test.describe('under reduced motion', () => {
     expect(errors).toEqual([]);
   });
 
-  test('late bytes fade in here too: a fade is not motion', async ({ page }) => {
+  test('a late arrival fades in here too: a fade is not motion', async ({ page }) => {
     const errors = trackErrors(page);
     let release = () => {};
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route(POSTER_FILE, async (route) => {
+    await page.route(POSTER_CHUNK, async (route) => {
       await held;
       await route.continue();
     });
@@ -295,15 +362,14 @@ test.describe('under reduced motion', () => {
       null,
     );
     expect(fadingWhenShown).toBe(POSTERS_PATH === 'full');
-    await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
-    expect((await stats(page))?.postersFading).toBe(false);
+    await expect.poll(async () => (await stats(page))?.postersFading, { timeout: 10_000 }).toBe(false);
     expect(errors).toEqual([]);
   });
 
   test('a cut to the computer or the radio never waits for the walls, hidden at rest there', async ({ page }) => {
     await atTv(page, '&mockradio=1');
     await doneAtTv(page);
-    // Their black lasts as long as without the posters: no hold (the radio's own hold waits on its close-up only).
+    // Their black lasts as long as without the posters: no hold (the radio's own hold waits on its device only).
     const heldFrames = await page.evaluate(
       () =>
         new Promise<number>((resolve) => {
@@ -348,10 +414,15 @@ async function roomFrame(browser: Browser, hidden: readonly PosterPart[]): Promi
     });
   }
   await atTv(page);
-  await page.evaluate(() => window.__roomLab?.surface.pause());
+  // One frame of the test card on every page: the TV is in the room view, and a picture paused wherever it happened
+  // to be differs between the page loads this compares.
+  await page.evaluate(() => {
+    window.__roomLab?.surface.pause();
+    window.__roomLab?.surface.showFrame(40);
+  });
   await settleAt(page, 'room');
   await postersShown(page, () => stats(page));
-  await page.waitForFunction(() => window.__roomLab?.room.stats.renderLoopIdle === true, null, { timeout: 10_000 });
+  await untilDrawn(page);
   const png = await page.locator('canvas').first().screenshot();
   await page.close();
   return sharp(png).removeAlpha().raw().toBuffer();

@@ -1,9 +1,10 @@
 /*
  * Hidden like .sr-only — present for assistive tech and crawlers — until the
  * skip link targets it or focus moves inside, then shown as a typeset page:
- * cream paper, ink type, and arcade accents only in the small print.
+ * cream paper, ink type, and arcade accents only in the small print. As the whole page (`.resume--page`, app/cv:
+ * the visitor without a GPU, docs/ROOM.md › No GPU) it is always that page, and the document scrolls it.
  */
-.resume:not(:target, :focus-within) {
+.resume:not(:target, :focus-within, .resume--page) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -15,7 +16,7 @@
   border: 0;
 }
 
-.resume:is(:target, :focus-within) {
+.resume:is(:target, :focus-within, .resume--page) {
   --ink: #1b1830;
   --muted: #5d5874;
   --rule: #d9d0bd;
@@ -40,10 +41,23 @@
   outline: none;
 }
 
+.resume.resume--page {
+  position: static;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
 .resume__page {
   max-width: 44rem;
   margin: 0 auto;
   padding: clamp(28px, 6vw, 72px) clamp(20px, 5vw, 40px) 64px;
+}
+
+/* The page reaches a phone's edges (index.html › viewport-fit): its text keeps clear of the notch and the home bar. */
+.resume--page .resume__page {
+  padding-right: max(clamp(20px, 5vw, 40px), env(safe-area-inset-right));
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
+  padding-left: max(clamp(20px, 5vw, 40px), env(safe-area-inset-left));
 }
 
 /* Arcade accents: the pixel face, small, for labels only. */
@@ -290,8 +304,8 @@
 }
 
 @media print {
-  .resume:not(:target, :focus-within),
-  .resume:is(:target, :focus-within) {
+  .resume:not(:target, :focus-within, .resume--page),
+  .resume:is(:target, :focus-within, .resume--page) {
     position: static;
     width: auto;
     height: auto;

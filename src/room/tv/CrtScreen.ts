@@ -59,7 +59,7 @@ export class CrtScreen {
 
     this.picture = new CanvasTexture(surface.canvas);
     this.picture.colorSpace = SRGBColorSpace;
-    // glTF UVs put v = 0 at the top, which is also the canvas's first row.
+    // The glass's UVs put v = 0 at the top, which is also the canvas's first row.
     this.picture.flipY = false;
     this.picture.magFilter = LinearFilter;
     this.picture.minFilter = LinearMipmapLinearFilter;

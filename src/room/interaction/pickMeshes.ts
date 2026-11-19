@@ -1,5 +1,4 @@
 import { Box3, BufferAttribute, BufferGeometry, Mesh, type Object3D, Sphere, Vector3 } from 'three';
-import { meshesOf } from '../assets/modelQueries';
 
 /** Meshes with more triangles than this are cut into chunks; cutting smaller ones costs more at load than it saves. */
 export const PICK_CUT_TRIANGLES = 8192;
@@ -10,12 +9,21 @@ const TRIANGLES_PER_UNIT = 4096;
 
 const sources = new WeakMap<Object3D, Mesh>();
 
+/** Every mesh under `root`, in traversal order. */
+export function meshesOf(root: Object3D): Mesh[] {
+  const meshes: Mesh[] = [];
+  root.traverse((object) => {
+    if (object instanceof Mesh) meshes.push(object);
+  });
+  return meshes;
+}
+
 /**
  * What the pointer ray tests for an interactable: its meshes, with every mesh of more than
- * PICK_CUT_TRIANGLES triangles cut into compact chunks. The baked room merges whole groups into
- * one mesh (the desk with its drawers, chair, lamp, tower and basket is 54 k triangles), and
- * three.js tests every triangle of a mesh whose bounds a ray crosses: about 3 ms per pointer event
- * on a laptop and 20 ms on a phone six times slower. A chunk shares its mesh's attributes, material
+ * PICK_CUT_TRIANGLES triangles cut into compact chunks. The room merges whole groups into one mesh
+ * (the desk corner's props are one, tens of thousands of triangles), and three.js tests every
+ * triangle of a mesh whose bounds a ray crosses: on a mesh of 54 k that measured about 3 ms per
+ * pointer event on a laptop and 20 ms on a phone six times slower. A chunk shares its mesh's attributes, material
  * and world matrix and has its own tight bounds, so a ray only tests the few chunks it crosses and
  * finds exactly the same hits. Chunks are never rendered and hold nothing but an index.
  */

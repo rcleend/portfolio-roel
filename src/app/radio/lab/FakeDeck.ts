@@ -573,6 +573,8 @@ export function doorOf(deck: FakeDeck): RadioDoor {
       prefetch: (reason) => deck.prefetch(reason),
       load: () => Promise.resolve(deck),
       deck,
+      // The lab has no camera to keep waiting.
+      onBoarding: () => () => {},
     };
     doors.set(deck, door);
   }

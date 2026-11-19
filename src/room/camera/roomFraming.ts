@@ -1,7 +1,7 @@
 import { MathUtils, Vector3 } from 'three';
 import { fovForAspect, type Viewpoint } from './cameraPath';
 
-/** The Blender review's "whole room" preset: window, desk, posters and the TV in one shot. */
+/** The "whole room" framing: window, desk, posters and the TV in one shot. */
 const ROOM_WIDE = { eye: new Vector3(-0.55, 1.62, 2.1), target: new Vector3(0.25, 1.12, -1.1), minHorizontalFov: 72 };
 /**
  * A tall screen cannot hold the whole room, and the TV must stay in shot to be clicked

@@ -41,7 +41,7 @@ The player was built beside the room's half against a structural copy of these t
 | Chunk | Contents | Loaded |
 | --- | --- | --- |
 | `RadioSlot-*` (`RadioSlot.tsx` + its failure message's style) | the loading policy, the portal, the failure message | once the camera first rests away from the TV, or heads for the radio (the room's door imports the deck's chunk just after the first TV leave's first flight frame) |
-| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | at once when the view becomes `radio` (the 1.1 s flight hides it); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands, and the room's half, `deck.prefetch('idle')` at 0.4 s, so a visitor who heads for the radio at once still finds its device preparing on the way and the lid opening on time); it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
+| `RadioExperience-*` (`RadioExperience.tsx` + CSS) | the player, the foley recipes, the Media Session, the print painter, the controls, the shelf's data and file URLs | as the camera is about to set off for the radio for the first time: the room asks (`RadioDoor.onBoarding`, RoomHost answers) while the camera still rests and waits up to 0.4 s for the glue and the player to load and mount, their layout included, so none of that falls into the flight's frames (docs/ROOM.md › Flights; a player that comes later than that mounts at the landing); or at idle once the camera has rested in the room view for 3 s (after the computer's screen, which loads as the camera lands, and the room's half, `deck.prefetch('idle')` at 0.4 s, so a visitor who heads for the radio at once still finds its device preparing on the way and the lid opening on time); it first mounts, and paints the prints, only while the camera rests; never on Save-Data, never before the TV's picture is up, never for a radio that is `available: false` |
 | covers and prints | five WebPs, decoded off the main thread at the label size (`createImageBitmap` with a resize), then painted one per idle moment while the camera rests away from the TV (`labels/discPrints.ts`) on CPU canvases (nothing reads the GPU back) and handed to the room together; one that has not arrived in 6 s is given up on (`labels/loadArt.ts`) | when the player mounts |
 | audio | one track at a time, streamed | from the pick that needs it |
 
@@ -129,7 +129,7 @@ Disc prints (`labels/discLabel.ts`): the album's `disc` print as it is, or its c
    ```
 
 3. Run `pnpm verify:radio`; paste the lengths it prints into `seconds`. `pnpm verify:radio --loudness` compares each album with the game's music and suggests a `gainDb` (0 or less) for albums mastered louder.
-4. Delete the placeholder entries and their folders.
+4. Delete the entries you replace, and their folders.
 
 That is all: the shelf, the arc, the prints, the captions and the Media Session follow from the data.
 For large collections, use Git LFS for the files, or give tracks as absolute `https://` URLs (audio needs no CORS); covers must stay in the folder or be served with CORS, because they are drawn into a texture.
@@ -158,29 +158,24 @@ The panel moves the camera (radio, room, pc, tv) and toggles the sound; clicking
 | Entry CSS | + 0.15 kB | + 0.00 kB |
 | Room chunk: the door, the click target, the framing hook, the model lookup (docs/ROOM.md › The CD player) | | − 0.09 kB: the radio's own + 2.70, less 2.79 the shaders give back since the build ships every shader, three.js's included, without comments, indentation or spaces inside brackets (`scripts/glslMinify.ts`) |
 | First-load JavaScript, entry and room chunk together | + 0.60 kB | + 0.46 kB |
-| `RadioSlot`, lazy | 1.2 kB | 1.08 kB |
-| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.65 kB |
-| `radioDevice`, lazy: the deck, the storyboard, disc shader, LCD and close-up assembly | 16 kB (held at 33.6, pending the captain's word: `bundle-budgets.json`) | 33.50 kB (33.75 before the posters moved the strip uploader and the slow-device rule into the room chunk, docs/ROOM.md › Posters) |
-| Close-up asset `radio-closeup.glb`, lazy (the well's parts and their 512 px atlas, meshopt with filters) | 80 kB | 59.1 kB |
-| `radio-skin-2k.webp`, lazy, the close-up's sharper skin (2048², unbranded) | 280 kB | 170.6 kB |
-| The shelf's audio (only the track that plays is fetched, streamed) | 16 MB, 5 MB a track | 15.2 MB, ≤ 4.6 MB |
-| Covers / prints | 40 kB / 60 kB each | ≤ 16.8 kB / ≤ 45.3 kB |
+| `RadioSlot`, lazy | 1.2 kB | 1.09 kB |
+| `RadioExperience` closure, JS + CSS, no three.js | 15 kB | 13.93 kB |
+| `radioDevice`, lazy: the deck, the storyboard, disc shader and LCD | 31.2 kB (`bundle-budgets.json`; the first design said 16) | 30.9 kB |
+| The shelf's audio (only the track that plays is fetched, streamed) | 16 MB, 5 MB a track | 15.2 MB, ≤ 4.7 MB |
+| Covers / prints | 40 kB / 60 kB each | ≤ 15.7 kB / ≤ 29.5 kB |
 
-`radioDevice` is behaviour code (source maps: the storyboard 8.3 kB, the device 3.9, the disc motion 2.8, the disc shader 2.5, the LCD 1.5, the discs 1.5); no debug or test hook ships in it, and another minifier makes it larger. Halving it would mean dropping behaviour the reviews asked for. Moving the radio's room-side code (the click target 0.75 kB, the door 0.58, the model lookup 0.29) into the lazy chunk would save less than it seems: a click on the radio already waits for that chunk when it has not arrived (`createRoom.ts`, `whenReady`), but before it arrives the radio would show no `enter` cursor and drop a click unless a small stand-in target stayed in the first load, so it would save about 0.5–1 kB.
+`radioDevice` is behaviour code (the storyboard, the device, the disc motion, the disc shader, the LCD, the discs); no debug or test hook ships in it, and another minifier makes it larger. Halving it would mean dropping behaviour the reviews asked for. Moving the radio's room-side code (the click target 0.75 kB, the door 0.58, the model lookup 0.29) into the lazy chunk would save less than it seems: a click on the radio already waits for that chunk when it has not arrived (`createRoom.ts`, `whenReady`), but before it arrives the radio would show no `enter` cursor and drop a click unless a small stand-in target stayed in the first load, so it would save about 0.5–1 kB.
 
-Every lazy file was re-examined (bytes at `0e0d685`, before the slimming pass, and now). All of them are fetched once the camera first leaves the TV (`RadioSlot`'s idle prefetch makes the device, which fetches its files ahead of a visit; only the skin's decode and upload wait for a hover, a focus or the tap that starts the flight), 361 kB in 13 files whether or not the visitor then opens the radio; a track only when it plays:
+The radio's model costs no download: its body and its moving parts are generated and lit with the room (docs/ROOM.md › The CD player). What a visitor fetches for the radio is code and the shelf's own files:
 
-| File | Before | Now | |
-| --- | ---: | ---: | --- |
-| `radio-skin-2k.webp` (2048²) | 178,820 B | 170,594 B | Unbranded; WebP q90 effort 6. q85 would be 122 kB, but the small panel labels (FM/MW/LW, TAPE/RADIO/CD) soften at the close-up's 3× magnification. Fetching it only on intent would save 171 kB for visitors who never open the radio, at the cost of the skin sharpening a moment after the tap on a slow connection: the captain's call. |
-| `radio-closeup.glb` | 56,028 B | 59,132 B | The lit well's atlas compresses less than the black one (4.6 → 13.3 kB); its normals are octahedral (12.3 → 4.3 kB) and stay, as three.js keys a program on whether a mesh has normals and the parts share the base meshes' program. |
-| Disc prints, five 512² WebP | 82,838 B | 82,838 B | Kept: a disc is about 930 device pixels wide on a phone at the radio, and re-encoding at effort 6 saves nothing. |
-| Covers, one 512² WebP per album played | 8.0–15.7 kB | same | Kept: fetched only for the Media Session once an album plays. |
-| Placeholder tracks, AAC in MP4 | 393–530 kB each | same | Placeholders, only the track that plays. |
+| File | Size | When |
+| --- | ---: | --- |
+| `RadioSlot`, `radioDevice`, `RadioExperience` | the chunks above | once the camera first leaves the TV, or at idle in the room view |
+| Disc prints, five 512² WebP | 82.8 kB together | when the player mounts |
+| Covers, one 512² WebP per album | 8.0–15.7 kB | only for the Media Session, once that album plays |
+| Tracks, AAC in MP4 | 1.2–4.7 MB each | only the track that plays, streamed |
 
-`radio-base.glb` is first-load and the captain's asset: its only material is unlit and nothing reads its normals, which are 317 kB of its 879 kB. Meshopt's `high` normal filter would save 214 kB with no visible change (`pnpm build:radio` must run after, as the geometry fingerprint changes); dropping its normals would save 319 kB but adds one shader program unless the room drops them everywhere (`room.glb` carries 1.1 MB of normals on mostly unlit materials). Not done here: the captain's call.
-
-Measured in the real app (development server, Chromium on an M-series Mac, the radio prepared at idle; `e2e/radio-flow.spec.ts` holds pick → sound to 1.0 s, 1.5 s for a disc chosen before it is out, and 0.35 s under reduced motion):
+Measured in the real app before the radio was generated with the room (development server, Chromium on an M-series Mac, the radio prepared at idle; the player's code has not changed since, the device no longer waits for a file; `e2e/radio-flow.spec.ts` holds pick → sound to 1.0 s, 1.5 s for a disc chosen before it is out, and 0.35 s under reduced motion):
 
 | | 1× CPU | 6× CPU |
 | --- | ---: | ---: |
@@ -188,10 +183,9 @@ Measured in the real app (development server, Chromium on an M-series Mac, the r
 | A keyboard pick the moment the camera lands, the disc still inside the radio (it seats at its own climb's pace, so a later pick is heard sooner) | 1.61 s at the landing, 1.50 s 100 ms after it, 1.40 s 200 ms after it (where the e2e's Enter lands) | |
 | Long animation frames over 50 ms in the flights to and from the radio, the arrival until the discs are up, an insert and a swap | none | none |
 | The prints on the discs after an eager click (the radio clicked as soon as the camera rests in the room, the pointer moving over the discs now and then) | handed to the device at 1.10–1.15 s, on every disc by 3.0 s, as they turn over to their labels (5 of 5 runs; urgent idle work runs before the room's own) | |
-| Frames over 2 s at the computer with a disc playing | 0 | |
 | Media elements, `decodeAudioData` calls, audio contexts of the radio's own | 1, 0, 1 | |
 
-And on the production build (6× CPU, two runs): no long animation frame over 50 ms from the click to the radio through its arrival and a pick, the longest frame gap 29–32 ms; 0 frames at rest at the radio, 2–3 in 2 s playing (the clock); the first look around the room fetches 376.7 kB of radio and computer work in 15 requests (the radio's 361.4 kB in 13), the pick 436 kB (the first track).
+The production build's long frames at 6× CPU, and what the first look around the room fetches for the radio, have not been measured since the radio is generated.
 
 ## Modules
 

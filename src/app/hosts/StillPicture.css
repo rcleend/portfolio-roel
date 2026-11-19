@@ -1,13 +1,24 @@
 /* The game on the startup still, inside the still's element (index.html), which fades both out as one. */
 .still-picture {
   position: absolute;
+  /* Over the still's drawing (index.html › #tv-still, its svg). */
+  z-index: 2;
   top: var(--picture-top);
   left: var(--picture-left);
   width: var(--picture-width);
   height: var(--picture-height);
   overflow: hidden;
-  border-radius: 1.2% / 1.6%;
+  /* The tube's raster: corners five game pixels round (tv/crtShader.ts › pictureCoverage). */
+  border-radius: 1.5625% / 2.0833%;
+  /* The box is the bounds of the picture on the glass, which the camera sees from above, four degrees down: its
+     corners sit a third of a percent under the box's top and half a percent over its foot, the lower ones nearly a
+     percent in from the sides. This lays the flat picture's corners on them (StillPicture.test.ts holds it to the
+     room's glass and camera); the glass's bow between the corners, under two pixels, is left. */
+  transform-origin: 50% 0;
+  transform: translateY(0.335%) perspective(calc(var(--picture-height) * 7.41)) rotateX(-8deg) scaleY(1.0204);
   background: #000;
+  /* The tube adds its light to the glass: black is the still's dark glass, as it is the live tube's. */
+  mix-blend-mode: screen;
   opacity: 0;
   touch-action: none;
   pointer-events: auto;
@@ -35,20 +46,22 @@
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
-  /* The live tube's picture is a little brighter than the canvas itself. */
-  filter: brightness(1.12);
+  /* The tube's tone, fitted to the live picture of the title on a desktop and a phone (docs/ROOM.md › Startup). */
+  filter: saturate(0.85) contrast(1.3) brightness(1.13);
 }
 
-/* A darker band at the foot of every game row, as the tube draws them. One repeating gradient over the whole
-   picture, never a tiled background: WebKit paints a background tile a fraction of a pixel tall wrongly, and on an
-   iPhone the startup still's lower part came out as one solid band of the shade (round six, item 30). */
+/* The rest of the tube's look, multiplied onto the canvas, from the same fit: a darker band at the foot of every
+   game row, the tube's tint (green 0.82 of red, blue 0.89) at 0.95 of the canvas, and the picture's edge falling off
+   to 0.6 of that in the corners. One layer, two gradients over the whole picture, never a tiled background: WebKit
+   paints a background tile a fraction of a pixel tall wrongly, and on an iPhone the startup still's lower part came
+   out as one solid band of the shade (round six, item 30). */
 .still-picture__scanlines {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    transparent 0 calc(62% / var(--rows)),
-    rgb(0 0 0 / 0.16) 0 calc(100% / var(--rows))
-  );
+  background:
+    repeating-linear-gradient(transparent 0 calc(62% / var(--rows)), rgb(0 0 0 / 0.16) 0 calc(100% / var(--rows))),
+    radial-gradient(farthest-corner, #f2c6d7 85%, #cca6b5 94%, #997d88);
+  mix-blend-mode: multiply;
   pointer-events: none;
 }
 

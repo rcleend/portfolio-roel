@@ -1,7 +1,16 @@
 import { expect, test } from '@playwright/test';
 import hotspots from '../src/app/cursors/hotspots.json' with { type: 'json' };
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, phase, scene, trackErrors, waitForRunning } from './helpers';
+import {
+  differingPixels,
+  expectSixtyFrames,
+  hostElement,
+  paused,
+  roomPace,
+  scene,
+  trackErrors,
+  waitForRunning,
+} from './helpers';
 
 test.use({ launchOptions: { args: GPU_LAUNCH_ARGS }, viewport: { width: 1440, height: 900 } });
 
@@ -15,27 +24,58 @@ const WALL = { x: 40, y: 450 };
 const RADIO_IN_ROOM_VIEW = { x: 805, y: 446 };
 const CABINET_IN_ROOM_VIEW = { x: 780, y: 545 };
 
-test('opens on the startup still, starts the game on it and hands over to the live room on a press', async ({
+test('opens on the startup still, starts the game on it and hands over to the live room in the dark after a press', async ({
   page,
 }) => {
   const errors = trackErrors(page);
-  await page.goto('/?seed=1');
+  // Each startup phase as #game enters it, with whether the game was exposed by then: read in the page, because the
+  // tube warms up for a third of a second, which a loaded machine's polling from here can miss whole.
+  await page.addInitScript(() => {
+    const phases: { phase: string; game: boolean }[] = [];
+    (window as unknown as { __phases: typeof phases }).__phases = phases;
+    new MutationObserver(() => {
+      const now = document.getElementById('game')?.dataset.phase;
+      if (now && now !== phases.at(-1)?.phase) phases.push({ phase: now, game: window.__arcade !== undefined });
+    }).observe(document, { subtree: true, childList: true, attributeFilter: ['data-phase'] });
+  });
+  // Straight onto the title: after the boot the still goes in the boot's own blackout, whenever the room is in by
+  // then (handover.spec.ts), and here it is looked at with the game's picture on it.
+  await page.goto('/?seed=1&scene=title');
   const still = page.locator('#tv-still');
   await expect(still).toHaveAttribute('data-shown', 'true');
   await expect(hostElement(page)).toHaveAttribute('data-host', 'room');
 
-  await expect.poll(() => phase(page), { timeout: 30_000, intervals: [25] }).toBe('powering');
-  // The tube is warming up: the game has not been started (or exposed) yet.
-  expect(await page.evaluate(() => window.__arcade === undefined)).toBe(true);
-
   await waitForRunning(page);
-  expect(['boot', 'title']).toContain(await scene(page));
+  // While the tube warmed up the game had not been started (or exposed) yet.
+  const phases = await page.evaluate(
+    () => (window as unknown as { __phases: { phase: string; game: boolean }[] }).__phases,
+  );
+  expect(phases.map((entry) => entry.phase).slice(-2)).toEqual(['powering', 'running']);
+  expect(phases.find((entry) => entry.phase === 'powering')?.game).toBe(false);
+  expect(await scene(page)).toBe('title');
   expect(await paused(page)).toBe(false);
-  // The room is in, its tube lit at once behind the still, which waits for the visitor.
+  // The room is in, its tube lit at once behind the still, which waits for a black frame of the game: the title has
+  // none until the visitor presses.
   expect(await page.evaluate(() => window.__room?.powerState)).toBe('on');
   await expect(still).toHaveAttribute('data-shown', 'true');
+  // The game's picture is on the still's glass, not under its casing: without it that part of the page looks
+  // different nearly everywhere.
+  const picture = page.locator('.still-picture');
+  const box = await picture.boundingBox();
+  const clip = { x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 0, height: box?.height ?? 0 };
+  // The title comes up out of the dark, so the picture is looked at until it is there.
+  const lit = async (): Promise<number> => {
+    const shown = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.setProperty('visibility', 'hidden'));
+    const hidden = await page.screenshot({ clip });
+    await picture.evaluate((element) => (element as HTMLElement).style.removeProperty('visibility'));
+    return differingPixels(shown, hidden, 24);
+  };
+  await expect.poll(lit, { timeout: 10_000 }).toBeGreaterThan(clip.width * clip.height * 0.5);
+  // The press leaves the title through black, and there the still goes (not at the press: handover.spec.ts).
   await page.keyboard.press('Enter');
   await expect(still).toHaveAttribute('data-shown', 'false');
+  await expect(still).toHaveAttribute('data-black', '');
   expect(errors).toEqual([]);
 });
 
@@ -56,6 +96,25 @@ test('looking around the room pauses the game and the TV resumes it', async ({ p
   await page.mouse.click(TV_IN_ROOM_VIEW.x, TV_IN_ROOM_VIEW.y);
   await expect(host).toHaveAttribute('data-view', 'tv');
   await expect.poll(() => paused(page), { timeout: 5_000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('the TV shows the game frame by frame while it runs, played or only watched, while the room behind it rests', async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await page.goto('/?seed=1');
+  await waitForRunning(page);
+  // Until the whole room is lit behind the game it draws every frame whatever happens (docs/ROOM.md › Frames › At
+  // rest); from then on the game's own frames are all that is drawn at the TV, where nothing else moves.
+  await page.waitForFunction(() => window.__room?.stats.generated === 'ready', null, { timeout: 30_000 });
+  // The title is made in whole frames of sixty a second (a two-frame shake, a 32-on 16-off blink, the plotter's
+  // pen), and the game runs only while the visitor is at the TV: nobody touching it, it is still shown frame by frame.
+  await expect.poll(async () => (await roomPace(page))?.pace, { timeout: 15_000 }).toBe('still');
+  await page.waitForTimeout(8_000);
+  expect((await roomPace(page))?.moving).toEqual([]);
+  expect(await paused(page)).toBe(false);
+  await expectSixtyFrames(page, 'with nobody at the game for eight seconds');
   expect(errors).toEqual([]);
 });
 
@@ -144,9 +203,14 @@ test('the TV view keeps its way out when the room guide never loads', async ({ p
 });
 
 test('the guide takes the keyboard over from the way out it replaces', async ({ page }) => {
-  // Held back, so the keyboard is standing on the entry's way out when the guide's own hint takes its place.
+  // Held back until the keyboard is standing on the entry's way out, so the guide's own hint takes its place under
+  // it (for as long as that takes: on a loaded machine a fixed two seconds let the guide in first).
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route('**/guide/RoomGuide.tsx*', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await held;
     await route.continue();
   });
   await page.goto('/?seed=1');
@@ -155,6 +219,7 @@ test('the guide takes the keyboard over from the way out it replaces', async ({ 
   await expect(wayOut).toBeAttached();
   await page.keyboard.press('Tab');
   await expect(wayOut).toBeFocused();
+  release();
 
   const hint = page.locator('.tv-way-out');
   await expect(hint).toBeAttached({ timeout: 10_000 });
@@ -538,4 +603,41 @@ test.describe('on a phone', () => {
     // The marks centred along the bottom.
     expect(((glyphs[0]?.cx ?? 0) + (glyphs.at(-1)?.cx ?? 0)) / 2).toBeCloseTo(width / 2, 0);
   });
+});
+
+// Here, not in mouse-play.spec.ts: that suite plays on the flat host with the default software renderer, on which the
+// room's bake is the CPU's, and a few such pages at once starved each other past the test's time.
+test("in the room, the stage wears the game's cursors over the TV's picture in a level", async ({ page }) => {
+  const query = new URLSearchParams({
+    seed: '1',
+    scene: 'level',
+    params: JSON.stringify({ levelId: 'luna', characterId: 'hackerman', skipIntro: true }),
+  });
+  await page.goto(`/?${query}`);
+  await waitForRunning(page);
+  const canvas = page.locator('[data-host] canvas');
+  const picture = await page.evaluate(() => (globalThis as { __tvPicture?: () => number[] }).__tvPicture?.());
+  if (!picture) throw new Error('no TV picture');
+  const [left = 0, top = 0, right = 0, bottom = 0] = picture;
+  const at = async (x: number, y: number) => {
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('no stage');
+    const px = box.x + left + ((x + 0.5) / 320) * (right - left);
+    const py = box.y + top + ((y + 0.5) / 240) * (bottom - top);
+    await page.mouse.move(px - 2, py - 2);
+    await page.mouse.move(px, py);
+  };
+  // The hero stands at x 56 of San Francisco's first street: the sky (y 60) is an attack, the street (y 208) a walk.
+  await expect
+    .poll(async () => {
+      await at(200, 60);
+      return canvas.getAttribute('data-cursor');
+    })
+    .toBe('attack');
+  await at(150, 208);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('walk');
+  await at(20, 60);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('attack');
+  await at(160, 232);
+  await expect.poll(() => canvas.getAttribute('data-cursor')).toBe('play');
 });

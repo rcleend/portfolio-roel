@@ -1,8 +1,7 @@
 import { type Camera, type Intersection, type Mesh, Raycaster, Vector2 } from 'three';
-import { meshesOf } from '../assets/modelQueries';
 import { type IdleTask, type IdleWork, QUIET } from '../stage/IdleWork';
 import type { Interactable, InteractionHit, RoomCursor } from './Interactable';
-import { pickedMesh, pickMeshes, pickMeshesInSteps } from './pickMeshes';
+import { meshesOf, pickedMesh, pickMeshes, pickMeshesInSteps } from './pickMeshes';
 
 export interface RoomInteractionOptions {
   readonly canvas: HTMLCanvasElement;

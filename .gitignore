@@ -7,7 +7,6 @@ playwright-report
 .DS_Store
 .context/
 .lavish/
-*.blend1
 __pycache__/
 .vercel
 .perf

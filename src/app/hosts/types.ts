@@ -16,11 +16,15 @@ export interface HostEvents {
   onViewChange(view: HostView): void;
   /** The live scene has taken over from the startup still (the room host; docs/ROOM.md › Startup). */
   onStillDone(): void;
+  /** The room lost its light at the TV (a lost WebGL context): the still covers it until `onStillDone` again. */
+  onStillBack(): void;
 }
 
 /** The game's scenes as the page sees them (the director): which one shows, and every switch. */
 export interface SceneSignal {
   readonly current: string | null;
+  /** The game's frame is all black now (between two scenes, or the boot's blackout): `Director.dark`. */
+  readonly dark: boolean;
   onSceneChange(listener: (id: string) => void): () => void;
 }
 
@@ -37,6 +41,8 @@ export interface HostProps {
   readonly powered: boolean;
   /** The startup still is up: the room host shows the game on it until the live scene takes over. */
   readonly still: boolean;
+  /** The still is out of sight (its fade over): what would arrive with the hand-over arrives after it. */
+  readonly clear: boolean;
   readonly insets: Insets;
   readonly events: HostEvents;
   /** The site's sound preference (the sound toggle): the radio's music and mechanics follow it. */

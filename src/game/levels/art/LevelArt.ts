@@ -1,5 +1,6 @@
 import type { LevelId } from '@/content';
 import type { AssetStore } from '@/engine/assets/AssetStore';
+import type { PixelImage } from '@/engine/gfx/canvas';
 import type { Gfx } from '@/engine/gfx/Gfx';
 import type { ParallaxLayer } from '@/engine/gfx/Parallax';
 import { type LevelArtManifest, type PropSpec, parseLevelArtManifest, type TilesetSpec } from './manifest';
@@ -19,10 +20,10 @@ export interface LevelArt {
 
 /** A grid of named square tiles. */
 export class Tileset {
-  readonly #image: HTMLImageElement;
+  readonly #image: PixelImage;
   readonly #spec: TilesetSpec;
 
-  constructor(image: HTMLImageElement, spec: TilesetSpec) {
+  constructor(image: PixelImage, spec: TilesetSpec) {
     this.#image = image;
     this.#spec = spec;
   }
@@ -46,10 +47,10 @@ export class Tileset {
 
 /** A horizontal strip of equally sized prop frames. */
 export class PropSheet {
-  readonly #image: HTMLImageElement;
+  readonly #image: PixelImage;
   readonly #spec: PropSpec;
 
-  constructor(image: HTMLImageElement, spec: PropSpec) {
+  constructor(image: PixelImage, spec: PropSpec) {
     this.#image = image;
     this.#spec = spec;
   }
@@ -79,9 +80,8 @@ export interface LevelArtLibrary {
   get(levelId: LevelId): LevelArt;
 }
 
-// Bundled by Vite: every level folder's manifest and the URLs of its PNGs.
+// Bundled by Vite: every level folder's manifest. The pictures are a chunk of their own (./pictures.ts).
 const manifestModules = import.meta.glob<unknown>('../*/art/layers.json', { eager: true, import: 'default' });
-const imageUrls = import.meta.glob<string>('../*/art/*.png', { eager: true, query: '?url', import: 'default' });
 
 /** Parses every bundled manifest without touching the network (also used by tests). */
 export function bundledManifests(): ReadonlyMap<LevelId, LevelArtManifest> {
@@ -93,15 +93,16 @@ export function bundledManifests(): ReadonlyMap<LevelId, LevelArtManifest> {
   return manifests;
 }
 
-/** Preloads every stage's images into `assets` and returns a synchronous library. */
+/** Fetches and decodes every stage's images into `assets` and returns a synchronous library. */
 export async function loadLevelArt(assets: AssetStore): Promise<LevelArtLibrary> {
   const library = new Map<LevelId, LevelArt>();
+  const { pictures } = await import('./pictures');
   await Promise.all(
     [...bundledManifests()].map(async ([levelId, manifest]) => {
-      const load = (file: string) => {
-        const url = imageUrls[`../${levelId}/art/${file}`];
-        if (!url) throw new Error(`Level art: ${levelId}/art/${file} is referenced by layers.json but missing`);
-        return assets.loadImage(`level/${levelId}/${file}`, url);
+      const load = async (file: string) => {
+        const art = pictures[`../${levelId}/art/${file.replace(/\.png$/, '.art.ts')}`];
+        if (!art) throw new Error(`Level art: ${levelId}/art/${file} is referenced by layers.json but missing`);
+        return assets.addImage(`level/${levelId}/${file}`, art);
       };
       const layerImages = await Promise.all(manifest.layers.map((layer) => load(layer.file)));
       const toLayer = (index: number): ParallaxLayer => {

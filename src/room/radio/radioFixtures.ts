@@ -2,8 +2,8 @@ import { Box3, Vector3 } from 'three';
 import type { RadioFramingModel } from './radioFraming';
 
 /**
- * The radio and the lava lamp as measured in the shipped assets (radio-base.glb, room.glb, revision 6), for tests:
- * the same numbers `locateRadio` finds at runtime.
+ * The radio's bounds (RADIO_SPEC.bodyBounds, gen/props/radioSpec.ts) and the lava lamp's glass and base, for tests:
+ * the numbers `radioModelOf` hands the room at runtime.
  */
 export const RADIO_FIXTURE: RadioFramingModel = {
   facing: new Vector3(0, 0, 1),

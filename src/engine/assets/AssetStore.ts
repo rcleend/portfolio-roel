@@ -1,5 +1,8 @@
+import type { PixelImage } from '../gfx/canvas';
+import { type PixelData, pixelDataCanvas } from '../gfx/PixelData';
+
 /**
- * Preloads images and fonts before the first frame, so scenes can read
+ * Holds images and fonts made ready before the first frame, so scenes can read
  * assets synchronously and never draw a half-loaded frame.
  */
 export interface FontSource {
@@ -10,20 +13,21 @@ export interface FontSource {
 }
 
 export class AssetStore {
-  readonly #images = new Map<string, HTMLImageElement>();
+  readonly #images = new Map<string, PixelImage>();
   readonly #fonts = new Set<string>();
 
-  /** Loads and decodes an image; resolves once it can be drawn without a flash. */
-  async loadImage(key: string, url: string): Promise<HTMLImageElement> {
+  /**
+   * Decodes a picture stored in code (`PixelData`, an `*.art.ts` module's string) onto a canvas, once per key: no
+   * request, and ready to draw as soon as this returns. The canvas repaints itself after a lost context.
+   */
+  addImage(key: string, pixels: PixelData): PixelImage {
     const cached = this.#images.get(key);
     if (cached) return cached;
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = url;
+    let image: PixelImage;
     try {
-      await image.decode();
+      image = pixelDataCanvas(pixels);
     } catch (cause) {
-      throw new Error(`AssetStore: failed to load image "${key}" from ${url}`, { cause });
+      throw new Error(`AssetStore: failed to decode image "${key}"`, { cause });
     }
     this.#images.set(key, image);
     return image;
@@ -43,23 +47,9 @@ export class AssetStore {
     this.#fonts.add(id);
   }
 
-  async preload(manifest: {
-    readonly images?: Readonly<Record<string, string>>;
-    readonly fonts?: readonly FontSource[];
-  }): Promise<void> {
-    await Promise.all([
-      ...Object.entries(manifest.images ?? {}).map(([key, url]) => this.loadImage(key, url)),
-      ...(manifest.fonts ?? []).map((font) => this.loadFont(font)),
-    ]);
-  }
-
-  image(key: string): HTMLImageElement {
+  image(key: string): PixelImage {
     const image = this.#images.get(key);
-    if (!image) throw new Error(`AssetStore: image "${key}" was not preloaded`);
+    if (!image) throw new Error(`AssetStore: image "${key}" was not added`);
     return image;
-  }
-
-  hasImage(key: string): boolean {
-    return this.#images.has(key);
   }
 }

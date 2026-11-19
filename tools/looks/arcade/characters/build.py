@@ -3,7 +3,8 @@
 
     python3 tools/looks/arcade/characters/build.py            # everything
     python3 tools/looks/arcade/characters/build.py hackerman  # one subject
-    python3 tools/looks/arcade/characters/build.py --check    # fail if the committed files are stale
+    python3 tools/looks/arcade/characters/build.py --check    # fail if the checkout's files are stale (PNGs by
+                                                              # their pixels, once exported: tools/looks/artfiles.py)
 
 Writes the ASSETS.md format (sheet.png + sheet.json, attack.png + attack.json)
 under src/game/art/looks/arcade/. Every pixel comes from the hand-authored kit
@@ -19,14 +20,15 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List
 
-from PIL import Image
-
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 OUT = REPO / "src" / "game" / "art" / "looks" / "arcade"
 
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+for _path in (HERE, HERE.parents[1]):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+import artfiles  # noqa: E402
 
 from kit import customer, effects  # noqa: E402
 from kit.heroes import artsy, hackerman, strategy  # noqa: E402
@@ -87,15 +89,6 @@ def targets() -> Dict[str, Callable[[Path], None]]:
     return jobs
 
 
-def _same(a: Path, b: Path) -> bool:
-    """Byte-equal JSON; pixel-equal PNG (the encoder's bytes may differ between Pillow versions)."""
-    if a.suffix != ".png":
-        return a.read_bytes() == b.read_bytes()
-    with Image.open(a) as ia, Image.open(b) as ib:
-        ra, rb = ia.convert("RGBA"), ib.convert("RGBA")
-        return ra.size == rb.size and ra.tobytes() == rb.tobytes()
-
-
 def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("subjects", nargs="*", help="hackerman, artsy, strategy, customer (default: all)")
@@ -116,13 +109,19 @@ def main(argv: List[str]) -> int:
         root = Path(tmp)
         for subject in chosen:
             jobs[subject](root)
-        for path in sorted(root.rglob("*")):
-            if path.is_file():
-                committed = OUT / path.relative_to(root)
-                if not committed.exists() or not _same(committed, path):
-                    stale.append(str(committed.relative_to(REPO)))
+        fresh = [path for path in sorted(root.rglob("*")) if path.is_file()]
+        # The PNGs are in the checkout only while exported (artfiles.py): without them the JSON is all there is to check.
+        exported = artfiles.exported(OUT / path.relative_to(root) for path in fresh)
+        for path in fresh:
+            committed = OUT / path.relative_to(root)
+            if (exported or path.suffix != ".png") and not artfiles.same(committed, path):
+                stale.append(str(committed.relative_to(REPO)))
     if stale:
         print("stale or missing (run build.py):\n  " + "\n  ".join(stale))
+    if not exported:
+        print(artfiles.EXPORT_HINT)
+        return 1 if stale else 2
+    if stale:
         return 1
     print("up to date")
     return 0

@@ -3,8 +3,8 @@ import sharp from 'sharp';
 import type {} from '../src/app/hosts/RoomHost';
 import { experience, profile } from '../src/content';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
-import { postersShown, FINISHED_REDUCED_ROOM_PROGRAMS as ROOM_PROGRAMS, spotlightIn } from './programs';
+import { differingPixels, expectRest, hostElement, paused, tapWayOut, trackErrors, waitForRunning } from './helpers';
+import { postersShown, FINISHED_ROOM_PROGRAMS as ROOM_PROGRAMS, spotlightIn } from './programs';
 
 /**
  * The computer on the desk in the real app: the room's flight and live
@@ -150,8 +150,8 @@ async function sitDown(page: Page): Promise<void> {
 }
 
 /**
- * Records every texture upload the page makes from an image (the room's atlases are ImageBitmaps),
- * with its size and time, into `window.__uploads`.
+ * Records every texture upload the page makes from an image or a canvas (the room's prints, the posters' atlas, the
+ * monitor's still), with its size and time, into `window.__uploads`.
  */
 async function recordUploads(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -513,6 +513,16 @@ test.describe('on a retina screen', () => {
   test('the desktop left behind by the close button is the still the camera pulls back over', async ({ page }) => {
     await openRoom(page);
     await lookAround(page);
+    // The wallpaper is worked out in idle moments (wallpaper.ts) and is two flat bands until its last row is done;
+    // the room then repaints the glass in an idle moment of its own. A browser has had both long before anyone
+    // reaches the computer; the paused clock hands idle moments out one every 50 ms with no time left in them, and at
+    // the computer's live screen the room takes none of those. So the picture would land on the live desktop while
+    // the glass under it kept the bands until the camera next set off: wait here, in the room view, for both.
+    // (In tenths of a second: nothing here is timed, and a frame a step would be a thousand round trips.)
+    for (let waited = 0; !(await wallpaperPainted(page)) || (await stats(page))?.backgroundPending; waited += 100) {
+      if (waited > 30_000) throw new Error('The wallpaper is still not on the glass after 30 s of the page clock');
+      await step(page, 100);
+    }
     await sitDown(page);
     await untilReader(page);
     await reader(page).getByRole('button', { name: 'Close the résumé' }).click();
@@ -524,6 +534,22 @@ test.describe('on a retina screen', () => {
     expect(await handOffDifference(page, 'closing')).toBeLessThanOrEqual(3);
   });
 });
+
+/**
+ * Whether the live desktop's wallpaper is the finished picture: until then its sky is one flat colour
+ * (WALLPAPER_PLACEHOLDER), afterwards a gradient with clouds.
+ */
+const wallpaperPainted = (page: Page) =>
+  page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.pc-desktop__wallpaper > canvas');
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return false;
+    const column = context.getImageData(Math.round(canvas.width / 3), 0, 1, Math.round(canvas.height / 2)).data;
+    const colours = new Set<number>();
+    for (let i = 0; i < column.length; i += 4)
+      colours.add(((column[i] ?? 0) << 16) | ((column[i + 1] ?? 0) << 8) | (column[i + 2] ?? 0));
+    return colours.size > 4;
+  });
 
 /**
  * The mean difference, per channel and out of 255, between the live screen and the still under it,
@@ -605,10 +631,11 @@ test.describe('performance', () => {
     await page.goto('/?seed=1');
     await waitForRunning(page);
     // The walls' strips go up at the TV just after the room is in, under the startup still (docs/ROOM.md ›
-    // Startup); the visitor's press a moment later hands the game over to the room, and from there on it plays.
+    // Startup); the still goes on a black frame of the game (the boot's blackout, or after the press that leaves the
+    // title), and from there on the game plays on the room's tube.
     await page.waitForTimeout(1000);
     await page.keyboard.press('Enter');
-    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false', { timeout: 30_000 });
     const handedOver = await page.evaluate(() => performance.now());
     // Long enough for the still painter to arrive and be prepared between the game's frames.
     await page.waitForTimeout(2500);
@@ -626,7 +653,9 @@ test.describe('performance', () => {
     expect(await largeUploadsSince(page, since)).toBe(0);
   });
 
-  test('reduced motion renders nothing while reading or scrolling, and adds no shader program', async ({ page }) => {
+  test('under reduced motion nothing in the room moves while reading or scrolling, and no shader program is added', async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/?seed=1');
     await waitForRunning(page);
@@ -642,9 +671,16 @@ test.describe('performance', () => {
     // Past the page's fade-in and the light change it makes.
     await page.waitForTimeout(500);
 
-    const reading = (await stats(page))?.framesRendered;
-    await page.waitForTimeout(2000);
-    expect((await stats(page))?.framesRendered).toBe(reading);
+    // The room beside the monitor, clear of the live screen and of the light it spills: under reduced motion nothing
+    // in it moves by itself, so the room at rest draws no frame behind the reader (docs/ROOM.md › Frames › At rest)
+    // and stays one picture; neither reading nor scrolling changes the screen's light.
+    const placement = await page.evaluate(() => window.__room?.pc.placement);
+    if (!placement) throw new Error('No live screen');
+    const beside = { x: 0, y: 0, width: Math.floor(placement.left) - 60, height: 900 };
+    const room = () => page.screenshot({ clip: beside });
+    const reading = await room();
+    await expectRest(page, 'while reading', []);
+    expect(await differingPixels(reading, await room()), 'pixels moving in the room while reading').toBe(0);
 
     const box = await pane(page).boundingBox();
     if (!box) throw new Error('No document pane');
@@ -652,7 +688,8 @@ test.describe('performance', () => {
     for (let step = 0; step < 10; step++) await page.mouse.wheel(0, 100);
     await expect.poll(() => pane(page).evaluate((element) => element.scrollTop)).toBeGreaterThanOrEqual(900);
     await page.waitForTimeout(500);
-    expect((await stats(page))?.framesRendered).toBe(reading);
+    expect(await differingPixels(reading, await room()), 'pixels the scrolling changed in the room').toBe(0);
+    await expectRest(page, 'after scrolling', []);
     expect((await stats(page))?.programs).toBe(ROOM_PROGRAMS);
   });
 

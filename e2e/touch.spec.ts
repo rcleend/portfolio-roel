@@ -43,6 +43,8 @@ test('on the title a tap on the set itself begins too, and the way out comes at 
   await expect(hostElement(page)).toHaveAttribute('data-view', 'tv');
   // In the sound toggle's row at the top left, exactly its height: the radio's "Back to the room" place.
   const toggle = await page.locator('.sound-toggle').boundingBox();
+  // It arrives once the startup still is out of sight (docs/ROOM.md › Startup), dropping in: where it comes to rest.
+  await expect.poll(async () => Math.abs(((await wayOut.boundingBox())?.y ?? 0) - (toggle?.y ?? 0))).toBeLessThan(0.5);
   const pill = await wayOut.boundingBox();
   expect(pill?.height).toBeCloseTo(toggle?.height ?? 0, 0);
   expect(pill?.y).toBeCloseTo(toggle?.y ?? 0, 0);

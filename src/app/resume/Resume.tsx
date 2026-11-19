@@ -2,21 +2,38 @@ import { type Experience, education, experience, type Metric, nextLevelTeaser, p
 import { formatMonth, sentenceCase } from './format';
 import './Resume.css';
 
+export interface ResumeProps {
+  /**
+   * The résumé as the whole page, for a visitor whose browser has no GPU to draw the room with (app/cv,
+   * docs/ROOM.md › No GPU): always shown, scrolled by the document, with no way back to a game that is not there.
+   */
+  readonly page?: boolean;
+  /** The header's links; the page adds what only the room leads to (app/cv/render.tsx). */
+  readonly links?: readonly { readonly kind: string; readonly label: string; readonly href: string }[];
+}
+
 /**
  * The same portfolio as semantic HTML, always in the DOM: for screen readers,
  * search engines and visitors who would rather read than play. Visually
  * hidden until it is targeted by the skip link or receives focus, then shown
- * as a typeset page with a light arcade accent.
+ * as a typeset page with a light arcade accent. With `page` it is the page itself.
  */
-export function Resume() {
+export function Resume({ page = false, links = profile.links }: ResumeProps) {
   return (
-    <main id="resume" className="resume" tabIndex={-1} aria-labelledby="resume-name">
+    <main
+      id="resume"
+      className={page ? 'resume resume--page' : 'resume'}
+      tabIndex={page ? undefined : -1}
+      aria-labelledby="resume-name"
+    >
       <div className="resume__page">
-        <nav className="resume__nav" aria-label="Résumé">
-          <button type="button" className="resume__back" onClick={backToGame}>
-            <span aria-hidden="true">◂ </span>Back to the game
-          </button>
-        </nav>
+        {page ? null : (
+          <nav className="resume__nav" aria-label="Résumé">
+            <button type="button" className="resume__back" onClick={backToGame}>
+              <span aria-hidden="true">◂ </span>Back to the game
+            </button>
+          </nav>
+        )}
 
         <header className="resume__header">
           <p className="resume__kicker">Player 1</p>
@@ -26,7 +43,7 @@ export function Resume() {
           </p>
           <p className="resume__summary">{profile.summary}</p>
           <ul className="resume__links">
-            {profile.links.map((link) => (
+            {links.map((link) => (
               <li key={link.kind}>
                 <a href={link.href} rel={link.kind === 'email' ? undefined : 'me noopener'}>
                   {link.label}
@@ -77,7 +94,7 @@ export function Resume() {
         </aside>
 
         <footer className="resume__footer">
-          <a href={`${import.meta.env.BASE_URL}room/CREDITS.txt`}>3D room asset credits</a>
+          <a href={`${import.meta.env.BASE_URL}CREDITS.txt`}>Credits</a>
         </footer>
       </div>
     </main>

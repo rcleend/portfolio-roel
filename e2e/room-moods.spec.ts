@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import type { RoomMood } from '../src/room/atmosphere/moods';
 import { GPU_LAUNCH_ARGS } from './gpu';
-import { trackErrors } from './helpers';
+import { expectNoFrames, expectRest, pixelsChanged, trackErrors } from './helpers';
 import { ATMOSPHERE_PROGRAMS, postersShown, ROOM_PROGRAMS, spotlightIn } from './programs';
 
 test.use({
@@ -72,16 +72,17 @@ test('three night finishes are distinct, darker than the bake, and stay still un
   expect(flecks, 'dust remains fine motes, not a veil').toBeLessThan((1440 * 900) / 100);
   await page.evaluate(() => window.__roomLab?.room.setAir({ haze: 1, dust: 1 }));
 
-  // Revisiting finishes reuses programs; changing one draws once, then rests even under reduced motion.
+  // Revisiting finishes reuses programs; under reduced motion a finish is one picture, drawn once: the dust, the rain
+  // and the lava lamp stand still in it, so nothing moves by itself and the room at rest draws no frame at all.
   const programs = (await stats())?.programs;
   for (const mood of ['honey', 'midnight', 'rose', 'original'] as const) {
     await page.evaluate((next) => window.__roomLab?.room.setMood(next), mood);
     await page.waitForTimeout(100);
+    expect(await pixelsChanged(page, page.locator('#stage canvas'), 200), `pixels moving in ${mood}`).toBe(0);
   }
   expect((await stats())?.programs).toBe(programs);
-  const resting = (await stats())?.framesRendered;
-  await page.waitForTimeout(300);
-  expect((await stats())?.framesRendered).toBe(resting);
+  expect((await stats())?.lavaRunning).toBe(false);
+  await expectRest(page, 'under reduced motion', []);
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
   expect(errors).toEqual([]);
 });
@@ -97,9 +98,12 @@ test('the main app fixes Velvet dusk and removes the mood controls', async ({ pa
   expect(errors).toEqual([]);
 });
 
-test('dust drifts at a low rate, rests when hidden or reduced, and stops with the finish', async ({ page }) => {
+test('dust drifts with the clock, stands still when reduced, switched off or unfinished, and nothing draws hidden', async ({
+  page,
+}) => {
   const errors = trackErrors(page);
-  // Seat the radio's discs without entrance animation, then enable motion. Dust must not depend on game/lava ticks.
+  // Seat the radio's discs without entrance animation, then enable motion: at the radio the lava lamp is out of shot
+  // and the game is paused, so whatever moves in the picture is the air.
   await page.goto('/room-lab.html?clean&view=room&mood=honey&mockradio=1');
   await page.waitForFunction(() => window.__roomLab?.room.view === 'room' && window.__roomLab.room.settled);
   const stats = () => page.evaluate(() => window.__roomLab?.room.stats);
@@ -107,43 +111,61 @@ test('dust drifts at a low rate, rests when hidden or reduced, and stops with th
   await page.evaluate(() => window.__roomLab?.room.focusRadio());
   await page.waitForFunction(() => window.__roomLab?.room.radio.deck?.live && window.__roomLab.room.settled);
   await page.waitForTimeout(200);
+  const canvas = page.locator('#stage canvas');
+  /** Pixels of the stage that change over 400 ms: none when nothing moves, whether or not a frame was drawn. */
+  const moving = () => pixelsChanged(page, canvas, 400);
+  expect(await moving(), 'pixels moving under reduced motion').toBe(0);
+  await expectRest(page, 'under reduced motion', []);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const before = (await stats())?.framesRendered ?? 0;
-  await page.waitForTimeout(500);
-  const drift = ((await stats())?.framesRendered ?? 0) - before;
-  // SwiftShader can spend most of this interval rasterising the room. Pin a running clock there, not a minimum FPS.
-  expect(drift).toBeGreaterThan(process.env.ROOM_GL === 'swiftshader' ? 0 : 3);
-  expect(drift).toBeLessThan(17);
+  await page.waitForTimeout(200);
+  expect(await moving(), 'the dust drifts').toBeGreaterThan(0);
   expect((await stats())?.lavaRunning).toBe(false);
+  expect((await stats())?.radioAmbient).toBe(false);
+  // The air is all that moves, and the room at rest draws for it alone: as often as drifting dust needs, not the
+  // display's sixty frames a second.
+  await expectRest(page, 'with the dust adrift', ['air']);
 
-  const expectRest = async () => {
-    await page.waitForTimeout(200);
-    const rested = (await stats())?.framesRendered;
-    await page.waitForTimeout(300);
-    expect((await stats())?.framesRendered).toBe(rested);
-  };
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expectRest();
+  await page.waitForTimeout(200);
+  expect(await moving(), 'pixels moving once motion is reduced').toBe(0);
   await page.evaluate(() => window.__roomLab?.room.setAir({ haze: 1, dust: 0 }));
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await expectRest();
+  await page.waitForTimeout(200);
+  expect(await moving(), 'pixels moving without dust').toBe(0);
+  await expectRest(page, 'without dust', []);
   await page.evaluate(() => window.__roomLab?.room.setAir({ haze: 1, dust: 1 }));
+  await expectRest(page, 'with the dust back', ['air']);
+  // Off screen the room asks for no frame, dust or not.
   await page.locator('#stage').evaluate((element) => {
     element.style.display = 'none';
   });
-  await expectRest();
+  await expectNoFrames(page, 'off screen');
   await page.locator('#stage').evaluate((element) => {
     element.style.removeProperty('display');
   });
-  const shown = (await stats())?.framesRendered ?? 0;
-  await expect.poll(async () => (await stats())?.framesRendered).toBeGreaterThan(shown + 2);
+  // Back on screen (the browser says so in its own time) the dust drifts again, at the pace it did.
+  await expectRest(page, 'back on screen', ['air']);
+  expect(await moving(), 'the dust drifts again').toBeGreaterThan(0);
+  // A hidden tab: the same.
+  const tabHidden = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  await tabHidden(true);
+  await expectNoFrames(page, 'in a hidden tab');
+  await tabHidden(false);
+  await expectRest(page, 'in the tab shown again', ['air']);
+  // The unprocessed bake has no dust.
   await page.evaluate(() => window.__roomLab?.room.setMood('original'));
-  await expectRest();
+  await page.waitForTimeout(200);
+  expect(await moving(), 'pixels moving without a finish').toBe(0);
+  await expectRest(page, 'without a finish', []);
   await page.evaluate(() => {
     window.__roomLab?.room.setMood('honey');
     window.__roomLab?.room.dispose();
   });
-  await expectRest();
+  await expectNoFrames(page, 'once the room is disposed');
   expect(errors).toEqual([]);
 });
 

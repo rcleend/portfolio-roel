@@ -1,19 +1,13 @@
 import { Box3, type Camera, Frustum, Matrix4, Vector3 } from 'three';
 
-/**
- * Per item, the box of everything it emits (its card, tape overhangs and skirts), as tools/room/posters.mjs writes it
- * into the posters node's extras, in the node's parent space (the room's).
- */
-interface DecorRecord {
-  readonly decor_id: string;
+/** Per piece, the box of everything it draws (its card, tape overhangs and skirt), in the room's space. */
+export interface DecorRecord {
   readonly min: readonly [number, number, number];
   readonly max: readonly [number, number, number];
 }
 
-/** The posters node's item boxes; throws when the node carries none (an asset from before the contract). */
-export function decorBoxes(userData: Readonly<Record<string, unknown>>): Box3[] {
-  const decor = userData.decor as readonly DecorRecord[] | undefined;
-  if (!Array.isArray(decor) || decor.length === 0) throw new Error('posters.glb carries no decor boxes');
+/** The pieces' boxes as the wall's geometry measures them (posters/wall/geometry.ts). */
+export function decorBoxes(decor: readonly DecorRecord[]): Box3[] {
   return decor.map(({ min, max }) => new Box3(new Vector3(...min), new Vector3(...max)));
 }
 

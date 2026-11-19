@@ -1,42 +1,30 @@
 import { Group, MathUtils, type Mesh, type Object3D, type Raycaster, type Vector2, Vector3 } from 'three';
 import { FLIGHT_MS, REDUCED_FADE_MS } from '../../camera/CameraRig';
-import { boxCorners } from '../../camera/framing';
 import { projectToPage } from '../../camera/pageProjection';
 import { type IdleTask, QUIET } from '../../stage/IdleWork';
 import { isSlow } from '../../stage/slowDevice';
 import { PowerLed } from '../../tv/PowerLed';
-import {
-  CLOSEUP_FILE,
-  type CreateRadioDevice,
-  type DevicePick,
-  type DeviceTarget,
-  type RadioDevice,
-  type RadioDeviceContext,
-} from '../deviceContract';
-import { deviceMemory, saveData } from '../deviceFacts';
+import type { CreateRadioDevice, DevicePick, DeviceTarget, RadioDevice, RadioDeviceContext } from '../deviceContract';
 import { discSlots } from '../discLayout';
+import type { DeviceParts, DeviceSpec, GeneratedRadioSource } from '../partsProvider';
 import type { DeckState, DiscArt, LcdReadout, RadioKey } from '../RadioDeck';
-import { AmbientPacer } from './AmbientPacer';
+import { AMBIENT_INTERVAL_MS, AmbientPacer } from './AmbientPacer';
 import { Choreography, type DiscSample, discHeirs, type Moment } from './choreography';
-import { assembleParts, type CloseUpExtras, type RadioParts } from './closeUpAsset';
 import { Discs } from './Discs';
 import { radioLayout } from './deckLayout';
-import { wantsSkin } from './deviceTier';
 import { keyShade, rockerDegrees, sideKeyTravel } from './keyMotion';
 import { Lcd } from './Lcd';
 import { blinks } from './lcdSegments';
 import { LID } from './lidMotion';
-import { MonotonicClock } from './monotonicClock';
-import { decodeSkin, fetchSkin, Skin } from './Skin';
+import { eventTime, MonotonicClock } from './monotonicClock';
 
 /**
- * The CD player as a device (docs/ROOM.md › The CD player): the lazy `radioDevice` chunk. It cuts the lid and keys
- * out of the baked radio, hangs the close-up's parts and the discs, lights the LCD and the OPR lamp, and runs the
- * choreography: one `loop.animate` step that lives only while something moves, and an ambient pacer for the idle
- * float (≤ 30 frames a second, resting after 6 s). At rest nothing runs: the radio view draws no frames.
+ * The CD player as a device (docs/ROOM.md › The CD player): the lazy `radioDevice` chunk. It takes the generated
+ * radio's parts on their pivots (partsProvider.ts), hangs the discs, lights the LCD and the OPR lamp, and runs the
+ * choreography: one `loop.animate` step that lives only while something moves, and the idle float, which rides the
+ * frames the room draws anyway (posed in every one of them, resting after 6 s). At rest nothing of the device runs.
  */
 
-const SKIN_FILE = 'radio-skin-2k.webp';
 /** The paused time blinks 500 ms on, 500 off, until 30 s without input, then stays on. */
 const BLINK_MS = 500;
 const BLINK_FOR_MS = 30_000;
@@ -45,9 +33,9 @@ const LED_SIZE = { lensRadius: 0.0015, haloRadius: 0.01 } as const;
 /** How late after its time a moment no frame has fired is fired by a timer. */
 const MOMENT_GRACE_MS = 120;
 /**
- * At the radio, the prints and the skin wait at most this long for an idle period between the float's frames that can
- * hold their next unit (IdleWork's patience): judged by the longest unit run so far (the close-up's assembly) none
- * might fit on a fast display, and they would wait for the float to rest, seconds on.
+ * At the radio, the prints wait at most this long for an idle period between the float's frames that can hold their
+ * next unit (IdleWork's patience): judged by the longest unit run so far none might fit on a fast display, and they
+ * would wait for the float to rest, seconds on.
  */
 export const WAITED_ON_PATIENCE_MS = 400;
 /** Prints that arrive while the visitor watches fade in over the bare silver this long. */
@@ -96,13 +84,7 @@ function inIdle<T>(
   });
 }
 
-async function fetchBuffer(url: string): Promise<ArrayBuffer> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  return response.arrayBuffer();
-}
-
-/** Loads, checks and prepares the device; rejects (the radio stays scenery) if anything does not fit. */
+/** Waits for the generated radio and prepares the device; rejects (the radio stays scenery) without one. */
 export const createRadioDevice: CreateRadioDevice = async (host, link) => {
   const { stage } = host;
   const context: RadioDeviceContext = {
@@ -114,10 +96,14 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     // On the way to the radio (and there) its preparation is what the flight waits for: it may go between the
     // flight's frames, where they leave room for it.
     background: {
-      add: (task, options) => host.background.add(task, { ...options, urgent: () => host.views.view === 'radio' }),
+      add: (task, options) =>
+        host.background.add(task, {
+          ...options,
+          urgent: () => host.views.view === 'radio',
+          // And a flight to the radio waits for it before it sets off: nothing runs while the camera flies.
+          flight: (to) => to === 'radio',
+        }),
     },
-    loader: host.loader,
-    assetBaseUrl: host.assetBaseUrl,
     anisotropy: host.anisotropy,
     software: stage.softwareGpu,
     reducedMotion: link.reducedMotion,
@@ -127,61 +113,26 @@ export const createRadioDevice: CreateRadioDevice = async (host, link) => {
     slots: () => discSlots(link.discCount(), stage.size.width / stage.size.height),
     events: link.events,
   };
-  const base = context.assetBaseUrl;
-  const skinWanted = wantsSkin({
-    bodyWidthCss: bodyWidthAtRadio(context),
-    pixelRatio: context.stage.size.pixelRatio,
-    deviceMemory: deviceMemory(),
-    saveData: saveData(),
-    slow: isSlow(context.software, null),
-  });
-  // The close-up was asked for beside this chunk (the handle starts both); the skin's bytes come after it.
-  const buffer = await (link.closeUp ?? fetchBuffer(new URL(CLOSEUP_FILE, base).href));
-  // The parse itself is asynchronous (meshopt decodes in a worker): the unit only starts it.
-  const parsing = await inIdle(context.background, () => context.loader.parseAsync(buffer, base));
-  const gltf = await parsing;
-  const meshes = new Map(context.model.meshes.map((mesh) => [mesh.name, mesh]));
   const root = new Group();
   root.name = 'RadioDevice';
   context.scene.add(root);
-  let parts: RadioParts | null = null;
+  let source: GeneratedRadioSource | null = null;
   let device: Device | null = null;
   try {
-    parts = await inIdle(context.background, () => assembleParts(gltf, meshes, root));
-    const assembled = parts;
-    device = await inIdle(
-      context.background,
-      () =>
-        new Device(
-          context,
-          root,
-          assembled,
-          gltf.scene.userData as CloseUpExtras,
-          skinWanted ? new URL(SKIN_FILE, base).href : null,
-        ),
-    );
-    const { atlas } = assembled;
-    // 512², a millisecond: it may go between frames.
-    if (atlas) {
-      await inIdle(context.background, () => context.renderer.initTexture(atlas), uploadUnit);
-    }
+    // The parts are the generated room's, once its light is baked and it is on screen.
+    source = (await host.generated.ready) ? host.generated.radio() : null;
+    if (!source) throw new Error('The generated room has no CD player');
+    const { parts, spec } = source;
+    device = await inIdle(context.background, () => new Device(context, root, parts, spec));
     return device;
   } catch (error) {
-    // Whatever step failed, the room's radio goes back to exactly what was baked: scenery, never broken.
+    // Whatever step failed, the room's radio goes back to exactly what it was: scenery, never broken.
     if (device) device.dispose();
-    else parts?.restore();
+    else source?.parts.restore();
     root.removeFromParent();
     throw error;
   }
 };
-
-/** The radio body's width on the page at the radio pose (CSS px). */
-function bodyWidthAtRadio(context: RadioDeviceContext): number {
-  const { bodyBounds } = context.model;
-  const corners = projectToPage(boxCorners(bodyBounds.min, bodyBounds.max), context.pose(), context.stage.size);
-  const xs = corners.map((point) => point.x);
-  return Math.max(...xs) - Math.min(...xs);
-}
 
 class Device implements RadioDevice {
   readonly root: Group;
@@ -192,6 +143,8 @@ class Device implements RadioDevice {
   readonly #pacer: AmbientPacer;
   readonly #sideHolders: Readonly<Record<'previous' | 'next', Object3D>>;
   #stopStep: (() => void) | null = null;
+  /** The float rides the room's frames (a paced loop): stops it. */
+  #stopRide: (() => void) | null = null;
   #state: DeckState = { loaded: null, transport: 'stopped', lcd: { kind: 'off' } };
   #keyboardAttention: string | null = null;
   #pointerAttention: string | null = null;
@@ -203,8 +156,6 @@ class Device implements RadioDevice {
   #blinkOn = true;
   #blinkTimer: ReturnType<typeof setTimeout> | null = null;
   #labelWork = new Set<string>();
-  /** The 2K skin, on devices it is for. */
-  readonly #skin: Skin | null;
   #slow: boolean;
   #flightMeasured = false;
   #compiling: Promise<void> | null = null;
@@ -230,15 +181,9 @@ class Device implements RadioDevice {
   #pointerAttentionReported: string | null = null;
 
   readonly #context: RadioDeviceContext;
-  readonly #parts: RadioParts;
+  readonly #parts: DeviceParts;
 
-  constructor(
-    context: RadioDeviceContext,
-    root: Group,
-    parts: RadioParts,
-    extras: CloseUpExtras,
-    skinUrl: string | null,
-  ) {
+  constructor(context: RadioDeviceContext, root: Group, parts: DeviceParts, extras: DeviceSpec) {
     this.#context = context;
     this.#parts = parts;
     this.root = root;
@@ -274,33 +219,16 @@ class Device implements RadioDevice {
         context.loop.animate(this.#ambientFrame);
       },
     });
-    this.#skin =
-      skinUrl === null
-        ? null
-        : new Skin({
-            renderer: context.renderer,
-            materials: parts.skinMaterials,
-            anisotropy: context.anisotropy,
-            background: context.background,
-            patienceMs: WAITED_ON_PATIENCE_MS,
-            invalidate: () => context.loop.invalidate(),
-            fetchBytes: () => fetchSkin(skinUrl),
-            decode: decodeSkin,
-          });
-    // Only the bytes ahead of a visit: the 20 MB on the GPU waits for the visitor to reach for the radio (a hover, a
-    // focus, or a touch screen's tap, whose 1.1 s flight carries the strips between its frames).
-    this.#skin?.fetch();
     context.renderer.domElement.addEventListener('webglcontextrestored', this.#onContextRestored);
     context.reducedMotion.addEventListener('change', this.#onMotionPreference);
   }
 
   get texturePixels(): number {
-    const skin = this.#skin?.pixels ?? 0;
-    return this.#discs.texturePixels + (this.#parts.atlas ? 512 * 512 : 0) + this.#lcd.pixels + skin;
+    return this.#discs.texturePixels + this.#lcd.pixels;
   }
 
   get ambient(): boolean {
-    return this.#pacer.running;
+    return this.#pacer.running || this.#stopRide !== null;
   }
 
   get moving(): boolean {
@@ -346,7 +274,7 @@ class Device implements RadioDevice {
     // function of time, so the next visit samples where this change left it, and the clock the player ticks every
     // second costs no frame at the computer or in the room. A step already running carries on regardless.
     if (this.#context.views.view === 'radio') this.#kick();
-    else this.#pacer.sync();
+    else this.#syncAmbient();
   }
 
   press(key: RadioKey): void {
@@ -379,7 +307,6 @@ class Device implements RadioDevice {
     this.#compileDiscs();
     this.#choreography.approach(at, now);
     if (!this.#flightMeasured && !this.#context.reducedMotion.matches) this.#measureFlight(at);
-    this.#skin?.want();
     this.#updateLcd(now);
     this.#kick();
   }
@@ -403,10 +330,6 @@ class Device implements RadioDevice {
     this.#updateAttention();
     this.#choreography.conceal(now);
     this.#kick();
-  }
-
-  intent(): void {
-    this.#skin?.want();
   }
 
   relayout(): void {
@@ -560,13 +483,14 @@ class Device implements RadioDevice {
     this.#stopStep?.();
     this.#stopStep = null;
     this.#pacer.stop();
+    this.#stopRide?.();
+    this.#stopRide = null;
     if (this.#blinkTimer !== null) clearTimeout(this.#blinkTimer);
     if (this.#momentTimer !== null) clearTimeout(this.#momentTimer);
     this.#context.reducedMotion.removeEventListener('change', this.#onMotionPreference);
     this.#discs.dispose();
     this.#lcd.dispose();
     this.#led.dispose();
-    this.#skin?.dispose();
     this.#context.renderer.domElement.removeEventListener('webglcontextrestored', this.#onContextRestored);
     this.#parts.restore();
     this.root.removeFromParent();
@@ -596,9 +520,12 @@ class Device implements RadioDevice {
     );
   }
 
-  /** performance.now() through the device's clock: a frame never draws earlier than an event already handled. */
-  #clock(at = performance.now()): number {
-    return this.#time.at(at);
+  /**
+   * A frame's time, or with none given the time of an event handled now (`eventTime`), through the device's clock: a
+   * frame never draws earlier than an event already handled.
+   */
+  #clock(frame?: number): number {
+    return this.#time.at(frame ?? eventTime(performance.now(), this.#context.loop.lastFrameTime));
   }
 
   /** Keeps the frame step alive while anything moves; it stops itself when everything rests. */
@@ -612,7 +539,7 @@ class Device implements RadioDevice {
       };
       this.#stopStep = this.#context.loop.animate(step);
     }
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#armMoments();
   }
 
@@ -640,13 +567,51 @@ class Device implements RadioDevice {
     return false;
   };
 
+  /**
+   * Starts or stops the float to match `#ambientWanted()`. A room that draws frames of its own accord (the generated
+   * room, `RenderLoop.pace`) carries it: the discs are posed in every frame drawn, and the loop is told they move
+   * (`RenderLoop.ambient`: thirty frames a second while the room rests, evenly spaced on the display's own). The
+   * pacer's thirty a second are for a loop that draws on demand only: beside a paced loop its frames would never come
+   * due (every frame of the room's restarts its grid), and the discs would stand still and jump whenever something
+   * else moved them.
+   */
+  #syncAmbient(): void {
+    const { loop } = this.#context;
+    if (!loop.paced) {
+      this.#stopRide?.();
+      this.#stopRide = null;
+      this.#pacer.sync();
+      return;
+    }
+    this.#pacer.stop();
+    if (this.#ambientWanted()) {
+      if (this.#stopRide === null) {
+        const stops = [loop.ride(this.#rideFrame), loop.ambient('discs', () => 1000 / AMBIENT_INTERVAL_MS)];
+        this.#stopRide = () => {
+          for (const stop of stops) stop();
+        };
+      }
+    } else {
+      this.#stopRide?.();
+      this.#stopRide = null;
+    }
+  }
+
+  /** A frame the room draws while the discs float: their pose at its time, unless the choreography's step set it. */
+  readonly #rideFrame = (now: number): boolean => {
+    // The step runs first and poses everything (and looks after the float itself, `#frame`).
+    if (this.#stopStep === null) this.#frame(this.#clock(now));
+    else this.#syncAmbient();
+    return this.#stopRide !== null;
+  };
+
   /** One frame: fire the moments that came due, then pose every part. Returns whether anything still moves. */
   #frame(now: number): boolean {
     for (const moment of this.#choreography.advance(now)) this.#fire(moment);
     const sample = this.#choreography.sample(now);
     this.#apply(sample.lid, sample.discs, sample.keys);
     this.#updateLcd(now);
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#reportShelf(now);
     return sample.moving;
   }
@@ -758,7 +723,7 @@ class Device implements RadioDevice {
   #input(now: number): void {
     this.#lastInput = now;
     this.#choreography.activity(now);
-    this.#pacer.sync();
+    this.#syncAmbient();
   }
 
   #updateAttention(): void {
@@ -830,10 +795,25 @@ class Device implements RadioDevice {
     });
   }
 
-  /** Compiles the disc program on the way to the radio, never before, so other views keep their program count. */
+  board(): Promise<void> {
+    this.#compileDiscs();
+    return (this.#compiling ?? Promise.resolve()).then(() => {
+      if (this.#disposed) return;
+      // Everything the device hangs in the scene (the discs, the display), hidden or not.
+      const drawn: Object3D[] = [];
+      this.root.traverse((object) => void drawn.push(object));
+      this.#context.stage.warm(drawn);
+    });
+  }
+
+  /**
+   * Compiles the disc program as the camera is about to leave for the radio, never before, so other views keep their
+   * program count; for the target frames draw into (compiled for the screen it was a program nothing drew with, and
+   * the one that did draw was compiled in the flight's frame that first showed a disc).
+   */
   #compileDiscs(): void {
     if (this.#compiling) return;
-    this.#compiling = this.#discs.compile(this.#context.renderer, this.#context.camera, this.#context.scene).then(
+    this.#compiling = this.#discs.compile(this.#context.stage).then(
       () => {
         if (this.#revealOnceCompiled && !this.#disposed) {
           this.#revealOnceCompiled = false;
@@ -855,25 +835,23 @@ class Device implements RadioDevice {
       if (now < end && this.#context.views.moving) return true;
       if (isSlow(false, frames)) {
         this.#slow = true;
-        this.#skin?.abandon();
-        this.#pacer.sync();
+        this.#syncAmbient();
       }
       return false;
     });
   }
 
-  /** The context was lost and is back: three uploads the textures again, the skin goes up again in strips. */
+  /** The context was lost and is back: three uploads the textures again. */
   readonly #onContextRestored = (): void => {
-    this.#skin?.restore();
     this.#context.loop.invalidate();
   };
 
   readonly #onMotionPreference = (): void => {
-    this.#pacer.sync();
+    this.#syncAmbient();
     this.#kick();
   };
 
-  #lcdRenderWidth(extras: CloseUpExtras): number {
+  #lcdRenderWidth(extras: DeviceSpec): number {
     const { lcd } = extras;
     const page = projectToPage(
       [new Vector3(lcd.min[0], lcd.min[1], lcd.z), new Vector3(lcd.max[0], lcd.max[1], lcd.z)],

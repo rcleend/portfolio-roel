@@ -2,22 +2,22 @@ import type { CharacterId } from '@/content';
 import type { AssetStore } from '@/engine/assets/AssetStore';
 import { SpriteSheet } from '@/engine/gfx/SpriteSheet';
 import { parseSpriteSheetSpec } from '@/engine/gfx/SpriteSheetSpec';
+import { art as hoodedArt } from '@/game/art/looks/terraria-hooded/characters/hackerman/sheet.art';
 import hoodedJson from '@/game/art/looks/terraria-hooded/characters/hackerman/sheet.json';
-import hoodedPng from '@/game/art/looks/terraria-hooded/characters/hackerman/sheet.png';
+import { art as revisedArtsyArt } from '@/game/art/looks/terraria-revised/characters/artsy/sheet.art';
 import revisedArtsyJson from '@/game/art/looks/terraria-revised/characters/artsy/sheet.json';
-import revisedArtsyPng from '@/game/art/looks/terraria-revised/characters/artsy/sheet.png';
+import { art as revisedHackermanArt } from '@/game/art/looks/terraria-revised/characters/hackerman/sheet.art';
 import revisedHackermanJson from '@/game/art/looks/terraria-revised/characters/hackerman/sheet.json';
-import revisedHackermanPng from '@/game/art/looks/terraria-revised/characters/hackerman/sheet.png';
+import { art as revisedStrategyArt } from '@/game/art/looks/terraria-revised/characters/strategy/sheet.art';
 import revisedStrategyJson from '@/game/art/looks/terraria-revised/characters/strategy/sheet.json';
-import revisedStrategyPng from '@/game/art/looks/terraria-revised/characters/strategy/sheet.png';
 import type { LookId } from '../ids';
 import type { ImageSheetSource } from '../module';
+import { art as artsyArt } from './characters/artsy/sheet.art';
 import artsyJson from './characters/artsy/sheet.json';
-import artsyPng from './characters/artsy/sheet.png';
+import { art as hackermanArt } from './characters/hackerman/sheet.art';
 import hackermanJson from './characters/hackerman/sheet.json';
-import hackermanPng from './characters/hackerman/sheet.png';
+import { art as strategyArt } from './characters/strategy/sheet.art';
 import strategyJson from './characters/strategy/sheet.json';
-import strategyPng from './characters/strategy/sheet.png';
 
 /**
  * A hero's design in the Terraria style, drawn by tools/looks/terraria: the
@@ -40,10 +40,10 @@ export const TERRARIA_DESIGNS: readonly TerrariaDesign[] = [
     look: 'terraria',
     hero: 'hackerman',
     variant: null,
-    sheet: { png: hackermanPng, json: hackermanJson },
+    sheet: { art: hackermanArt, json: hackermanJson },
   },
-  { look: 'terraria', hero: 'artsy', variant: null, sheet: { png: artsyPng, json: artsyJson } },
-  { look: 'terraria', hero: 'strategy', variant: null, sheet: { png: strategyPng, json: strategyJson } },
+  { look: 'terraria', hero: 'artsy', variant: null, sheet: { art: artsyArt, json: artsyJson } },
+  { look: 'terraria', hero: 'strategy', variant: null, sheet: { art: strategyArt, json: strategyJson } },
 ];
 
 /**
@@ -57,44 +57,42 @@ export const REVISED_TERRARIA_DESIGNS: readonly TerrariaDesign[] = [
     look: 'terraria-revised',
     hero: 'hackerman',
     variant: null,
-    sheet: { png: revisedHackermanPng, json: revisedHackermanJson },
+    sheet: { art: revisedHackermanArt, json: revisedHackermanJson },
   },
   {
     look: 'terraria-revised',
     hero: 'artsy',
     variant: null,
-    sheet: { png: revisedArtsyPng, json: revisedArtsyJson },
+    sheet: { art: revisedArtsyArt, json: revisedArtsyJson },
   },
   {
     look: 'terraria-revised',
     hero: 'strategy',
     variant: null,
-    sheet: { png: revisedStrategyPng, json: revisedStrategyJson },
+    sheet: { art: revisedStrategyArt, json: revisedStrategyJson },
   },
   {
     look: 'terraria-hooded',
     hero: 'hackerman',
     variant: 'HOOD UP',
-    sheet: { png: hoodedPng, json: hoodedJson },
+    sheet: { art: hoodedArt, json: hoodedJson },
   },
 ];
 
 const imageKey = (design: TerrariaDesign): string => `looks/${design.look}/${design.hero}`;
 
 /**
- * Downloads every design, current and revised, into `assets`. The game never
+ * Decodes every design, current and revised, into `assets`. The game never
  * does: whoever opens a scene that draws them (the harness) calls this
  * first, so the scene can read them synchronously.
  */
 export async function loadTerrariaDesigns(assets: AssetStore): Promise<void> {
-  await Promise.all(
-    [...TERRARIA_DESIGNS, ...REVISED_TERRARIA_DESIGNS].map((design) =>
-      assets.loadImage(imageKey(design), design.sheet.png),
-    ),
-  );
+  for (const design of [...TERRARIA_DESIGNS, ...REVISED_TERRARIA_DESIGNS]) {
+    assets.addImage(imageKey(design), design.sheet.art);
+  }
 }
 
-/** The design's sheet, from the image `loadTerrariaDesigns` stored; the store throws if it never ran. */
+/** The design's sheet, from the image `loadTerrariaDesigns` decoded; the store throws if it never ran. */
 export function terrariaDesignSheet(assets: AssetStore, design: TerrariaDesign): SpriteSheet {
   const key = imageKey(design);
   return SpriteSheet.fromImage(assets.image(key), parseSpriteSheetSpec(design.sheet.json, `${key}.json`), key);

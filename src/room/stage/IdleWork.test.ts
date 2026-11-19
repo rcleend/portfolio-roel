@@ -549,6 +549,25 @@ describe('IdleWork', () => {
       expect(log).toEqual(['a:cpu', 'b:1', 'a:quiet']);
     });
 
+    it('runs a task queued while it looks again later in the next idle period, not after that wait', () => {
+      work.add(uploading(log, 'a'));
+      idle.idle(50);
+      // Only a's upload is left, kept for a quiet moment: the queue looks again in a while.
+      expect(log).toEqual(['a:cpu']);
+      expect(idle.waiting).toBe(0);
+      // The room's bake queues its units one at a time, each as the GPU finishes the one before.
+      work.add(logging(log, 'b', 1));
+      expect(idle.waiting).toBe(1);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1']);
+      // And the look again later is back for what waits.
+      expect(idle.waiting).toBe(0);
+      moment = 'quiet';
+      vi.advanceTimersByTime(250);
+      idle.idle(50);
+      expect(log).toEqual(['a:cpu', 'b:1', 'a:quiet']);
+    });
+
     it('does not let a unit kept for a quiet moment raise the bar for the others', () => {
       moment = 'quiet';
       work.add(
@@ -565,8 +584,8 @@ describe('IdleWork', () => {
     });
 
     it('puts urgent work ahead of a task nobody waits on, even one that has not started', () => {
-      // The skin's last strip with its mipmaps, between the float's frames: the longest unit so far.
-      work.add(logging(log, 'skin', 1, 13.5), { urgent: () => true });
+      // An atlas's last strip with its mipmaps, between the float's frames: the longest unit so far.
+      work.add(logging(log, 'strip', 1, 13.5), { urgent: () => true });
       idle.idle(50);
       // The room's own uploads, queued as the camera left the TV: never stepped, so judged by that 13.5 ms.
       work.add(logging(log, 'room', 1, 1));
@@ -580,12 +599,12 @@ describe('IdleWork', () => {
         vi.advanceTimersByTime(16);
         if (idle.waiting > 0) idle.idle(8);
       }
-      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1']);
+      expect(log).toEqual(['strip:1', 'print1:1', 'print2:1', 'print3:1']);
       // The room's own work waits for a quiet moment that can hold it, as before.
       moment = 'quiet';
       vi.advanceTimersByTime(250);
       idle.idle(50);
-      expect(log).toEqual(['skin:1', 'print1:1', 'print2:1', 'print3:1', 'room:1']);
+      expect(log).toEqual(['strip:1', 'print1:1', 'print2:1', 'print3:1', 'room:1']);
     });
   });
 
@@ -640,5 +659,88 @@ describe('IdleWork', () => {
     expect(idle.waiting).toBe(0);
     work.add(logging(log, 'b', 1));
     expect(idle.waiting).toBe(0);
+  });
+  describe('while the camera flies', () => {
+    it('runs nothing, urgent or not, and goes on at the landing', () => {
+      moment = 'flying';
+      work.add(logging(log, 'a', 2));
+      work.add(logging(log, 'urgent', 1), { urgent: () => true, sliceMs: 5 });
+      work.start();
+      idle.idle();
+      expect(log).toEqual([]);
+      // It looks again later, by itself; the landing need not wait for that.
+      expect(idle.waiting).toBe(0);
+      moment = 'quiet';
+      work.wake();
+      idle.idle();
+      expect(log).toEqual(['urgent:1', 'a:1', 'a:2']);
+    });
+
+    it('makes what a flight shows before it sets off, whatever plays, and leaves the rest queued', async () => {
+      moment = 'playing';
+      work.add(logging(log, 'other', 2));
+      work.add(uploading(log, 'textures'), { flight: true });
+      work.add(logging(log, 'discs', 1), { flight: (to) => to === 'radio' });
+      work.start();
+      expect(work.flightPending('room')).toBe(true);
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await drained;
+      expect(log).toEqual(['textures:cpu', 'textures:quiet']);
+      expect(work.flightPending('room')).toBe(false);
+      // The radio's discs wait for a flight to the radio.
+      expect(work.flightPending('radio')).toBe(true);
+      const boarded = work.drain('radio', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await boarded;
+      expect(log).toEqual(['textures:cpu', 'textures:quiet', 'discs:1']);
+      expect(work.pending).toBe(true);
+    });
+
+    it('takes up a task queued by the last unit of another, a task later', async () => {
+      function* chained(): IdleTask {
+        log.push('first');
+        void Promise.resolve().then(() => work.add(logging(log, 'second', 1), { flight: true }));
+      }
+      work.add(chained(), { flight: true });
+      work.start();
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(10);
+      await drained;
+      expect(log).toEqual(['first', 'second:1']);
+    });
+
+    it('settles past a task that throws, in whichever slice: the camera is never left waiting', async () => {
+      const failed = vi.spyOn(console, 'error').mockImplementation(() => {});
+      work.add(
+        (function* (): IdleTask {
+          // Long enough a unit that the next runs in a later slice, a task of its own.
+          now += 100;
+          log.push('broken:1');
+          yield;
+          throw new Error('broken');
+        })(),
+        { flight: true },
+      );
+      work.add(logging(log, 'after', 1), { flight: true });
+      work.start();
+      const drained = work.drain('room', 400);
+      await vi.advanceTimersByTimeAsync(50);
+      await drained;
+      expect(log).toEqual(['broken:1', 'after:1']);
+      expect(work.flightPending('room')).toBe(false);
+      expect(failed).toHaveBeenCalledOnce();
+      failed.mockRestore();
+    });
+
+    it('stops making things ready when its time is up: the camera never waits longer', async () => {
+      work.add(logging(log, 'slow', 10, 100), { flight: true });
+      work.start();
+      const drained = work.drain('room', 250);
+      await vi.advanceTimersByTimeAsync(50);
+      await drained;
+      expect(log).toEqual(['slow:1', 'slow:2', 'slow:3']);
+      expect(work.flightPending('room')).toBe(true);
+    });
   });
 });

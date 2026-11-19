@@ -14,3 +14,33 @@
 .tv-still__failed a {
   color: var(--ui-ink);
 }
+
+/* The hand-over on a black picture (TvStill.tsx › dropStill): the flat picture goes at once, the live tube showing the
+   same nothing, and the drawing eases out round the picture's place, which is the live tube's from that frame on. */
+#tv-still[data-black] {
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 0,
+    var(--picture-left) var(--picture-top),
+    var(--picture-left) calc(var(--picture-top) + var(--picture-height)),
+    calc(var(--picture-left) + var(--picture-width)) calc(var(--picture-top) + var(--picture-height)),
+    calc(var(--picture-left) + var(--picture-width)) var(--picture-top),
+    var(--picture-left) var(--picture-top)
+  );
+}
+
+#tv-still[data-black] .still-picture {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #tv-still[data-black] {
+    transition:
+      opacity 1s ease,
+      visibility 0s 1s;
+  }
+}

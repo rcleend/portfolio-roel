@@ -25,7 +25,9 @@ from typing import Dict, List, Sequence, Tuple
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(HERE.parents[1]))
 
+import artfiles  # noqa: E402
 from portraitkit import body, customer, effects  # noqa: E402
 from portraitkit.sheet import Strip, dumps, pack  # noqa: E402
 from portraitkit.skeleton import solve  # noqa: E402
@@ -106,9 +108,11 @@ def main() -> int:
     only = [s for s in args.only.split(",") if s]
     files = outputs(only)
     stale = []
+    # The PNGs are in the checkout only while exported (artfiles.py): without them the JSON is all there is to check.
+    exported = artfiles.exported(files)
     for path, data in sorted(files.items()):
         if args.check:
-            if not path.exists() or path.read_bytes() != data:
+            if (exported or path.suffix != ".png") and not artfiles.same(path, data):
                 stale.append(path)
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,6 +122,9 @@ def main() -> int:
         for path in stale:
             print(f"stale: {path.relative_to(REPO)}", file=sys.stderr)
         return 1
+    if args.check and not exported:
+        print(artfiles.EXPORT_HINT, file=sys.stderr)
+        return 2
     return 0
 
 

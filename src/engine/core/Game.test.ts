@@ -72,6 +72,32 @@ describe('Game', () => {
     expect(steps).toHaveLength(1);
   });
 
+  it('asks for no animation frame while paused or hidden, and again on resuming or being shown', () => {
+    const { game, steps, scheduler } = setup();
+    let hidden = false;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    game.start();
+    scheduler.frame(0);
+    game.pause();
+    scheduler.frame(1000 / 60);
+    // A paused game is one picture: nothing wakes the page for it.
+    expect(scheduler.pending).toBe(false);
+    game.resume();
+    expect(scheduler.pending).toBe(true);
+    scheduler.frame(5000);
+    scheduler.frame(5000 + 1000 / 60);
+    expect(steps).toHaveLength(1);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    scheduler.frame(5100);
+    expect(scheduler.pending).toBe(false);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(scheduler.pending).toBe(true);
+    game.stop();
+    expect(scheduler.pending).toBe(false);
+  });
+
   it('steps synchronously while paused, rendering once', () => {
     const { game, steps, renders } = setup();
     game.pause();

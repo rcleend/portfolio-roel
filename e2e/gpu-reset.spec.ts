@@ -179,13 +179,62 @@ test('the discs keep their prints after the GPU process restarts', async ({ play
       for (const clip of clips) sum += (await look(page, clip)).colour;
       return sum / clips.length;
     };
-    // The prints fade in once painted; bare discs read about 24 here, printed ones about 32.
-    await expect.poll(colour, { timeout: 10_000 }).toBeGreaterThan(29);
+    // The prints fade in once painted; bare discs read about 19 here, printed ones about 25.
+    await expect.poll(colour, { timeout: 10_000 }).toBeGreaterThan(22);
     await page.waitForTimeout(1500);
     const before = await colour();
     await crashGpu(browser, page);
     // The prints were painted once on canvases, their art closed: bare discs from then on.
     await expect.poll(colour, { timeout: 10_000 }).toBeGreaterThan(before * 0.9);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('the room is lit again after the GPU process restarts, the startup still over it meanwhile', async ({
+  playwright,
+}) => {
+  test.setTimeout(60_000);
+  const { browser, page } = await launch(playwright);
+  try {
+    // The still has gone (in the boot's blackout, or the black frames after the press: docs/ROOM.md › Startup), the
+    // game rests on one frame and the whole room is baked. In that order: behind a playing game the rest of the bake
+    // takes the GPU a few views at a time, and on a GPU that other pages keep busy (a full suite's) it is put off to
+    // a quiet moment, such as this pause (docs/ROOM.md › Pacing).
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false', { timeout: 30_000 });
+    await pauseOnCharacterSelect(page);
+    await page.evaluate(() => window.__arcade?.pause());
+    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
+    await page.waitForTimeout(600);
+    // The wall beside the set and the cabinet's top by the bulb lamp: baked surfaces, lit by the bake alone.
+    const wall: Clip = { x: 60, y: 120, width: 120, height: 120 };
+    const cabinet: Clip = { x: 200, y: 800, width: 100, height: 40 };
+    const before = { wall: await look(page, wall), cabinet: await look(page, cabinet) };
+    expect(before.wall.brightness).toBeGreaterThan(8);
+    await page.evaluate(() => {
+      const still = document.getElementById('tv-still');
+      const log: string[] = [];
+      (window as unknown as { __stillLog: string[] }).__stillLog = log;
+      if (still) new MutationObserver(() => log.push(still.dataset.shown ?? '')).observe(still, { attributes: true });
+      window.__room?.onShownChange((shown) => log.push(shown ? 'lit' : 'lost'));
+    });
+    await crashGpu(browser, page);
+    await expect.poll(() => page.evaluate(() => window.__room?.stats.generated), { timeout: 30_000 }).toBe('ready');
+    await expect(page.locator('#tv-still')).toHaveAttribute('data-shown', 'false');
+    // The room lost its light, the still covered it, the room was lit again and the still went: in that order.
+    const log = await page.evaluate(() => (window as unknown as { __stillLog: string[] }).__stillLog);
+    expect(log.filter((entry, index) => entry !== log[index - 1])).toEqual(['lost', 'true', 'lit', 'false']);
+    // The same light as before: neither darker nor missing.
+    await page.waitForTimeout(800);
+    for (const [name, clip] of [
+      ['wall', wall],
+      ['cabinet', cabinet],
+    ] as const) {
+      const after = await look(page, clip);
+      expect(after.brightness, name).toBeGreaterThan(before[name].brightness * 0.95);
+      expect(after.brightness, name).toBeLessThan(before[name].brightness * 1.05);
+    }
   } finally {
     await browser.close();
   }

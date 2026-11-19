@@ -39,7 +39,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
   const started = useRef(false);
   const begun = useBegun(services.director);
   const running = startup.phase === 'running';
-  // A capture of the startup stills keeps the tube dark (harness/config.ts).
+  // `?capture` keeps the tube dark: the live set as the startup still is sampled from and held to (harness/config.ts).
   const powering = (startup.phase === 'powering' || running) && !config.capture;
 
   const events = useMemo<HostEvents>(
@@ -54,6 +54,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
       },
       onViewChange: setView,
       onStillDone: () => dispatch({ type: 'stillDone' }),
+      onStillBack: () => dispatch({ type: 'stillBack' }),
     }),
     [created, config, dispatch],
   );
@@ -71,6 +72,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
           scenes={services.director}
           powered={powering}
           still={startup.still}
+          clear={startup.clear}
           insets={touch ? padInsets : NO_INSETS}
           events={events}
           muted={audio.muted}
@@ -81,7 +83,7 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
         <TouchPad
           actions={PAD_ACTIONS}
           sink={game.input.virtual}
-          visible={running && view === 'tv' && begun}
+          visible={running && view === 'tv' && begun && startup.clear}
           layout={landscape ? 'sides' : 'bottom'}
           onInsetsChange={setPadInsets}
         />
@@ -92,7 +94,8 @@ export function Arcade({ created, host, config, startup, dispatch }: ArcadeProps
 
 /**
  * Whether the visitor has pressed past the title (round six, item 33): the touch pad fades in only then, so the start
- * screen shows the game alone with "PRESS TO BEGIN", and a tap anywhere begins. Once begun it stays.
+ * screen shows the game alone with "PRESS TO BEGIN", and a tap anywhere begins. Once begun it stays. The pad also
+ * waits for the startup still to be out of sight (`startup.clear`), so it never arrives as part of the hand-over.
  */
 function useBegun(scenes: SceneSignal): boolean {
   const [begun, setBegun] = useState(false);

@@ -50,6 +50,12 @@ REVISED = tuple(sheet for sheet in SHEETS if not sheet.folder.startswith('terrar
 # What the game shows on the ground: the moves it only plays planted, and the ground frames of the rest.
 PLANTED = ('idle', 'run', 'attack', 'skill')
 
+# The art is committed as *.art.ts modules: its PNGs are on disk only while exported (tools/art/README.md).
+EXPORTED = any(ART.glob('terraria*/**/*.png'))
+NEEDS_PNGS = unittest.skipUnless(
+    EXPORTED, 'the PNGs of the art are not on disk: run `pnpm build:art --export src/game` (tools/art/README.md)'
+)
+
 
 def load(folder: str, stem: str) -> Tuple[Image.Image, Dict[str, Any]]:
     with Image.open(ART / folder / f'{stem}.png') as image:
@@ -94,8 +100,10 @@ def opaque_above(frame: Image.Image, row: int) -> int:
 class Sheets(unittest.TestCase):
     def test_the_committed_sheets_are_what_the_generator_writes(self) -> None:
         result = subprocess.run([sys.executable, str(TOOL / 'generate.py'), '--check'], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # Without the PNGs the generator checks the JSON alone and says so with exit code 2.
+        self.assertEqual(result.returncode, 0 if EXPORTED else 2, result.stdout + result.stderr)
 
+    @NEEDS_PNGS
     def test_every_pixel_is_opaque_or_empty_in_a_few_dozen_colours(self) -> None:
         for sheet in SHEETS:
             for stem in sheet.stems:
@@ -104,6 +112,7 @@ class Sheets(unittest.TestCase):
                 colours = {pixel for pixel in image.getdata() if pixel[3]}
                 self.assertLessEqual(len(colours), 48, f'{sheet.folder} {stem}')
 
+    @NEEDS_PNGS
     def test_planted_moves_stand_on_the_feet_line_and_nothing_sinks_below_it(self) -> None:
         for sheet in SHEETS:
             image, meta = load(sheet.folder, 'sheet')
@@ -115,6 +124,7 @@ class Sheets(unittest.TestCase):
                         self.assertEqual(bottom, meta['origin']['y'], where)
                     self.assertLessEqual(bottom, meta['origin']['y'], where)
 
+    @NEEDS_PNGS
     def test_the_idle_hero_is_no_taller_than_the_classic_ones_and_stands_on_the_origin(self) -> None:
         for sheet in SHEETS:
             image, meta = load(sheet.folder, 'sheet')
@@ -124,6 +134,7 @@ class Sheets(unittest.TestCase):
 
 
 class Poses(unittest.TestCase):
+    @NEEDS_PNGS
     def test_nothing_rises_above_his_head_in_the_air_or_when_hit_so_only_victory_cheers(self) -> None:
         # Above the top of his skull, three rows under the crown of his hair or cap, a frame may show no more
         # than the standing one does: the hair or cap, never a raised fist.
@@ -139,6 +150,7 @@ class Poses(unittest.TestCase):
                     self.assertEqual(opaque_above(frame, skull), opaque_above(standing, skull),
                                      f"{sheet.folder} {animation['name']}[{index}] raises something above his head")
 
+    @NEEDS_PNGS
     def test_every_attack_and_skill_moves_on_every_frame(self) -> None:
         # An attack restarts with every shot, so its last frame leads into its first; a skill plays once.
         for sheet in SHEETS:
@@ -152,6 +164,7 @@ class Poses(unittest.TestCase):
                 for index, (before, after) in enumerate(pairs):
                     self.assertNotEqual(before.tobytes(), after.tobytes(), f'{sheet.folder} {name}[{index}] is held')
 
+    @NEEDS_PNGS
     def test_every_frame_is_one_figure(self) -> None:
         # A torso lifted off its legs, or a limb that misses its joint, splits the figure; only the light a
         # prop gives off (a glint, a burst, summoning motes) may float free of it.
@@ -197,6 +210,7 @@ class Layers(unittest.TestCase):
                     split = over(compose(outfit, frame.pose, where, 'legs'), compose(outfit, frame.pose, where, 'upper'))
                     self.assertEqual(split.tobytes(), compose(outfit, frame.pose, where).tobytes(), where)
 
+    @NEEDS_PNGS
     def test_the_rows_play_in_step_with_the_moves_and_poses_they_split(self) -> None:
         for sheet in SHEETS:
             _, meta = load(sheet.folder, 'sheet')
@@ -212,6 +226,7 @@ class Layers(unittest.TestCase):
             self.assertEqual(names, {f'{animation.name}-{layer}' for animation, layer in layers(sheet.hero)},
                              sheet.folder)
 
+    @NEEDS_PNGS
     def test_every_attack_and_skill_on_the_move_is_one_figure(self) -> None:
         # Whatever stride or jump the legs are in, the torso meets them.
         for sheet in SHEETS:

@@ -7,7 +7,8 @@ The contract with the rest of the app is the `createRoom` API below; everything 
 ## Using it from the app
 
 ```ts
-// Load lazily: three.js is ~180 kB gzipped and the flat host does not need it.
+// Load lazily: the room's chunk, three.js included, is about 190 kB gzipped (bundle-budgets.json) and the flat
+// host does not need it.
 const { createRoom } = await import('@/room');
 
 let room;
@@ -16,7 +17,7 @@ try {
     container,                          // element the canvas fills; its size drives the framing
     overlayContainer,                   // same box, outside role="application": the computer's live screen goes here
     surface,                            // the game's GameSurface (320×240)
-    onProgress: (f) => note(f),         // optional: 0–1, weighted by file size
+    framingInsets,                      // optional: the overlays' strips, as setFramingInsets takes them
   });
 } catch {
   // WebGL unavailable: createRoom throws synchronously → use the flat host.
@@ -26,7 +27,7 @@ room.pc.setStill(paintDesktop); // usable before `ready`: what the monitor shows
 // render the computer's DOM into room.pc.screen; it is visible only while room.pc.live
 // (the app does both in app/pc/PcSlot.tsx, see docs/PC.md)
 
-await room.ready;          // assets loaded and the first frame drawn (TV dark, camera on the TV)
+await room.ready;          // built, the TV view lit and its first frame drawn (TV dark, camera on the TV)
 await room.powerOn();      // power LED, then the ~600 ms CRT turn-on; resolves when the picture is up
 game.start();              // or surface.resume(); the boot scene's first frame lands on a live tube
 // The app instead starts the game on its startup still and lights the tube at once: room.powerOn({ instant: true })
@@ -75,23 +76,30 @@ interface CreateRoomOptions {
   container: HTMLElement;
   overlayContainer?: HTMLElement;   // same box as `container`, outside role="application"; default `container`
   surface: GameSurface;
-  onProgress?: (fraction: number) => void;
-  assetBaseUrl?: string;            // absolute URL of the assets folder; default `${BASE_URL}room/`
+  framingInsets?: FramingInsets;    // as setFramingInsets: the opening view is framed, and lit first, as it will be shown
   quality?: QualityTier | 'auto';   // default 'auto': the device's own tier, governed by its frame times (§ Quality)
   maxPixelRatio?: number;           // a further cap under the tier's own
   maxDrawingBufferPixels?: number;  // a further cap under the tier's own
-  mood?: RoomMood;                  // 'original' (default), 'honey', 'rose' or 'midnight'
+  posters?: boolean;                // default true; false keeps the walls bare (tests measure what they add)
+  mood?: RoomMood;                  // 'original' (default: the bake without a finish), 'honey', 'rose' or 'midnight'
+  air?: RoomAir;                    // { haze, dust }, as setAir takes them
 }
 
 interface Room {
-  readonly ready: Promise<void>;
+  readonly ready: Promise<void>;           // the opening view is built, lit and drawn; rejects when the room cannot
+                                           // be built or lit: use the flat host
+  readonly generatedReady: Promise<boolean>; // true once the whole room is lit, false when it could not be
+  readonly postersReady: Promise<boolean>; // true once the walls are shown, false when they will not be this page load
+  readonly shown: boolean;                 // false after a lost WebGL context until the room is lit again (§ Lost canvases)
+  onShownChange(listener: (shown: boolean) => void): () => void;
   readonly view: RoomView;                 // 'tv' | 'room' | 'pc' | 'radio', at or flying to
   readonly settled: boolean;               // the camera rests at `view`
   readonly mood: RoomMood;
   setMood(mood: RoomMood): void;           // changes the finish in place, with no animation or reload
-  setAir(air: RoomAir): void;             // haze/dust multipliers, each 0–2 (1 uses the mood's settings)
+  setAir(air: RoomAir): void;              // haze/dust multipliers, each 0–2 (1 uses the mood's settings)
+  setMuted(muted: boolean): void;          // the app's sound switch, for the rain (§ Rain audio)
   readonly powerState: PowerState;         // 'off' | 'powering-on' | 'on' | 'powering-off'
-  powerOn(): Promise<void>;
+  powerOn(options?: { instant?: boolean }): Promise<void>;  // instant: lit at once (§ Startup)
   powerOff(): Promise<void>;
   focusTv(): void;
   showRoom(): void;
@@ -100,15 +108,20 @@ interface Room {
   onViewChange(listener: (view: RoomView) => void): () => void;   // as the camera sets off
   onSettle(listener: (view: RoomView) => void): () => void;       // as it comes to rest
   setFramingInsets(insets: FramingInsets): void;   // CSS px covered by overlays
+  setTilt(tilt: { x: number; y: number } | null): void;  // a phone's tilt, −1…1 each way: looks round the room view
+  setTapToBegin(on: boolean): void;        // a tap on the set presses the game (the title's "PRESS TO BEGIN")
   registerInteractable(interactable: Interactable): () => void;
   readonly pc: PcMonitor;                  // the computer's monitor; usable before `ready`
-  readonly radio: RadioDeck;               // the CD player (src/room/radio/RadioDeck.ts); usable before `ready`
+  readonly radio: RadioDoor;               // the CD player's door: available, prefetch, load() → the RadioDeck
+                                           // (src/room/radio/RadioDeck.ts); usable before `ready`
   readonly spotlight: PropSpotlight;       // the props' glow, bounce and label point (§ The spotlight); usable before `ready`
   readonly anchors: readonly PropAnchor[]; // the TV, the computer and the radio in the settled room view
   onAnchorsChange(listener: (anchors: readonly PropAnchor[]) => void): () => void;
-  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, quality (tier and scale), lava, programs, pcTexturePixels,
-                                           // backgroundPending (work still waiting for idle moments), radioReady,
-                                           // radioTexturePixels, radioLidDegrees, radioAmbient, spotlight (its chunk is in)
+  readonly stats: RoomStats;               // frames, draw calls, triangles, DPR, quality (tier and scale), lava, programs,
+                                           // pcTexturePixels, backgroundPending (work still waiting for idle moments),
+                                           // radioReady, radioTexturePixels (labels and LCD), radioLidDegrees, radioAmbient,
+                                           // posters, postersTexturePixels, postersPath, spotlight (its chunk is in), rainReady,
+                                           // generated and generatedStats (§ The generated room › Reading it)
   dispose(): void;
 }
 
@@ -182,52 +195,99 @@ Over the picture the TV takes the game's own cursor (`GameSurface.cursor`, docs/
 
 The page does not wait for the room to show it (`app/startup/`, `app/hosts/StillPicture.tsx`, `index.html` › `.tv-still`):
 
-- The first paint is a still of the room's TV view, the tube lit on a black picture, rendered by the room itself (`node scripts/capture-tv-stills.mjs`, which needs the GPU) at one reference viewport per framing of `tvViewpoint`: the whole set (landscape, tall enough; 1440 × 608 at 2×), the picture between the pad's clusters (a phone on its side; 900 × 390 at 2×) and the picture across the width above the pad (portrait; 390 × 900 at 3×). index.html places them with container units exactly as the framing does at other sizes of the same class: the set and the side-on picture fitted to the height and centred, the upright picture to the width and centred above the pad's 228 px (on coarse pointers). 9–29 kB of webp each (the set's the largest, the toy robot's eyes glowing at its left and the opal lamp at its right), chosen by a `<picture>` before any script.
-- The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture under scanlines (one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade), the sound toggle already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
-- The room loads behind, and once ready lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
-- Should the room fail, the flat host takes over and the still goes. Re-render the stills, and their lengths in index.html, whenever the TV, its set or its framing changes.
+- The first paint is a still of the room's TV view, the set as it stands with its picture black, drawn by a small script inlined in `index.html` right after the still's element (`scripts/stillPlugin.ts` bundles `src/app/startup/still/inline.ts` into the page, in development and in the build; no image and no request). The script holds the view in the room's own space and the room's own camera: `camera.ts` is `tvViewpoint` and `frameSubject` again in plain numbers (held to them within a twentieth of a pixel over some three hundred viewports by `camera.test.ts`), so for any window, and for the touch pad's strips on a touch screen (228 px under a portrait picture, 138 and 174 px beside a landscape one, each plus the display's safe area), every point lands where the live room will put it. `inline.ts` sets `--picture-*`, where the app lays the game's picture, and draws again on a resize while the still is up or as it comes back. `draw.ts` writes the picture back to front as SVG drawings with **fields** between them:
+  - A shape is an outline (a path, a disc, the set's print as text) filled with a colour, a glow (a radial gradient whose stops each have a colour and a strength, closer together in the middle: a lamp's halo, the power lamp's) or a field.
+  - A field is a surface's light as a grid of colours on the surface's own plane in the room (the wall, the cabinet's top and boards, the set's face and glass, and on a plane facing the viewer the pot, the leaves, the bulb, the lamps' parts), cut to the shape's outline. A row of the grid is a line across the page, since the camera never rolls, and its colours are one CSS gradient; between two rows the picture goes from one to the other, the even rows being one element's backgrounds and the odd ones a second element's over them through a mask that is solid on the odd rows and clear on the even ones. That is a low-resolution light map drawn with gradients only: the baked light, with its soft shadows and the lamps' pools, stays on its surfaces under every camera. (As SVG gradients the same fields were some 2,500 elements, which cost the first paint ten times the style pass; as CSS they are three elements a field.)
+  - The still's image (`public/startup/still-<its own hash>.avif`, and `.webp` for a browser without AVIF) is the room's own render: a piece for each field but the wall's and the glass's (their grids alone are within a level of the room; an image's rounding of colours that dark would be the larger error, and shows as bands), each the surface as the nominal view's page has it (1440 × 900, two texels a CSS pixel at most). Over a field's gradients the page lays its piece cut to the same outline, so edges stay the outlines' at any pixel ratio and the image carries only tone: the hard shadows on the cabinet's top, the plant's shadow, the pot's and the lamp's shading, the bulb's glass, the set's print and jacks (which are then no longer drawn as shapes: `.v`). A row of a surface is a line across both the nominal page and this window's, so along a row the piece goes onto the page by a scale and a shift; where the window's eye is the nominal one (every window that frames the whole set) one such transform lays the whole piece exactly, and elsewhere the piece is laid in bands, as many as keep it within a quarter of a pixel (plain `matrix()` transforms, no perspective: WebKit's snapshots draw a `matrix3d` without its perspective, and nothing here needs a compositor's 3D). The script asks for the image at low priority as it runs, decodes it off the paint's path (`decode()`), and then sets `data-image` and `--p` on the still, which eases the pieces in over 200 ms; the first paint is the gradients', and does not wait, and a still handed over before the image came is handed over as gradients. A field that has a piece keeps six tenths of its grid's lines: the grid is the first paint's and the soft light under the piece. When the still has gone (`data-gone`) the script removes everything it drew, and draws again if the still is put back.
+  - A lamp's bloom (the bulb's, the opal lamp's) is a glow whose size is neither the room's nor the page's: half of it is the lamp's own halo in the room and half the finish's bloom, which is so many of the room's buffer pixels wide. The script scales it by the square root of the nominal view's buffer pixels a metre over this window's (`quality.ts`' pixel ratio for the tier a device starts on: a phone's on the middle tier), which measured nearer than either alone.
+  - Over the room comes the finish's vignette, which is of the page and not of the room: black in a radial gradient about the page's middle, but over the glass (the finish leaves displays as they are). The opal lamp and its bloom are drawn over it in the colours the room shows them in (black over something that bright would dull it), where the window is wide enough: a disc whose middle is off the page is not drawn.
+  - The first drawing's last group, `.o`, is what the set shows whenever it is on: the power lamp and its halo. `index.html` shows it once the still holds a powered picture (`:has([data-powered="true"])`), so the still is a dark set until the game's tube blooms. (The glass of the set that is on with a black picture is the glass of the set that is off, to the pixel: only the lamp differs.)
+  - A last drawing of its own, `.t`, is what the picture lights: lines along the lip's outer edge and round the picture over the tube's dark border, each wider and fainter than the last, all in `currentColor`. `index.html` gives it `color: var(--tube)` and `mix-blend-mode: screen`, so each line adds `strength × tube × (1 − what is under it)` and a black tube adds nothing; `--tube` is a registered property that does not inherit (the drawing takes it from the still by name), so setting it on `#tv-still` restyles and repaints that one small drawing (0.3–0.6 ms of the main thread, 1.5–2 ms at a sixth of its speed, on a loaded machine). `--tube: #fff` is the room under a full-white picture; a uniform picture p lights the room's lip as `--tube: (p / 255)^1.45` does (`hosts/tubeLight.ts` sets it from the game's frames). Not in it, because they do not follow the picture's colour in proportion: the finish's glare over the casing and the wall, which only near-white pixels raise (34 levels on the casing under a full-white picture, none under #808080), and the cabinet top's spill (1–3 levels under white).
+- The still's data is generated, never drawn by hand (`pnpm build:still`, `scripts/still/`). Its outlines come from the generators: `layers.ts` names the layers back to front, each layer is drawn alone in software from the nominal view (1440 × 900), its outline traced to a third of a pixel (as a curve's control points where that takes fewer) and every vertex put back at its own depth in the room, so what hides what is only the order of drawing and the picture is right from every camera of the family. Its colours come from the live room: the build serves a production build and opens it in Chromium on this machine's GPU at top quality, on the game's title with every frame of the game painted over in black (`page.ts`: the set on, its picture black, which is the frame the still hands over on), at nine viewports that between them show every shape, two of them with a nearer and a further eye than the rest. `fit.ts` then takes the vignette out of the shots (`finish.ts` reads its numbers from the finish's own source), fits each field by least squares to every pixel its shape owns, as the page will draw it for that pixel's own shot (first on a grid three times as fine, of whose lines it keeps the ones the light bends at), and fits the glows over that; then twice more, the fields to the room's pixels less the glows over them and the glows again, which is what separates a lamp's bloom, which goes with the lamp, from the light on the wall behind it, which stays on the wall as the eye moves. The power lamp's halo is the middle of every shot that shows it: its lens is a pixel or two of the finish's bloom, which comes out half as bright in one window as in the next. The image's pieces are made last: a texel (a place of the nominal view's page, which is a place of the surface) is its field's colour, which every shot agreed on, plus what the room's pixel there has finer than a field can hold (the shots' picture less the field of the same grid nearest to it), from the first shot that shows the surface at that place and shot by shot from there with a feathered edge; a nearer or a further eye fills in behind the set and the props, but not under a lamp's bloom, which another eye sees over another part of the wall (there the field alone, and no ghost of the lamp when the eye moves); nothing of the power lamp is in it (the image is the set that is off). The picture's light comes from one more shot with the picture white: each line's strength is what the room gains there. `--no-sample` makes the outlines again and keeps the colours (`scripts/still/colours.json`); `--variant` builds a lighter still to price a part of it (`layers.ts` › `variantOf`). The data is one string of whole numbers (`encode.ts` says what they are; a field's colours are each what it has more than its neighbours foretell).
+- The game needs only its own assets: it powers on (a 320 ms bloom) and plays boot and title flat on the still, its canvas laid over the still's picture and made to look like the tube's (`StillPicture.css`): added to the still's dark glass as the tube adds its light (`mix-blend-mode: screen`, so black is the glass and the picture has no box round it), under one `filter` and one multiplied layer of scanlines, tint and edge falloff fitted by least squares to the live tube's picture of the title on a desktop and a phone (a channel's mean within 3 levels of the live tube's after it; the scanlines are one repeating gradient, never a tiled background: on an iPhone a tile a fraction of a pixel tall painted the picture's lower part as one solid shade). The sound toggle is already there. Keys reach it from the start, and the pointer until the room is in; on a touch screen the title says "PRESS TO BEGIN", a tap anywhere begins, and the pad fades in only once the title is left.
+- The room is made behind it (§ The generated room): its geometry in a worker from the moment the room's chunk runs, then the light of what the TV view shows, and then it is `ready` and lights its tube at once (`powerOn({ instant: true })`), the stage underneath taking the pointer. The rest of the room is lit behind the running game. The visitor's first key or press, the game leaving its title, or the camera leaving the TV, whichever comes once the room shows the game, fades the still and its picture out as one in 400 ms (at once under reduced motion) over the identical live scene: nothing moves but the tube's light; the game's own title transition covers the change of picture. A press before the room is in is remembered, and the still waits for it.
+- A visitor who leaves the TV before everything the flight shows is made waits for it (`ViewController.whenReady`, § Flights): the game stops at the click and its PAUSE comes up on the tube, the room's frames then stand still, the rest of the bake has the GPU to itself, the buffers and textures no frame has drawn are made, and the camera sets off once the GPU is through with all of it; no view but the TV's ever shows a surface without its light. On an Apple M4 that wait is 0.2 s (a click in the frame the room becomes ready) and nothing from half a second later on; it is the GPU's time for the remaining views whatever a frame costs it (§ The generated room › Leaving early, A slow GPU), and no real phone has been measured (§ Known gaps).
+- Should the room fail (a WebGL context that cannot be made after all, no worker and no main-thread build, a bake that lights nothing), `ready` rejects, the flat host takes over and the still goes. A browser known beforehand to have no GPU never gets this far (§ No GPU). The still follows the room by being built again, not by hand: after a change to the set, the cabinet, the lamps, the plant, the TV view's framing or the room's light near the TV, run `pnpm build:still`. `scripts/still/still.test.ts` fails when the generators no longer give what the still was made from (a fingerprint of the triangles each layer picks, the framing and the layer table, beside the colours in `source.json`), and `e2e/still.spec.ts` shoots the live room with a black picture and the still alone at nine viewports and holds them to each other, the image in: the picture's place, the outlines (an edge of one within a pixel of an edge of the other) and the colour of the whole page, as CIEDE2000 between the mean colours of each 8 × 8 px block (`e2e/stillCompare.ts`). The image's two files are held to the build that wrote them by their checksums (`source.json`). The fingerprint does not cover the tracing code itself; the e2e spec is what catches a still that no longer matches.
+- How near the still is with its image in, measured at sixteen viewports on the top tier as CIEDE2000 over 8 × 8 px blocks (1 is about the least difference seen side by side, 2 the least seen in a change): the mean over the page is 0.30–0.69, 95 % of the page is under 0.68–1.91 and 99 % under 0.95–5.35, the worst block 1.8–24 (the hand-drawn gradients before all this: means 1.31–2.50, 99 % under 7.1–14.2; the grids alone, which are what shows until the image is in, at their full size: 0.31–0.63, 99 % under 0.92–4.70). The image moves the averages little, because what it adds is small on the page; it is the props, the cabinet's top and the edges that it makes the room's: an edge is within half a CSS pixel of the room's along 55–98 % of its length, over 80 % at fourteen of the sixteen viewports and over 90 % at eleven (the grids alone: twelve and two; the gradients before: three and one), the median edge 0.05–0.85 px off. What is left, and no image closes it, because none of it is fixed in the room: the power lamp's bloom (its lens is a pixel or two of the finish's, twice as bright in one window as the next: a block of 7–9 on a phone, 24 in a tall desktop window at one pixel a CSS pixel), a lamp the page's edge cuts (12–22 in one block: its bloom comes and goes with the lamp), the varnish's sheen, which moves with the eye, and the set's sides in the two windows that stand the eye much nearer (1200 × 500 and 844 × 390). A rounded casing's outline is another line on it from another eye, so the shell is traced from the 1200 × 500 eye as well and drawn from there in the windows nearer to it, which brought the first from 57 % of its edges over half a pixel to 45 %; what is left there is a pixel's worth at one pixel a CSS pixel, where the room's own edge is a soft one. The medium tier, which a phone starts on, is the same picture (0.31–0.94, 99 % under 0.95–7.43). The lowest tier bakes the room's light coarser, a few levels off on the wall (0.31–1.27, 99 % under 0.97–7.78), and nothing on the page can tell before the room loads that it will be drawn there (a software renderer, or a GPU the first frames show to be slow). The finish's grain is half a level and still: two frames of the room differ by nothing, so every figure here is the still's.
+- Other engines: Playwright's WebKit and Firefox draw the still as Chromium does (at 1440 × 900 and 390 × 844 their shots differ from Chromium's by a mean of 0.1–0.2, 99 % under 0.8, the worst block 1.5, and are as near the live room), AVIF included. The script cannot stop the page: a browser that cannot cut a field to a path or mask its rows draws nothing and the still stays the page's plain dark, still saying where the picture goes; one without `decode()`, or that takes neither format, keeps the gradients (each tried in the three engines). No real phone has been looked at (§ Known gaps).
+- What it costs: the built page is 10.3 kB with brotli (the gradients before it 5.95, the page without a still 2.48), and one of two images, never both: the full one, 26.9 kB as AVIF (44.0 kB as WebP), 4,096 × 1,975 px, 31 MB decoded until the hand-over, or on a phone the small one (`small-<hash>`), 11.8 kB (16.4 kB), 2,050 × 1,001 px, 7.8 MB decoded: the pieces a phone's window shows any of (all but the opal lamp's) at half the texels a side, which measures the same as the full one at the six phone windows (means 0.42–0.56, 99 % under 2.0–4.9 with either). A phone is what the room starts on its middle tier (`quality.ts` › `startingTier`: a finger for a pointer and a screen under 600 CSS px across; `inline.ts` copies the rule and says so), told once as the script runs: a window that changes keeps the image it has. The script runs in about 1.6 ms (11–13 ms at a sixth of the CPU's speed). The image is asked for once the room is ready, not as the page opens: on Slow 4G (Chromium on the GPU, eleven interleaved cold loads each) asking at once put the tube on 0.17 s later on the desktop and 0.10 s on a phone, at low priority, at `DOMContentLoaded` or at `load` alike, where asked at the room's readiness every time is within the loads' own spread of the page without the image (tube on +0.02 s, title and room ready within ±0.04 s of the page without a still) and the image is in 3 s before the hand-over; until then the still shows its gradients. On a fast link the first paint is one or two frames later than without a still (56 → 80 ms at 1440 × 900 at twice the pixels; a phone's 56 → 56–80 ms by the run): the script itself is 6 ms, the rest is the drawing's raster, which drawing after the first paint would only move a frame on. `--variant` builds other grids to price them (`layers.ts` › `variantOf`), `--texels` and `--quality` a coarser or a harder-pressed image.
+- A lost WebGL context takes the room's light (§ Lost canvases): `room.shown` turns false, and at the TV view the app puts the still back, the game playing on it, until the room is lit again.
+
+### No GPU
+
+A visitor whose browser has no graphics chip to draw the room with gets neither the room, nor the game, nor the flat television: the page is the résumé (`app/cv/`, `app/resume/Resume.tsx` with `page`). The owner's ruling, after the software-rendered room was measured at 16–21 frames a second with waits of half a minute to several minutes.
+
+- **Who decides, and when.** The startup gate (`app/startup/gate/`), a script `scripts/gatePlugin.ts` inlines into `index.html`'s head behind a preload of the stylesheet and ahead of its tag, so it runs before anything is painted and while the stylesheet is on its way (without the preload the stylesheet was asked for only once the gate had answered, its time later). It marks the root `data-page="cv"` or leaves it alone. Nothing of the site is in the markup for the browser to fetch unasked: the build takes the entry's `<script>` and its module preloads out of the page and hands the gate their addresses; with a GPU the gate preloads them at once, and the page's last script, a module, imports the entry (parsed last and held for the stylesheet, as the entry's own tag was) or, for the résumé's visitor, the résumé's script instead.
+- **The rule** (`gate.ts` › `choosePage`): the résumé only on positive evidence. The gate asks for a WebGL 2 context with `failIfMajorPerformanceCaveat`, then the same of WebGL 1, then each without the flag, and stops at the first it is given. None at all (hardware acceleration switched off in current Chrome, WebGL disabled) is the résumé. A context whose renderer's name is a software one (`stage/softwareGpu.ts`: SwiftShader, llvmpipe, softpipe, "software", Microsoft's Basic Render Driver) is the résumé, whether the browser refused the strict request first or handed the software renderer over as if it were a GPU (`--use-angle=swiftshader`, which only the name tells). Everything else is the site: a GPU that is slow (§ Quality deals with it), a GPU with WebGL 1 alone, a browser that refuses the strict request but will not say what draws the plain one, a browser that throws.
+- **What a visitor with a GPU pays**: one context of one pixel, asked for and given back (`WEBGL_lose_context`) before the first paint, so it never counts against the room's own and no context of the page is lost for it (`e2e/no-gpu.spec.ts`). The question takes 4 ms on an Apple M4 Pro (worst 6) and 14 ms with the CPU at a sixth of its speed (worst 17), nearly all of it the context's creation (`scripts/perf/gpuGate.mjs`). Over a phone's network (slow 4G, the CPU at a sixth) it is hidden behind the stylesheet's download: first paint 604 → 608 ms and the game running 3,979 → 3,983 ms, medians of five cold loads, within their spread (desktop on slow 4G: 516 → 524, 3,937 → 3,921). Only where the network costs nothing does it show, as its own time before the first paint: from a local server 108 → 116 ms on the desktop and 236 → 268 with the CPU at a sixth, the game running 478 → 486 and 1,098 → 1,134 (`scripts/perf/startup.mjs`, nine cold loads each, the machine otherwise idle).
+- **What the résumé's visitor gets**: the paper's colour from the first paint (two rules beside the gate's script: the root's background, and the still not displayed; the still's own script draws nothing and fetches nothing under `data-page`, `scripts/stillPlugin.ts`), then the résumé as the document: markup the build rendered from `Resume` (`app/cv/render.tsx`, served to `app/cv/main.ts` as `virtual:cv`), set into `#root` by a script of 3.3 kB that is built apart from the site and shares no chunk with it. No React, no game, no room, no worker, no canvas. Its styles are the site's stylesheet, which that visitor fetches whole (the résumé's rules are in it). The page has the résumé's links and the one the room's overview adds (X), no skip link and no way back to a game; it scrolls as the document does, with wheel, keys and finger.
+- **What it saves that visitor** (`scripts/perf/startup.mjs`, cold loads from a local server, medians): with WebGL switched off, on the desktop, the résumé is in the page at 58 ms and its text painted at 100 ms, from 7 requests and 33.7 kB on the wire, where the same visitor had the flat television at 156 ms and its game running at 945 ms from 30 requests and 483 kB; on a phone's network (slow 4G, the CPU at a sixth) the résumé's text is painted at 712 ms from 5 requests and 31.7 kB, where the flat television came at 3.6 s and its game at 4.4 s from 467 kB. With software WebGL (SwiftShader as Chrome's fallback) the résumé is painted at 108 ms from the same 33.7 kB, where the room took 703 kB and the room's chunk, and was ready at 5.0 s here and drew at 16–21 frames a second once there.
+- **Switches**: `?host=cv` is the résumé on any machine; `?host=room` and `?host=flat` are the site without the question being asked (the room then falls back to the flat television by itself where it cannot be made, as before). No control on the page.
+- **Nothing is remembered.** The question is asked on every load and its answer kept nowhere, so a visitor who switches acceleration back on has the room on the next load. A GPU lost in the middle of a visit is not this: the room deals with it (§ Lost canvases).
+- **Not verified**: a real machine without a GPU, Windows (WARP, the Basic Render Driver), Linux with llvmpipe, Firefox and Safari on software rendering (Playwright's Firefox and WebKit on this Mac give a GPU and get the site). The names for those are the ones `softwareGpu.ts` already had; a software renderer under a name not on that list gets the site, slowly, as before.
 
 ## Modules
 
 ```
 room/
   index.ts              public exports
-  createRoom.ts         public API: stage + view controller + the computer's live screen + lazy scene assembly
-  assembleRoom.ts       wires the loaded scene: lighting, TV, computer, camera rig, lava, interaction, anchors
+  createRoom.ts         public API: stage + view controller + the computer's live screen + the generated room
+  assembleRoom.ts       wires the built room: TV, computer, radio, camera rig, interaction, anchors, the two glasses
   ViewController.ts     applies the view policy to the surface (pause/resume/input), the live screen and the camera
   viewState.ts          pure reducer: view requests/arrivals → effects
-  assets/
-    roomAssets.ts       GLTFLoader + MeshoptDecoder; loads the five GLBs in parallel
-    loadProgress.ts     byte-weighted progress across files
-    modelQueries.ts     mesh lookups shared by the device models
+  gen/                  the room itself (§ The generated room). Only genKit.ts imports three.js at runtime
+    GeneratedRoom.ts    the worker's door, the meshes, the two-pass bake and its pacing, context loss, stats
+    GeneratedRadio.ts   the CD player's parts as meshes on the pivots RADIO_SPEC names
+    LavaWax.ts          the lava lamp's wax and glass: a lathe posed by the clock
+    genKit.ts           the three.js classes gen/ builds and bakes with, handed over (room chunk)
+    scene.ts            runs every prop generator and packs the charts; no three.js (worker.ts runs it)
+    worker.ts           the generators' worker
+    roomSpec.ts         plain numbers: where the TV, the computer, the lamps and the view outside are
+    rig.ts              the night's lights, as a table
+    materials.ts        surface functions (GLSL the bake evaluates once per texel)
+    art.ts, artPaint.ts the art page: the game covers, the set's legends and wordmark, the console's, painted
+                        on one 2D canvas; radioArt.ts paints the CD player's strip of it
+    tiers.ts            what each quality tier builds and bakes at
+    bake/               Baker.ts (shadow maps, light pages, the vertices' page, compose) and its three programs;
+                        pace.ts (how its units are sized and spaced)
+    kit/                builder.ts (placed primitives → flat arrays), vec.ts (vectors as triples: what the bake
+                        shares with the builder), charts.ts (flat rectangles packed into pages), hash.ts
+                        (integer hashes, the same in GLSL and JavaScript)
+    props/              one module a corner: shell (walls, floor, rug, door, window, blind), cabinet, tvSet,
+                        cabinetLamps, plant, console, deskCorner, dresserCorner, lavaLamp (+ lavaWax, its
+                        measurements and the wax's pose, which the main thread runs), radio + radioSpec
   stage/
     RoomStage.ts        renderer (sRGB, no tone mapping), scene, camera, the quality's pixel ratio, resize, context loss
-    RenderLoop.ts       render-on-demand scheduler: invalidate() + animation steps, coalesced per frame; tells a run
+    RenderLoop.ts       frame scheduler: invalidate() + animation steps, coalesced per frame; tells a run
                         of frames (whose intervals measure the device) from frames that were only waited for
     quality.ts          pure: the quality tiers, the tier a device starts on, and the governor that moves the scale
                         and the tier with measured frame times (§ Quality)
-    IdleWork.ts         work ahead of need, in small units on idle time: never in motion, never making a frame late
+    IdleWork.ts         work ahead of need, in small units on idle time: never in a flight, never making a frame late;
+                        `drain` makes what a flight shows before it sets off
+    sceneWarmup.ts      every mesh drawn once out of sight before a frame draws it (§ Flights › Warming)
     softwareGpu.ts      pure: whether the GPU is software (2D canvases then paint on the CPU)
     slowDevice.ts       pure: whether the device is slow (a software GPU, or a first flight under 30 fps), for the radio and the posters
-    stripUpload.ts      a large texture uploaded a 1 MB strip per background unit (the radio's 2K skin, the posters)
+    stripUpload.ts      a large texture uploaded a 1 MB strip per background unit (the posters)
     sceneTextures.ts    every texture of the scene: anisotropy, disposal, and the upload of those no frame has drawn
+    canvasRestore.ts    repaints a canvas painted once when a GPU reset hands it back blank (§ Lost canvases)
     FramePacer.ts       presents game frames at most ~60/s (120 Hz displays report each state twice)
-    roomLighting.ts     a small hemisphere for lava/glass; all static surfaces share a bake
-    LavaLamp.ts         48 s lava clip at 24 fps, only while visible
   atmosphere/
-    moods.ts            three opt-in summer-night finishes and the original-bake comparison
+    moods.ts            three summer-night finishes, and `original`: the bake with no finish, for comparison
     RoomAtmosphere.ts   one room render, quarter-size highlight extraction, mip-based bloom and split-tone finish; the
                         TV's light in the haze, and only its brightest pixels' glare from a display
     RoomDust.ts         one point draw of 580 seeded world-space motes, depth-tested and excluded from screens
     AirMotion.ts        dust clock at at most 24 Hz, resting when hidden, disabled or under reduced motion
-    RoomGloss.ts        view-dependent varnish on existing hard surfaces; preserves their baked contact shadows; lights
-                        them with the TV's picture (tv/screenLight.ts)
-    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the robot's eyes' too); no animation
-    tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its light read from room.glb, its globe made
-                        light, and the GLSL the finish lights the room with
-    toyRobot.ts         the toy robot on the cabinet's other end (§ The toy robot): the same, for its two eyes
+    WindowRain.ts       water on the window's glass, refracting the view outside, in the composite
+    RoomGloss.ts        view-dependent varnish on the baked hard surfaces; lights them with the TV's picture
+                        (tv/screenLight.ts) and the storm's flashes
+    RoomHalation.ts     depth-tested warm halos at the practical lamps (the opal lamp's and the bare bulb's too); no animation
+    tvLamp.ts           the opal lamp beside the TV (§ The opal lamp): its uniforms, for its reflection and its air
+    bulbLamp.ts         the bare-bulb lamp (§ The bulb lamp): its intensity and its halo (its light is baked)
     RoomScreens.ts      display mask in the frame's alpha; keeps content clear and hides the monitor's bezel quad
     LiveScreenMood.ts   matching subtle SVG colour tint for the live DOM computer screen; no blur over text
+  rain/
+    RainSoundSlot.ts    imports the rain's sound at idle after power-on (room chunk)
+    RainSound.ts        the `RainSound` chunk: the recording, its seamless loop, mute and fades (§ Rain audio)
   camera/
     CameraRig.ts        TV / room / computer viewpoints, flights, reduced-motion cut, pointer (and phone tilt) parallax
     roomFraming.ts      pure: the whole-room overview for an aspect, tall to wide
@@ -237,9 +297,11 @@ room/
     anchors.ts          pure: the props' positions in the settled room view, and whether they are in shot
     ScreenFade.ts       black veil for the reduced-motion cut
   tv/
-    tvModel.ts          finds the screen/buttons in the TV asset; measured aperture constant
+    tvModel.ts          the TV as the room's spec has it; the aperture constant
+    tvGlass.ts          the glass: a display mesh made on the main thread to the screen's contract
     tvFraming.ts        pure: the TV viewpoint (the whole set, or the picture on portrait and short screens); the
                         picture's outline on the curved glass
+    tvFixtures.ts       the set's numbers for tests
     Television.ts       the device: CRT + LED + the light its picture casts, power choreography
     CrtScreen.ts        ShaderMaterial on the glass, CanvasTexture updated on onFrame, power state
     crtShader.ts        GLSL: scanlines, aperture grille, bloom, vignette, power raster, halation, glass
@@ -253,40 +315,43 @@ room/
     screenMapping.ts    pure: picture rect in UV space, UV → native pixel
   radio/                the CD player; only the door, the click target and the model lookup are in the room chunk
     RadioDeck.ts        the public RadioDoor and RadioDeck types
-    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts just
-                        after the first TV leave's first flight frame, on a prefetch or on a request for the radio view (which waits)
+    RadioDoor.ts        room.radio (room chunk): available, prefetch, load() → the deck; imports deckChunk.ts at the
+                        first landing away from the TV, on a prefetch or on a request for the radio view (which waits)
     RadioInteractable.ts the radio, its cabinet and the lava lamp as one click target (room chunk; the table below)
-    radioModel.ts       finds the radio and its cabinet in the assets (room chunk; the lamp's bounds come from LavaLamp)
+    radioModel.ts       the radio as `RADIO_SPEC` has it, with its cabinet and the lamp's bounds (room chunk)
+    radioFixtures.ts    the radio's bounds and the framing table's viewports, for tests
     deviceFacts.ts      Save-Data and device-memory probes (room chunk)
     deviceContract.ts   the seam to the lazy device (types only): RadioHost, RadioLink, RadioDevice
+    partsProvider.ts    what the generated room hands the device (types only): the parts on their pivots, the spec
     deckChunk.ts        the radio's lazy chunk (`radioDevice`): the deck below and the device, one chunk
     RadioDeckHandle.ts  the deck: listeners, live, label size; remembers discs/state until the device exists
     RadioParts.ts       the radio view's half of the click target: the device's discs, well and keys
     radioFraming.ts     pure: the 24° viewpoint over the radio and its discs, lens, lamp truck, portrait crop; the
-                        measured lid and hinge
+                        lid and hinge it frames
     discLayout.ts       pure: the disc slots (arc or stack) for a count and aspect; label size
     ControlsLayer.ts    the app's controls slot over the room, shown only while live
-    rendererInfo.ts     renderer string, device memory and Save-Data probes
-    device/             the `radioDevice` chunk, loaded on demand
-      RadioDevice.ts    createRadioDevice: download, parse, cut, prepare; the device (state, gestures, cues, frames)
+    device/             the rest of the `radioDevice` chunk
+      RadioDevice.ts    createRadioDevice: waits for the generated radio's parts; the device (state, gestures, cues, frames)
       choreography.ts   pure: every disc, the lid and the keys as functions of time; cues as timed moments
       discMotion.ts     pure: rise, glide and flip, settle, flight, drop and bounce, unseat, idle, attention
+      discContact.ts    pure: whether two discs touch (the planners' and the tests' measure)
       lidMotion.ts      pure: push, pop, the damped swing and the close as timed plans
       keyMotion.ts      pure: rocker tilt and side-key travel, hold and spring release, key shading
       springs.ts        pure: closed-form damped springs and spin tracks
-      deckLayout.ts     pure: the deck's measured seat, slot and keys; the layout on the page
+      timeWarp.ts       pure: a stretch of the storyboard played sooner (a leave mid-pick)
+      monotonicClock.ts the device's one clock, which never runs backwards
+      deckLayout.ts     pure: the deck's seat, slot and keys; the layout on the page
       Discs.ts          the disc meshes, labels (one upload per idle unit), radial averages, analytic picking
       discGeometry.ts   one 512-triangle disc (label face, data face, edge, hole wall)
       discShader.ts     the discs' one program: foil, diffraction, label, spin blur; JS mirrors for tests
       radialAverage.ts  a label's 64-bin radial average (the label at play speed)
       Lcd.ts            the segment display: canvas, warm-up flicker, fades, blink
       lcdSegments.ts    pure: glyphs and the readout's frame
-      closeUpAsset.ts   radio-closeup.glb: extras, fingerprints, cut lists, pivots; the 2K skin
-      cutParts.ts       pure: cut triangle lists out of an indexed mesh (shared attributes)
-      deviceTier.ts     pure: 2K skin rule (the slow tier is stage/slowDevice.ts)
       AmbientPacer.ts   the idle float at ≤ 30 frames per second
+      storyboardSweep.ts the contact tests' harness
   pc/
-    pcModel.ts          finds the glass, shell front, keyboard and desk; the picture's border and radius constants
+    pcModel.ts          the computer as the room's spec has it; the picture's border and radius constants
+    pcGlass.ts          the glass: a display mesh made on the main thread (planar UVs, v = 0 at the top)
     pcFraming.ts        pure: the straight-on viewpoint in front of the monitor
     glassPlane.ts       pure: the flat rectangle a display's picture is registered to
     projectorUvs.ts     pure: glass UVs re-projected from the settled eye
@@ -300,15 +365,17 @@ room/
     PcMonitor.ts        the public PcMonitor object and its types
     PcInteractable.ts   the computer and the desk as click targets
   posters/
-    PostersSlot.ts      the room's half: the TV-side import and fetch, the first-departure hook, the cut hold, stats
-    posterKit.ts        what the lazy wall uses of the room's chunk, handed over: tier, boxes, materials, uploader
-    posterTier.ts       pure: the 2K or the 1K atlas, from the room view's focal length, memory, Save-Data, GPU
-    posterVisibility.ts pure: each piece's box from the glb, and whether a pose's frame holds any of them
-    PosterWall.ts       the `posterWall` chunk: parse, decode, strip upload, compile, reveal or fade, per-pose hide
+    PostersSlot.ts      the room's half: the TV-side import, the first-departure hook, the cut hold, stats
+    posterKit.ts        what the lazy wall uses of the room's chunk, handed over: tier, boxes, materials, meshes, uploader
+    posterTier.ts       pure: the atlas painted at 2K or 1K, from the room view's focal length, memory, GPU
+    posterVisibility.ts pure: each piece's box, and whether a pose's frame holds any of them
+    PosterWall.ts       the `posterWall` chunk: the door to the painter, strip upload, compile, reveal or fade, per-pose hide
+    wall/               pure: the layout, the geometry and atlas plan made from it, the night's light on the walls
+    paint/              the painter (a worker; a lazy chunk where there is none): the kit, the designs, the atlas
   spotlight/
     PropSpotlight.ts    the public PropSpotlight and LitProp types
     SpotlightDoor.ts    room.spotlight (room chunk): the pointer's prop, else the app's pick, while the camera rests in
-                        the room view; imports the chunk behind the first flight away from the TV
+                        the room view; imports the chunk from the TV behind the room's warming, or at the first landing
     spotlightKit.ts     the three.js classes the chunk draws with, handed over (room chunk)
     spotlightContract.ts the seam to the lazy chunk (types only)
     Spotlight.ts        the `propSpotlight` chunk: the glow passes, the jelly, the brighter colours, the label point
@@ -322,130 +389,319 @@ room/
 
 ## Assets
 
-`public/room/` contains the revision-6 runtime export, generated and validated by `tools/room/`:
+The room ships no model, texture or image, and fetches none. Its geometry, its surfaces, its prints and its light are
+made in the browser (§ The generated room), the posters' paintings and geometry too (§ Posters), and the startup still
+is CSS (§ Startup). The only file the room downloads besides its code is the rain's recording,
+`public/audio/attic-rain.mp3` (§ Rain audio).
 
-```sh
-ROOM_SOURCE=/path/to/original/attic-room.blend pnpm build:room
-pnpm verify:room
-```
+What the room's code needs to know of the room without building it (where the TV, its glass and its LED are, the
+monitor's glass and shell, the lamps, the lava lamp's box, the view outside, the radio's hinge and keys) is
+`gen/roomSpec.ts` and `gen/props/radioSpec.ts`: plain numbers, which `gen/gen.test.ts` and `gen/props/radio.test.ts`
+hold to the generators. Baked surfaces carry a filmic display transform of their own, so the renderer uses
+`SRGBColorSpace` output and `NoToneMapping`. `public/CREDITS.txt` (linked from the résumé) says what the site is made
+with.
 
-It produces `room.glb` (baked environment and lava animation; `room-1k.glb` is its half-atlas variant for the lower
-quality tiers, § Quality), `tv-high.glb` (we open zoomed on the TV, so it ships at close-up detail), `pc-base.glb`, `radio-base.glb`, `ps2-base.glb`, and `manifest.json` with byte sizes, SHA-256 and source revision 6, then the radio's lazy `radio-closeup.glb` and `radio-skin-2k.webp` and the posters' `posters.glb`, `posters-2k.webp` and `posters-1k.webp` (`lazyFiles`; § The CD player, § Posters). Existing attribution remains in `CREDITS.txt`, which now also records the close-up.
-The loader imports a generated size table from `src/room/assets/roomAssetSizes.json` to weight download progress without another request. The pipeline keeps it synchronized with the public manifest. See the manifest for exact transfer sizes.
-The existing device geometry is retained, with static device surfaces now baked in the same lighting as the furniture. Only the moving lava and its glass require live lighting; the CRT picture and the light it casts (§ The TV's light) remain dynamic. There is no runtime studio environment capture.
-The night rig keeps blue window highlights, tungsten desk light and amber lava glow, with substantially reduced ambient/fill illumination for deep shadows and stronger local contrast. The pillow and ceiling beams are removed; the old wall posters gave way to the decorated walls (§ Posters). The folded rug is square at the original width and rotated 15° clockwise; its raised corner is nearest the TV. Desk drawer fronts share the white enamel, and the oak floor has more natural grain. Changing the baked mood requires rebuilding all atlases.
-The monitor, keyboard and mouse are rebuilt as a lightweight beige 1990s desktop set from the linked Sketchfab visual reference. The existing tower under the desk remains; desktop cables and floppy disks are removed.
-The original lightweight wastepaper basket is moved clear of the desk. Its 15 inner papers settle onto the base in an offline physics pass; the three original floor papers remain. No runtime geometry or physics is added. The TV keeps its original printed color and continuous source UVs with smoother casing normals and a satin finish; its screen and interactions remain unchanged. The TV cabinet, desk, desk lamp, static lava housing and window frame also use repaired normals and supersampled offline bakes, reduced to the same runtime atlas sizes.
-See [ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) for the reference study and [the rebuild guide](../tools/room/README.md) for native source requirements. Normal application builds use the checked-in assets and do not require Blender. To import an already-built revision-6 runtime directory, use `ROOM_SOURCE=/path/to/optimized pnpm sync:room`.
-The GLBs use `EXT_meshopt_compression`, `KHR_mesh_quantization`, `EXT_texture_webp`, `KHR_materials_unlit` and `KHR_materials_emissive_strength`; three's `GLTFLoader` with `MeshoptDecoder` handles all of them.
-Baked surfaces already contain Blender's display transform (AgX), so the renderer uses `SRGBColorSpace` output and `NoToneMapping`.
-`CREDITS.txt` must stay reachable from the site (several assets are CC BY 4.0).
+Until commit `0e275c7` the room was authored in Blender, baked offline and shipped as five GLB models and WebP
+textures under `public/room/`, built and checked by `tools/room/` (`pnpm build:room`, `verify:room`). All of that is
+removed; the commit before it is where to look for the pipeline. `docs/gen/reference/` keeps pictures of that room,
+which the generated one was matched to (§ The generated room › Comparing it).
 
-### Original TV geometry contract (retained in revision 6)
-
-Run `node scripts/inspect-glb.mjs public/room/tv-high.glb` (node tree, extras, world AABBs) and `node scripts/inspect-tv-screen.mjs public/room/tv-high.glb` (decoded UVs, normals and the visible aperture).
+### TV geometry contract
 
 - The TV faces **-X** (into the room), standing on the white cabinet against the wall at x = 2.80.
-  Whole-set bounds: x 2.153–2.657, y 0.486–1.076, z -0.625 to -0.015 (0.61 m wide, 0.59 m tall).
-- Screen mesh `TV_Interactive_Screen_high`: `userData.interaction_id = "tv-screen"`, `replaceable_screen = true`, material `TV replaceable phosphor screen` (replaced by the CRT shader at runtime).
-  117 vertices, curved: the centre is at x 2.159, the corners 2.5 cm further back.
-  Its 0–1 UV square spans z -0.611 to -0.029 and y 1.056 to 0.615 (0.583 × 0.441 m, aspect 1.32).
+  Whole-set bounds (`TV_SPEC.bounds`): x 2.153–2.657, y 0.486–1.076, z -0.625 to -0.015 (0.61 m wide, 0.59 m tall).
+- The glass (`tv/tvGlass.ts`, from `TV_SPEC.glass`) is a display mesh made on the main thread, not a baked one:
+  `userData.interaction_id = "tv-screen"`, `replaceable_screen = true`, its material replaced by the CRT shader. A
+  16 × 12 grid, curved as a parabola each way: the centre is at x 2.159, the corners 2.5 cm further back.
+  Its 0–1 UV square is a planar projection spanning z -0.611 to -0.029 and y 1.058 to 0.614 (0.583 × 0.444 m, aspect 1.31).
   **Orientation:** u runs left → right as seen by the viewer (+Z), **v = 0 is the top edge**; with `flipY = false` the canvas maps upright and unmirrored (verified with the lab's corner labels).
-- The bezel covers the UV square's rim. The straight-on visible aperture is u 0.058–0.942, v 0.050–0.950 with rounded corners (`TV_SCREEN_APERTURE`).
+- The bezel's lip (gen/props/tvSet.ts) covers the UV square's rim: a steep wall, 8 mm wider than the aperture where it turns onto the face over a 1.6 mm radius, its inner ring behind the glass all round (the glass crosses the wall, 3–5 mm outside the aperture at the sides' middles, where the tube bulges nearest). The straight-on visible aperture is u 0.058–0.942, v 0.050–0.950 with rounded corners (`TV_SCREEN_APERTURE`).
   The 4:3 picture is fitted inside it with a 2 % inset (`fitContentRect`), leaving a thin dark tube border like a real set; pointer mapping uses the same rect, and so does the TV view's framing.
 - The TV view (`tvFraming.ts`) looks along −facing pitched 4° down through a 28° lens, widened 2° at a time up to 60° while the eye would stand more than 1.75 m back from the set's middle (it would back into the desk), into the viewport minus the framing insets. It frames the whole set with a 6 % margin, unless the viewport is portrait or the whole set would show the picture under 300 CSS px tall (1.25 px per game row: a phone on its side, a very short window); then it frames the picture alone, the content rect's outline on the curved glass (its corners and every crossing with the glass's triangle edges, so no column or row is ever cut), with a 0.1 % hairline. A portrait picture spans the width, centred in the space above the touch pad, with the bezel cropped at the sides: at 390 × 844 (40° lens) its top row covers 389.2 of 390 px and, keystoned by the pitch, its bottom row 382.5. A phone on its side is limited by its height, between the pad's clusters: at 844 × 390 (28°) the picture is 389.2 px tall and 521 px wide, and the room stays in shot beside the set above the clusters (x < 69 and > 737) to tap out of the TV, as it does past the safe areas of a notched phone. Desktops and tablets in landscape keep the whole set (1440 × 900: the picture 662 × 496 px).
-- Controls: `TV_Imported_Front_buttons_high` (`interaction_id = "tv-buttons"`) is the strip of round buttons under the printed labels POWER, VOLUME, CHANNEL, ACTION, TV/VIDEO (z -0.477 to -0.348, y ≈ 0.55). The large POWER button is its leftmost element.
-  There is **no LED mesh**, so `PowerLed` mounts a 2.4 mm emissive lens with an additive halo 2.2 cm left of the button strip.
-  Other parts: `Front_section` (bezel/shell), `rear_section`, `Logo` (Panasonic), `AV_front` jacks, `AV_back`, `Coax_connector`, `Screw`.
-- Room surfaces around the TV (ray cast in `room.glb`): cabinet top y = 0.486, cabinet front face x = 2.144 (the TV stands flush with it), floor/rug top y ≈ 0.035, wall x = 2.80.
-- The lava lamp's nodes carry `userData.supplied_asset = "lava"`; the `Lava flow` clip is 48 s.
+- Controls: the generated strip of round keys under the printed legends POWER, VOLUME, CHANNEL, ACTION, TV/VIDEO (z -0.477 to -0.348, y ≈ 0.55), each through the face in its own dark gap. The large POWER key is its leftmost element. Right of them the remote's smoked window, the wordmark's badge above it at the set's middle, and the three front jacks in a well 9 mm deep (z -0.262 to -0.194).
+  The set's lamp is a 5 mm lamp's body through the face, unlit plastic: `PowerLed` mounts its light, a 2.4 mm emissive lens with an additive halo, at `TV_SPEC.led`, a millimetre off the body's tip and 2.2 cm left of the strip.
+- The face is not a plane: it is crowned across (5 mm further back at its sides than at its middle, where it is on x = 2.1542) and leans back 1–2 mm under the keys, and the chin's bottom edge hangs 16 mm lower at the middle than at the corners. What stands on the face is placed on it by `face(across, up)`; the prints are five strips of the legends' rectangle laid along it.
+- Around the TV: cabinet top y = 0.486, cabinet front face x = 2.144 (the TV stands flush with it), floor/rug top y ≈ 0.035, wall x = 2.80.
 
 ## Rendering and performance
 
-- **On demand.** `RenderLoop` only draws when asked: game frames (paced to ≤ 60/s), camera flights and parallax, power animations, lava ticks (24 fps, only when the lamp is in the frustum, the canvas on screen, the tab visible and reduced motion off) and resizes.
-  Measured in the lab (headless Chromium, Apple GPU, 1440 × 900): ~60 fps with the game running on the TV, **0** with the game paused on the TV, 24 in the room view (lava), 0 in the room view under reduced motion, and while seated at the computer **0** under reduced motion or below the top quality tier and otherwise the air's 12 (the lava lamp is out of shot; the live screen is DOM; § Quality › Reading).
-  In the app with the real screen (`e2e/pc-flow.spec.ts` keeps it so): one frame from the landing to the open reader (the white page's light), then none while the visitor reads or scrolls.
+- **Frames.** `RenderLoop` by itself draws only when asked: game frames (paced to ≤ 60/s), camera flights and
+  parallax, power animations, resizes. Once the room is lit, `GeneratedRoom` paces the loop (`RenderLoop.pace`,
+  stopped while a lost context leaves it unlit): the loop then follows the display's own frames
+  (`requestAnimationFrame`) and draws frames of its own accord, at one of two paces, and none while the canvas is off
+  screen or the tab hidden.
+  - **Full pace** is every display frame, or every second or third of a display faster than 95 Hz: sixty a second on
+    a 60 Hz and on a 120 Hz display, 72 at 144 Hz, 80 at 240 Hz, 75 and 90 on displays of those rates, and always a
+    whole number of display frames apart, so the frames are evenly spaced. (A timer asking sixty times a second drew
+    a 120 Hz display at 67 a second in a mix of one- and two-frame gaps.) Whatever asks for frames gets them at this
+    pace: every step of an animation (a flight, the radio's choreography, the tube's turn-on) moves by the time its
+    step is given, a one-off request (a pointer's move, the radio's readout) is drawn by the next of these frames and
+    not by one of its own in between, and the game on the TV asks for each of its frames while it runs. (Flights
+    used to draw on every display frame: 120 a second on a 120 Hz display, and a GPU that held sixty but not 120 gave
+    a mix of one- and two-frame gaps, § Flights.) The loop draws at this pace of its own accord too, as a run of
+    frames the quality governor and the bake's pacing judge, until the whole room is lit and the governor has seen
+    the quality hold over a window of such frames (`QualityGovernor.judging`: at the start, after every change, while
+    a floor is counted out). Before the room is lit the loop is not paced and an animation draws on every display
+    frame.
+  - **At rest**, which is the camera standing and nobody touching anything, the room draws only what moves by itself
+    needs, and nothing at all while nothing moves: there is no need for sixty frames a second of a room in which the
+    rain runs down a window, and none for any of a room in which nothing changes. What moves says so to the loop
+    (`RenderLoop.ambient(name, rate)`: the frames a second it needs now, 0 while it is still) and the loop draws the
+    most any of it asks for, rounded up to a whole number of display frames so the frames stay evenly spaced (thirty
+    asked for are every other frame of a 60 Hz display, every fourth at 120 Hz, every third at 90 Hz, every one of a
+    display capped at thirty; a timer's thirty beside a display's sixty gave gaps of one and of two frames, and the
+    radio's discs juddered). Everything that moves moves by the time its frame is given, never by a count of frames,
+    so a slower pace shows the same motion in fewer pictures. The game is not among them: it runs only while the
+    visitor is at the TV (the room pauses it on leaving), its title is made in whole frames of sixty a second (a
+    two-frame shake as the words lock, a 32-on 16-off blink, the plotter's pen moving every frame), and every one of
+    its frames is shown, played or only watched; a paused game is one picture and asks for nothing. What there is:
+
+    | What moves | Asks for | While |
+    | --- | --- | --- |
+    | `air`: the rain on the window, the storm's flash, the dust | 30 a second with the window in view, 20 for the dust alone | not at the TV, not under reduced motion, and at the computer on the top tier only (`RoomStage.setReading`) |
+    | `lava`: the lamp's wax | 12 | the lamp is in the camera's frustum, not under reduced motion (its wax moves a pixel in a second) |
+    | `discs`: the radio's floating discs | 30 | at the radio, for the seven seconds after the last touch (§ The CD player › Motion) |
+
+    A rest frame is not a run's frame: it comes when it is due, whatever the device took over the one before, so the
+    governor and the bake's pacing never see it (a governor that judged thirty frames a second against sixty would
+    step every resting room down to its floor). Resting delays nothing: a click's flight, a key, a pointer's move is
+    drawn by the very next full-pace frame (`RenderLoop.test.ts` › at rest), and a room in which nothing is drawn
+    watches no display frame at all (it looks four times a second whether something moves again). Two things would
+    otherwise keep a room from ever resting, and are held still: a pointer's parallax nearer than a tenth of a pixel
+    to where the camera is (`CameraRig` › `PARALLAX_STILL`), and a phone's tilt under a fifth of a degree from the
+    last one passed on (`app/guide/tilt.ts`), since a tilt sensor never repeats a reading. `room.stats.pace` says
+    which pace the room is at, what moves and why it is not resting, and `?debug=perf` prints it (§ Quality).
+  - So at rest the room draws: at the TV the game's own frames while it runs (sixty a second) and none with the game
+    paused; in the room view thirty (the rain); at the computer thirty on the top tier and none below it, where the
+    air rests; at the radio thirty while the discs float and for the rain or the dust after; under reduced motion
+    none anywhere, the game's own frames apart. The radio's floating discs are posed in every frame drawn
+    (`RenderLoop.ride`: a step run before each frame that asks for none). The room with shipped files drew no frame
+    at rest and the generated room first drew sixty in every view; what each costs is in § The generated room ›
+    Frames at rest.
+
 - **Work ahead of need.** `IdleWork` runs background work in small units in idle callbacks, from the first frame on, and asks the room first what the screen is doing:
-  - the camera flies, or the TV turns on or off (from the moment its LED lights): nothing runs but urgent work (the radio's preparation on the way to it, whatever of the posters' the first departure finds unfinished), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`, the posters') also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (6.5 ms; the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed, so neither the set-up unit before the strips nor one slow first strip, a phone's first copy out of a fresh bitmap at 7.6–20.9 ms against 0.3–5 ms for the rest at 6× CPU, ends the slicing), because a slow CPU drawing a large canvas grants the flight slivers of idle time at most and the flight itself is waiting for that work;
+  - the camera flies: nothing runs, urgent or not (`IdleMoment` `flying`, § Flights); what a flight shows was made before it set off, and whatever is left waits for the landing;
+  - the TV turns on or off (from the moment its LED lights), or the radio's lid and discs move: nothing runs but urgent work (the radio's prints at the radio), and that only as it may while the game plays, since a unit invisible on a still frame is a dropped frame in motion; a sliced urgent task (`sliceMs`) also gets one unit right after a frame that leaves no idle period or too short a one, while its units of that kind stay within the slice (the median of its last three CPU units or of its last three uploads, and none of them judges before three have been timed);
   - the game plays on the TV, or the visitor uses the computer's live screen: a unit runs only when the idle period left can hold it, judged by how long its task's previous unit took (or, for a task's first, its own estimate, `estimateMs`, else the longest so far), so no frame is late, and a unit at the head of the queue that does not fit steps aside for the first behind it that does; units marked `QUIET` (GPU uploads, whose cost the main thread cannot time, and work only needed where nothing plays) wait, except a task's small uploads (`smallUploads`: the posters' 1 MB strips at the TV), which run like CPU units, each with an idle period to itself;
   - otherwise (the room loading behind the startup still, a paused game, the room view): units run until the idle period is spent, always at least one.
 
   On a device too slow to fit a unit between the game's frames the work waits for a quiet moment, or for the flight that needs it. The room queues:
+  - **The bake's second pass**, the light of everything the opening view does not show, a few pieces of its views a unit
+    (§ The generated room › Pacing).
   - **The pick chunks** (below), for quiet moments: the room view.
-  - **The monitor's glass finish**, in bands of 32 rows (17-50 ms in all on a phone twenty times slower than a laptop).
+  - **The monitor's glass finish**, in bands of 32 rows.
   - **The monitor's still**, as soon as the app hands over its painter (§ The computer's monitor).
-  - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, for quiet moments, once the visitor first leaves the TV. three uploads a texture the first time a frame draws it: the TV view's own are on the GPU with the first frame; the first look around draws (and uploads) the rest of the room mid-flight, as it did before the computer; and the room view's quiet uploads what only the flight to the computer draws (two 2048² atlases on a portrait phone, 27-36 ms each at 6× CPU). A visitor who stays at the TV never allocates the room's other atlases: 97.8 MB of textures at the TV, as before the computer, against 221 MB once the room has been seen.
-- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a mesh whose bounds the ray crosses, and the baked desk is one 54 k-triangle mesh that spans the left half of the room, so `pickMeshes` cuts meshes over 8192 triangles into chunks of at most 1024 that share the mesh's attributes and carry their own bounds; a ray tests only the chunks it crosses and finds the same hits. A pick costs at most 0.7 ms (2.5 ms at 6× CPU) instead of 3.3 ms (23 ms). Cutting the desk takes about 9 ms (50 ms at 6×), in units of 4096 triangle visits in quiet moments after the first frame (in the room view); until then rays test the whole meshes (from the TV, rays point away from the desk).
+  - **The posters' atlas**, in 1 MB strips (§ Posters), and at the radio the discs' labels (§ The CD player).
+  - **Every texture no frame has drawn yet** (`sceneTextures.ts`), one upload per unit, a while after the TV turns on
+    (`assembleRoom` › `prewarm`) or at the latest as the visitor first leaves the TV, before the camera sets off.
+    three uploads a texture the first time a frame draws it, which would otherwise land in a flight. In the generated
+    room this is little: the baked pages are render targets, on the GPU since the bake, so what is left are the
+    canvas textures a view has not shown yet (the view outside the window, the monitor's still).
+  - **Every mesh no frame has drawn yet** (`sceneWarmup.ts`, § Flights › Warming), a few to a unit, behind the
+    textures.
+
+- **Pointer picking.** Every pointer event casts one ray at the registered props. three.js tests every triangle of a
+  mesh whose bounds the ray crosses, so `pickMeshes` cuts any registered mesh over 8,192 triangles into chunks of at
+  most 1,024 that share the mesh's attributes and carry their own bounds, in units of 4,096 triangle visits in quiet
+  moments; a ray tests only the chunks it crosses and finds the same hits. The generated room's click targets are
+  small meshes of their own or index ranges of the merged props (§ The generated room › Picking), so little or
+  nothing is cut now; what a pick costs has not been measured since.
+
 - **Software GPUs.** Where the GPU is software (SwiftShader, llvmpipe: `softwareGpu.ts` reads the renderer's name), a 2D canvas the browser accelerates queues its raster behind the room's frames on the same CPU: the computer's first wallpaper paint took the running game 1.1 s there. The monitor then paints its still and glass finish on CPU canvases (`willReadFrequently`) and asks the app's painter to do the same (`StillRequest.cpuCanvas`), so the work lands on the main thread, 7 ms of it, in the idle moments the room chooses.
-- **The game and the TV's turn-on stay as they were** (production builds, 3-6 runs each against the build before the computer): at 20× CPU on a phone, the game's first 3 s run at 52-61 frames/s with a worst frame gap of 21-32 ms (before: 54-60, 20-32 ms) and the turn-on's worst gap is 83-92 ms (81-89 ms), with no long task in either; under SwiftShader the game's longest frame is 82-139 ms (90-205 ms) and nothing freezes it; at 6× the game's worst gap is 11-18 ms (10-17 ms).
-- **Flights on a slow CPU** (production build, Apple GPU, 6× CPU throttling, clicks pressed for 80 ms): no long task over 50 ms in any flight to or from the computer, and the click answers with a flight frame within 10–16 ms. The first leave from the TV takes 26 ms from pointerup to the first flight frame (26 ms before the computer existed): the still was prepared between the game's frames and only its upload is left for the click. On a phone twenty times slower than a laptop no unit fits between the game's frames, and the first leave pays the still once, about 110-125 ms after the game has paused and before the camera moves. A visitor's first gesture also creates the page's `AudioContext`, a 100–135 ms task at 6× in headless Chromium (app audio, before this room).
-- **First frame.** The background work starts after it: 1049 ms at 6× (1062 ms before the computer existed), 4186 ms on a phone at 20× (4275 ms).
+- **Not measured since the room is generated**: the game's frame rate and the turn-on's worst frame gap on a slow
+  CPU, long tasks in the flights to and from the computer, the click-to-first-flight-frame time, and the time to the
+  first frame at 6× and 20× CPU throttling. The numbers this section used to carry were taken on the room with
+  shipped files, whose load (a 7 MB download, decode and upload) and whose frame (353 k triangles) were different
+  work. `node scripts/perf/profile.mjs` measures a production build along the visitor's path;
+  `stats.generatedStats.marks` has the way to the first shown frame.
+
 - **Resolution.** On the top tier DPR ≤ 2 and the drawing buffer ≤ 3 MP (1440 × 900 renders at DPR 1.52); a lower
   tier or scale draws fewer pixels (§ Quality).
   Scanlines need roughly ≥ 2.5 device pixels per game row; below that the shader fades scanlines and the aperture grille out instead of letting them alias.
-- **Cost.** The five revision-6 runtime GLBs contain 352,775 triangles and, with credits, total 7.41 MB with 46.21 million decoded texture pixels. The room view measures about 353 k triangles and 69 draw calls once the lazy radio and posters are ready; the TV view culls most of the room. The TV desk plant adds one draw call and about 15 k triangles, with one 1K baked atlas. The opal lamp beside it adds two draw calls, about 1 k triangles, no texture and one material program, compiled for the screen and the finish's linear target (9.5 kB of room.glb). The toy robot adds four draw calls (its body, its eyes and their two halos), about 2.4 k triangles, one 512² WebP colour map and no program (its body and eyes share the baked room's mapped program, the halos the halation's; 86.4 kB of room.glb). The corrected cabinet lighting and room-lit game inserts save 372 KB against the preceding prop pass, with unchanged texture resolution and geometry. Static devices use baked materials without PBR lights or an environment capture. The cabinet's shadow and subtle light spill come from a screen-aligned baked emitter; removing the redundant additive strip saves one draw call.
+- **Cost.** The generated geometry is 118,180 triangles on the top tier, 81,442 on `medium` and 71,154 on `low`
+  (`stats.generatedStats.triangles`; every prop has a budget in `gen/gen.test.ts`). Read from `room.stats` in the lab
+  (the `rose` finish, 1440 × 900, top tier, headless Chromium on an Apple GPU, the posters shown, five mock discs): the
+  TV view draws about 56 k triangles in 20 calls, the room view 120 k in 41, the computer's 84 k in 18, the radio's
+  with its discs up 61 k in 29 (on `low`: 33 k, 73 k, 50 k and 46 k, in the same calls). No three.js light is in the scene
+  and nothing is shadowed per frame: static surfaces are unlit materials that read the bake (a chart's page, or vertex
+  colours), and the finish extends those same materials (varnish, the TV's light, the storm).
   The picture texture is a 320 × 240 `CanvasTexture` re-uploaded with mipmaps only when the game reports a frame; the picture's light reads its colours from those mips on the GPU (no pixel readback).
-- **Memory.** Baked atlases dominate allocation. `pnpm verify:room` reports decoded texture pixels and enforces the budget; WebP reduces transfer size, not GPU allocation. No KTX2 yet. Device normal/roughness maps and the studio environment are no longer loaded at runtime.
-- **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
+- **Memory.** The baked pages dominate (`stats.generatedStats.pages`, `pageBytes`): four 2048² pages with their mips,
+  89.5 MB, on a device that starts on the top tier; four 1024² pages, 22.4 MB, on one that starts lower. They are
+  render targets: nothing is downloaded, decoded or uploaded for them, and they are allocated at the TV, when the bake
+  is made. While it runs the bake holds 45.8 MB more (38.2 MB on `low`; `transientBytes`), freed once the whole room is
+  lit. Beside them: the art page and the view outside (canvas textures, 1024² and 512² below the top tier), the
+  posters' atlas (2,097,152 texels, ≈ 10.7 MiB with mipmaps, a quarter of that at 1K; `stats.postersTexturePixels`),
+  the monitor's still (at most 1024 × 817; `stats.pcTexturePixels`), the discs' labels and the LCD
+  (`stats.radioTexturePixels`: 1.06 M with five 384² labels) and the finish's own targets, which are the size of the
+  drawing buffer and which `room.stats` does not count.
+
+- **Lost canvases.** A GPU process reset (a laptop waking from sleep, a display change, a driver reset) loses the WebGL context and wipes every 2D canvas on the page, CPU ones (`willReadFrequently`) included, handing each back blank with its context's state reset; the restored WebGL context then uploads whatever a texture's canvas holds. A canvas painted once paints again on its `contextrestored` (`stage/canvasRestore.ts`): the radio's LCD, the TV's PAUSE OSD (`tv/osd.ts`), the monitor's composed still and its glass finish (`pc/Monitor.ts`, `MonitorTexture`; the still is composed again at once), the app's wallpaper (which then asks the glass for a repaint) and the disc prints (`app/radio/labels/discPrints.ts`: the decoded art is closed once painted, so it is fetched from the HTTP cache and decoded again, then painted on a new canvas that the room takes like any new print). The game's own caches (atlases, glyph strips, pre-rendered backdrops) are painted through the engine's `paintCanvas` (`engine/gfx/canvas.ts`), which repaints the restored ones, and everything painted after them, in the order they were first painted, then has the game draw its frame again, paused or not. The room's own light goes with the context too: its baked pages are render targets, so the bake runs again and `room.shown` is false until what the camera shows is lit (§ The generated room › Loss and failure); at the TV the app covers the canvas with the startup still meanwhile. A new canvas painted once must do the same; `e2e/gpu-reset.spec.ts` crashes the GPU process with CDP (`Browser.crashGpuProcess`) in a browser of its own and checks each surface.
+
+## Flights
+
+A flight is the one moment the whole picture moves, so a frame that comes late in it is a jump the eye cannot miss.
+Three rules keep its frames to themselves (`e2e/flights.spec.ts` holds a cold first flight to them):
+
+- **Nothing else runs while the camera flies.** `IdleWork` has a moment for it, `flying`, in which no unit runs, urgent
+  or not: no bake unit (the bake's own stall timer asks the same question), no upload, no pick chunk, no still. What
+  a lazy chunk makes as it arrives (the spotlight's two programs and its target, the walls' reveal, the guide's and
+  the computer screen's mounting in the app) waits for the landing (`createRoom` › `atRest`, `PosterWall` ›
+  `#reveal`, `RoomHost` › `atRest`, `PcSlot`, `RainSoundSlot`, whose sound is an idle unit); no chunk is asked for in
+  a flight (the spotlight's from the TV behind the warming, the radio's deck at the first landing). The governor's changes of scale and tier wait for the landing
+  too (§ Quality). A reduced-motion cut held black is not a flight: what runs then is out of sight.
+- **What a flight shows is made before it sets off.** `ViewController.request` asks `whenReady`, which says whether
+  anything is left to make: the rest of the room's light (`GeneratedRoom.whenWhole`), the work `IdleWork` holds for
+  flights (`IdleTaskOptions.flight`: the textures no frame has drawn, the warming below, the walls' upload once they
+  are painted, the radio's discs for the flight to the radio), the walls' and the discs' programs. Normally nothing
+  is, and the camera sets off in the click's own task. Otherwise the game stops at the click (its PAUSE on the tube
+  is the cue; `ViewController` gives the game back if the visitor stays), the frames are held (`RoomStage.hold`),
+  `IdleWork.drain` runs that work unit after unit, and the camera leaves once the GPU's fence says it is through
+  (`RoomStage.gpuIdle`). Each step is bounded (`PREFLIGHT_WORK_MS`, `PREFLIGHT_GPU_MS`, 0.4 s each; the bake alone is
+  waited for however long, since no view may show a surface without its light): what is not made by then waits for
+  the landing like everything else. Walls still being painted are not waited for: they fade in once the camera has
+  landed. The first flight to the radio waits for the app's half the same way (`RadioDoor.onBoarding`: the CD
+  player and its controls load and mount while the camera still rests; their layout alone is 23 ms of a slow phone's
+  main thread, and stood 70 ms into that flight). A request made while the camera already flies makes nothing and
+  holds no frame: the flight under way is not stopped for the next.
+- **The camera moves by the clock, on the paced frames.** Every step takes the time of the frame it is drawn for and
+  places the camera where the curve says for that time (`CameraRig.flightStep`), so a frame that does come late shows
+  the camera where it should be by then, not a frame behind. The frames are the room's own (§ Rendering and
+  performance › Frames): sixty a second on a 60 and on a 120 Hz display, evenly spaced. The curve is the house ease
+  (`easeInOutCubic`): the camera starts and lands with no speed and no acceleration at any frame rate. The clock
+  starts with the flight's second frame: the first shows the camera where it stands, because the click's own work
+  falls into it (the page's interface takes the change of view: style, layout and paint, 22 ms on a phone-speed main
+  thread), and the frame behind such a one comes late however little the room draws.
+
+### Warming
+
+three.js makes a mesh's vertex array and uploads its buffers the first time a frame draws it, and the driver builds
+its own state for a program the first time it draws with one vertex layout into one kind of target. For everything
+the TV view leaves out, that first time was a frame of the first flight, as the mesh came into the picture: 19
+vertex arrays and 0.55 MB of buffers between 0.29 and 0.58 s into the flight, the fastest part of it. So every mesh
+is drawn once where nobody sees it (`stage/sceneWarmup.ts`, `RoomStage.warm`): stand-ins with its geometry, its
+material and its place, on a layer only the warming's camera sees, into one pixel of a target like the one frames draw
+the room into (its format, its samples, its depth; `RoomAtmosphere.warm`). A few meshes a unit (24 k vertices), from
+the TV a while after it turns on (`prewarm`), each unit an upload with an idle period to itself; whatever is left when
+the visitor leaves is drawn before the camera sets off. The stand-ins share the meshes' programs (`e2e/programs.ts`
+would count a new one), a mesh hidden for now is warmed too, and so is one whose material is switched off (three.js
+uploads a mesh's buffers as it comes into view, before it looks at the material: the monitor's bezel glow); one that
+is never drawn says so (`userData.neverDrawn`: the pick meshes). A tier with other samples and a restored context are warmed again. A
+program must be compiled for the target it is drawn into: `RoomStage.prepare` and `prepareAsync` bind the finish's
+target first. (The walls' and the discs' programs were compiled for the screen: programs nothing drew with, while the
+ones that did draw were linked, the main thread waiting, in the flight's frame that first showed a poster or a disc.)
+
+### Measuring flights
+
+`node scripts/perf/flights.mjs` loads a production build cold and makes the first flight at a chosen moment
+(`--leave 0|1000|10000`, `--after-whole`, `--level`), then the others (`--path round|all`), on a desktop or a
+phone-sized viewport with a throttled CPU, headless or in a window on the real display (`--headed`), with the slow-GPU
+stand-in (`--config`), in Chromium or WebKit. `flightProbe.js` records every display frame, the camera the room drew
+from in it and what WebGL was asked to make; the script prints each flight's frames against the paced frame (the
+longest, how many came late, the largest step in speed) and what was made inside it, and `--timeline` everything that
+ran in the first. `--trace` takes a Chromium trace of it, which `flightTrace.mjs` reads: the frames the compositor
+dropped, which the page's own clock cannot see, and the long tasks of the page and of the GPU process.
+
+What it measures on an Apple M4 Pro (17 Nov 2026, a production build, each row a cold load; the tables are in
+`.shots/flights/NOTES.md`): the first pull-back, left the moment the room is ready, one and ten seconds later and
+after a level, is 66–71 frames 16.6 ms apart, the longest 17.3–19.1 ms, none late and nothing made inside it, on the
+desktop on its tier and the lowest, at a phone's size with the CPU six times slower on its tier and the lowest, and
+in WebKit; on a display that hands out thirty frames a second it is 33 frames, the longest 33–42 ms. The seventeen
+other transitions, first and second time, are the same, but for one frame of 29 ms in WebKit at the phone's size.
+Before this the first pull-back made 6 programs, 19 vertex arrays and 4.3 MP of texture in its own frames (4 late
+frames at the phone's size, the longest 34 ms; 15 late and 42 ms with the GPU overloaded). With the GPU made 48
+times slower the first pull-back is on time behind a wait of 0.9–1.0 s, and four to six of the other seventeen
+flights still have late frames (the longest 80 ms): the stand-in is a GPU that cannot hold sixty in the room at all.
+No phone has been measured (§ Known gaps).
 
 ## Quality
 
 How much the room draws is a **tier** and a **scale** (`stage/quality.ts`), so a five-year-old phone holds its frame
 rate and a laptop shows everything. Every tier keeps the room's look: the finish, the TV's and the lamps' light on the
-room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, texture size on the room's far surfaces and, on the
-lowest, multisampling and the width of the bloom's filter; nothing else.
+room, the haze, the rain and the dust are drawn on all of them. A lower one gives up pixels, the baked pages' texel
+density and, on the lowest, multisampling, the width of the bloom's filter and half the bake's light samples; nothing
+else. What multisampling was hiding, lines thinner than a pixel, a frame without it draws from the baked surface
+instead of from geometry, however the device came to that tier (§ The generated room › Lines without multisampling).
 
-| Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Room atlases | Starts on |
+| Tier | Pixel ratio | Drawing buffer | Scene target | Bloom taps a level | Baked pages, for a device that starts there | Starts on |
 | --- | --- | --- | --- | --- | --- | --- |
-| `high` | ≤ 2 | ≤ 3.0 MP | 2 samples | 5 | 2048² | anything that is not a phone: what the room always drew |
-| `medium` | ≤ 2 | ≤ 1.6 MP | 2 samples | 5 | 1024² (the floor's 2048²) | a phone (a finger for a pointer and a screen under 600 CSS px across): the picture `high` draws there |
-| `low` | ≤ 1.5 | ≤ 0.9 MP | 1 sample | 1 | as the tier it started on | a software renderer (which then stays there); otherwise only reached by the governor |
+| `high` | ≤ 2 | ≤ 3.0 MP | 2 samples | 5 | up to 2048², full density | anything that is not a phone |
+| `medium` | ≤ 2 | ≤ 1.6 MP | 2 samples | 5 | 1024², half the density | a phone (a finger for a pointer and a screen under 600 CSS px across): the picture `high` draws there |
+| `low` | ≤ 1.5 | ≤ 0.9 MP | not multisampled | 1 | 1024², half the density, a shorter bake | a software renderer (which then stays there); otherwise only reached by the governor, which leaves the pages as they were baked |
 
-- **Atlases.** A device that starts below the top tier fetches `room-1k.glb` instead of `room.glb`
-  (`assets/roomAssets.ts`; `pnpm build:room-small`, `tools/room/build-small.mjs`, derives it from the published
-  `room.glb` without Blender, and `pnpm verify:room` holds the two in step): the same scene and geometry with the five
-  2048² atlases of walls, window, desk, drawers and TV cabinet at 1024². The floor's stays 2048² (it and its rug fill the
-  bottom of every room view, and the rug's pile goes soft at 1024²), and so do the TV's, the computer's and the
-  radio's own files, which are seen close up. That is 84 MB less texture memory once the room has been seen (249 MB →
-  165 MB of RGBA8 with mips over the five first-load files), a quarter of the upload time of each of those atlases,
-  and 0.57 MB less to fetch. The choice is made once, from the starting tier, before anything is uploaded.
-- **The scale** multiplies the tier's pixel ratio: 1, 0.85, 0.7 or 0.6. The canvas itself is drawn smaller and the
+- **Pages.** A device that starts below the top tier bakes smaller chart pages (`gen/tiers.ts`, § The generated
+  room): 22 MB of them against 89 MB. The choice is made once, from the starting tier.
+- **The scale** multiplies the tier's pixel ratio: 1, 0.85 or 0.7, and on the lowest tier 0.6 too (§ An overloaded
+  device, below, for why the tiers above it stop at 0.7). The canvas itself is drawn smaller and the
   browser scales it to the page, so the scene, both post passes and the dust all shrink together (the composite is the
   frame's dearest pass per pixel, so a full-size canvas over a smaller scene target would save least where it costs
   most).
 - **The governor** (`QualityGovernor`) follows measured frame times, never the user agent. It judges only *runs* of
-  frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, and the game's, each asked
-  for within 25 ms of the one before it; the lava's and the air's 24 a second and the radio's float at 30 were only
-  waited for and say nothing), thirty at a time by their mean
-  without the two longest, and never a pause (over 250 ms: a hidden tab).
+  frames (`RenderLoop.runInterval`: an animation's, each asked for as the one before it ends, the game's while
+  it runs, each asked for within 25 ms of the one before it, and the room's own at full pace; a room at
+  rest draws its frames when they are due, and they say nothing, § Rendering and performance › Frames), thirty at a
+  time by their mean without the two longest, and never a pause (over 250 ms: a hidden tab). The room does not rest
+  before the governor has had such a window at the quality it stands at (`judging`): after the room is lit and after
+  every change it draws at full pace until one says the quality holds, so a device is at its quality within a few
+  seconds of the room appearing, and a visitor's first flight is not what finds out.
   - Slower than 21 ms a frame: the scale steps down, far enough to reach 15 ms if a frame's time goes with its pixels
-    (33 ms goes straight to 0.6).
-  - At the floor and still slow twice: the tier drops (to scale 0.7 of the lower one) and never comes back this page
-    load. The scene's target is made again without its samples; no shader is compiled (the bloom's width is a uniform).
+    (33 ms goes straight to the tier's floor).
+  - At its tier's floor and slow for the second window running: the tier drops, and never comes back this page load.
+    It drops straight to the tier and scale whose pixels the frames say fit (the first, from the next tier's full
+    scale down, within the present pixels × 15 ms ÷ the frame's time), not to the next tier at a fixed scale to
+    be found slow there too. The scene's target is made again without its samples; no shader is compiled (the
+    bloom's width is a uniform).
   - Every frame on time (≤ 17.4 ms) and the scale under 1: one step up, after a wait every step down doubles (30 s, then
-    a minute, up to four), so a device on the edge settles instead of pumping.
+    a minute, up to four). A step up that the very next window finds slow is taken back and that scale is not tried
+    again this page load: a device on the edge settles instead of pumping (two resizes every few minutes, for as
+    long as the page was open, is what it did before).
   - A step down that does not shorten the frames by 8 % undoes itself and rests the governor a minute: what was slow
     was the main thread, not the pixels (the game's first frames at 6× CPU throttling, say).
   - Not governed: a fixed tier (`quality: 'low'`), a software renderer (its frame times are the CPU's) and a browser
     under automation (`navigator.webdriver`: a test's paused clock or throttled CPU says nothing about the device, so
     end-to-end tests always draw the starting tier; `scripts/perf` unsets it to measure what a visitor gets).
+- **A capped display.** Everything above is measured against the interval frames are meant to come at, which is a
+  60 Hz frame only where the display hands out sixty a second or more. Safari in Low Power Mode hands out thirty,
+  on an iPhone or a Mac, however quick the GPU; nothing a page does adds a frame. So the stage looks at the display's
+  own frames before the room draws any (`RoomStage.watchDisplay`: sixteen in a row, the second quickest interval;
+  a busy main thread makes some longer and nothing makes one much shorter) and `expectedFrameMs` turns that into what
+  frames are expected at: a 60 Hz frame for a display about that fast or faster (the loop paces a faster one down),
+  the display's own tick for a slower one. The governor's limits stretch with it (at thirty a second: slow over 42 ms,
+  on time up to 34.8 ms), and so does the bake's idea of a late frame (§ The generated room › Pacing). A step down
+  that does not shorten the frames is not tried again a minute later: frames are then expected as they came (a cap
+  that began after the page opened, a main thread that is the limit), which costs one step down and back, once.
+  Frames a quarter quicker than expected end the cap. (Judged against sixty, a capped phone stepped its scale to the
+  floor and back every minute, two resizes each time, and baked the rest of the room at an eighth of the pace, every
+  frame counting as late.) `room.stats.display` says what is expected and whether it is a cap; `qualityChanges` counts
+  the resizes.
 - **A change is a resize**: the stage's resize listeners run (the CRT's and the dust's pixel ratio, the monitor's pose),
   and the next frame is drawn whole at the new size. It waits for the camera to land: a flight's frames have no room
-  for it (about 100 ms at 6× CPU).
+  for it (about 100 ms at 6× CPU). A tier with other samples is another kind of target, so the scene is warmed for
+  it again (§ Flights › Warming).
 - **The canvas is not multisampled** under a finish: the room is drawn into the finish's own target, and only two
   triangles and the dust onto the canvas. (The unprocessed bake, `mood: 'original'` at creation, draws straight onto
   the canvas and keeps its antialiasing.)
-- **Reading.** Below the top tier the room's air (dust, rain) rests while the camera rests at the computer: on a phone
-  the live screen covers the room, and the dust alone kept the whole room drawing twelve frames a second behind a
-  page being read. On the top tier it drifts on beside the monitor as before.
+- **Reading.** Below the top tier the room's air (dust, rain) holds still while the camera rests at the computer: on a
+  phone the live screen covers the room. On the top tier it drifts on beside the monitor.
+- **Before the first frame.** The starting tier is a guess from what the device is; the governor needs thirty frames
+  a window to correct it, which at ten frames a second is the room's first several seconds. So once the opening view
+  is lit and before the still goes, `RoomStage.settle` draws the room behind it, a frame on each display frame, and
+  times each by a fence: a frame within one and a half 60 Hz frames ends it at once with the quality as it was (a
+  quick GPU draws one frame here and can never lose its tier to it); otherwise four are drawn, the first being the one
+  that uploads the view's textures, and the quickest of the other three says how many pixels fit 15 ms
+  (`fittingQuality`, `stage/quality.ts`: down the scales, then the tiers). The governor goes on from there. Not where
+  the quality is fixed (`?quality=`, a software renderer, a browser under automation).
 - **Seeing it.** `room.stats.quality` is the tier and scale; `?debug` hands out `window.__room` in a production build,
-  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner (the way to read them on a
-  phone), and `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
+  `?debug=perf` shows the tier, scale, pixel ratio and frames a second in the page's corner, the rate the display
+  hands out frames at and whether that is a cap, how often the quality changed, and the last flight's frames, late
+  frames and longest frame (the way to read them on a phone: `app/hosts/perfReadout.ts`, its own chunk), and
+  `?debug&quality=low` fixes a tier. The lab takes `?quality=`.
 - **Measuring it.** `node scripts/perf/profile.mjs` drives a production build along the visitor's path (the game on
   the TV, the room, the computer, the radio) with a WebGL profiler injected ahead of the page (`glProfiler.js`: GPU
   timer queries, draw calls, the pixels of every pass, the main thread's time in each WebGL call), on a desktop or a
   phone-sized viewport with CPU throttling, in Chromium or WebKit; `--config '{"slowGpu":60}'` overloads the GPU to
-  watch the governor work, `--shots` takes the same poses of any build. `node scripts/perf/counterfactuals.mjs`
+  watch the governor work (every frame's WebGL calls are asked of the GPU that many times; `slowBake` does the same to
+  the bake's draws, which are outside the frames, and `repeat` replays inside each frame's timer query), `--shots` takes the same poses of any build. `node scripts/perf/counterfactuals.mjs`
   switches each effect and pass off in turn. CPU throttling does not slow the GPU: a phone's GPU is reasoned about from
   the pixels a frame shades and each pass's share.
 
@@ -455,13 +711,306 @@ over so the GPU's time stands clear of its timer's noise), and so what was and w
 - A frame's GPU time goes with its pixels more than with anything in it: 3 MP costs 3.6 ms, a phone's 1.3 MP 1.4 ms.
   One pixel ratio step (2 → 1.5) takes 32 % off; no single effect takes more than 17 %.
 - By effect, at the TV on a phone's 1.3 MP: the scene target's multisampling 15 %, the composite's bloom taps 13 %
-  (all of the composite's finish 17 %), half-float targets 11 %, varnish 10 %, the robot's eyes 9 %, the CRT shader
+  (all of the composite's finish 17 %), half-float targets 11 %, varnish 10 %, the eyes of a toy robot that stood beside the set 9 % (a per-pixel term; the bare-bulb lamp that took its place is baked), the CRT shader
   9 %, the canvas's own multisampling 4 %; the TV's area light, the opal lamp, the haze volumes, the rain and the dust
   are each within the measurement's noise (± 3 %). So the lights and the air stay on every tier.
 - The main thread's dearest call at the TV is the picture's upload (`texSubImage2D` of the 320 × 240 canvas): 2 ms a
   frame at 6× CPU in Chromium, and in WebKit 2.5–3.5 ms unthrottled, where it reads the canvas back from the GPU
   process. Nothing tried makes it cheaper there (a CPU canvas makes it 10 ms; `getImageData` saves a third in WebKit
   and costs Chromium 86 ms), so it stays as it is.
+
+## The generated room
+
+The room every visitor gets is made in the browser (`src/room/gen/`): the TV set, its cabinet and game cases, the opal
+lamp, the bare-bulb lamp, the plant, the floor, rug, walls, ceilings, door, window and blind, the view outside, the desk
+corner and the computer, the dresser, guitar, lava lamp, console and CD player. No model or texture is fetched and
+none is shipped (§ Assets); the two screens' glass are display meshes made on the main thread (`tv/tvGlass.ts`,
+`pc/pcGlass.ts`).
+
+- **Who builds what, when.** `createRoom` makes the stage and, at once, a `GeneratedRoom` (in the room's chunk: it is
+  on the room's critical path), which starts the worker and, while that builds, compiles the bake's programs on a
+  bake of nothing. The worker hands back every prop as flat arrays (0.12–0.2 s for the tiers' 74–127 k triangles in the lab's
+  development build on an Apple M4; `generatedStats.buildMs`).
+  The main thread then, a task at a time so the game starting on the still is not held up (each slice yields to an idle
+  page, at most 120 ms on a busy one): paints the prints, makes the meshes, wires the room to them (`assembleRoom`:
+  the glasses, the devices, the camera, the interaction), makes the bake and compiles the display's programs, and
+  bakes. `ready` resolves when what the TV view shows is lit and drawn.
+- **The bake is ordered.** Its chart quads are cut into cells of at most half a metre (`kit/charts.ts`); the cells the
+  opening view's frustum touches, widened by 12 %, are the first pass (`generatedStats.openingShare`: 1 % of them at 1440 × 900 on the top tier, 4 % on the lowest,
+  whose cells are fewer), with every prop's
+  vertices; `Baker.begin` limits each view's light to a part of the receivers. That pass runs unit after unit as fast
+  as the GPU takes them, and the stage draws no frame meanwhile (`RoomStage.held`: the startup still covers the
+  canvas, so a frame would be a picture nobody sees that every unit queues behind on the GPU): about 100 ms on an
+  Apple M4. The second pass, the other cells, runs behind the running game (Pacing, below): about 0.5 s there, behind
+  the title screen or a level. Both passes render every view's shadow map, so the order costs the bake one
+  more depth render a view and no light.
+- **Leaving early.** No view but the TV's is shown before the second pass is done: a request for another view waits
+  for it (`GeneratedRoom.whenWhole`, through `ViewController.whenReady`), and while one waits the stage is held again, for 1.5 s at most
+  (`HURRY_HOLD_MS`): the TV's picture stands still on the game's PAUSE, the units take 12 ms of GPU each and follow each other as fast as
+  the GPU takes them, so the wait is the GPU's time for what is left and not a frame's time for every view. A GPU that
+  needs longer gets its frames back and the bake goes on a view at a time behind them. The room is whole when the GPU
+  says so: a pass's last unit is waited for like every other (a fence), the pass that lights the rest of the room
+  included, which reads nothing back. (It used to end the task after its last unit was handed over, with the
+  composing of every page still on the GPU, and the camera that had waited for it set off into that: § Flights.)
+  A viewport or inset change that
+  makes the TV view show cells its pass left out hurries the rest the same way (`reframed`); a resized canvas gets its
+  one frame while held.
+- **Picking.** A click is tested against the props' own triangles: the TV set and the monitor are meshes of their own
+  (scene.ts moves the desktop set's triangles inside `PC_SPEC.shell` into `monitor`), the desk's and the dresser's
+  flat faces are their chart meshes, and the keyboard, the mouse, the chair, the tower, the lamp and the basket are
+  index ranges of the desk corner's props mesh (`PropStats.ranges`) as meshes that are never drawn (`pickMesh`), and
+  never compiled: `GeneratedRoom` takes them out of the scene for `stage.prepare`, because `renderer.compile` prepares
+  invisible meshes too and theirs would be a program nothing draws.
+- **Loss and failure.** A lost context takes the pages (the vertices' colours are kept and uploaded again): the bake's
+  targets are freed in the `webglcontextlost` handler, where a lost context takes the calls in silence, `room.shown`
+  turns false, and on the restore the prints are painted again and the bake runs again, TV view first when the camera
+  is there (0.3 s on an M4; the result is the same light, `e2e/gpu-reset.spec.ts`). Away from the TV the canvas shows
+  the room's props with unlit, black flat surfaces for that long (§ Known gaps). No worker and no main-thread build, a bake that throws or
+  one that lights nothing: `ready` rejects and the app shows the flat television.
+- **Geometry** is code: each prop is a function that adds placed primitives (lofted rounded rings, bevelled boxes,
+  lathes, cylinders) to a builder (`gen/kit/builder.ts`, `gen/props/`). `gen/scene.ts` runs them all, in a worker
+  (`gen/worker.ts`; on the main thread where a worker cannot be had, as the `roomBuilder` chunk), and hands back flat
+  arrays. Every prop declares a triangle budget that `gen.test.ts` holds it to. Flat surfaces
+  (the cabinet's faces, the floor, the wall, the printed covers) are *charts*: rectangles packed into texture pages at
+  their own texel density (`gen/kit/charts.ts`), so nothing is unwrapped.
+- **Surfaces** are functions (`gen/materials.ts`): oak boards, enamel, painted beadboard, evaluated once per texel by
+  the bake. Their noise is integer hashes (`gen/kit/hash.ts`), exact in GLSL ES 3.0 and in JavaScript, so every GPU
+  draws the same grain. Prints (the fictional game covers, the set's legends and wordmark, the console's) are
+  painted on one 2D canvas (`gen/artPaint.ts`), and painted again when a GPU reset blanks it (§ Lost canvases).
+- **Light** is a table of nineteen lights (`gen/rig.ts`, The night's rig below): the colours of the rig the room was
+  first lit with in Blender, places read off the room. `gen/bake/Baker.ts` renders each light once from several
+  points of its emitter (144 views on `high` and `medium`, 78 on `low`, each rendered in both passes, so
+  `generatedStats.views` is 288 and 156; a fill that nothing shadows needs no shadow map), each through a shadow
+  map of the room's real geometry (read as a tent over nine texels, so an edge is a ramp and not the map's staircase), and adds it to the charts' light pages and to a page holding one texel per prop
+  vertex: soft shadows by accumulation, which a frame could never afford and a load can. It then composes surface ×
+  light under the display curve into the pages the charts draw with, and reads the vertices' colours back. Without
+  half-float render targets it accumulates in eight bits.
+- **The display curve** (`gen/bake/shaders.ts` › `display`): scene-linear `c = albedo × light × exposure`, then a toe
+  and a shoulder, `c ← c^1.4` and `c ← 1.15 c / (c + 0.3475)`, which stand in for the filmic transform the Blender
+  bake held (AgX, medium-high contrast); after it the lamps' warm pools and the two `finish` lights are added in the
+  finish's own terms. The renderer does no tone mapping of its own (§ Assets).
+- **The finish's static lights are in the bake.** The opal lamp, the bare bulb and the lamps' warm pools never
+  change, so the generated surfaces carry them, in the finish's own terms and with real shadows, and their materials
+  names say so; the per-frame surface shader (`RoomGloss`) has no such terms any more. What runs every frame is what
+  changes: the TV's light, the storm, the varnish. The bake reads the mood once; a mood changed
+  afterwards (the lab) keeps the pools and lamp it was baked with.
+- **A frame**: unlit materials named for the finish (their varnish and sheen), one map or vertex colours; what the
+  views draw is under § Rendering and performance › Cost.
+- **Pacing** (`gen/bake/pace.ts`). A view is drawn in pieces (its shadow map, each page's light, the vertices' light:
+  `Baker.step(pieces)`; the shadow map is the bake's own target and waits there between units), and a unit is as many
+  pieces as the GPU has been seen to finish in 4 ms, at least one. After the views a pass composes its pages, and
+  that is pieces too: sixteen slices of about the same texel area a page (`composeSlices`), a page cleared by its
+  first slice ever and never again (a later pass draws over the pages the room's frames are showing), its mip chain
+  made with its last. In one piece the composing of the four pages was the bake's largest draw by far and no frame
+  got past it. A reading (a timer query's, or the wait for the
+  unit's fence) can only be too long, a frame's work having been on the GPU ahead of the unit, so behind the room's
+  frames a piece is taken to cost the smallest of the last three. IdleWork decides when the main thread runs a unit,
+  between a playing game's frames; one it has not run for 100 ms runs anyway (a main thread that is never idle while
+  the game plays), except while the camera flies or the tube turns on. The next is not queued until a fence says the
+  GPU has the last one behind it, so frames always go in between. When three units in a row say a single piece takes
+  over 5 ms, the units are spaced out to a quarter of the GPU's time and never more than 100 ms apart
+  (`generatedStats.deferred`): the rest of the room arrives however slow the GPU, where it used to wait for a quiet
+  moment that a visitor at the title screen never gives it. A game being played comes first: every frame of the room
+  that comes a fifth later than frames are meant to here (over 20 ms on a 60 Hz display, over 40 ms on one capped at
+  thirty a second: § Quality › A capped display) halves what the bake's units take, down to an eighth, and rests the
+  bake up to 100 ms between them; frames on time give it back a tenth at a time (`BakePace.frame`). A visitor waiting
+  to leave, and the opening pass, are not paced by frames at all. The bake's programs and the display materials' link
+  without blocking where the GPU allows it.
+- **A slow GPU.** The opening pass times its own units (nothing else draws, so the wait for a unit's fence is the
+  bake's time); when the quickest of its first five says the pass would take over 0.8 s (`OPENING_BUDGET_MS`), the bake
+  starts over with the lowest tier's sample counts whatever the tier (`generatedStats.profile` `short`: 77 views a pass
+  instead of 143, so penumbras in fewer steps; the shadow map and the pages stay the tier's). A GPU about twenty times
+  slower than an Apple M4 Pro's gets it; that machine and anything within ten times of it bake as before, pixel for
+  pixel. Measured with the perf script's stand-ins (§ Quality › Measuring it: every frame and every draw of the bake
+  asked of the M4 Pro's GPU 48 times, which is not a phone), medians of three:
+  at 1440 × 900 on the top tier the room is ready in 2.9 s (16.3 s before the bake was paced this way; 0.55 s
+  unslowed) and a visitor who leaves in that frame waits 0.8 s (12.1 s; 0.2 s); at a phone's size on the middle tier,
+  with the CPU throttled six times, 3.1 s (10.4 s; 1.5 s) and 0.9 s (7.4 s; 0.3 s). The time to ready that is left
+  is the opening pass itself, most of it the props' vertices, lit as points in every view, and the three or four
+  frames that find the quality to show the room at (§ Quality › Before the first frame: 0.3–0.4 s on that stand-in,
+  none measurable unslowed). With a level started as the room turns ready, the same stand-ins then hold 62–66 frames
+  a second from the first second on the desktop (`low × 0.85`) and 56–64 on the phone (`low × 0.7`, where its
+  throttled main thread is the limit), and the whole room is lit 2.8 s and 0.9 s after ready.
+- **Tiers** (`gen/tiers.ts`, read once from the starting tier): `high` packs charts at full density into pages up to
+  2048² (four pages, 89 MB with mips) and bakes light at half the pages' size; `medium` and `low` use half the
+  density in 1024² pages (22 MB); `low` also halves the shadow map and the samples (which a GPU measured slow takes on any tier: A slow GPU, above). The bake's own targets peak at
+  46 MB (38 MB on `low`) and are freed when it ends.
+- **Frames at rest.** While the room is lit its loop is paced (`RenderLoop.pace`, § Rendering and performance ›
+  Frames): at full pace (the display's own frames, sixty a second on 60 and 120 Hz displays) until the whole room is
+  lit and its quality has been seen to hold, and whenever something asks; then only as often as what moves by itself
+  needs, and none while nothing moves, the canvas is off screen or the tab is hidden. Measured on this Mac's GPU
+  (`node scripts/perf/rest.mjs`, the camera still and nobody touching anything, against the build that drew sixty in
+  every view; the energy proxy is the renderer's and GPU process's CPU, cores busy, not watts):
+
+  | View (desktop top tier) | Frames a second | GPU ms a second | Main thread ms a second | Energy proxy |
+  | --- | --- | --- | --- | --- |
+  | TV, the game paused | 60 → 0 | 295 → 0 | 28 → 14 | 0.15 → 0.10 |
+  | TV, the game running | 60 → 60 (the game's own frames) | 299 → 263 | 112 → 135 | 0.54 → 0.65 |
+  | the room view (the rain) | 60 → 32.7 | 354 → 164 | 121 → 72 | 0.49 → 0.28 |
+  | at the computer (the rain behind the screen, top tier only) | 60 → 32.0 | 113 → 92 | 94 → 63 | 0.49 → 0.30 |
+  | at the radio, the discs afloat | 60 → 33.9 | 333 → 161 | 116 → 80 | 0.47 → 0.31 |
+  | at the radio, the discs settled (the dust) | 60 → 20.2 | 358 → 109 | 101 → 53 | 0.46 → 0.22 |
+
+  The phone stand-in and the lowest tier go the same way (the phone's room view 60 → 20, its framing leaving the
+  window's rain out and the dust asking for 20; at the computer below the top tier and at a paused TV nothing at all,
+  not even a frame callback: the phone stand-in's paused TV 95 → 11 ms a second of main thread, proxy 0.50 → 0.09).
+  The game's rows are unchanged by design and move with the machine: two runs of the same "before" build differed
+  by 43 and 112 ms a second of main thread at the title. The full tables, both
+  framings and tiers: `.shots/flights/NOTES.md` › Second stage.
+
+- **The lava lamp** (`gen/props/lavaLamp.ts` the generator; `gen/props/lavaWax.ts` its measurements and the wax's
+  pose, plain arithmetic kept apart so the room's chunk carries no generator; `gen/LavaWax.ts`): a lathed foot and
+  cap in the baked props, the bottle as a film of added light, and wax that is a function of the clock. Six blobs ride
+  the bottle's axis on periods that share no multiple (23 to 79 s), each a soft kernel stretched along its way; the
+  wax's surface is where their sum with the pool's crosses a threshold, so blobs grow necks, merge and part. Around
+  the axis it is a circle, so the whole of it is a lathe of 56 moving rings (560 vertices, 1,120 triangles) that
+  `poseWax` fills in about 0.013 ms, at most thirty times a second, and only while the lamp is in the frustum, the
+  canvas on screen, the tab visible and reduced motion off (then it stands in one pose). No shader of its own, no
+  texture, no clip: two unlit vertex-colour programs that are the same on every tier, the wax's and the glass's, which
+  the bare bulb's glass shares. The bottle is one front-faced draw whose index holds every triangle twice, once wound
+  each way, so both its walls add their light without the two passes, and two programs, of a double-sided blended
+  material. It asks for no frame of its own: while it moves it tells the loop so (`RenderLoop.ambient`, twelve
+  frames a second, its wax moving a pixel in a second), and every frame drawn for whatever cause poses it for the
+  next; `stats.lavaRunning` says whether it moves.
+- **The CD player** (`gen/props/radio.ts`, `gen/GeneratedRadio.ts`) is generated part by part: the body, the lid and
+  its underside, the rocker's two halves, the side keys, the well and the plate that closes the body under a shut lid,
+  nine vertex-lit meshes and no texture (its legends are a strip of the art page, `gen/radioArt.ts`). `RADIO_SPEC`
+  (`gen/props/radioSpec.ts`, the constants the generator builds from) is the machine's measurements (hinge, rocker pivot, key travel, turntable, slot, well, display, lamp,
+  bounds), and the geometry is built from it; `radio.test.ts` holds it to the constants the cameras, the choreography
+  and the overlays use (`DECK`, `LID_FRAMING`, `RADIO_FIXTURE`, `RADIO_ANCHOR`) within half a millimetre. The device
+  takes its parts from the generated room (`radio/partsProvider.ts`): it waits for their light and hangs nothing
+  itself (`GeneratedRadio` has the parts on their pivots). In the bake only the body casts a shadow: the well is lit
+  through the open hole and the lid's underside is generated, and lit, where the open lid holds it, then hung on the
+  pivot turned back by the open angle. Vertex colours rather than charted pages: the radio is curved, moulded and
+  moving, a chart is a flat rectangle, and at the close-up's 3.6 device pixels a millimetre its panel alone would want
+  a 2048² page (22 MB with mips) where the vertices cost 0.6 MB and nothing to upload.
+- **The night's rig** (`gen/rig.ts`; what each light is for and what explains it: ROOM-ART-DIRECTION.md › The
+  light). Each of the seven lights of the Blender rig has its counterpart, by the names
+  the table's comments quote: the warm attic practical, which had no fitting and is now the lamps' own dim warm
+  bounce (`pool`, with `bounce` and `floor` for what its pool sends back up), the TV's reflected blue (`tv-glow`, and `fill` on the left wall), the blue-hour window (`moon`,
+  `moon-through-blind`, `moon-on-blind`), the window's reflected corner fill (`blind-scatter`, and `fill`), the lava
+  lamp's amber spill (`lava`, `lava-spill`), the tungsten task light (`desk`, `desk-wall`, `desk-fill`) and the computer's CRT
+  bounce (`crt`). Beside them: the `ambient` dome that only furniture shadows (its light from below, the floor's bounce, only by
+  what stands within 1.1 m of a surface: sixteen outlines of the furniture on a ceiling are blotches), `blind` (the room's own light on the
+  slats' face), and the two `finish` lights, `opal` and `bulb`, which stand where `gen/roomSpec.ts` says the lamps
+  are (`TV_LAMP_SPEC`, `BULB_SPEC`). The window's light is a small emitter outside and above the sash, in two parts:
+  what comes under the blind (the bright patch past the desk's end) and what comes through it (a third, unstriped:
+  `clear` ends its shadow map past the slats, whose stripes a handful of emitter points cannot resolve). A pool over
+  the middle of the floor and its bounce stand for indirect light, which the bake does not compute; the desk lamp and the lava lamp are
+  small omnis that their own housings do not shadow (`clear`); what the desk lamp sends past the desk's left end is a
+  fill (`desk-wall`, the `desk` light's exact complement: its arm, the sill's horn and the casing would be drawn a metre
+  wide and hard on the walls), and the lava lamp's spill lights nothing of the dresser it stands on (`beam.facing`); the blind and the casing are lit from the room side
+  through a portal the size of the casing. Eight-bit light pages (no float colour buffers) round each pass by a hash
+  and are read through a small blur, so a hundred weak passes still sum to the light's mean.
+- **Comparing it.** `node scripts/gen-shots.mjs` shoots the four views and seventeen true-zoom crops from fixed
+  cameras (`--tier`, `--viewport desktop|phone`, `--mood`, `--eight-bit`, `--only`, `--out`); `--compare
+  docs/gen/reference` writes each beside the same picture of the room with shipped files. `docs/gen/reference/` is
+  that room's record (high and low, desktop and phone, and its posters), taken before its files were removed; it
+  cannot be taken again.
+
+- **Reading it.** `room.stats.generated` is `loading`, `opening` (the TV view lit, the rest on its way), `ready` or
+  `failed`; `generatedStats` has where the geometry was built, the views baked, the bake's main-thread and wall time
+  to the opening view and to the whole room, the opening pass's share of the cells, the longest view on the GPU,
+  whether the rest's units had to be spaced out (`deferred`), the bake's `profile`, and `marks`, the way to the first shown frame in ms since the room's creation.
+  `e2e/generated-room.spec.ts` covers it.
+- **Finely made props.** The TV set, the desk set, the chair, the desk lamp, the tower, the wire basket, the rug, the plant and the bare-bulb lamp are built to be seen
+  at arm's length (`gen/props/tvSet.ts`, `monitor.ts`, `keyboard.ts`, `mouse.ts`, `tower.ts`, `deskLamp.ts`, `chair.ts`,
+  `deskThings.ts`, `wireBasket.ts`, `plant.ts`, `cabinetLamps.ts`, the rug in `shell.ts`), to measurements read off the shipped room's models before they were removed. `gen/props/form.ts` is what they share: skins and
+  patches toned a vertex at a time (`MeshBuilder.gradient`), outlines cut along their sides so the light baked at the
+  vertices can change across a face, mouldings with eased edges, turned parts, slabs. A tone finer than the mesh shows
+  as specks a vertex wide: unevenness is kept slower than the vertices. The keyboard's 104 legends, the lock lamps'
+  words and the lamps' glow are prints on the art page (`gen/deskArt.ts`, laid out by `props/keyboardLayout.ts`).
+- **Detail by tier.** A prop builds to `PropSink.detail` (`gen/tiers.ts`: 1 on `high`, 0.6 on `medium`, 0.45 on
+  `low`): `form.segments` turns it into segments, and the smallest parts go first (a spring's coils become a striped
+  sleeve, a cap loses its bevel and dish, the louvres halve). The room is 127 k triangles at full detail, 85 k and
+  71 k below it (the shipped room: 353 k); a prop's budget in `gen.test.ts` is for full detail.
+- **Lines without multisampling.** The lowest tier draws the scene without multisampling (§ Quality), and a line of
+  geometry thinner than a pixel is then drawn only where a pixel's middle happens to fall in it: dashes, which crawl
+  when the camera moves. Across the room a pixel is 6 mm at 1440 × 900 and 12 mm on a phone; the blind's gaps are
+  4 mm and its slats' lit lips 2.4 mm, the dresser's gaps 3 mm, the casing's mouldings 8–12 mm proud. A device
+  reaches that tier three ways: it starts there (a software renderer), the measurement before the first frame puts
+  it there, or the governor drops it there later; in the last two the room was built for the tier it started on,
+  because the generators run once, before that measurement. So the parts that dash are **made twice**
+  (`PropSink.making`): *built*, as geometry, which a multisampled frame draws, and *drawn*, flat with its lines in the
+  baked surface, which a frame without multisampling draws. A room built for `high` or `medium` has both; one built
+  for `low` has the drawn making alone, as plain parts.
+  - *The flip* (`gen/makings.ts`). A mesh's two makings are two runs of its index buffer: the built one's is the mesh
+    without the drawn making, triangle for triangle in the order it always had; the drawn one's names the shared
+    triangles again and then its own, whose vertices are the mesh's last. Which run a frame draws is a draw range,
+    set in the scene's `onBeforeRender` from that frame's own target (`samples`), so the frame in which the sample
+    count changes is already right, nothing is built or baked again, and no draw call or program is added. The
+    bake's shadow maps (cameras on the casters' layers) always get the built making: it casts the room's shadows
+    whichever is shown, and both makings are lit in the one bake. While multisampled, a room with both makings is
+    the room it was, pixel for pixel.
+  - *The drawn lines* are in charts, where the bake's surface function draws them once (`gen/materials.ts`): a texel
+    takes the share of it the line covers, and the page's filter and mips keep the line whole at any distance. A
+    drawn chart is packed late (`Chart.late`), into the room the page's shelves have left, so it moves and shrinks
+    no other chart: a chart's dither is its place's, and the TV view, which the startup still is matched to, stays
+    the same picture on every tier.
+  - *The blind* is one flat sheet in the plane of the slats' room-side edges (`MATERIAL.slats`, `SLATS`): twenty
+    bands, each a face that darkens towards the slat above, the lip the desk lamp catches and the gap over it, the
+    pitch closing to the right where the cords draw the blind up, and the two ladder cords. It is a chart of the
+    walls' (no varnish, no draw of its own), lit with one normal between a slat's face and its lip (`Chart.lit`),
+    which puts its tones within a few levels of the built slats'. Where there are no slats (`low`), a plain sheet
+    behind it shadows what they did. The glazing bar's shadow, which the slats' vertices hold as a hard streak, is
+    a soft bar on the sheet's texels.
+  - *The dresser's front* is flat, in the plane of its posts' faces: the drawer and the doors reach over their 3 mm
+    gaps and carry them as joints (`JOINT`, two bits an edge in a stained chart's `params.a`), the panels carry their
+    beads. A joint lies a texel inside its own chart's edge, so the chart beside it knows nothing of it and no edge of
+    geometry crosses it: a line at an edge is cut by that edge's staircase and dashes again.
+  - *What cannot be a chart is not built that thin.* The drawn making's casing has its bead as a strip lying on the
+    leg, the leg's own paint at the strip's two edges and the bead's top and the shade beside it as tones of its
+    vertices (a line that is a ramp a pixel wide either side is whole where a face 8 mm deep is not); its band falls
+    to the board in a chamfer as wide as the band is proud, and the jamb takes the stops in and starts inside the
+    casing (no groove between eased boards). The two lift cords are one cord a pixel thick in the tone the two leave
+    on the casing. The guitar is without its strings (1.2–1.5 mm) and frets (1.8 mm): a quarter of a pixel in the
+    room's view (7.9 mm a pixel there at 1440 × 900, 6.8 on a phone), the one view at rest that shows it, and a
+    pixel only in the few closest frames of the flight to the radio; its inlays, screws and pole pieces, dots of
+    several pixels in that flight, are in both makings.
+  - *What both makings cost* (the top tier): 1,062 triangles more in memory (128.5 k; a frame draws either making's,
+    never both), an index buffer of 0.93 MB for the props' mesh, 2 % more chart texels in the same four pages, and
+    no draw, program or texture.
+  - Measured at 1440 × 900 in a room built for the top tier and drawn as the lowest draws (the scene's target
+    without samples, the narrow bloom), the room view at rest and four flights of 41 standing frames each, every line
+    through its frame's camera (a point of a line is drawn where its tone is at least half the line's own): the
+    blind's gaps are drawn along 96 % of their length where 51 % was, in runs of 160 px where 35 px were, its lips
+    along 87 % where 32 % was; the dresser's joints along 88 % where 44 % was (a phone's room built for `medium`:
+    90 % where 52 % was). A room built for the lowest tier reads the same (97 %, 84 %, 87 %). With each surface
+    brought back to its own rectangle frame by frame, what changes at fine scale between two frames of a flight is
+    1.2 levels on the blind where it was 4.2, 0.25 on the dresser's front where it was 0.48, 0.94 on the casing's
+    left leg where it was 1.65, against 0.31 on a plain piece of wall.
+- **The TV set** (`gen/props/tvSet.ts`; 11.0 k triangles at full detail, 5.6 k and 4.9 k below it, against 15.9 k for
+  the model it stands for) is built to that model's sections: a front shell whose outline is a squircle (superellipse
+  corners 6 cm long), its face crowned and its chin's edge a smile, a steep lip to the glass, a soft shoulder, a seam,
+  and the rear cover: a tray, the chassis' drum round in plan with the neck's housing, the tube's hood with its
+  cooling slots. It stands on a plinth with a bowed toe and four pads. The shell and the tray are one skin of loops
+  that are all cut at the same places (`loop`, `cutsAt`), so its lines run straight and a block of the face's quads
+  can be left out for the jacks' well, which a collar (`collar`) joins to the block's rim: a real hole, its wall and
+  floor behind the face. Keys, jacks and the lamp's body are turned parts; the speakers' louvres and the hood's slots
+  are dark strips a hair proud. Nothing is built that no view can see: the connectors on the wall under the neck face
+  the room's wall 14 cm away. The startup still's outlines are traced from this set (§ Startup).
+- **Two prop meshes.** The desk corner's props are a mesh of their own (`MeshName` `desk`), small enough about the
+  desk that the TV view's frustum leaves it out: on the top tier the opening view draws 64 k triangles, the computer's
+  84 k, the room's 120 k (§ Rendering and performance › Cost). Anything new at the desk joins it; anything that would stretch its bounds across the room does not.
+- **Relief.** A chart may be a sheet that does not lie flat (`Chart.relief`, `gen/kit/charts.ts`): cut into cells and
+  lifted off its rectangle's plane by a height function, its texels still the flat rectangle's and its light baked on
+  the lifted surface (with `emphasis`, on steeper slopes than the real ones, so soft cloth reads). The rug is one: a
+  ridge, a crease and rucks, 75 cells a side on `high`, 50 and 25 below. Past the crease of its turned corner the chart
+  dives under the boards, and the corner itself is geometry: the cloth rolled back over the pile, jute side out. The rug
+  has its own chart group (`03_Room_rug_BAKED_UNLIT`: wool takes no varnish) on the TV corner's page, which had room
+  for it at full density; the floor's page holds the boards a quarter sharper for it, in the same memory.
+- **The boards are at 6 mm** (`FLOOR`, `gen/props/types.ts`), where the shipped floor's top is and where everything
+  that stands on it was measured to stand; a prop on the floor rests on `FLOOR`, not on 0 (the game console's
+  heights are all from `FLOOR`: built from 0 it stood 6 mm into the boards).
+- **The bake's vertices are points**: a prop vertex is lit as one point on its texel (a third of the triangle it
+  used to be, to build and to upload), so the bake's longest main-thread unit is 11–14 ms for the top tier's 118 k
+  triangles on an Apple M4 (`generatedStats.longestUnitMs`).
+- **Close inspection.** `node scripts/gen-closeups.mjs --label <name> [--tier low] [--only monitor,keyboard/macro] [--studio [--gain 10]] [--still]`
+  shoots a prop from fixed cameras at arm's length (front, three-quarter, top, low, details); `--studio` lights the
+  props with a plain key and fill instead of the room's bake, to judge form and albedo whatever the rig (`--gain`
+  times as bright: the set's black plastic shows its form at 10); `--still`
+  asks for reduced motion, so the wax stands still and two runs compare pixel for pixel; `--sheet a,b,c` lays labels
+  side by side. A changed prop is held to its own pictures from before the change.
 
 ## Atmosphere
 
@@ -472,7 +1021,7 @@ first frame already has the intended finish. There are no mood controls or produ
 | Mood | Direction |
 | --- | --- |
 | Honey & dust (`honey`) | Golden lamps, tobacco-brown shadows and slowly drifting amber dust; the warmest evening. |
-| Velvet dusk (`rose`) | Peach lamplight, plum shadows, softer haze and the most dust; a nostalgic summer dream. |
+| Velvet dusk (`rose`) | Amber lamplight against the blue of a rainy night, ink-blue shadows, soft haze and the most dust; the app's finish, and the room's colour script in numbers (ROOM-ART-DIRECTION.md › The colour script). |
 | Moonlit hideaway (`midnight`) | The darkest exposure, cool blue window air, copper lamps and finer silver dust. |
 
 The bake remains the source of light and occlusion. Hard surfaces receive a shared shader extension for restrained,
@@ -518,8 +1067,8 @@ values, as the tube outshines the dim baked room more than an 8-bit display can 
   bezel's lip takes the colour of the picture's edge beside it, and the floor a metre away the picture's mean.
 - **Specular.** The set's own plastic (`device_tv_front_BAKED_UNLIT`) mirrors the picture through a satin lobe about 25°
   wide: where its mirror ray meets the picture, blurred over the lobe's footprint and weighted by Fresnel and by how
-  much of the lobe the picture fills. Its steep inner lip above and below the picture shows a blurred band of the
-  picture's edge, as on a real set; the shallower side lips mirror the room.
+  much of the lobe the picture fills. Its steep lip round the picture shows a blurred band of the picture's edge, as
+  on a real set, brightest where the lip turns onto the face (the wall beside the glass sees the picture edge on).
 - **Haze.** The composite adds single scattering of the picture's mean colour in the air in front of the set: a
   Lambertian point 25 cm behind the glass, its cos / r² intensity integrated in closed form along the view ray, over the
   cone within 1.2 m in front of the glass and from 2 m from the eye on. Across the room it hangs in front of the set;
@@ -531,7 +1080,7 @@ values, as the tube outshines the dim baked room more than an 8-bit display can 
 
 The light follows every game frame (a phosphor's afterglow lasts about a millisecond), from the mips the picture's
 upload already makes: no readback, no extra pass, draw call, render target or program. The unprocessed bake (`original`)
-has no live TV light: its own baked screen emitter is what it shows. `e2e/tv-light.spec.ts` paints the lab's picture in
+has no live TV light. `e2e/tv-light.spec.ts` paints the lab's picture in
 menu colours and checks that the lip and the tube's border take its colour, the set's front stays dark (the veil this
 replaced added 19–31 levels there), the floor before the set brightens and the far wall does not.
 
@@ -542,7 +1091,8 @@ drifting dust. Each mote checks the frame depth for occlusion and its alpha to s
 capped at five CSS pixels to avoid foreground glare. Neither haze nor particles cover live PC text.
 Rain shares the existing composite: no additional render target, draw call, shader program or texture. A camera ray
 intersects the window plane at z=-2.43 within its world bounds. Scene depth masks the frame, blinds, sash and computer.
-Rounded water lenses and fine beads distort the already-loaded exterior tree texture directly; its existing mip chain
+Rounded water lenses and fine beads distort the view outside directly (the plate behind the window, painted in code:
+`gen/artPaint.ts` › `paintExterior`); its mip chain
 softens the damp glass between drops. Moving drops pause and accelerate, leaving narrow, irregular tapered trails.
 Small warm/cool reflections and darker menisci give the clear beads volume. World-space coordinates keep them attached
 to the glass through flights. Sampling the exterior directly prevents foreground objects from bleeding into refraction.
@@ -559,87 +1109,71 @@ The shared rain/dust timer requests at most 24 frames/s and defers to existing g
 with the original bake, while hidden or context-lost, on disposal, or when both dust is zero and the window is outside
 the frustum. Reduced motion freezes rain and dust. The resolved depth adds at most 12 MB at the 3 MP cap.
 
-The finish adds six shader programs plus two linear-output material variants to the first room view
-(`e2e/programs.ts`, `ATMOSPHERE_PROGRAMS`). Reduced-motion cuts add the linear-target veil; the real radio adds its prewarmed and linear-output CD variants. The first comparison with original also compiles screen-output variants;
-subsequent switches reuse them. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse, idle frames,
+`e2e/programs.ts` is where the program counts are pinned, with what draws with each: the room holds 12 from its first
+frame without a finish, the posters add 1 and the spotlight 2, and a night finish adds 10 to that (its halation,
+highlight extraction, composition and dust, the monitor's display mask, two variants the varnish splits off, and the
+posters' linear-target variants): 25 after the first room view in the app, 27 once the radio's discs have been drawn.
+Reduced motion adds none. `e2e/room-moods.spec.ts` covers distinct colour/brightness, program reuse,
 reduced motion, the fixed production finish, dust visibility and scheduling, device navigation, TV contrast and exclusion of
 dust/haze from its picture, live-PC tint and hand-over, resize and WebGL context restoration.
 
 ### The opal lamp
 
-A small opal globe lamp stands on the right-hand end of the TV cabinet (`tools/room/tv-lamp.mjs`, the supplied
-PlexiAndOpaline Desk Lamp with its plexi box, cord and backdrop left out), so the opening TV view is not lost in the
-dark around the set. It is not in the bake: the finish lights the room with it, like the TV's picture.
+A small opal globe lamp stands on the right-hand end of the TV cabinet (`gen/props/cabinetLamps.ts` › `opalLamp`: a
+round metal foot and a 16 cm globe), so the opening TV view is not lost in the dark around the set.
 
-- **The asset.** Its node in `room.glb` (`01_TV` › `TV desk lamp`, `userData.supplied_asset = "tv-lamp"`) carries the
-  light: the globe's centre and radius, its colour and `glow`. `attachTvLamp` (`atmosphere/tvLamp.ts`) reads it when
-  the finish attaches and multiplies the globe's unlit colour by `glow` (2.8), so the globe is light past white that the
-  finish's highlights bloom around, with a halo (`RoomHalation`) and a little warm air in the composite.
-- **Diffuse.** Every baked surface `RoomGloss` extends takes the globe as a sphere light: Lambert with a slight wrap
-  (a surface just past its horizon still sees the globe's top), softened to `1 / (d² + 0.04)` (no hot spot under it)
-  and faded out from 1.4 m to 2 m. The bake stands in for albedo exactly as for the TV's light (25 × the baked colour,
-  at most 0.85). The set and the cabinet cast its shadows: each is a box (the set's measured bounds, the cabinet's),
-  and the light fades over the first 7 cm of either box the ray to the globe runs through, a soft edge like a 16 cm
-  globe's penumbra. The wall beside the set, the plant, the set's right side and the cabinet top take its light; the
-  floor in front of the cabinet takes it only past the cabinet's front edge; the set's front, behind which it stands,
-  never does. Its intensity is `TV_LAMP_INTENSITY` (0.14 × its colour in the finish's linear light).
-- **Varnish.** The varnished surfaces reflect it like the other practicals.
-- **The base.** Its metal base is a dark steel `_BAKED_UNLIT` material, so the globe above it lights it like any
-  surface. The base and the globe share one material (mapless unlit with the finish): two programs under a finish, its
-  screen and linear-target variants (`e2e/programs.ts` › `TV_LAMP_PROGRAMS`), none in the original bake.
-- **Original.** The unprocessed bake (`original`) shows the globe but no light from it, as it has no live TV light.
+- **Its light is baked.** `gen/rig.ts` › `opal` is a sphere light at the globe's centre (`TV_LAMP_SPEC`,
+  `gen/roomSpec.ts`), rendered through shadow maps of the room's geometry like every other light: Lambert with a
+  slight wrap, softened to `1 / (d² + 0.04)` and faded out from 1.4 m to 2 m. It is a `finish` light: the bake adds it
+  in the finish's own terms (`TV_LAMP_INTENSITY`, 0.14 × the lamp's colour), so the wall
+  beside the set, the plant, the set's right side and the cabinet top carry it with real shadows, and the surface
+  shader has no term for it. `gen.test.ts` holds the copy in `gen/tiers.ts` to `atmosphere/tvLamp.ts`.
+- **What a frame adds** is what depends on the eye (`atmosphere/tvLamp.ts`, two uniforms): its reflection in the
+  varnished surfaces (`RoomGloss`), a little warm air in the composite and its halo (`RoomHalation`). The globe's
+  mesh is drawn as light: its colour × `glow` (2.8), past white, which the finish's highlights bloom around.
+- **Programs.** The globe and the bulb's filament draw with the room's plain-colour program; under a finish the varnish
+  gives them a variant of their own (`e2e/programs.ts`).
+- **Original.** The unprocessed bake (`original`) has no finish lights: it shows the globe but no light from it.
 
-Re-render the startup stills (§ Startup) whenever the lamp or its light changes: they show it at the set's right.
+The startup still (§ Startup) draws the lamp, its pool and its halo.
 
-### The toy robot
+### The bulb lamp
 
-A 30 cm tin toy robot stands on the left-hand end of the TV cabinet, behind the Product Engineer case
-(`tools/room/toy-robot.mjs`, the supplied "Vintage Toy Robot" by Tom Scudder, CC-BY-4.0, `public/room/CREDITS.txt`), so
-the dark left of the set has light and something to look at. Its body turns 30° towards the room, its head (turned in
-the source) looks almost straight at the opening camera, and its eyes glow in the opal lamp's colour.
+A bare-bulb lamp stands on the left-hand end of the TV cabinet, turned most of the way down
+(`gen/props/cabinetLamps.ts` › `bulbLamp`), so the dark left of the set has light and something to look at: a lamp
+of today, a cast concrete cylinder (84 mm across, 62 high, on a cork pad) with a smooth matte black socket, and a
+clear pear-shaped bulb, 21 cm in all. It stands
+forward of the set's flank, so the room's overview sees it past the set as the TV view does beside it. Its filament
+is a cage, strung up and down between the hooks of two glass buttons on the stem, so it reads as a filament from every
+side and can be looked at. A grey cloth flex leaves the base's back, lies across the top through a small pale inline
+switch and drops behind the cabinet. It builds lighter on the lower tiers (the concrete's grain is a speck a vertex,
+so the top tier cuts the drum finer; fewer segments below it).
 
-- **The asset.** The source's 32 parts (15,475 vertices, three 1K PNGs, 2.7 MB) become one body mesh and one eye
-  mesh, simplified with meshoptimizer (`simplifyWithAttributes`, permissive across the source's hard edges and UV
-  seams, pruning slivers: about 2,500 vertices and 2,400 triangles); only the colour map ships, at 512² WebP (43 kB),
-  as the room is unlit. The robot adds 86.4 kB to `room.glb`. The body is `_BAKED_UNLIT` with its true colours dimmed
-  to the room's night (× 0.04), so the finish's albedo (25 × the colour) is the robot's own and the room's lights
-  light it. Its node (`01_TV` › `TV toy robot`, `userData.supplied_asset = "toy-robot"`) carries the eyes' light: a
-  point on each eye's bulb, 2 mm behind the glass (so neither the glass nor the face it is set in takes its own eye's
-  light), the head's facing, the beams' aim (35° below it, looking at the desk), the lamp's colour
-  (`tools/room/tv-lamp-light.mjs`, which the lamp reads too), the eyes' `glow` and the body's and legs' boxes in the
-  body's frame. `attachToyRobot` (`atmosphere/toyRobot.ts`) reads it and makes the eyes light.
-- **Ambient light, baked.** The rest of the room carries its light in its bake; the robot is not in it, so the script
-  bakes the night's ambient light into the colour map itself: texel by texel over the body's UV islands (which do not
-  overlap), the share of 48 fixed directions around the texel's face that reach 6 cm without meeting the robot or the
-  cabinet top, times a little less light from below, multiplied in linear light. The joints, the gaps under the arms
-  and the feet where they stand on the cabinet darken; the feet are also toned from the source's pale grey to a darker
-  gunmetal, so they no longer read as flat pale blocks.
-- **The eyes.** Each eye's disc in the colour map is repainted as lit glass: white in a tight core falling off round
-  to a fifth at the rim, tinted with the lamp's colour × `glow` (1.1). They are drawn as light of their own colour like
-  a display (`RoomGloss` › `EMITTERS` writes alpha 0, RoomScreens' mask): the finish's bloom spreads a small bright
-  point into a square, so it passes them by, and their glow is a small round depth-tested halo each in the lamp's
-  colour (`RoomHalation.addLamp` with a tint, `TOY_ROBOT_EYE_HALO`, 11 mm), just past the glass.
-- **Diffuse.** Each eye is a bulb behind a lens: a soft round beam along the aim, falling smoothly to a tenth off it
-  and to nothing behind the face; Lambert at the surface and the inverse square, softened only over the bulb's few
-  millimetres (`1 / (d² + 1 cm²)`), faded out from 0.9 m to 1.5 m, with the bake as albedo as for the lamp. The set's and
-  the cabinet's boxes shadow it (`tvLamp.ts` › `TV_SET`, `CABINET`), and so do the robot's own body and legs, tested in
-  the body's frame (`uRobotFrame`), each shadow softening over the first 10 cm of occluder its ray crosses. Together the
-  two eyes lay a warm pool on the cabinet top in front of the robot (the chest, a centimetre proud of the eyes, shades
-  the strip right at its feet), brightest a hand's width in front and falling off round, with the Product Engineer
-  cover in it. The cover is a print baked in the same night (`room_lit_print`) but not named like the bake, so
-  `RoomGloss` extends it by name (`BAKED_PRINTS`); the covers inside the cabinet are left as baked. Its intensity is
-  `TOY_ROBOT_EYE_INTENSITY` (0.035 × the lamp's colour per eye along the beam): along it the two together give about
-  two thirds of the lamp's light at the same distance (a lens gathers a small bulb's light into its beam), off it a
-  tenth of that; the pool stays well under the lamp's, which stands 12 cm from the cabinet top against the eyes' 27.
-- **Programs.** None added: the eyes, the body and the cover share the baked room's mapped programs, the halos the
-  halation's.
-- **Original.** The unprocessed bake shows the robot's colours and its eyes but no light from them.
+- **Its light is baked.** `gen/rig.ts` › `bulb` is a point of light at the middle of the filament (`BULB_SPEC`,
+  `gen/roomSpec.ts`), softened to `1 / (d² + 0.06)` and faded out from 1 m to 1.6 m: a warm pool on the cabinet top,
+  on the set's flank and on the wall behind. Like the opal lamp's it is a `finish` light, three fifths of its
+  intensity (`BULB_LAMP_INTENSITY`, 0.084; `gen.test.ts` holds the rig to it). The lamp itself, its flex and its switch stand
+  inside the light's `clear` and shade nothing of it: what the holder would shade lies under the base, and a base's
+  edge drawn hard on the top's few light texels is a ring of teeth around its foot.
+- **What a frame adds** is three small draws and no term in any shader. The filament is drawn as light of its own
+  colour, like a display (`RoomGloss` › `EMITTERS` writes alpha 0, `RoomScreens`' mask): the finish's bloom spreads a
+  thin bright line into squares, so it passes it by, and the glow is one round depth-tested halo about the filament
+  (`RoomHalation.addLamp` with a tint, `BULB_LAMP_HALO`, 11 cm). The glass is clear, so it is only what it reflects: a
+  film of light added to the frame in colours its generator gives it (a faint sheen, the filament's glow in it, its
+  limbs as the room's eye sees them, the window's glint), drawn like the lava lamp's bottle. The stem and the
+  buttons are glass too, and part of the same film.
+- **Programs.** None of its own: the lamp is part of the merged props, the filament shares the globe's program, the
+  halo the halation's, and the glass the program of the lava lamp's bottle (`e2e/programs.ts`).
+- **Original.** The unprocessed bake shows the lamp, its filament and its glass but no light from them.
 
-Re-render the startup stills (§ Startup) whenever the robot or its light changes: they show it at the set's left.
+The startup still does not show the lamp either.
 
 ### Rain audio
 
-`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on. The supplied
+`rain/RainSoundSlot` imports the native Web Audio implementation on idle after TV power-on, and makes the sound in
+a unit of idle work of its own once the code is in, never as it arrives: making it makes the page's first audio
+context, which holds Chromium's main thread for a tenth of a second (118 ms on an Apple M4; 3 ms in WebKit), and idle
+work never runs while the camera flies (§ Flights). The supplied
 `public/audio/attic-rain.mp3` is decoded once at 24 kHz stereo (~23 MB) and driven by one looping AudioBufferSourceNode.
 An offline equal-power crossfade blends its final eight seconds into the first eight; the loop resumes at t=8,
 continuing the incoming samples without MP3 padding or a JS timer seam. The original file is retained verbatim.
@@ -649,15 +1183,27 @@ source/playhead. Browser autoplay restrictions are retried on real gestures. Dis
 listeners and closes the context. `stats.rainReady`/`rainPlaying` expose diagnostics. `e2e/rain.spec.ts` checks the
 actual decoded loop seam, stereo/rate, all views, mute, one-source reuse and context cleanup.
 
-### Rug texture
+### The rug
 
-`tools/room/assets/rug-geometric.png` is the generated navy/white checker albedo; the original wool shading,
-folded backing, mesh and placement remain. For a targeted update, run
-`node tools/room/retexture-rug.mjs --work <dir> --prepare`, open the native restyled `room-source.blend` in Blender and
-run `tools/room/retexture-rug.py -- --work <dir>`, then run the node command without `--prepare`. It transfers source
-UVs onto the shipped geometry, bakes only the rug into its existing atlas islands and replaces that embedded image.
-Other geometry/compressed buffers remain byte-for-byte unchanged; hashes/lengths are regenerated and the GLB validated.
-`pnpm verify:room` checks the published assets.
+`gen/props/shell.ts` › `rug`: a 2.35 m square of wool 2 cm thick, turned 15° clockwise, its rim a soft shoulder over
+the cut side and the jute backing, with the corner nearest the TV rolled back over itself: a fat roll (wool this thick
+does not crease), jute side out, that comes down in a soft S and lies on the pile. Its pile is a surface function
+(`gen/materials.ts` › `rug`): navy and oatmeal checks (an old rug: the pale wool is aged, so the room's largest pattern stays under the
+lamps' pools in value) with tufts, rows of weft and the nap a brush and a vacuum cleaner
+leave, which the navy shows about three times as strongly as the ivory (dark wool does), baked like every chart.
+Changing the pattern is a change to that function; there is no image.
+
+### The window
+
+`gen/props/shell.ts` › `windowFrame`, to the shipped window's measures: a 13 cm casing (a bead at its inner edge, a
+band at its outer, a head board under a bed mould and a cap) whose face stands 87 mm proud of the wall, a stained sill
+with a rounded nose over its apron, the jamb with its stops, and two sashes, the lower in front of the upper, that meet
+at 1.65 m (`MEETING`): under the blind, where their two cam fasteners show; two hook lifts on the bottom rail. The
+blind (`BLIND`) hangs on the casing's face, in front of the opening: a head rail and valance, twenty crowned slats
+tilted open with their room-side edges low (the eye sees the night between them from below, and the rig's window light
+does not depend on them: docs › The night's rig), drawn up 47 mm crooked at the right, on ladder cords with a rung a
+slat, a bottom rail, the tilt wand at the left and the lift cords with a turned wooden pull at the right. The glass is
+not the generator's: the rain's plane stands at z = −2.43, behind both sashes (`WindowRain.ts`).
 
 ## CRT look (crtShader.ts)
 
@@ -669,12 +1215,14 @@ Power-on (≈600 ms after a 140 ms LED lead): dot → horizontal line → vertic
 
 The room owns the monitor as a device and knows nothing about what the app shows on it, just as it shows a `GameSurface` it does not understand.
 
-- **Glass contract.** `pc-base.glb`'s `PC_Interactive_Screen_base` (`interaction_id "pc-screen"`, `replaceable_screen`) faces +Z with planar UVs (v = 0 at the top); `pnpm verify:room` asserts both (within 0.5° and 0.002), because the flat DOM screen and the projector UVs depend on them. Bounds x −1.518…−1.162, y 0.929…1.213, z −1.679…−1.668 (11 mm of bulge); the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`), everything else is found at runtime.
+- **Glass contract.** The glass (`pc/pcGlass.ts`, from `PC_SPEC.glass`) is a display mesh made on the main thread, not a baked one (`interaction_id "pc-screen"`, `replaceable_screen`): a 12 × 10 grid facing +Z with planar UVs (v = 0 at the top), flat along its rim and domed 11 mm inside it, because the flat DOM screen and the projector UVs depend on that facing and those UVs. Bounds x −1.518…−1.162, y 0.929…1.213, the rim at z −1.679; the picture is that rim rectangle inset by a 10 mm tube border with 6 mm corners (`PC_PICTURE_BORDER`, `PC_PICTURE_RADIUS`). The shell, the keyboard and the desk top it measures against are `PC_SPEC` too (`gen/roomSpec.ts`), which `gen.test.ts` holds to the generated desktop set.
+
 - **Camera.** `pcViewpoint` looks exactly along −facing (zero pitch, yaw and roll) and fits the glass plus 18 mm of bezel (30 mm chin) into the whole viewport with a 2 % margin, starting at a 30° lens and widening while the eye would be further than 0.72 m from the glass (it stays clear of the chair). Clicking outside the computer is a way back to the room, so the frame always leaves 6 % of room beyond the CRT shell, on both sides of it or above it, whichever keeps the picture larger: wide and tall screens already do; squarer ones (4:3, 5:4, a window that is not maximised) step back for it, so 1024 × 768 shows the window and the wall beside the monitor round a 635 × 499 picture. Flights to and from it take the usual 1.1 s on a crane path (control point halfway across, 5 cm above the higher eye, at the desk eye's depth) that clears the chair back by 27 cm (landscape) to 18 cm (portrait); arriving, the look-at reaches the glass at 82 % of the flight, so the landing is a pure settle.
-- **Material.** The glass keeps its baked unlit `MeshBasicMaterial`, cloned with only its `map` swapped, so the computer compiles no shader program (the same count in the lab after the first room view, before and after). The baked 2048² desktop picture is disposed and its `ImageBitmap` closed at assembly, before it could ever be uploaded.
-- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture`. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is made in the background (`IdleWork`) as soon as the app hands over a painter, and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen (in the room view, at the computer and on any flight; the TV's and the radio's frames keep it out of sight, so there a stale still waits for the next flight and a resting radio draws no frame for the clock's minute): the painter's own preparation (`StillPainter.prepare`, its fonts and wallpaper) and the composition are units that may go between the game's frames, and the upload waits for a quiet moment, so the TV view allocates nothing for it. A flight that starts before the background got there finishes the job first (what is left of it, usually the upload): any flight when nothing is shown yet, a flight to or from the computer when the still is stale; and a still that went stale on the way in (a resize, the clock's minute) is repainted on the landing frame, before the live screen fades in over it. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
-- **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 2.1/255 on average (lab test card, 1440 × 900 @2).
-- **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the room draws nothing; `setLight` (e.g. a white page) renders one frame of brighter spill.
+- **Material.** The glass has an unlit `MeshBasicMaterial` with a map, cloned with only its `map` swapped for the still, so it draws with the program the room's charts already use and the computer compiles none (under a finish, the display mask gives it one variant: `e2e/programs.ts`).
+
+- **Still.** One canvas covering the glass's UV square: tube colour, the app's still painter clipped to the rounded picture, the glass finish on top, uploaded with `renderer.initTexture`. Its width follows the glass's size at the landing in render pixels (≤ 600 → 512, ≤ 900 → 768, else 1024; at most 768 when `navigator.deviceMemory` ≤ 2), so at most 1024 × 817. It is made in the background (`IdleWork`) as soon as the app hands over a painter, and again whenever `invalidateStill()` or a new size or placement makes it stale while the glass can be seen (in the room view, at the computer and on any flight; the TV's and the radio's frames keep it out of sight, so there a stale still waits for the next flight): the painter's own preparation (`StillPainter.prepare`, its fonts and wallpaper) and the composition are units that may go between the game's frames, and the upload waits for a quiet moment, so the TV view allocates nothing for it. A flight that starts before the background got there finishes the job first (what is left of it, usually the upload): any flight when nothing is shown yet, a flight to or from the computer when the still is stale; and a still that went stale on the way in (a resize, the clock's minute) is repainted on the landing frame, before the live screen fades in over it. Nothing paints per frame. Until a painter exists, or if one throws (warned once), the glass shows a 1 × 1 dark standby tube.
+- **Registration.** On every pose change the glass's UVs are replaced by a projection from the settled eye onto the rim plane, so from that eye the texture is exactly the flat rectangle the DOM covers: the hand-off differs by 1.8/255 on average (lab test card, 1440 × 900 @2; `node scripts/room-shots.mjs --only pc-handoff` prints it).
+- **Live screen.** `ScreenOverlay` lays `div[data-pc-screen]` over the picture in the overlay container: a device-pixel-snapped 2D translate, rounded clip, `contain: strict`, and the very glass-finish canvas the still uses, stretched over the glass and clipped. It is revealed in the landing frame's callback (160 ms fade unless reduced motion) and concealed synchronously in the request to leave, so the flight's first frame (identical to the still) is the next thing painted. While it is live the glass under it does not change; `setLight` (e.g. a white page) brightens the spill around it.
 - **Light spill.** Three `ScreenGlow` patches (the TV's shader and program) on the bezel lip, the desk in front of the monitor and the keyboard, tinted by the still's 1 × 1 mip or the `setLight` colour. The bezel's emitter has the picture's rounded corners, so the corners catch the same light as the border along the edges.
 - **Glass finish.** An edge shadow (23 % in the corners, 8 % at the edge midpoints, nothing over the central 70 %) and a 6.5 % warm sheen of the desk lamp at the top left, the top of their tuning range, so the screen reads as a tube's curved glass.
 
@@ -687,12 +1235,13 @@ The radio on the cabinet is the room's third device. The room owns the machine �
 | What | Where | When |
 | --- | --- | --- |
 | The door (`RadioDoor`, `room.radio`), the click target (`RadioInteractable`: the radio, its cabinet and the lamp), `radioModel` | room chunk | first load, with nothing of it solved before the room's first frame |
+| The radio itself: its body and its moving parts (`gen/props/radio.ts`), as nine vertex-lit meshes with the lid, the rocker's halves and the side keys on the pivots `RADIO_SPEC` names (`gen/GeneratedRadio.ts`) | the room's worker and bake | with the room (§ The generated room › The CD player). No file is fetched for it |
 | The deck (`RadioDeckHandle`, `ControlsLayer`, `RadioParts`, `radioFraming`, `discLayout`), with the device below in one chunk (`deckChunk.ts`, so that three.js stays in the room chunk) | lazy | imported as the camera first sets off from the TV (behind that flight), or on a prefetch or a request for the radio view, which waits for it (the latest request wins); the camera frames the radio through a hook the deck installs (`CameraRig.setRadioFraming`), the radio's pose solved when first needed and again only after a resize or new insets |
-| The device (`radio/device/**`, in the same chunk), `radio-closeup.glb` (56 KB, downloaded beside the chunk, not after it), `radio-skin-2k.webp` (179 KB, downloaded after the close-up on devices it is for, decoded off the main thread only on an intent) | lazy | `prefetch('idle')` from the app, `prefetch('intent')` when the pointer reaches a radio target in the room view or the overview's Music item takes the pointer or the keyboard, or the approach; Save-Data: intent only |
-| Preparation, one `IdleWork` unit at a time: CPU units between the frames of whatever plays (the game, the computer's screen, the discs' float) when they fit the idle period; GPU uploads (the atlas, the prints, the skin's strips) only when nothing plays, because the main thread cannot time what an upload costs a weak GPU; nothing while the camera moves. On the way to the radio and there its tasks are urgent: they also run between the flight's frames, uploads included, when they fit (the landing and the visit wait for them), and a print or a strip that has waited 400 ms for an idle period that can hold it runs in the next one anyway, one per period (judged by the longest unit so far, the close-up's assembly, none might fit between the float's frames on a fast display, and the prints would wait seconds for the float to rest) | — | parse the close-up (in meshopt's worker); check its fingerprint of `radio-base.glb`, plan all five cuts (the lid, the rocker's halves, the side keys: lists precomputed by the build, shared attributes, same material or a clone, same program) and check every part lies where the build measured it before any base mesh changes; build the well, lid underside, LCD, LED and discs; upload the close-up atlas; one label and its radial average per unit; the 2K skin, after an intent (a hover or a focus; on a touch screen, which cannot hover, the tap that starts the flight, so a phone that never visits the radio never holds its 20 MB on the GPU), in 16 strips of 128 rows (≈ 1 MB, a millisecond each) with the mipmaps on the last, so no unit is the whole 2048² upload (30–40 ms, 80 ms on a slow phone) and the skin is up within moments of the arrival |
-| The disc program | — | compiled with `renderer.compileAsync` at the approach, never at idle: the first room view and the computer keep their count (The CD player › Frames and budgets); the radio adds one. The discs rise only once it is ready (one that rose before would appear mid-air). Shader error checks (a synchronous GPU read per program) run in development only |
+| The device (`radio/device/**`, in the same chunk) | lazy | made on `prefetch('idle')` from the app, `prefetch('intent')` when the pointer reaches a radio target in the room view or the overview's Music item takes the pointer or the keyboard, or the approach; Save-Data: intent only. It waits for the generated room's radio to be lit (`host.generated.ready`), takes its parts from it (`partsProvider.ts`) and makes the LCD, the LED and the discs in one `IdleWork` unit |
+| The labels, one `IdleWork` unit each: a label's upload and its radial average. Uploads wait for a moment where nothing plays, because the main thread cannot time what an upload costs a weak GPU; nothing while the camera moves. On the way to the radio and there its tasks are urgent: they also run between the flight's frames when they fit (the landing and the visit wait for them), and a print that has waited 400 ms for an idle period that can hold it runs in the next one anyway, one per period | — | as the app hands the prints over |
+| The disc program | — | compiled with `renderer.compileAsync` at the approach, never at idle. The discs rise only once it is ready (one that rose before would appear mid-air). Shader error checks (a synchronous GPU read per program) run in development only |
 
-Nothing of the radio is requested before the first room view (`e2e/radio-deck.spec.ts`, and in the real app `e2e/radio-flow.spec.ts`). In the app, `prefetch('idle')` comes 0.4 s after the camera rests in the room view, so a visitor who heads for the radio at once still finds its device preparing on the way, and the player 3 s after (docs/RADIO.md › Loading). Nothing the device prepares reads the GPU back: the slow tier's software-renderer test is the stage's `softwareGpu`, read once when the renderer is made, and the app paints its prints on CPU canvases. Away from the radio a new deck state draws nothing (the lid is shut and the choreography is a function of time, so the next visit samples it). The discs rise whether or not their prints are there; the prints show together once the last is up, fading in over the bare silver in 260 ms at the radio. A close-up that fails to load, a fingerprint or a cut part that does not match (a room rebuild without `pnpm build:radio`) or a chunk that fails makes the radio scenery again (at runtime the fingerprint is each base mesh's vertex and triangle count, and each cut part's measured bounds; the build's SHA-256 of the geometry is checked by `pnpm verify:room`, not in the browser), its base meshes exactly as baked: `available` turns false (warned once), the overview's menu drops its Music item, the interactable answers nothing and a camera at or flying to the radio returns to the room.
+The radio's chunk is not requested before the camera first leaves the TV (`e2e/radio-deck.spec.ts`, and in the real app `e2e/radio-flow.spec.ts`). In the app, `prefetch('idle')` comes 0.4 s after the camera rests in the room view, so a visitor who heads for the radio at once still finds its device preparing on the way, and the player 3 s after (docs/RADIO.md › Loading). Nothing the device prepares reads the GPU back: the slow tier's software-renderer test is the stage's `softwareGpu`, read once when the renderer is made, and the app paints its prints on CPU canvases. Away from the radio a new deck state moves nothing (the lid is shut and the choreography is a function of time, so the next visit samples it). The discs rise whether or not their prints are there; the prints show together once the last is up, fading in over the bare silver in 260 ms at the radio. A chunk that fails to load, or a room without its radio, makes the radio scenery: `available` turns false (warned once), the overview's menu drops its Music item, the interactable answers nothing and a camera at or flying to the radio returns to the room.
 
 ### Views and interaction
 
@@ -752,76 +1301,92 @@ No disc passes through another, nor through the radio's body, the well floor bes
 
 A disc chosen before it is out (a keyboard can choose one the moment the camera lands) comes up and over to its column first and flies on from there with no wind-up: heard about 1.4 s after such a pick, against 0.95 s once the shelf is up (`e2e/radio-flow.spec.ts`). The other departures from the design's motion are its invariants' doing too: the approach is straight above the seat, so the flat disc slides under the shelf rather than past it; neighbours lean away from the eye while a disc has attention; the seat and its approach follow the well floor's measured 5.7° tilt; the side keys travel along the panel's measured normal.
 
-Reduced motion: the existing fade-cut-fade lands on the open lid with the discs in their slots (on a first visit the screen stays black until the device is ready, at most 1.2 s, so it is one cut to the open radio rather than a shut one that then snaps open); a pick seats the disc in one frame, draws ▷II pressed for 120 ms and fires `seated` in a microtask; only state-change cues sound (the latch too, when it leaves); no step outlives 300 ms. The slow tier (a software renderer, or a first flight to the radio whose median frame exceeds 34 ms) keeps the choreography on its warm timings and drops the ambient float, the 2K skin and the blink.
+Reduced motion: the existing fade-cut-fade lands on the open lid with the discs in their slots (on a first visit the screen stays black until the device is ready, at most 1.2 s, so it is one cut to the open radio rather than a shut one that then snaps open); a pick seats the disc in one frame, draws ▷II pressed for 120 ms and fires `seated` in a microtask; only state-change cues sound (the latch too, when it leaves); no step outlives 300 ms. The slow tier (a software renderer, or a first flight to the radio whose median frame exceeds 34 ms) keeps the choreography on its warm timings and drops the ambient float and the blink.
 
 ### Look
 
-- **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries the bake's three sources by name (the lilac ambient, the lava lamp as a point light, the moon from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark lilac room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp across the varnish says the disc spins. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise, the flip, the leave) reads as a silver disc, never a flat grey: a mirror brightening towards grazing, the lamp's spoke and the room's sheen across its tracks, the lamp and the moon diffracted in the first two orders (the rainbow spoke stays put while the disc turns), softly shouldered so a disc right by the lamp flashes but never burns out; a polished rim catches the room and the lamp, so overlapping discs keep their outlines. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
+- **Discs** (`discShader.ts`, one `ShaderMaterial` program for every disc, one draw call each): no three.js lights; the disc carries three of the room's sources by name (the ink-blue ambient, the lava lamp as a point light, the night from the window), constants recorded in `DISC_LIGHT` and tuned against the baked cabinet and wall. Bare foil reflects a dark ink-blue room and, where the disc has tracks (out to where its programme ends, a different radius per disc), draws the lamp's spoke across them — an anisotropic lobe through the centre pointing at the lamp — with its diffraction rainbow along it (the lamp grazes the label side, so only the third order lands in the visible), plus a dim sheen from the room's upper half; the smooth mirror band and the foil past the programme are a little brighter than the tracks' haze. Thin-film iridescence weighted by the lamp's glint shimmers when a disc tilts. Ink is lit as matte print (the lamp wraps round it) under a varnish highlight that travels as the disc drifts and brightens under attention; at play speed a still spoke of the lamp across the varnish says the disc spins. The hub is smoky polycarbonate with its moulded stacking ring. The data face (the rise, the flip, the leave) reads as a silver disc, never a flat grey: a mirror brightening towards grazing, the lamp's spoke and the room's sheen across its tracks, the lamp and the moon diffracted in the first two orders (the rainbow spoke stays put while the disc turns), softly shouldered so a disc right by the lamp flashes but never burns out; a polished rim catches the room and the lamp, so overlapping discs keep their outlines. Spin blur: six taps along the arc swept in 1/60 s, blended into the label's radial average from 0.8 to 2 rev/s, so a disc at play speed is the same image every frame and costs none.
 - **Labels**: the app's prints at `labelSize` (256, 384 or 512 from the discs' size at the radio; 256 with little memory or software GL), uploaded one per idle unit; the discs never wait for them: they show together once the last is up, fading in over the bare silver (260 ms) when the visitor is watching.
-- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the baked surfaces' own program; painted only when the readout or the blink phase changes, which draws a frame only at the radio (elsewhere the clock of a playing disc shows on the next frame drawn for another reason, so music at the computer costs no frames). The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
-- **Well and lid**: the close-up's parts, baked open in the room's Cycles scene; dark at night as the bake says, so the lamp-lit seated disc is the bright subject.
+- **LCD** (`Lcd.ts`): a 256 × 72 (512 × 144 when it lands wider than 140 render px) positive STN canvas on a quad 0.3 mm in front of the dial glass, on the charts' own program; painted only when the readout or the blink phase changes, and asks for a frame only at the radio. The empty radio's `no dISC` is painted as the device is made, so lighting it on the approach repaints nothing. Its material's colour is its backlight level and nobody else's to set: the mesh says so (`userData.ownColour`) and the prop spotlight, which brightens a lit prop's textured materials by writing their colours back every frame, leaves it out (it took the black of a display that was off and wrote it over the warm-up: a radio lit by the pointer, the menu or the first look around once its device was made showed a black display at the radio, lamp on; `Lcd.spotlight.test.ts`). The OPR LED is a `PowerLed` (`{ lensRadius: 0.0015, haloRadius: 0.010 }`), lit while the LCD is.
+- **Well and lid**: generated parts (the well with its turntable and pickup, the lid's ribbed underside), lit by the bake as the open lid shows them (§ The generated room › The CD player); dark at night, so the lamp-lit seated disc is the bright subject.
 
 ### Frames and budgets
 
-| State (real app, Apple GPU Metal, headless Chromium, 1440 × 900) | Frames/s |
-| --- | ---: |
-| At the radio, resting | 0 |
-| A disc paying attention, waking, coming to rest (`AmbientPacer`) | 30, at 1× and 6× CPU (median frame 33.2 ms on a 130 Hz headless display) |
-| Playing, resting | 1 (the clock) |
-| Playing, at the computer | 0 |
-| The first flight to the radio, its device preparing on the way (headless, uncapped) | 116–120, longest frame 10 ms (24 ms at 6× CPU) |
+The room draws at the radio as everywhere (§ Rendering and performance › Frames): at full pace while the lid, a
+disc or a key moves, and at rest thirty frames a second while the discs float, then only what the room's air needs.
+The device's own motion sits inside them: the choreography's step while something moves (every display frame), and
+the discs' float, which rides the room's frames (`RenderLoop.ride`): the discs are posed in every frame the room
+draws and the float asks for none. Beside a room that draws by itself the float must not pace frames of its own:
+`AmbientPacer`, below, restarts its grid at every frame drawn for another cause, so next to sixty of those a second
+its own never came due, and the discs stood still in 95–100 % of the frames and jumped (up to 175° for a playing
+disc) whenever something else posed them (`e2e/radio-spin.spec.ts` holds the float to every frame). The pacer is kept
+for a loop that draws on demand only.
 
-`AmbientPacer` watches the display's own frames and asks for one whenever the next would reach a slot of a 30-a-second grid, so a 60 Hz display draws every second frame, a 120 Hz one every fourth, and one in between (75 Hz, or Playwright's 62.5 Hz fake clock) mixes gaps of one and two frames and still averages 30, never more in any second (`AmbientPacer.test.ts`); a frame drawn for another cause restarts the grid a full interval after it, and a stall is followed by one interval, not a burst. The previous 33 ms timer could not see the display's frames and drew 18 a second at 60 Hz.
+Events are stamped with the time of the last frame drawn rather than `performance.now()` (`monotonicClock.ts` ›
+`eventTime`): the browser hands a pointer move over a millisecond or so into a frame, and the frame held to that time
+by the device's clock was drawn late against the next, so everything moving under a moving pointer stepped unevenly
+(7–9 % at the median on a 120 Hz display, under 0.5 % now).
 
-`stats.programs` is 9 after the first room view and at the computer (7 for the room, two for the props' spotlight once its chunk is in, § The spotlight), 10 once the radio has been visited, and one more again for the posters on a hardware GPU (see Posters › Frames and budgets); `e2e/programs.ts` is where the e2e suites pin all of it. The stage sets `renderer.debug.checkShaderErrors` only in development, for the whole room (the TV and the computer too): checking a program's link status makes the main thread wait for the driver to finish linking it, a quarter of a second for the disc's program under SwiftShader, which lacks `KHR_parallel_shader_compile`; a shader error therefore shows only in development builds. GPU memory: labels N × labelSize² × 4/3 pixels, the 512² close-up atlas, the LCD, and where it applies the 2K skin, which replaces the radio's 1K atlas (`stats.radioTexturePixels` counts all four: 5.5 M with five 384² labels and the skin). On a slow CPU (6×, the real app on the dev server): no long animation frame over 50 ms in the flights to and from the radio, the arrival, an insert or a swap; a pick is heard 0.93–0.95 s after the click. The room's first frame is unchanged by the radio (production, 6× CPU, median of six: 1,096 ms against 1,122 ms before these changes; a phone 1,132 against 1,146). Away from the radio a new layout (a phone turned in the room, at the computer or at the TV) is only noted in the resize handler and applied in the room's next idle moment (one background unit, never during a flight), or as the camera sets off for the radio if that comes first, so neither the rotation nor the click that next goes to the radio pays for the planning, and it draws no frame. The re-layout's search for clear glides works each moment of the other discs' ways out once and checks every sixth sample first: with twelve discs mid-rise it plans in 6.0 ms on average and 7.6 ms at worst on an M-series Mac (13.3 and 17.6 before), five discs in 1.7 ms. Bundle (`bundle-budgets.json`, against `feat/pc-desktop`): the radio's own code adds 2.70 kB gzip to the room chunk (the door, the click target with its cabinet and the lamp, the camera's framing hook and the model lookup) and 0.55 kB to the entry; since the build ships every shader, three.js's included, without comments, indentation or spaces inside brackets (`scripts/glslMinify.ts`), the room chunk gives back 2.79, so it is 184.49 against 184.58 and the entry 210.37 against 209.82: +0.46 kB of first-load JavaScript in all (the captain's +0.6; +5.69 before the third review moved the glue out). The lazy chunk with the deck and the device is 33.75 kB (the design's 16 kB, pending the captain's word); see docs/RADIO.md › Budgets and the budget file's note.
+`AmbientPacer` watches the display's own frames and asks for one whenever the next would reach a slot of a 30-a-second grid, so a 60 Hz display draws every second frame, a 120 Hz one every fourth, and one in between (75 Hz, or Playwright's 62.5 Hz fake clock) mixes gaps of one and two frames and still averages 30, never more in any second (`AmbientPacer.test.ts`); a frame drawn for another cause restarts the grid a full interval after it, and a stall is followed by one interval, not a burst.
 
-### Assets
+The radio adds one shader program, the discs', and a second under a finish (compiled for the screen, then drawn into the finish's linear target); its body and parts draw with the room's vertex-lit program and the LCD with the charts'. `e2e/programs.ts` pins the counts. The stage sets `renderer.debug.checkShaderErrors` only in development, for the whole room (the TV and the computer too): checking a program's link status makes the main thread wait for the driver to finish linking it, a quarter of a second for the disc's program under SwiftShader, which lacks `KHR_parallel_shader_compile`; a shader error therefore shows only in development builds. GPU memory: labels N × labelSize² × 4/3 pixels and the LCD, nothing else, since the radio itself has no texture (`stats.radioTexturePixels`: 1,056,768 with five 384² labels and the 512 × 144 LCD). Away from the radio a new layout (a phone turned in the room, at the computer or at the TV) is only noted in the resize handler and applied in the room's next idle moment (one background unit, never during a flight), or as the camera sets off for the radio if that comes first, so neither the rotation nor the click that next goes to the radio pays for the planning. The re-layout's search for clear glides works each moment of the other discs' ways out once and checks every sixth sample first: with twelve discs mid-rise it plans in 6.0 ms on average and 7.6 ms at worst on an M-series Mac, five discs in 1.7 ms. Bundle: the lazy `radioDevice` chunk is about 31 kB gzip (`pnpm report:bundle`; docs/RADIO.md › Budgets).
 
-`pnpm build:radio` (after `pnpm build:room`, which runs it too) bakes the 2K skin on the shipped radio's UVs and the parts an open lid reveals in the restyled room's own Cycles scene (`tools/room/radio_closeup.py`, two Blender processes), then proves, compresses and publishes them (`tools/room/radio-closeup.mjs`): the skin's UVs match `radio-base.glb` to 0.5/65535, the close-up carries the base's geometry and UV fingerprints, the triangle lists that cut the lid, the rocker's halves and the side keys, and the measured hinge, rocker pivot, key travel, seat, slot, well, LCD and LED. The close-up also lists the body's own tub floor, which the liner covers: the bake leaves it out (it would seal the pickup pocket and the magazine slit from every light, so they baked black), and at runtime it is drawn only while the lid is shut. Its bake adds the lava lamp's glass glow from the lamp's side and a faint bounce from the far side (docs/ROOM-ART-DIRECTION.md › CD player); the hinge barrels outside the well are re-baked in the room's light alone. Every first-load file but `radio-base.glb`, whose atlas loses the source model's lettering (`tools/room/debrand.mjs`, `debrand-base.mjs`; its geometry and UVs untouched), stays byte-identical; both new files are `lazyFiles` in `manifest.json`. `pnpm verify:room` checks the contract (sizes ≤ 80 KB and ≤ 280 KB, the fingerprints, the cut parts' shapes, the tub floor's list against the body's faces under the liner, the lid's 9 mm clearance from the antenna through 0–90°, and no brand lettering in `radio-base.glb`'s atlas or the 2K skin). See [the rebuild guide](../tools/room/README.md).
+Not measured since the radio is generated: long frames in the flights to and from the radio at 6× CPU, and the frame rate of the first flight while the device prepares.
+
+### Measurements
+
+The radio has no asset. `RADIO_SPEC` (`gen/props/radioSpec.ts`) is the machine's measurements and its generator
+(`gen/props/radio.ts`) builds from it: hinge, rocker pivot, key travel, turntable, slot, well, display, lamp, bounds.
+The constants the cameras, the choreography and the overlays use (`DECK` in `device/deckLayout.ts`, `LID_FRAMING` in
+`radioFraming.ts`, `RADIO_FIXTURE`, `RADIO_ANCHOR`) were measured on the model the room used to ship; the generated
+radio is built to them, and `gen/props/radio.test.ts` holds the two together within half a millimetre. The radio
+carries no brand: its wordmark is the site's own and its legends are plain words (`gen/radioArt.ts`).
 
 ## Posters (`posters/`)
 
-Twenty-nine printed pieces and a corkboard cover the back wall and the sloped ceiling, all from 2007 or before and all from the eleven topics the captain chose (the layout, the reasons and the reference study are in [ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) › Posters; every artwork's source is in `tools/room/assets/posters/SOURCES.md`). They are baked in the room's own night scene, masking tape and pins included as lit geometry, and ship as one lazy node: `posters.glb` (the cards, the tape overhangs that ramp down to the wall, the pins and the corkboard, ≈ 1,500 triangles) and one unlit WebP atlas in two tiers, `posters-2k.webp` (2048 × 1024) and `posters-1k.webp` (1024 × 512, built per island rather than resampled). None of their art is in the first load: `room.glb` is byte-identical, and what the first load gains is the room chunk's trigger and kit (`PostersSlot`, `posterKit`). Of their three lazy files, the glb and the one tier this device gets are requested from the room's first frame on, with the `posterWall` chunk, at low priority while the TV boots its game (≈ 270 KB more before the game runs; the game starts as soon as without them, 1,478 against 1,492 ms in a local production build).
+Twenty-nine printed pieces and a corkboard cover the back wall and the sloped ceiling, where the room's layout put them ([ROOM-ART-DIRECTION.md](ROOM-ART-DIRECTION.md) › Posters). Everything on them is drawn in code: no model and no picture is fetched for the walls. The artwork is original and fictional, made for this room; an earlier, unpublished collection of third-party artwork gave it only its topics: one band, The Loud Hours, across a retail poster, a tour banner, an album print, a CD single, a live pull-out and a ticket stub; the three games on the room's own shelf (Powder Rush, Crown & Key, Brick Galaxy) as shop posters, and three more that never existed (a rhythm game, a stealth game, an online world); a star chart, a patent drawing, a blueprint, a travel print, a film one-sheet, a teaser, a festival bill, two photocopied flyers, a typographic print, a bumper sticker, a sticker, and on the cork a postcard, a note, a boarding pass and a snapshot. `node scripts/poster-sheet.mjs` paints them all flat on one contact sheet (`--texels` at the density the wall carries).
 
-### Who loads what
+### Who makes what
 
 | What | Where | When |
 | --- | --- | --- |
-| `PostersSlot` (the TV-side trigger, the first-departure hook, the cut hold, `stats.posters`, `room.postersReady`) and `posterKit` (the tier choice, the per-pose visibility boxes, the two materials, the strip uploader) | room chunk | first load; nothing runs before the room's first frame |
-| `PosterWall` (the `posterWall` chunk): fetch and decode, upload, reveal, per-pose hiding, slow-flight demotion, context loss | lazy | imported by one idle unit at the TV, judged by its own 1 ms estimate (`IdleTaskOptions.estimateMs`) rather than the room's heaviest unit, and a longer room unit at the head of the queue that does not fit the idle period steps aside for it; a playing game that leaves no idle period of even that length has the first departure queue it again as urgent, sliced work |
-| One tier (`posterTier.ts`: 2K when the room view's focal length is at least 505 drawing-buffer pixels, `deviceMemory` is unknown or over 2 GB, no Save-Data, a link the browser does not estimate at 3G or slower (`effectiveType`), a hardware GPU; else 1K) and `posters.glb` | lazy | fetched (`priority: 'low'`) and decoded at the TV: `createImageBitmap` off the main thread, the glb's Meshopt parse as one unit, judged by its measured 3 ms (1.6–2.8 ms with its decode at 6× CPU; urgent and sliced, like the upload, if it has not run by the first departure). On Save-Data nothing is fetched until the visitor leaves the TV |
-| The upload | — | on a hardware GPU at the TV, as soon as the tier is decoded and the glb parsed: ordinary background work whose strips are small uploads (`IdleTaskOptions.smallUploads`), so they go between the playing game's frames, each in an idle period that can hold the previous unit and with that idle period to itself; the node is hidden there, so the first flight has nothing left to do but draw it. Unit 1 allocates the texture and compiles the one new program (`compileAsync`), judged by its measured 4 ms (3.9–4.5 ms at 6× CPU), then 8 strips of 128 rows (2K, 1 MB each) or 4 (1K) through `stage/stripUpload.ts`, shared with the radio's skin, mipmaps on the last. On a software GPU (whose GPU is the CPU drawing the game) it waits for the first departure. Whatever is left at the first departure becomes urgent and sliced: while the camera moves each strip has an idle period, or a slice after a frame, to itself. The uploader primes three's cache of the five unpack parameters when it allocates, so the page's first strip does not read them back from the GPU (each read waits for the GPU to drain: 250–780 ms on SwiftShader, 8–17 ms at 6× CPU on Metal, measured) |
+| `PostersSlot` (the TV-side trigger, the first-departure hook, the cut hold, `stats.posters`, `room.postersReady`) and `posterKit` (the tier choice, the per-pose visibility boxes, the two materials and their meshes, the strip uploader) | room chunk | first load; nothing runs before the room's first frame |
+| `PosterWall` (the `posterWall` chunk), with the layout (`wall/layout.ts`) and the geometry and atlas plan made from it (`wall/geometry.ts`): the door to the painter, the upload, reveal, per-pose hiding, slow-flight demotion, context loss | lazy | imported by one idle unit at the TV, judged by its own 1 ms estimate; the geometry is one unit of background work (1,343 card and 192 skirt triangles) |
+| The painter (`paint/worker.ts`): the designs (`paint/music.ts`, `games.ts`, `prints.ts`) with their kit (`paint/kit.ts`), the atlas painter (`paint/atlas.ts`) and the night's light (`wall/light.ts`) | a worker | started by the wall at the TV. It loads the site's three faces from the files the app's own `@font-face` rules name (`paint/faces.ts`), paints the whole atlas on an `OffscreenCanvas` and hands back one `ImageBitmap`; the main thread spends nothing on it |
+| The same painter as a chunk (`paint/atlas.ts`) | lazy | only where a worker or `OffscreenCanvas` cannot be had (or the worker fails): the main thread paints, a sheet per unit of background work, each unit rasterized as it ends (a canvas only records until its pixels are read), after waiting at most 2.5 s for the faces |
+| The upload | — | from the moment the atlas is painted on a hardware GPU: one unit for the storage and the program (`compileAsync`), then 1 MB strips, each a small upload that goes between the playing game's frames with an idle period to itself (`IdleTaskOptions.smallUploads`), the node hidden. On a software GPU (the lite path) it waits for the first departure, since its GPU is the CPU that draws the game. Whatever is left when the camera first leaves the TV becomes urgent, sliced work between that flight's frames |
 
-The tier is decided once and never changes: one download, no swap. The node is shown at the first frame where the texture is complete and the program compiled; on a hardware GPU that is normally at the TV, seconds before the first departure, and otherwise early in the first flight, before any piece is in frame, so the first flight already passes decorated walls. Late bytes (a visitor who leaves the TV before the decode finishes, on a slow link) fade the pieces already in frame in over 300 ms, under reduced motion too (a fade is not motion, and the room's own cuts fade); under reduced motion a cut to the room view also holds its black (`holdCut`, at most 1.2 s) while what is left needs no network (the parse, the program, the strips), and the held black is a quiet moment for `IdleWork` (`CameraRig.veiled`), so those units run in whole idle periods under it; a cut to the TV, PC or radio view never waits for the posters. `stats.posters` reads `loading`, then `staged` once the tier is decoded and the glb parsed (only the upload is left), then `ready` (on a hardware GPU normally at the TV, the node hidden there); `loading` again from a context loss until they are back; `off` when they will not show. A software GPU takes the lite path: the 1K, no skirts, no fade, no program of its own (`stats.postersPath` reads `full` or `lite`). A hardware GPU whose first flight runs slower than 30 fps (median frame over 34 ms) drops the skirts at the next moment none of the node is on screen. After a context loss the kept encoded bytes are decoded and strip-uploaded again and the node stays hidden until they are up; a loss during the upload or the fade, or while it is still queued, ends that upload (its bitmap closed) and the fade (the cards opaque again) and starts over, and a program compile from the old context no longer counts. A failed fetch, decode or parse, a glb without the posters' node among them, leaves the walls bare (warned once). However the posters fare, they hold reduced-motion cuts black for at most 1.2 s in all over the session, so a state that never resolves costs one long black, not one on every cut; `?posters=0` in the lab keeps them bare to measure what they add.
+One size is painted (`posterTier.ts`): 2048 × 1024 when the room view's focal length is at least 505 drawing-buffer pixels, `deviceMemory` is unknown or over 2 GB and the GPU is hardware; else 1024 × 512, a quarter of the pixels to paint, upload and keep, under the same coordinates. The tier is decided once and never changes. The node is shown at the first frame where the texture is complete and the program compiled; on a hardware GPU that is normally at the TV, seconds before the first departure, and otherwise early in the first flight, before any piece is in frame. A late arrival (a visitor who leaves the TV before the painter is done) fades the pieces already in frame in over 300 ms, under reduced motion too (a fade is not motion, and the room's own cuts fade); under reduced motion a cut to the room view also holds its black (`holdCut`, at most 1.2 s over the session) from the moment the atlas is painted until it is up, never while the painter or its faces are still on their way; a cut to the TV, PC or radio view never waits for the posters. `stats.posters` reads `loading`, then `staged` once the atlas is painted and the geometry built (only the upload is left), then `ready`; `loading` again from a context loss until they are back; `off` when they will not show (`?posters=0`, or no painter and no 2D canvas). A software GPU takes the lite path: the 1K, no skirts, no fade, no program of its own (`stats.postersPath`). A hardware GPU whose first flight runs slower than 30 fps drops the skirts at the next moment none of the node is on screen.
 
-`PosterWall` imports types only (`PosterWall.test.ts`): Rolldown folds a module that the room and a lazy chunk share into the room's chunk only when that lazy chunk already depends on the room's, and a runtime import of three.js or any room module from the wall split them into a common chunk on the critical path (+2.2 kB gzip, measured). The room hands those over in `posterKit` instead.
+The painted pixels are not kept: the bitmap is closed (or the main thread's canvas emptied) as the last strip goes up. After a context loss the painter is asked again and the atlas strip-uploaded again, the node hidden until it is up; a loss while the painter works, during the upload or the fade ends that and starts over, and a program compiled for the old context no longer counts. Where the main thread painted, its canvas coming back blank before it is all on the GPU (§ Lost canvases) starts the painting over too.
+
+`PosterWall`, its worker and its painter import nothing of the room's chunk at runtime (`PosterWall.test.ts` walks their imports): Rolldown folds a module that the room and a lazy chunk share into the room's chunk only when that lazy chunk already depends on the room's, and a runtime import of three.js or any room module from the wall split them into a common chunk on the critical path (+2.2 kB gzip, measured). The room hands those over in `posterKit` instead. The designs share the integer hashes of `gen/kit/hash.ts` with the generated room's lazy chunk.
+
+### The paintings
+
+A design is a small function that draws one sheet in millimetres with the 2D canvas, the site's three faces (Nunito, Chewy, Silkscreen) and the kit's few tools: gradients, a hashed starfield, a ridgeline of value noise, halftone dots sized by a tone function, sunbursts, pixel art from rows of characters, bars for small print. Each keeps to a handful of colours. The atlas carries 4 to 8.25 texels per centimetre (the layout's densities, the 2K's; the sweep test holds what the camera does with them), so a millimetre is about half a texel: designs are built from bold shapes and headline type, and small print is there to read as small print.
+
+The atlas painter gives each sheet its island (a skyline packing of the cards, the corkboard, a block of tape strips, the pins' heads and the skirts' ramp, each with a 4-texel gutter filled with its own edge for the mip levels) and then does to it what the wall does: the shadow of any sheet taped over it, the folds a pull-out came with, a corner that has come away turned from the light, a gloss sheet's sheen, its own masking tape (cream on the back wall, white paper tape on the pale slope) with the small shadow under it, paper grain from a hashed tile, and last the night's light, multiplied in. That light (`wall/light.ts`) is analytic, matched by sampled values and by eye to the offline bake the walls first had: a dim mauve fill right of the window, bluer and dimmer left of it and under the desk lamp's shade, the lava lamp's amber pool under the cluster, the slope fading from the ridge to the knee wall; a small grid of samples per sheet, interpolated. It is in the texture, so the cards stay on the room's unlit program and cost nothing per frame. The room's light rig (`gen/rig.ts`) is not used for it: that is a GPU bake into the room's own charts, and the painter runs in a worker with no GPU.
 
 ### Rendering
 
-One node, two primitives sharing the atlas. The cards draw with the room's opaque unlit `MeshBasicMaterial` program, each card 1 + 0.75 · n mm off the wall by its layer n. The skirts, a few centimetres of contact shadow around every piece (a factor of at most 1: they only darken, and they are baked without the tape, so a tape strip casts its own small shadow and no ring), are multiplied onto the wall (`MultiplyBlending`, premultiplied, no depth write). Both draw in the opaque pass, ordered rather than depth-tested against each other: the room (`renderOrder` 0), then the skirts (`POSTERS_SKIRTS_ORDER`), then the cards (`POSTERS_CARDS_ORDER`), so a card or a tape overhang always covers the skirt under it. Their polygon offsets (-1 / -1 for the cards, -2 / -2 for the skirts) only pull them over the wall; a depth test between a skirt 0.1 mm off the wall and an overhang 0.3 mm off it would be lost at oblique angles, where the offsets' slope term outweighs that gap, and multiply the overhangs nearly black (round 1's dark tape corners; `posters.spec.ts` renders the room view with and without the skirts and allows at most 5 pixels over the cards to darken, none by 8 levels or more). Their outer edge is 1 by construction (the build holds each side's ring at ≥ 0.99 before encoding and `pnpm verify:room` at ≥ 0.985 after), so they fade into the baked wall without a seam. No alpha test anywhere: the one die-cut piece, the Radiohead bear sticker, keeps a rectangular card that carries the wall and the poster edge baked under it (the stage bakes what lies under the sticker with the sticker's own sheet out of the scene, and cuts the bear in by its alpha). The full path adds exactly one program (the premultiplied, non-opaque one, shared by the multiplied skirts and the fading cards); the lite path adds none. When the camera rests in the TV, PC or radio view, and on every resize there, the node is hidden only if no item's box meets the resting frustum, so with the shipped discs up to 21:9 those views draw nothing of it, and at 32:9 at the PC or with nine or more discs at the radio it stays drawn where a piece shows. Leaving a pose never pops anything.
+One node, two meshes sharing the atlas. The cards (every sheet with a sub-grid that carries a curled corner, the tape overhangs that ramp down to the wall, the corkboard and its eight-sided pin heads) draw with the room's opaque unlit `MeshBasicMaterial` program, each card 1 + 0.75 · n mm off the wall by its layer n; their geometry carries normals only because three keys a program by whether there are any, and without them the cards would compile a second one. The skirts, a few centimetres of contact shadow around every piece, are four mitred trapezoids a piece mapped onto one small ramp of the atlas (white at its outer rows, exactly, so they fade into the wall without a seam) and multiplied onto the wall (`MultiplyBlending`, premultiplied, no depth write). Both draw in the opaque pass, ordered rather than depth-tested against each other: the room (`renderOrder` 0), then the skirts (`POSTERS_SKIRTS_ORDER`), then the cards (`POSTERS_CARDS_ORDER`), so a card or a tape overhang always covers the skirt under it. Their polygon offsets (-1 / -1 for the cards, -2 / -2 for the skirts) only pull them over the wall; a depth test between a skirt 0.1 mm off the wall and an overhang 0.3 mm off it would be lost at oblique angles (`posters.spec.ts` renders the room view with and without the skirts and allows at most 5 pixels over the cards to darken, none by 8 levels or more). No alpha test anywhere: the sticker and the cut-out logo are rectangles of white stock. The full path adds exactly one program (the premultiplied, non-opaque one, shared by the multiplied skirts and the fading cards); the lite path adds none. When the camera rests in the TV, PC or radio view, and on every resize there, the node is hidden only if no piece's box (measured from the geometry as it is built) meets the resting frustum, so with the shipped discs up to 21:9 those views draw nothing of it. Leaving a pose never pops anything.
 
 ### Frames and budgets
 
-Measured in headless Chromium on an M-series Mac, at 1440 × 900 and on a 390 × 844 phone (in brackets). The resting views in the lab against `?posters=0` (`node scripts/room-shots.mjs --only posters-perf,posters-views`, and the same with `ROOM_SHOTS_GL=swiftshader`); the TV and the first departure in the real app's production build (with `window.__room` exposed) against `feat/radio-cd`, interleaved at a load average of 5–10, with a real click or tap on the TV, so the click's own handlers, the room's first-look uploads and the radio's and computer's lazy loads are in it (the lab's `showRoom()` has none of them, and its numbers were three to ten times too kind on a slow CPU):
+Measured in headless Chromium on an M-series Mac (`node scripts/room-shots.mjs --only posters-perf,posters-views`), before the room was generated; the painter and the walls' geometry have not changed since:
 
-| | Hardware GPU (Metal ANGLE) | Software GPU (SwiftShader) |
-| --- | --- | --- |
-| Tier and GPU memory (`stats.postersTexturePixels`) | 2K: 2,097,152 texels, 8 MiB, ≈ 10.7 MiB with mipmaps, from the TV on; the 8 MiB decoded bitmap is closed as the last strip goes up | 1K: 524,288 texels, ≈ 2.7 MiB with mipmaps, from the first flight on |
-| Programs | +1 (7 → 8 after the first room view, 8 → 9 once the radio has been visited) | +0 |
-| Draw calls, room view | +2 (63 → 65 [56 → 58] in the lab with the radio prepared; 68 [59] in the app) | +1 |
-| Draw calls, TV, PC and radio views at rest | +0 (the node is hidden) | +0 |
-| Room view at rest | 23–23.5 frames/s (the lava's 24) against 23–23.5 bare; 0 under reduced motion | 5.5 / 5.5 [8.5 / 9.5] frames/s, as fast as the software renderer draws the lava (on a machine at a load average of 11 both swing between 1.5 and 8.5 from run to run, the posters never below bare); 0 under reduced motion |
-| Walls up (the last strip; the first piece enters the TV-to-room flight's frame at 400 ms) | at the TV, before the first departure: 16–32 ms after the bytes are staged, while the TV still reveals its game (1× and 6× CPU, desktop and phone), so ≈ 4 s before a departure 3 s into the game and 0.94–0.97 s before a tap the moment the game runs [6×]. With the bytes held 2.5 s so that the upload runs while the game plays: 93–324 ms [76–84 ms] after staging at 6× CPU, unit 1 4.1–4.5 ms [3.9–4.1], the strips 0.1–3.2 ms [0.1–4.0] one per idle period, and no game frame over 17 ms that the bare build does not also have (0–1 in 600, the game's first). Before this round the upload rode the first flight and at 6× CPU often came after the first piece was in frame (a fade in 5 of 8 desktop flights, at 0.79–1.28 s): the click's own long task (130–620 ms) and the room's first-look uploads (40–156 ms frames) leave that flight too few frames | 232–383 ms in eight of twelve runs, at load averages of 11–24; 474–676 ms in the other four (16–30), where the click's own frame or the next took 300–820 ms: the walls go up at the first frame after the four 1K strips (0.0–0.5 ms each) |
-| First flight, the 1.1 s after the click | 101.8–103.6 frames/s against 102.7–104.5; 6× CPU 88.2–90.9 against 87.3–91.8 [104.5–107.3 against 105.5–106.4]; the longest frame is the click's own, as bare | 5–11 frames per flight on both, set by the room's own first-look uploads (100–330 ms each, a different set each run): 7.3–9.1 frames/s against 5.5–10.9 for the same build without posters (three pairs at a load average of 13); against `feat/radio-cd` on a busier machine (11–30), 3.6–8.2 against 4.5–10.9 (nine pairs, the posters' run lower in seven, by one to three frames) |
-| A reduced-motion cut from the TV to the room view | the walls are up at the TV, so the cut neither holds nor waits for them. A tap the moment the game runs on a 6× CPU phone [375 × 667] comes before their bytes are staged: they arrive as late bytes 334–358 ms after it and fade in over 300 ms | it opens on decorated walls in every run (ready at 383–1,267 ms, five runs at load averages of 14–25). The software renderer's own stall at the room view's first frames (0.4–1.5 s with no script running; the build without posters has it too, after its shorter cut) then lands inside the fade back, so the view is clear at 1.0–3.3 s against 0.5–0.6 s without posters |
+| | |
+| --- | --- |
+| Painting | the whole atlas in 44 ms at the 2K and 15 ms at the 1K in one go, which is what the worker does, off the main thread. On the main thread (the fallback), 36 units: 45 ms in all at the 2K, median 1.1 ms, longest 4.0 ms; at 6× CPU 93 ms in all, median 1.8 ms, longest 15 ms (the star chart), and 74 ms at the 1K |
+| GPU memory (`stats.postersTexturePixels`) | 2K: 2,097,152 texels, 8 MiB, ≈ 10.7 MiB with mipmaps; 1K: 524,288 texels, ≈ 2.7 MiB. Nothing of the painting is kept on the CPU once it is up |
+| Draw calls and programs at rest | room view +2 calls (+1 on the lite path), +1 program (0) without a finish, 4 under one (`e2e/programs.ts`); TV, PC and radio views +0 |
 
-Bytes, against `feat/radio-cd`: the first load grows by the room chunk's 1.83 kB gzip (`bundle-budgets.json`, which itemises it) and nothing else (the entry's only change is the room chunk's hashed name in it, within 0.01 kB); `room.glb` and every other file the first load fetches are byte-identical (in `public/room`, `CREDITS.txt` gains the artwork's note, 915 bytes, and `manifest.json` lists it and the three lazy files; neither is fetched). Lazy, per visitor and never both tiers: `posterWall` 2.32 kB gzip, `posters.glb` 30.2 KB and `posters-2k.webp` 238.5 KB (≈ 270 KB) or `posters-1k.webp` 89.0 KB (≈ 120 KB).
+Bytes: nothing of the walls is in the first load but the room chunk's trigger and kit. Lazy, per visitor: `posterWall` about 6.7 kB gzip and the painter's worker about 18.1 kB (`pnpm report:bundle`; `bundle-budgets.json` itemises them). No file is fetched for the walls.
 
-On a software GPU the strips no longer hold the walls back. They used to come 1.6–2.6 s after the click, after the landing: the page's first strip read three's unpack state back from the GPU (The upload, above) and blocked the main thread for 250–780 ms, after which a slice judged by that strip's time never fitted again. With the state primed the four 1K strips take 0.0–0.5 ms each on the main thread, and the walls are up at the first frame after them. Every later visit and every other view is unaffected.
+### The layout
 
-### Assets
-
-`pnpm build:posters` (after `pnpm build:radio`; `pnpm build:room` runs both) builds the stage in Blender from the restyled scene (`tools/room/posters.py`: layout and packing, geometry, six whole-atlas bake passes, compose) and optimises, encodes, validates and publishes it (`tools/room/posters.mjs`). `pnpm verify:room` checks the contract: the sizes, the triangle budget, the eleven topics, the layout's keep-outs and declared overlaps, every triangle on its own item's box and surface, the decoded pixels and the skirts' outer ring; the tape's visibility is the build's own gate (the compose stage). The atlas carries 1.1 × the densest on-screen density of any resting room view; `posterVisibility.sweep.test.ts` measures the magnification from the built `posters.glb` and the shipped camera path, in drawing-buffer pixels per texel on screens up to 32:9 with the tier each size gets: 0.95 in the room view (3:4), 1.9 in the TV ↔ room flights (32:9), and up to 5.0 in the flights to and from the computer and the radio (3:4, the radio to the computer), which pass 1.25–1.6 m from the pieces over the desk for about a quarter of a second at their fastest. Holding those flights to 2 as well would take 2.5 × those pieces' density, which does not fit the 2K atlas (84 % full), so the test bounds what ships (1, 2 and 5). See [the rebuild guide](../tools/room/README.md) › Posters. The artwork is third-party, used by the captain's choice for now, and must be cleared or replaced before the site is published (`public/room/CREDITS.txt`).
+`wall/layout.ts` is the layout as code: each piece's surface, place, size, turn, layer, tape, density, finish, curls, creases and skirt widths. The tape's frames follow from it (a corner strip lies across the corner's diagonal, 4 mm onto the sheet). `wall/geometry.test.ts` holds the geometry to its triangle counts and boxes (those of the node the room first shipped); `posterVisibility.sweep.test.ts` measures the magnification from it and the shipped camera path, in drawing-buffer pixels per texel on screens up to 32:9 with the tier each size gets: 0.89 in the room view, 1.9 in the TV ↔ room flights, and up to 5.0 in the flights to and from the computer and the radio, which pass 1.25–1.6 m from the pieces over the desk for about a quarter of a second at their fastest.
 
 ## The spotlight (`spotlight/`)
 
@@ -829,12 +1394,12 @@ The room's answer to a pointer over a prop, after c-na.dev/explore's (the study:
 
 | | |
 | --- | --- |
-| What glows and bounces | the TV whole; the computer's monitor (its shell and glass: the keyboard the chair half hides would glow through it); the radio whole — its device's parts (the cut lid, the keys, the well and the discs, which hang in the scene beside it) join the prop as it lights, once they are there (`SpotlitProp.joins`, read through `radio.prepared`), so the outline, the brightening and the bounce stay whole |
+| What glows and bounces | the TV whole; the computer's monitor (its shell and glass: the keyboard the chair half hides would glow through it); the radio whole, its lid, keys and well with it (they are parts of its node) — and the device's discs, which hang in the scene beside it, join the prop as it lights, once they are there (`SpotlitProp.joins`, read through `radio.prepared`), so the outline, the brightening and the bounce stay whole |
 | Glow | after the room's frame, only while a prop has any: its meshes (position-only proxies sharing the meshes' buffers and world matrices) go into a quarter-resolution, 4× multisampled mask (red: there; green: its level), a nine-tap Gaussian across and down (σ 6 CSS px), and one full-screen triangle adds warm white (`0.50, 0.47, 0.42` in display values) outside the outline only: full from the outline to about 3 px out, gone by about 12, the c-na.dev headset's profile. Fades are exponential, 80 ms in and 110 ms out (95 % in about 240 and 330 ms); a hand-off cross-fades, each prop at its own level |
 | Brighter | the prop's textured baked materials' colour × 1.12 at full light, given back as it fades. A material it shares with a mesh outside the prop (the computer's device material is the keyboard's and the mouse's too) becomes the prop's own copy, so the lift reaches no further than the prop |
 | Jelly | the moment a prop lights: [t, across, up] keys (0, 1, 1), (0.2, 1.03, 0.97), (0.45, 0.98, 1.035), (0.7, 1.02, 0.995), (1, 1.015, 1.015) over 520 ms, smoothstepped, about the middle of its foot; it holds 1.015 while lit and goes home at an exponential rate of 8 /s (95 % in 375 ms). The same prop lit again within 500 ms of its own jelly eases back up instead (a pointer wobbling on an edge) |
 | Label point | the middle of the prop's top as it bounces, projected with the live camera after every drawn frame (`LitProp`), so the app's label rides the jelly and the parallax |
-| Holding still | the radio until its device is prepared: assembling the close-up hangs the cut parts from the radio's world pose (`closeUpAsset.ts`), so it never bounces before; it still glows and has its label. Afterwards the bounce runs in the room view only, and the device measures its world poses nowhere else |
+| Holding still | the radio until its device is prepared, so its discs never hang from a pose mid-bounce; it still glows and has its label. Afterwards the bounce runs in the room view only, and the device measures its world poses nowhere else |
 | Reduced motion | no jelly; the glow and the brighter colours still fade (a fade is not motion) |
 
 Who loads what: the door, the kit and the props' hover are in the room chunk (+0.63 kB with the props it lights; `bundle-budgets.json` itemises it); `Spotlight.ts` is the lazy `propSpotlight` chunk (3.11 kB), imported just after the first flight frame away from the TV, beside the radio's deck, and imports types only (`scripts/bundle-report.mjs`'s `propSpotlight` row, `three: 'room'`, holds it to that). Its two programs, the mask-and-blur one and the glow's, are compiled then with `compileAsync` (the mask's for a render target), so the first hover never stalls: `stats.programs` is 2 more after the first room view (`e2e/programs.ts` › `SPOTLIGHT_PROGRAMS`, `stats.spotlight` once the chunk is in). The passes add their draw calls to `stats.drawCalls` while a prop glows (the lit prop's meshes once more at a sixteenth of the pixels, and three full-screen triangles); nothing at all while none does.
@@ -843,9 +1408,13 @@ Who loads what: the door, the kit and the props' hover are in the room chunk (+0
 
 ```sh
 pnpm dev                     # then open /room-lab.html  (?clean hides the panel, ?autopower=0 keeps the TV off,
-                             #   ?view=pc or ?view=radio flies there after power-on, ?mockpc=1 puts a test card on
-                             #   the computer, ?mockradio=1 hands the radio five numbered discs and a fake player)
-node scripts/room-shots.mjs  # headless Chromium (Metal ANGLE) → .shots/room/*.png
+                             #   ?view=room, ?view=pc or ?view=radio flies there after power-on, ?mockpc=1 puts a
+                             #   test card on the computer, ?mockradio=1 hands the radio five numbered discs and a
+                             #   fake player, ?mood=original|honey|rose|midnight (the lab's default is original, the
+                             #   bake without a finish; the app's is rose), ?quality=high|medium|low, ?posters=0)
+node scripts/gen-shots.mjs   # the four views and seventeen crops from fixed cameras → .shots/gen/final/<viewport>-<tier>/
+                             #   (§ The generated room › Comparing it)
+node scripts/room-shots.mjs  # headless Chromium (Metal ANGLE) → .shots/room/*.png; `pnpm shot:room` is the same
 node scripts/room-shots.mjs --only power-on,perf
 node scripts/room-shots.mjs --only pc-desktop,pc-phone,pc-flight,pc-handoff
 node scripts/room-shots.mjs --only radio-desktop,radio-wide,radio-phone,radio-arrival,radio-insert,radio-swap,radio-press
@@ -856,17 +1425,21 @@ node scripts/room-shots.mjs --only posters-detail,posters-perf,posters-views   #
 `MockGameSurface` draws an animated test card at 320 × 240 with corner labels, a white edge ring and a crosshair at the reported pointer pixel, so mapping, pause/resume and the CRT look can be checked without the game.
 `MockPcScreen` paints the computer's still and its live screen from one test card (a 50 px grid, an edge ring, labelled corners and colour ramps), so registration and the hand-off can be measured; the lab's status line shows the view, `live`, frames, draw calls, programs and the still's pixels.
 `MockRadioApp` answers the radio like the app does (picks load and play, the keys act, a fake clock runs on the LCD) and logs every intent, cue and `seated` with its time; the lab's radio button and ▷II / ■ / ⏭ press through it.
-The shot script uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
+`room-shots.mjs` drives the lab only, so every recipe works on the generated room as it did on the shipped one; the frame rates it prints are the room's own, at rest what moves there needs (§ Rendering and performance › Frames). It uses Playwright's fake clock for frame-exact power-on and crane-flight frames and for the radio's strips (arrival 0–2200 ms, insert, swap, the rocker's press; the clock is installed before the page loads so `performance.now()` never jumps), probes pointer mapping at the picture corners, prints the hand-off difference and prints frame rates per view, per flight and per radio state (`radio-perf` also at 6× CPU).
 Set `ROOM_SHOTS_GL=swiftshader` for software GL and `CHROMIUM_PATH` to choose a browser.
 
 ## Known gaps
 
 - Clicks are ray-cast against registered interactables only, so a prop standing in front of the TV in the room view would not block a click on the TV (none does from the room viewpoint today).
-- `monitorGlow.ts` measures the desk top (y 0.785); moving the desk in Blender means re-measuring it. The TV's light measures itself from the set (`screenLight.ts`).
-- `TV_SCREEN_APERTURE` is a measured constant; re-run `scripts/inspect-tv-screen.mjs` after a TV asset change.
-- `pc-base.glb` still ships the baked 52 KB desktop picture that the room discards at assembly; strip it at the next asset rebuild (`optimize.mjs` dropping base-colour textures of `replaceable_screen` materials, asserted by `verify:room`).
-- Device "high" LODs for the PC, radio and PS2 are not loaded; the PC's base LOD carries the close-up.
-- Under software GL the room is fill-bound everywhere (flights 5–15 fps under SwiftShader, the computer's no slower than the TV's); adaptive flight resolution is a room-wide follow-up. The first frame under SwiftShader comes about 60 ms later than before the computer (it did in the previous round too).
-- The room's atlases the TV view never draws go up from the TV, 4 s after the picture is on (`assembleRoom` › `prewarm`), as small uploads between the game's frames where an idle period can hold one, else in a quiet moment or, at the latest, in the first look around's flight as before (round six: on an iPhone the first look around lagged). It costs a visitor who stays at the TV the ~120 MB of GPU memory the first look around would; KTX2/Basis textures with pre-built mipmaps would make the uploads cheap and cut texture memory by about four, a room-wide follow-up.
-- Lab screenshots come from Apple-GPU headless Chromium; real low-end/mobile GPUs are untested.
-- The radio: a room rebuild changes `radio-base.glb`'s fingerprint, so `verify:room` fails (and the radio stays scenery at runtime) until `pnpm build:radio` runs; Metal bakes of the 2K skin differ between runs by a few pixels (mean 0.05/255), the close-up is reproducible byte for byte. The rocker pivots 7 mm behind its face, so while pressed (6°, deep enough to be seen) it slides 0.7 mm across the panel and a few sub-pixel specks of the neighbouring keys' bevels can show in a close crop. A disc chosen before it is out of the radio comes out first, so it is heard 1.2–1.6 s after the pick (its own climb out of the well), not 0.95 s. A phone turned while the discs are rising or between picks can still make two discs graze: in the 5-disc sweeps (portrait 390 × 844 ↔ landscape 844 × 390) a turn with no pick touches in 18 of the swept turn times, all 2260–2430 ms after the click towards the radio (up to 7.9 mm, for one 8 ms frame; landscape to portrait none), and a pick, a turn 0–1000 ms later and another pick 0–1500 ms after it touch in 312 of 2112 runs portrait to landscape and 81 landscape to portrait (none jumps). A disc hovered within 100 ms of the pick of its neighbour on a portrait phone can come forward into the inserting disc's path (5 of 1220 runs). The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.
+- At rest the room draws what moves in it needs, thirty frames a second at the most and none where nothing moves (§ Rendering and performance › Frames), where the room with shipped files drew none and the generated room first drew sixty in every view. What that saves is measured on a Mac only (§ The generated room › Frames at rest): what it does for a phone's battery has not been measured, and neither has anything else in the lists marked "not measured since" above.
+- Leaving the TV before the whole room is baked holds the flight until it is (§ The generated room › Leaving early). Behind a playing game the rest of the bake takes about 0.5 s on an Apple M4, and a visitor who leaves in that time waits for what is left of it with the TV's picture standing still: 0.2 s on that machine, 0.8–0.9 s with its GPU made 48 times slower (§ The generated room › A slow GPU), and nothing on screen says why the camera has not set off. On a GPU that slow the room is also ready seconds later than the room with shipped files was (0.4–0.5 s whatever the GPU).
+- A context lost away from the TV shows the room's flat surfaces unlit, black under their props, until the bake has run again (0.3 s on an M4): the startup still that covers this at the TV has no counterpart for the other views.
+- Nothing has been measured on a real phone: not the build, the bake, the frame rate, the wait above nor the memory. Phone-sized viewports with a throttled CPU say nothing of a phone's GPU.
+- The numbers the room's code shares with its generators are copies held together by tests, not one source: `TV_SCREEN_APERTURE` (`tv/tvModel.ts`) against the set's lip, `DECK` and `LID_FRAMING` against `RADIO_SPEC`, the finish's lamp intensities in `gen/tiers.ts`. Moving a prop means changing the spec (`gen/roomSpec.ts`, `gen/props/radioSpec.ts`) and following the tests that fail.
+- The startup still is generated from the room (§ Startup), but not as the room is built: a change to the set, the cabinet, the lamps, the plant, their light or the TV view's framing needs `pnpm build:still` (a test fails until then), and `src/app/startup/still/camera.ts` repeats `tv/tvFraming.ts` and `camera/framing.ts` in plain numbers (a test holds it to them).
+- The bake has no indirect light: a pool and a bounce light in the rig stand for it (§ The generated room › The night's rig).
+- Left as geometry in every making, and dotted across the room in a frame without multisampling: the wire basket, the desk lamp's springs, the drawer pulls, the radio's aerial, the dresser's side rails seen edge-on (§ The generated room › Lines without multisampling).
+- A mood changed after the bake (the lab's `setMood`) keeps the lamp pools it was baked with.
+- Under software GL the room is fill-bound everywhere, and the bake's shadow maps run on the CPU; the room starts on the lowest tier there and is not governed.
+- Lab screenshots and every number in this file come from Apple-GPU headless Chromium; real low-end GPUs are untested as well.
+- The radio: the rocker pivots 7 mm behind its face, so while pressed (6°, deep enough to be seen) it slides 0.7 mm across the panel. A disc chosen before it is out of the radio comes out first, so it is heard 1.2–1.6 s after the pick (its own climb out of the well), not 0.95 s. A phone turned while the discs are rising or between picks can still make two discs graze: in the 5-disc sweeps (portrait 390 × 844 ↔ landscape 844 × 390) a turn with no pick touches in 18 of the swept turn times, all 2260–2430 ms after the click towards the radio (up to 7.9 mm, for one 8 ms frame; landscape to portrait none), and a pick, a turn 0–1000 ms later and another pick 0–1500 ms after it touch in 312 of 2112 runs portrait to landscape and 81 landscape to portrait (none jumps). A disc hovered within 100 ms of the pick of its neighbour on a portrait phone can come forward into the inserting disc's path (5 of 1220 runs). The radio's 3D keys are mouse-sized from 1280 × 720 up; phones get the app's transport bar.

@@ -8,7 +8,7 @@ Why code instead of generated paintings:
 - A 24 × 24 icon or a 5 px beam layer has no room for a downsampled painting's soft edges; hand-placed pixel maps and whole-pixel geometry hit the hand-placed bar directly.
 - Every effect shares one exact palette (`hibitfx/palette.py`), one key light and one outline rule, which a generator cannot guarantee across six skills.
 - Motion is designed frame by frame (beat sheets in `docs/looks/hibit-skills.md`); procedural frames keep a beam's tiles seamless, a bubble's wobble exact and a spin's facets lit consistently.
-- Rebuilds are pixel-identical (`build.py --check`), and no shared generation quota was spent.
+- Rebuilds are pixel-identical (`build.py --check`, against the PNGs `pnpm build:art --export src/game` writes back), and no shared generation quota was spent.
 
 ## References used
 

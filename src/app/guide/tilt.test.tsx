@@ -48,6 +48,25 @@ describe('the phone tilt look-around', () => {
     expect(setTilt.mock.lastCall?.[0].x).toBeGreaterThan(0);
   });
 
+  it("passes on a tilt the eye can see and none of the hand's tremor, so a held phone lets the room rest", () => {
+    vi.stubGlobal('DeviceOrientationEvent', class extends Event {});
+    act(() => root.render(<Harness room={room} />));
+    act(() => {
+      window.dispatchEvent(orientation(40, 0));
+    });
+    const first = setTilt.mock.calls.length;
+    act(() => {
+      // A tenth of a degree either way, sixty times: what a hand holding a phone still does.
+      for (let i = 0; i < 60; i++) window.dispatchEvent(orientation(40 + (i % 3) * 0.1 - 0.1, (i % 2) * 0.1));
+    });
+    expect(setTilt.mock.calls.length).toBe(first);
+    act(() => {
+      window.dispatchEvent(orientation(40, 1));
+    });
+    expect(setTilt.mock.calls.length).toBe(first + 1);
+    expect(setTilt.mock.lastCall?.[0].x).toBeCloseTo(1 / 18, 2);
+  });
+
   it('never asks for motion access, and has no tilt where the browser would want permission (iOS)', () => {
     const requestPermission = vi.fn(() => Promise.resolve('granted'));
     vi.stubGlobal('DeviceOrientationEvent', Object.assign(class extends Event {}, { requestPermission }));

@@ -26,6 +26,8 @@ export interface RoomGuideProps {
   readonly view: RoomView;
   /** The camera rests at `view`. */
   readonly settled: boolean;
+  /** The startup still is out of sight: the TV's way out never arrives as part of the hand-over. */
+  readonly clear: boolean;
   readonly scenes: SceneSignal;
   /** Set when the host's own way out went with the keyboard on it: the hint's button takes the focus (RoomHost.tsx). */
   readonly handOver: RefObject<boolean>;
@@ -56,7 +58,7 @@ const GO: Readonly<Record<RoomTarget, (room: Room) => void>> = {
  * in the light, and the way back from the computer and the radio. A lazy chunk the room host loads once the TV's
  * picture is up.
  */
-export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
+export function RoomGuide({ room, view, settled, clear, scenes, handOver, onFocusStage }: RoomGuideProps): ReactNode {
   const touch = useMediaQuery(COARSE_POINTER);
   const [progress, learn] = useGuideProgress();
   const lit = useLitTarget(room.spotlight);
@@ -84,7 +86,7 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
 
   const request = inRoom && !touch ? (pointed ?? touring) : null;
   useEffect(() => room.spotlight.light(request), [room, request]);
-  // Reaching for the music is intent: the radio's device and sharper skin get ready, as a hover on the radio does.
+  // Reaching for the music is intent: the radio's device gets ready even under Save-Data, as a hover on the radio does.
   useEffect(() => {
     if (pointed === 'radio') room.radio.prefetch('intent');
   }, [room, pointed]);
@@ -105,7 +107,7 @@ export function RoomGuide({ room, view, settled, scenes, handOver, onFocusStage 
     <>
       {view === 'tv' ? (
         <TvWayOut
-          due={begun && settled}
+          due={begun && settled && clear}
           returning={returning}
           onLookAround={showRoom}
           touch={touch}
@@ -269,7 +271,7 @@ function useLitTarget(spotlight: PropSpotlight): RoomTarget | null {
   );
 }
 
-/** The radio's item shows only while the radio can work (its close-up loaded or not yet tried). */
+/** The radio's item shows only while the radio can work (its device loaded or not yet tried). */
 function useRadioAvailable(room: Room): boolean {
   const subscribe = useCallback((onChange: () => void) => room.radio.onAvailableChange(onChange), [room]);
   return useSyncExternalStore(
